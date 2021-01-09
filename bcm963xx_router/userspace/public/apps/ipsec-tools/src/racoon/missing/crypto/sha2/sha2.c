@@ -35,6 +35,7 @@
  *
  */
 
+#if 0
 #include "config.h"
 
 #include <sys/types.h>
@@ -1197,3 +1198,4 @@ struct env_md_st *EVP_sha2_512(void)
 {
 	return(&sha2_512_md);
 }
+#endif

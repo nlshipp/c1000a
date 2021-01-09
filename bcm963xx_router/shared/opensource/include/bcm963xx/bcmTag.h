@@ -34,7 +34,7 @@
 #ifndef _BCMTAG_H_
 #define _BCMTAG_H_
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #include "AEI_productinfo.h"
 #define BCM_SIG_1   "Actiontec"
 #else
@@ -47,7 +47,7 @@
 // file tag (head) structure all is in clear text except validationTokens (crc, md5, sha1, etc). Total: 128 unsigned chars
 #define TAG_LEN         256
 #define TAG_VER_LEN     4
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define SIG_LEN         10
 #define SIG_LEN_2       24
 #else
@@ -89,7 +89,12 @@ typedef struct _FILE_TAG
     char kernelLen[IMAGE_LEN];          // if non zero, kernel size in clear ASCII text.
     char imageSequence[FLAG_LEN * 2];   // incrments everytime an image is flashed
     char imageVersion[IMAGE_VER_LEN];   // image version
+#if defined(AEI_TWO_IN_ONE_FIRMWARE)
+    char imageVersion_2[SIG_LEN_2];     // image version2, CL support c1000a/c2000a/c1900a 3in1 image
+    char reserved[RESERVED_LEN-SIG_LEN_2];        // reserved for later use
+#else
     char reserved[RESERVED_LEN];        // reserved for later use
+#endif
     char imageValidationToken[TOKEN_LEN];// image validation token - can be crc, md5, sha;  for
                                                  // now will be 4 unsigned char crc
     char tagValidationToken[TOKEN_LEN]; // validation token for tag(from signiture_1 to end of // mageValidationToken)
@@ -104,7 +109,7 @@ typedef struct _FILE_TAG
 #define WFI_NAND16_FLASH        2
 #define WFI_NAND128_FLASH       3
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 /* block size of flash. */
 #define NAND16_FLASH_BLOCK_SIZE        (16 * 1024)
 #define NAND128_FLASH_BLOCK_SIZE       (128 * 1024)

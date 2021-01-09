@@ -26,7 +26,7 @@
 #include "busybox.h"
 #include "libbb.h"
 
-#if defined(AEI_VDSL_SMARTLED) || defined (AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(AEI_VDSL_SMARTLED) || defined (SUPPPORT_GPL_UNDEFINED)
 #include "cms_msg.h"
 #include "cms_log.h"
 
@@ -172,7 +172,7 @@ static void set_default_dns(const char *server)
 #endif
 }
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 /* only works for IPv4 */
 static int addr_fprint(char *addr)
 {
@@ -292,7 +292,7 @@ static int is_ipv6_address(const char *s)
 
 /* ________________________________________________________________________ */
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 unsigned int get_curr_timestamp_ms()
 {
         unsigned int timestamp = 0;
@@ -327,7 +327,7 @@ static struct hostent *hostent_fprint_with_responsetime(struct hostent *host, co
 }
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined (SUPPPORT_GPL_UNDEFINED)
 void AEI_sendEventMessageForNsloopup(int flag)
 {
    char buf[sizeof(CmsMsgHeader) + sizeof(int)]={0};
@@ -385,7 +385,7 @@ int nslookup_main(int argc, char **argv)
 int nslookup_main(int argc, char **argv)
 {
 	struct hostent *host = NULL;
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 	unsigned int timestamp = 0;
 	unsigned int responsetime = 0;
 #endif
@@ -395,7 +395,7 @@ int nslookup_main(int argc, char **argv)
         int s = -1;
 #endif
 
-#if defined(AEI_VDSL_SMARTLED) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(AEI_VDSL_SMARTLED) || defined(SUPPPORT_GPL_UNDEFINED)
         cmsLog_init(EID_NSLOOKUP);
         cmsLog_setLevel(DEFAULT_LOG_LEVEL);
         cmsMsg_init(EID_NSLOOKUP, &msgHandle);
@@ -410,7 +410,7 @@ int nslookup_main(int argc, char **argv)
 	/* initialize DNS structure _res used in printing the default
 	 * name server and in the explicit name server option feature. */
 	res_init();
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 	if (argc < 2 || *argv[1]=='-' || argc > 4)
 		bb_show_usage();
 	else if(argc==3 || argc==4)
@@ -436,7 +436,7 @@ int nslookup_main(int argc, char **argv)
             s = getnameinfo((struct sockaddr *) &ip6, sizeof(struct sockaddr_in6), name, sizeof(name), NULL, 0, 0);
 #endif
         }else {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(SUPPPORT_GPL)
 		if(argc==4 && !strcmp(argv[3], "nslookup_tmp")){
 			timestamp = get_curr_timestamp_ms();
 			host = gethostbyname(argv[1]);
@@ -448,7 +448,7 @@ int nslookup_main(int argc, char **argv)
 		host = AEI_gethostbyname_txt(argv[1]);
 #endif
 	}
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(SUPPPORT_GPL)
 	if(argc==4 && !strcmp(argv[3], "nslookup_tmp")){
 		AEI_sendNslookupResult(msgHandle);
 	}else
@@ -468,7 +468,7 @@ int nslookup_main(int argc, char **argv)
 	if (is_ipv4_address(argv[1])) {
 		host = gethostbyaddr_wrapper(argv[1]);
 	} else {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 		if(argc==4 && !strcmp(argv[3], "nslookup_tmp")){
 			timestamp = get_curr_timestamp_ms();
 			host = gethostbyname(argv[1]);
@@ -478,20 +478,20 @@ int nslookup_main(int argc, char **argv)
 #endif
 		host = xgethostbyname(argv[1]);
 	}
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 	if(argc==4 && !strcmp(argv[3], "nslookup_tmp")){
 		AEI_sendNslookupResult(msgHandle);
 	}else
 #endif
 	hostent_fprint(host, "Name:  ");
 	if (host) {
-#if defined (AEI_VDSL_CUSTOMER_BELLALIANT)	    
+#if defined (SUPPPORT_GPL_UNDEFINED)	    
 	    if(!strcmp(argv[1], "www.microsoft.com")||!strcmp(argv[1], "www.google.ca")||!strcmp(argv[1], "www.bellaliant.net"))
 	        AEI_sendEventMessageForNsloopup(1);
 #endif	
 		return EXIT_SUCCESS;
 	}
-#if defined (AEI_VDSL_CUSTOMER_BELLALIANT)	    
+#if defined (SUPPPORT_GPL_UNDEFINED)	    
 	if(!strcmp(argv[1], "www.microsoft.com")||!strcmp(argv[1], "www.google.ca")||!strcmp(argv[1], "www.bellaliant.net"))
 	    AEI_sendEventMessageForNsloopup(0);
 #endif

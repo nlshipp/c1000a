@@ -36,7 +36,7 @@ int verify_packet( struct session *ses, struct pppoe_packet *p);
 
 #define TAG_DATA(type,tag_ptr) ((type *) ((struct pppoe_tag*)tag_ptr)->tag_data)
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 static int reconn=0;
 static int backoff_state=0;
 
@@ -67,7 +67,7 @@ static int getDelayTime(int reconn)
 {
    int delayTime = 0;
 
-   //PM-PRD #177786: CenturyLink Requested: WAN DHCP / PPP Attempt Back-off Implementation
+   //PM-PRD #177786: C Requested: WAN DHCP / PPP Attempt Back-off Implementation
    switch (reconn)
    {
       case 1:
@@ -570,7 +570,7 @@ int verify_packet( struct session *ses, struct pppoe_packet *p){
     else
 	poe_info(ses,"HOST_UNIQ successful match\n");
 
-#if defined (AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined (SUPPPORT_GPL)
 	if (ses->state != PADS_CODE)
 #endif
     if(ses->filt->ntag &&
@@ -697,7 +697,7 @@ int session_connect(struct session *ses)
 	usleep(100000);
     }
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     if(backoff_state)
     {
         if(reconn)

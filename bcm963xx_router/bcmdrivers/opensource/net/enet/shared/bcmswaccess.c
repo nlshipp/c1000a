@@ -319,25 +319,34 @@ void bcmsw_pmdio_rreg(int page, int reg, uint8 *data, int len)
             ((uint16 *)data)[1] = (uint16)v;
             ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
             ((uint16 *)data)[2] = (uint16)v;
-            if ((reg %4) == 0) {
-                *(uint32 *)data = swab32(*(uint32 *)data);
-                *((uint16 *)(data + 4)) = swab16(*((uint16 *)(data + 4)));
-            } else {
-                *(uint16 *)data = swab32(*(uint16 *)data);
-                *((uint32 *)(data + 2)) = swab16(*((uint32 *)(data + 2)));
-            }
+
+            // pmdio does not come from LE hosts. Ok, not being endian agnostic. 
+            *(uint16 *)data = swab16(*(uint16 *)data);
+            *(uint16 *)(data + 2) = swab16(*(uint16 *)(data + 2));
+            *(uint16 *)(data + 4) = swab16(*(uint16 *)(data + 4));
+            // swap half-words at the ends
+            *((uint16 *)(data + 0)) ^= *((uint16 *)(data + 4));
+            *((uint16 *)(data + 4)) ^= *((uint16 *)(data + 0));
+            *((uint16 *)(data + 0)) ^= *((uint16 *)(data + 4));
+               
             break;
         case 8:
+             /* 
+               MDIO or SPI should return the same byte-order
+               The caller expect it to be returned as 08:07:06:05:04:03:02:01
+               Earlier code (prior to JIRA#12013 was returning word swapped - as below :
+               MDIO : 04:03:02:01:08:07:06:05
+              */
             ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG27, &v);
-            ((uint16 *)data)[0] = (uint16)v;
-            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
-            ((uint16 *)data)[1] = (uint16)v;
-            ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
-            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
             ((uint16 *)data)[2] = (uint16)v;
-            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
+            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
             ((uint16 *)data)[3] = (uint16)v;
             ((uint32 *)data)[1] = swab32(((uint32 *)data)[1]);
+            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
+            ((uint16 *)data)[0] = (uint16)v;
+            ethsw_phy_rreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
+            ((uint16 *)data)[1] = (uint16)v;
+            ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
             break;
     }
 
@@ -378,43 +387,27 @@ void bcmsw_pmdio_wreg(int page, int reg, uint8 *data, int len)
             ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
             break;
         case 6:
-            if ((reg %4) == 0) {
-                *(uint32 *)data = swab32(*(uint32 *)data);
-                *((uint16 *)(data + 4)) = swab16(*((uint16 *)(data + 4)));
-            } else {
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-                     /*  Swab should be wrong,it will set the high 32 bits to zero.
-                      *  Don't swap for PAGE_AVTBL_ACCESS/REG_ARL_MAC_INDX_LO
-                      *  Might BCM guys make a mistake when copy above swab code.
-                      *  right code like this?
-                      *  *(uint16 *)data = swab16(*(uint16 *)data);
-                      *  *((uint32 *)(data + 2)) = swab32(*((uint32 *)(data + 2)));
-                      */
-                      if(!(page == PAGE_AVTBL_ACCESS && reg == REG_ARL_MAC_INDX_LO))
-#endif
-                      {
-                         *(uint16 *)data = swab32(*(uint16 *)data);
-                         *((uint32 *)(data + 2)) = swab16(*((uint32 *)(data + 2)));
-                      }
-            }
-            v = ((uint16 *)data)[0];
-            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
-            v = ((uint16 *)data)[1];
-            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
-            v = ((uint16 *)data)[2];
+            v = swab16(*(uint16 *)&data[0]);
             ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
+            v = swab16(*(uint16 *)&data[2]);
+            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
+            v = swab16(*(uint16 *)&data[4]);
+            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
             break;
         case 8:
-            ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
-            v = ((uint16 *)data)[0];
-            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG27, &v);
-            v = ((uint16 *)data)[1];
-            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
-            ((uint32 *)data)[1] = swab32(((uint32 *)data)[1]);
-            v = ((uint16 *)data)[2];
-            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
-            v = ((uint16 *)data)[3];
+              /*
+               The caller gives the value as 08:07:06:05:04:03:02:01(b0:..:b63)
+               Earlier code (prior to JIRA#12013 was writing as word swapped (as below):
+               MDIO : 04:03:02:01:08:07:06:05
+              */
+            v = swab16(*(uint16 *)&data[0]);
             ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG24, &v);
+            v = swab16(*(uint16 *)&data[2]);
+            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG25, &v);
+            v = swab16(*(uint16 *)&data[4]);
+            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
+            v = swab16(*(uint16 *)&data[6]);
+            ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG27, &v);
             break;
     }
 

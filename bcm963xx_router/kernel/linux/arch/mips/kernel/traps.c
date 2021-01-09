@@ -204,7 +204,7 @@ static void show_stacktrace(struct task_struct *task,
 	while ((unsigned long) sp & (PAGE_SIZE - 1)) {
 		if (i && ((i % (64 / field)) == 0))
 			printk("\n       ");
-#ifndef AEI_VDSL_CUSTOMER_NCS   /* Actiontec: Always print the entire stack in case of kernel panic */
+#ifndef SUPPPORT_GPL   /* Actiontec: Always print the entire stack in case of kernel panic */
 		if (i > 39) {
 			printk(" ...");
 			break;
@@ -254,7 +254,7 @@ void dump_stack(void)
 #endif
 
 	prepare_frametrace(&regs);
-#ifdef AEI_VDSL_CUSTOMER_NCS   /* Actiontec: Always print the entire stack in case of kernel panic */
+#ifdef SUPPPORT_GPL   /* Actiontec: Always print the entire stack in case of kernel panic */
     show_registers(&regs);
 #else
 	show_backtrace(current, &regs);

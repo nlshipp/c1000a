@@ -189,7 +189,7 @@ extern "C" {
 #define BP_GPIO_47_AH                           (47)
 #define BP_GPIO_47_AL                           (47 | BP_ACTIVE_LOW)
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define BP_GPIO_48_AH                           (48)
 #define BP_GPIO_48_AL                           (48 | BP_ACTIVE_LOW)
 #define BP_GPIO_49_AH                           (49)
@@ -744,9 +744,9 @@ int BpGetGponLedGpio( unsigned short *pusValue );
 int BpGetGponFailLedGpio( unsigned short *pusValue );
 int BpGetMoCALedGpio( unsigned short *pusValue );
 int BpGetMoCAFailLedGpio( unsigned short *pusValue );
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int BpGetWirelessFailSesLedGpio( unsigned short *pusValue );
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 int BpGetWirelessLedGpioGreen( unsigned short *pusValue );
 int BpGetWirelessLedGpioRed( unsigned short *pusValue );
 int BpGetWirelessLedGpioAct( unsigned short *pusValue );

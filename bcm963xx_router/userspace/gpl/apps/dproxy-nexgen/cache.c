@@ -254,7 +254,7 @@ void cache_add_hosts_entries(FILE *cache_file)
 	 while( (name = strtok( NULL, " \t" )) ){
 	   if(name[0] == '#')break;
 
-#if 0//defined(AEI_VDSL_CUSTOMER_NCS)
+#if 0//defined(SUPPPORT_GPL)
            if(strstr(name,config.domain_name)==NULL)
                 fprintf( cache_file, "%s.%s %s %ld\n", name,config.domain_name, ip, 0L );
            else
@@ -412,7 +412,7 @@ struct lease_t {
    char layer2Interface[32];
    u_int32_t is_stb;
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     char vendorid[256];
 #endif
 };

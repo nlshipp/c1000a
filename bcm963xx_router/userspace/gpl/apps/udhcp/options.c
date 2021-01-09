@@ -688,7 +688,7 @@ viError:
 }
 
 //brcm end
-#if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL)
 void getClientIDOption(struct dhcpMessage *packet, struct dhcpOfferedAddr *lease)
 {
     char *clientid = NULL;

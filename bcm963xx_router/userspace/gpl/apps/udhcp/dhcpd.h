@@ -8,7 +8,7 @@
 #include "libbb_udhcp.h"
 #include "leases.h"
 
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+#ifdef SUPPPORT_GPL
 #define IPTV_STB_STR           "IPTV STB"
 #endif
 /************************************/
@@ -64,7 +64,7 @@
 #define DHCP_T2			0x3b
 #define DHCP_VENDOR		0x3c
 #define DHCP_CLIENT_ID		0x3d
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
 #define DHCP_BOOT_FILE		0x43
 #endif
 #define DHCP_VENDOR_IDENTIFYING	0x7d
@@ -108,7 +108,7 @@
 #define OPT_CODE 0
 #define OPT_LEN 1
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define VENDOR_CLASS_ID_TAB_SIZE    20
 #endif
 
@@ -160,7 +160,7 @@ struct server_config_t {
 	char *decline_file;
 };	
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 struct ip_list {
     u_int32_t ip;
     struct ip_list *next;
@@ -183,7 +183,7 @@ struct vlanOption60 {
 };
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+#if defined(SUPPPORT_GPL) //add william 2012-4-25
 struct dhcpvlanOption60 {
 	char vendorClassId[256];
 	char vlanID[16];
@@ -198,30 +198,30 @@ struct iface_config_t {
 	u_int32_t start;		/* Start address of leases, network order */
 	u_int32_t end;			/* End of leases, network order */
 
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
     //u_int32_t vendorClassIdMinAddress;  /* Start address of option 60 lease, network order */
     //u_int32_t vendorClassIdMaxAddress;  /* End of option 60 lease, network order */
     char *opt67WarrantVids[VENDOR_CLASS_ID_TAB_SIZE];
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(SUPPPORT_GPL)
     char *stbVids[VENDOR_CLASS_ID_TAB_SIZE];
 #endif
 #if defined(AEI_VDSL_STB_NO_FIREWALL)
     struct ip_mac_list *stb_list;
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-1-11
+#if defined(SUPPPORT_GPL) //add william 2012-1-11
     char *vendorClassId[VENDOR_CLASS_ID_TAB_SIZE];
     u_int32_t vendorClassIdMinAddress;  /* Start address of option 60 lease, network order */
     u_int32_t vendorClassIdMaxAddress;  /* End of option 60 lease, network order */
     struct vlanOption60 * vlanOption60list;
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+#if defined(SUPPPORT_GPL) //add william 2012-4-25
 	struct dhcpvlanOption60 * dhcpvlanOption60list;
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
     u_int32_t dns_proxy_ip;     /* IP address of dns proxy server, network order */
     struct ip_list *dns_srv_ips;        /* A list of DNS servers (IP address), network order */
     char *dns_passthru_chaddr;  /* Hardware address of the LAN Host that
@@ -293,7 +293,7 @@ extern struct relay_config_t *cur_relay;
 extern void *msgHandle;
 
 void exit_server(int retval);
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK //add william 2012-4-25
+#ifdef SUPPPORT_GPL //add william 2012-4-25
 void sendDhcpVlanUpdatedMsg(char *ip,char *vlanId);
 #endif
 		

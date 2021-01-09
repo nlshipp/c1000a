@@ -97,7 +97,7 @@ CRYPTOBJS =  rijndael-api-fst.o rijndael-alg-fst.o sha2.o
 CXXDEPMODE = depmode=gcc3
 CXXFLAGS = -g -O2
 CYGPATH_W = echo
-DEFS = -DHAVE_CONFIG_H
+DEFS = -DHAVE_CONFIG_H -DHAVE_SHA2_IN_SHA_H
 DEPDIR = .deps
 ECHO = echo
 ECHO_C = 

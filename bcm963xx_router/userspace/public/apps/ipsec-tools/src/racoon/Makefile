@@ -135,7 +135,7 @@ CFLAGS += -I$(TOOLCHAIN)/include
 CONFIGURE_AMFLAGS = --with-kernel-headers=$(KERNEL_DIR)/include
 #CPP = gcc -E
 CPPFLAGS = -include ./src/include-glibc/glibc-bugs.h -I./src/include-glibc \
-	-I./src/include-glibc  -I$(USERSPACE_PUBLIC_LIBS_DIR)/openssl/include \
+	-I./src/include-glibc  -I$(BCM_FSBUILD_DIR)/public/include \
 	-I./${top_srcdir}/src/racoon/missing 
 CRYPTOBJS =  rijndael-api-fst.o rijndael-alg-fst.o sha2.o
 #CXX = g++
@@ -143,7 +143,7 @@ CRYPTOBJS =  rijndael-api-fst.o rijndael-alg-fst.o sha2.o
 CXXDEPMODE = depmode=gcc3
 CXXFLAGS = -g -O2
 CYGPATH_W = echo
-DEFS = -DHAVE_CONFIG_H
+DEFS = -DHAVE_CONFIG_H -DHAVE_SHA2_IN_SHA_H
 DEPDIR = .deps
 ECHO = echo
 ECHO_C = 
@@ -169,7 +169,7 @@ LEX = flex
 LEXLIB =
 LEX_OUTPUT_ROOT = lex.yy
 LIBOBJS =  sha2$U.o
-LIBS = -lcrypto  -lresolv -L$(USERSPACE_PUBLIC_LIBS_DIR)/openssl
+LIBS = -lcrypto  -lresolv -L$(BCM_FSBUILD_DIR)/public/lib
 LIBTOOL = $(SHELL) $(top_builddir)/libtool
 LN_S = ln -s
 LTLIBOBJS =  sha2$U.lo
@@ -238,7 +238,7 @@ INCLUDES = -I${srcdir}/../libipsec
 AM_CFLAGS = -include ${top_srcdir}/src/include-glibc/glibc-bugs.h -I${top_srcdir}/src/include-glibc -I${top_builddir}/src/include-glibc -DSYSCONFDIR=\"${sysconfdir}\" \
 	-DADMINPORTDIR=\"${adminsockdir}\"
 
-AM_LDFLAGS = -lcrypto -L$(USERSPACE_PUBLIC_LIBS_DIR)/openssl
+AM_LDFLAGS = -lcrypto -L$(BCM_FSBUILD_DIR)/public/lib
 MISSING_ALGOS = \
 	missing/crypto/sha2/sha2.c \
 	missing/crypto/rijndael/rijndael-api-fst.c \

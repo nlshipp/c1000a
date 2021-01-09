@@ -114,7 +114,7 @@ void printStaticLeases(struct static_lease **arg)
 }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 /* Check to see if a mac has an associated static lease */
 struct static_lease * AEI_getLeaseByMac(struct static_lease *lease_struct, void *arg)
 {

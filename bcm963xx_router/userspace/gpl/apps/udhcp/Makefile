@@ -60,7 +60,7 @@ CFLAGS += $(BRCM_WERROR_CFLAGS)
 
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
 CFLAGS += -I$(BUILD_DIR)/userspace/private/apps/ctl_layer/include -I$(BUILD_DIR)/userspace/private/apps/ctl_layer/tr69fw/include
-LIBS += -L$(BUILD_DIR)/userspace/public/include -ldbussend_msg -ldbus
+LIBS += -L$(BUILD_DIR)/userspace/private/apps/ctl_layer/lib -ldbussend_msg -ldbus
 endif
 
 ifeq ($(strip $(BUILD_UDHCP)), static)

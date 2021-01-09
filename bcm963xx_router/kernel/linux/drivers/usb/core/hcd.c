@@ -44,7 +44,7 @@
 #include "usb.h"
 #include "hcd.h"
 #include "hub.h"
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 int usb_led_flag = -1;
 static struct timer_list usbLedTimer;
 void usbledTimerStart(void)
@@ -1332,7 +1332,7 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 {
 	int			status;
 	struct usb_hcd		*hcd = bus_to_hcd(urb->dev->bus);
-	#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+	#if defined(SUPPPORT_GPL_UNDEFINED)
 	if (usb_led_flag != -1)
 	{
 	kerSysLedCtrl(kLedUsb, kLedStateSlowBlinkContinues);

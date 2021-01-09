@@ -215,7 +215,7 @@ UBOOL8 cmsTmr_isEventPresent2(const void *handle, CmsEventHandler func, void *ct
 CmsRet cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32 ms, const char *name);
 UINT32 cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, void *ctxData);
 #endif
-#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 UBOOL8 AEI_cmsTmr_isWlanBatchEventPresent(const void *handle, CmsEventHandler func);
 void AEI_cmsTmr_WlanBatchcancel(void *handle, CmsEventHandler func, const char *name);
 #endif

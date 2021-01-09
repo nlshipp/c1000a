@@ -99,7 +99,7 @@ extern "C" {
     _IOR(ADSLDRV_MAJOR, 22, ADSLDRV_GET_OBJ)
 #define ADSLIOCTL_DRV_CALLBACK \
     _IOR(ADSLDRV_MAJOR, 23, ADSLDRV_STATUS_ONLY)
-#if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-9-24
+#if defined(SUPPPORT_GPL) //add william 2012-9-24
 #define ADSLIOCTL_DRV_GET_CURPORT \
     _IOR(ADSLDRV_MAJOR, 24, ADSLDRV_GET_CURPORT)
 #define MAX_ADSLDRV_IOCTL_COMMANDS   25
@@ -204,7 +204,7 @@ typedef struct
     BCMADSL_STATUS  bvStatus;
 } ADSLDRV_GET_VERSION, *PADSLDRV_GET_VERSION;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-9-24
+#if defined(SUPPPORT_GPL) //add william 2012-9-24
 typedef struct
 {
     unsigned int CurrentPort;

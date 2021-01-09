@@ -19,7 +19,7 @@ typedef struct
    UINT32 totalBytesReceived;
    char tcpOpenRequestTime[BUFLEN_32];
    char tcpOpenResponseTime[BUFLEN_32];
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
    UINT32 X_ACTIONTEC_COM_PeriodOfFullLoading;
    UINT32 X_ACTIONTEC_COM_TotalBytesReceivedUnderFullLoading;
    UINT32 X_ACTIONTEC_COM_Throughput;
@@ -54,7 +54,7 @@ typedef struct
    UINT32 totalBytesSent;
    char tcpOpenRequestTime[BUFLEN_32];
    char tcpOpenResponseTime[BUFLEN_32];
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
    UINT32 X_ACTIONTEC_COM_PeriodOfFullLoading;
    UINT32 X_ACTIONTEC_COM_TotalBytesSentUnderFullLoading;
    UINT32 X_ACTIONTEC_COM_Throughput;
@@ -129,7 +129,7 @@ typedef enum
   USER_PASSWORD_CHANGED,
   USER_REMOTE_ENABLE_CHANGED,
   USER_LOCAL_ENABLE_CHANGED,
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+#ifdef SUPPPORT_GPL
   USER_REMOTE_SUPPORTCONSOLE_ENABLE_CHANGED
 #endif
 } UserChangedType;
@@ -174,7 +174,7 @@ typedef struct
 #define FCURRENTWANCONFIG "/var/currentwanconfig.txt"
 #define FAUTODETECTLOG    "/var/autodetectlog.txt"
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_ARPING_STATIC_WAN_SERVICE)
+#if defined(SUPPPORT_GPL) || defined(AEI_ARPING_STATIC_WAN_SERVICE)
 #define FDETECTL2STATIC   "/var/detectl2static"
 #endif
 /* */

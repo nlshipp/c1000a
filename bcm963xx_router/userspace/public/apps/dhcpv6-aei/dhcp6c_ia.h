@@ -55,7 +55,7 @@ extern void update_ia __P((iatype_t, struct dhcp6_list *,
     struct dhcp6_if *, struct duid *, struct authparam *));
 extern void release_all_ia __P((struct dhcp6_if *));
 extern void decline_all_ia __P((struct dhcp6_if *));
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+#ifdef SUPPPORT_GPL
 extern int get_all_ia_data(struct ia *ias, struct dhcp6_event *ev);
 extern void free_ev_datalist(struct dhcp6_eventdata *evds);
 #endif

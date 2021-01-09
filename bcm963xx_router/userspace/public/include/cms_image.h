@@ -61,7 +61,7 @@ typedef enum
     CMS_IMAGE_FORMAT_FLASH=2,     /**< raw flash image */
     CMS_IMAGE_FORMAT_XML_CFG=3,   /**< CMS XML config file */
     CMS_IMAGE_FORMAT_MODSW_PKG=4, /**< modular software package */
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     CMS_IMAGE_FORMAT_CORRUPTED=5, /**< corrupted format*/
 #endif
     CMS_IMAGE_FORMAT_PART1=0x10,   /**< Specify to write to partition1 */

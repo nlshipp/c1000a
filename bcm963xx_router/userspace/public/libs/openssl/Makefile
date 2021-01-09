@@ -26,7 +26,7 @@ SHLIB_MINOR=9.7
 SHLIB_EXT=.so.$(SHLIB_MAJOR).$(SHLIB_MINOR)
 PLATFORM=linux-mips
 
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 OPTIONS = no-krb5 no-hw shared no-bf no-cast no-md4 no-mdc2 no-ripemd no-rc2 no-krb5 no_dsa no_ec
 else
 OPTIONS = no-krb5 no-hw shared no-bf no-cast no_md2 no-md4 no-mdc2 no-ripemd no-rc2 no-krb5 no_dsa no_ec
@@ -87,7 +87,7 @@ OPENSSLDIR=/usr/local/ssl
 #CFLAG= -DL_ENDIAN -DTERMIO -O3 -fomit-frame-pointer -m486 -Wall -Wuninitialized -DSHA1_ASM -DMD5_ASM -DRMD160_ASM
 #CFLAG= -DOPENSSL_NO_KRB5 -O
 CFLAG= -fPIC -DOPENSSL_THREADS -D_REENTRANT -DDSO_DLFCN -DHAVE_DLFCN_H -DOPENSSL_NO_KRB5 -DOPENSSL_NO_HW -DB_ENDIAN -Os -fomit-frame-pointer -Wall
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 CFLAG+= -DOPENSSL_NO_IDEA  -DOPENSSL_NO_BF -DOPENSSL_NO_CAST -DOPENSSL_NO_MD4 -DOPENSSL_NO_RIPEMD -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC2 -DOPENSSL_NO_DSA -DOPENSSL_NO_EC
 else
 CFLAG+= -DOPENSSL_NO_IDEA  -DOPENSSL_NO_BF -DOPENSSL_NO_CAST -DOPENSSL_NO_MD2 -DOPENSSL_NO_MD4 -DOPENSSL_NO_RIPEMD -DOPENSSL_NO_MDC2 -DOPENSSL_NO_RC2 -DOPENSSL_NO_DSA -DOPENSSL_NO_EC
@@ -104,7 +104,7 @@ ifneq ($(strip $(BENCHMARKS_SMP)),y)
 CFLAG+= -DOPENSSL_NO_SPEED
 endif
 
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 CFLAG+= $(ACTION_TEC_DFLAGS)
 endif
 
@@ -244,7 +244,7 @@ DIRS=   crypto fips ssl $(SHLIB_MARK) sigs apps tools
 SHLIBDIRS= crypto ssl
 
 # dirs in crypto to build
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 SDIRS=  objects \
 	md2 md5 sha hmac \
 	des dh\

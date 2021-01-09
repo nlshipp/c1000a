@@ -41,7 +41,7 @@
 
 #include "cms.h"
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #include "aei_cms_tms.h"
 #endif
 

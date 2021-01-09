@@ -86,7 +86,7 @@ typedef struct
 product_info * AEI_find_pinfo_by_boardid(char *boardid);
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int AEI_devCtl_getBoardID(char *boardid);
 #endif
 

@@ -38,7 +38,7 @@
 
 #include "pppd.h"
 #include "pathnames.h"
- #if defined(AEI_VDSL_CUSTOMER_NCS)//ken add mtu option for TDS V100W project,2010/05/19
+ #if defined(SUPPPORT_GPL)//ken add mtu option for TDS V100W project,2010/05/19
 #include "fsm.h"
 #include "lcp.h"
 #include "aei_utiles.h"
@@ -76,10 +76,10 @@ bool	updetach = 0;		/* Detach once link is up */
 int	maxconnect = 0;		/* Maximum connect time */
 char	user[MAXNAMELEN]="";	/* Username for PAP */
 char	passwd[MAXSECRETLEN]="";	/* Password for PAP */
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 char	PAPpasswd[MAXSECRETLEN]="";	/* Password for PAP */
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 bool	persist = 0;		/* Reopen link after it goes down */
 #else
 bool	persist = 1;		/* Reopen link after it goes down */
@@ -333,12 +333,12 @@ parse_args(argc, argv)
 {
     int opt;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     char strtmp1[MAXNAMELEN];
     char strtmp[MAXNAMELEN];
     int len=0;
 #endif
-#if defined(INET6) && defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(INET6) && defined(SUPPPORT_GPL)
        {
           int        i;
           option_t   *op;
@@ -366,7 +366,7 @@ parse_args(argc, argv)
        }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     while ((opt = getopt(argc, argv, "s:xda:i:ku:n:p:P:o:lc:m:f:r:RA:t:T:CM:hD:")) != -1) {
 #else
 #ifdef INET6
@@ -377,7 +377,7 @@ parse_args(argc, argv)
 #endif
 	switch (opt) {
 #ifdef INET6
-#ifndef AEI_VDSL_CUSTOMER_NCS
+#ifndef SUPPPORT_GPL
        case '6':
 	   	{
 		   int        i;
@@ -460,7 +460,7 @@ parse_args(argc, argv)
 		    persist = 1;
 		    break;
 	    case 'u':
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
                 memset(strtmp1,0,sizeof(strtmp1));
                 memset(strtmp,0,sizeof(strtmp));
                 strncpy(strtmp1,optarg,MAXNAMELEN);
@@ -482,7 +482,7 @@ parse_args(argc, argv)
 #endif
 		    break;
 	    case 'p':
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
                 memset(strtmp1,0,sizeof(strtmp1));
                 memset(strtmp,0,sizeof(strtmp));
                 strncpy(strtmp1,optarg,MAXNAMELEN);
@@ -500,7 +500,7 @@ parse_args(argc, argv)
 		    strncpy(passwd, optarg, MAXSECRETLEN);
 #endif
 		    break;
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
             case 'P':
                  memset(strtmp1,0,sizeof(strtmp1));
                 memset(strtmp,0,sizeof(strtmp));
@@ -557,7 +557,7 @@ parse_args(argc, argv)
 	    case 'C':
 		    console=1;
 		    break;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         case 'h':
             demand = 1;
             break;

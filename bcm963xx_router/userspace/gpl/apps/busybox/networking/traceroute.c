@@ -406,7 +406,7 @@ void AEI_sendTraceRouteEventMessage(TraceRouteDataMsgBody *pTraceRouteInfo, Trac
 		traceRouteMsg->routeHops[i].hopRTTimes[strLength-1]='\0';
 	}
 
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
 	if (result != Complete && result != Error_MaxHopCountExceeded)
 #else
 	if (result != Complete)

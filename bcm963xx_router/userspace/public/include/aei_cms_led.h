@@ -12,7 +12,7 @@
 #ifndef __AEI_CMS_LED_H__
 #define __AEI_CMS_LED_H__
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #include "aei_cms_msg.h"
 #include "board.h"
 
@@ -26,17 +26,17 @@ void AEI_setInetLedTrafficBlink(int state);
 
 void AEI_cmsLed_setPowerGreen(void);
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 void AEI_cmsLed_setPowerAmber(void);
 #endif
-#if defined(SUPPORT_DSL_BONDING) && defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPORT_DSL_BONDING) && defined(SUPPPORT_GPL)
 void AEI_cmsLed_setWanLineStatus(int state);
 #endif
 void AEI_cmsLed_setWanAmber(void);
 void AEI_cmsLed_setEthWanConnected(void);
 void AEI_cmsLed_setEthWanDisconnected(void);
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 void AEI_cmsLed_setWanDetect(void);
 #endif
-#endif /* AEI_VDSL_CUSTOMER_NCS */
+#endif /* SUPPPORT_GPL */
 #endif /* __AEI_CMS_LED_H__ */

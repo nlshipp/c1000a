@@ -94,7 +94,7 @@ extern "C" {
 #define BOARD_IOCTL_GET_SWITCH_PORT_MAP         _IOWR(BOARD_IOCTL_MAGIC, 44, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_PERS_NAME               _IOWR(BOARD_IOCTL_MAGIC, 45, BOARD_IOCTL_PARMS)
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define BASE_AEI_IOCPRIVATE	50
 #define BOARD_IOCTL_GET_SN              _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 1, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_POWER_LED_ON        _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 2, BOARD_IOCTL_PARMS)
@@ -117,12 +117,12 @@ extern "C" {
 #define BOARD_IOCTL_GET_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 10, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_SET_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 11, BOARD_IOCTL_PARMS)
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define BOARD_IOCTL_GET_PRODUCTID _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 12, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_FS_OFFSET _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 13, BOARD_IOCTL_PARMS)
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #define BOARD_IOCTL_GET_POWERLED_STATUS  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 14, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_FLASH_TOTAL  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 15, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_FLASH_USED  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 16, BOARD_IOCTL_PARMS)
@@ -132,10 +132,10 @@ extern "C" {
 #define AEI_BOARD_IOCTL_WIRELESS_REDLED    _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+19, BOARD_IOCTL_PARMS)
 
 #endif
-#if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
 #define BOARD_IOCTL_PARTITION_WRITE  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+20, BOARD_IOCTL_PARMS)
 #endif
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 #define BOARD_IOCTL_ADJUST_NVRAM      _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 21, BOARD_IOCTL_PARMS)
 #endif
 #endif
@@ -149,11 +149,11 @@ extern "C" {
 #define AEI_BOARD_IOCTL_GET_NAND_FLASH_ID  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 23, BOARD_IOCTL_PARMS)
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #define AEI_BOARD_IOCTL_SET_WAN_TYPE  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 24, BOARD_IOCTL_PARMS)
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 typedef enum
 {
     AEI_BOARD_UNKNOWN,
@@ -185,11 +185,11 @@ typedef enum
   #define AEI_INET_FAIL_LED   (BP_ACTIVE_HIGH | 31)
 #endif
 #endif
-#endif // AEI_VDSL_CUSTOMER_NCS
+#endif // SUPPPORT_GPL
 
 
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 typedef enum
 {
     AEI_WAN_NONE,
@@ -212,7 +212,7 @@ typedef enum
     FLASH_SIZE,
     SET_CS_PARAM,
     BACKUP_PSI,
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     SYSLOG,
     SYSLOGONREBOOT
 #else
@@ -250,10 +250,10 @@ typedef enum
     kLedEth1Duplex,
     kLedEth1Spd100,
     kLedEth1Spd1000,
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     kLedUsb,
     kLedPower,
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     AEI_kLedWlan,
     AEI_kLedWlanAct,
     AEI_kLedWlanGreen,
@@ -271,7 +271,7 @@ typedef enum
     kLedStateOff,                        /* turn led off */
     kLedStateOn,                         /* turn led on */
     kLedStateFail,                       /* turn led on red */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     kLedStateAmber,                      /* turn green led on , turn red led on*/
     kLedStateVerySlowBlinkContinues,         /* slow blink continues at 1HZ interval */
 #endif
@@ -281,17 +281,21 @@ typedef enum
     kLedStateAmberBlinkContinues,
     kLedStateMWIBlinkContinues,
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(SUPPPORT_GPL)
     kLedStateAmberSlowBlinkContinues,
     kLedStateAmberAndGreenSlowBlinkContinues,
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
     kLedStateUserWANGreenRedVerySlowBlinkContinues, /*rotate between green and red in a 1 second on/off interval*/
     kLedStatePowerOneSecondBlinkContinues,          /*rotate between green and off in a 1 second on/off interva*/
 #endif
     kLedStateUserWpsInProgress,          /* 200ms on, 100ms off */
     kLedStateUserWpsError,               /* 100ms on, 100ms off */
     kLedStateUserWpsSessionOverLap       /* 100ms on, 100ms off, 5 times, off for 500ms */                     
+#if defined(SUPPPORT_GPL)
+    ,
+    kLedStateEnd                             // NOTE: Insert the new led state before this one.
+#endif
 } BOARD_LED_STATE;
 
 typedef void (*HANDLE_LED_FUNC)(BOARD_LED_STATE ledState);
@@ -356,7 +360,7 @@ typedef void (* kerSysMacAddressNotifyHook_t)(unsigned char *pucaMacAddr, MAC_AD
 #define MAC_ADDRESS_ATM         0xE0000000
 #define MAC_ADDRESS_PTM         0xF0000000
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define AEI_MAC_ADDRESS_TYPE_MASK 0xF0000000
 #define AEI_MAC_ADDRESS_NUM_MASK  0x0FF00000  /*It is used for atmX now*/
 #define AEI_MAC_ADDRESS_ID_MASK   0x000FF000  /*It is used for ewan0.X or ptm0.X now*/
@@ -395,7 +399,7 @@ extern int kerSysSyslogSet(char *string, int strLen, int offset);
 extern int kerSysScratchPadList(char *tokBuf, int tokLen);
 extern int kerSysScratchPadGet(char *tokName, char *tokBuf, int tokLen);
 extern int kerSysScratchPadSet(char *tokName, char *tokBuf, int tokLen);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 extern int kerClearScratchPad(int blk_size);
 #endif
 extern int kerSysScratchPadClearAll(void);
@@ -432,7 +436,7 @@ extern void kerSysRegisterDyingGaspHandler(char *devname, void *cbfn, void *cont
 extern void kerSysDeregisterDyingGaspHandler(char *devname);    
 extern int kerConfigCs(BOARD_IOCTL_PARMS *parms);
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 extern int AEI_getCurrentUpWanType(void);
 #endif
 
@@ -512,7 +516,7 @@ void BcmPwrMngtRegisterLmemAddr(PWRMNGT_DDR_SR_CTRL *pDdrSr);
 #if defined(AEI_VDSL_WAN_ETH)
 #define IF_NAME_EWAN    "ewan"
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int kerClearScratchPad(int blk_size);
 extern int kerSysGetDslDatapump(unsigned char *dslDatapump);
 extern void restoreDatapump(int value);
@@ -520,10 +524,10 @@ extern void restoreDatapump(int value);
 #ifdef AEI_TWO_IN_ONE_FIRMWARE
 extern int kerSysGetBoardID(unsigned char *boardid);
 #endif
-#if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
 extern int AEI_kerSysBcmImageSet( int partition, char *string, int img_size );
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY)
+#if defined(SUPPPORT_GPL)
 extern int  CPURevId;
 extern char CPUSerialNumber[32];
 #endif

@@ -64,7 +64,7 @@ int arpDetectFailCount = 0;
 extern char router_ip[32];
 extern char local_ip[32];
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 /*
  * Add this variable to indicate serveraddr need to be update.
  * In some projects, end user can click "Renew" directly without click "Release" first by GUI,
@@ -74,7 +74,7 @@ extern char local_ip[32];
  */
 int need_update_serveraddr = 0;
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #define MAXNONVALIDIPCOUNT 3
 #define NTP_SERVER_FILE "/var/ntp-server"
 
@@ -94,7 +94,7 @@ static int getDelayTime(int reconn)
 {
    int delayTime = 0;
 
-   //PM-PRD #177786: CenturyLink Requested: WAN DHCP / PPP Attempt Back-off Implementation
+   //PM-PRD #177786: C Requested: WAN DHCP / PPP Attempt Back-off Implementation
    switch (reconn)
    {
       case 1:
@@ -164,7 +164,7 @@ static int old_mode = LISTEN_RAW;
 #define INIT_TIMEOUT 5
 #define REQ_TIMEOUT 4
 
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 #define BACKOFF_THRESHOLD 6
 #endif
 
@@ -184,7 +184,7 @@ struct client_config_t client_config = {
 	arp: "\0\0\0\0\0\0",		/* appease gcc-3.0 */
 };
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define SNTP_SYNCED_FILE "/var/system_time_synced"
 /*
  * Function: aei_dhcpc_update_start_time().
@@ -324,7 +324,7 @@ void sendEventMessageWith6RD(UBOOL8 assigned, const char *ip, const char *mask, 
 
 // brcm
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
 void sendEventMessage(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const char *mask, const char *gateway, const char *nameserver,
                       UINT32 LEDControl, unsigned int lease_time)
@@ -357,7 +357,7 @@ void sendEventMessage(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const ch
 #endif
 
     }
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     dhcpcBody->ledControl = LEDControl;
 #endif
 
@@ -443,7 +443,7 @@ void sendEventMessageWithRoute(UBOOL8 assigned,UBOOL8 isExpired, const char *ip,
 		dhcpcBody->lease_time = lease_time;
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     dhcpcBody->ledControl = LEDControl;
 #endif
 	}else {
@@ -496,7 +496,7 @@ void setStatus(int status)
       if (wasAssigned == 1)
       {
          wasAssigned = 0;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
             sendEventMessage(FALSE,FALSE, NULL, NULL, NULL, NULL, 0, 0);
 #else
@@ -552,7 +552,7 @@ static void renew_requested(int sig)
 		server_addr = 0;
 		packet_num = 0;
 		state = RENEW_REQUESTED;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 		need_update_serveraddr = 1;
 #endif
 	}
@@ -582,12 +582,12 @@ static void release_requested(int sig)
 	state = RELEASED;
 	timeout = 0xffffffff;
 /*
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
     sendEventMessage(TRUE, "0.0.0.0", "0.0.0.0", "0.0.0.0", "0.0.0.0", 0, 0);
 #else
 
-    #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-3-15
+    #if defined(SUPPPORT_GPL) //add william 2012-3-15
 	sendEventMessage(TRUE, "0.0.0.0", "0.0.0.0", "0.0.0.0", "0.0.0.0", 0);
 	#else
     sendEventMessage(FALSE, NULL, NULL, NULL, NULL, 0);
@@ -753,7 +753,7 @@ static void background(void)
 }
 
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 /*
  * Function: AEI_write_ntp_server_to_file
  *
@@ -865,7 +865,7 @@ void AEI_find_ntp_server(struct dhcpMessage *packet)
         LOG(LOG_ERR, "No NTP Server in message");
     }
 }
-#endif /* AEI_VDSL_CUSTOMER_CENTURYLINK */
+#endif /* SUPPPORT_GPL */
 
 #ifdef COMBINED_BINARY
 int udhcpc(int argc, char *argv[])
@@ -1102,7 +1102,7 @@ int arpTimeOut = 0;
                 }
         }
 #endif
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
         /* For mantis#442 issue */
         int aei_usec = get_randomize_usec();
         tv.tv_sec = timeout - time(0);
@@ -1123,19 +1123,19 @@ int arpTimeOut = 0;
 		tv.tv_usec = 0;
 #endif
 		FD_ZERO(&rfds);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
          if (listen_mode && fd >= 0 ) FD_SET(fd, &rfds); //status from release to renew,fd haven't open,so dhcpc will crash.
 #else
 		if (listen_mode) FD_SET(fd, &rfds);
 #endif
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
         if (tv.tv_sec >= 0) {
 #else
 		if (tv.tv_sec > 0) {
 #endif
 			retval = select(fd + 1, &rfds, NULL, NULL, &tv);
 		} else retval = 0; /* If we already timed out, fall through */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         /*
          * We should make this check every time because the system time not only changed after WAN is connected,
          * but also it will be changed when user set another time zone by GUI.
@@ -1161,7 +1161,7 @@ int arpTimeOut = 0;
 #endif
 				// brcm
 				setStatus(0);
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
                 if(packet_num == 0 || packet_num >= BACKOFF_THRESHOLD)
                 {
                     xid = random_xid();
@@ -1185,7 +1185,7 @@ int arpTimeOut = 0;
                 }
                 packet_num ++;
 #else
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                 if(backoff_state)
                 {
                     if (packet_num == 0)
@@ -1213,7 +1213,7 @@ int arpTimeOut = 0;
 					/* send discover packet */
 					send_discover(xid, requested_ip); /* broadcast */
 					
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 					timeout = time(0) + (2 << packet_num); //modify william 2011-12-14
 #else
 					timeout = time(0) + ((packet_num == 2) ? REQ_TIMEOUT : 2);
@@ -1229,14 +1229,14 @@ int arpTimeOut = 0;
 					packet_num = 0;
 					timeout = time(0) + INIT_TIMEOUT;
 				}
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                 }
 #endif
 #endif
 				break;
 			case RENEW_REQUESTED:
 			case REQUESTING:
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
                 if(packet_num < BACKOFF_THRESHOLD) {
 #else
 				if (packet_num < 3) {
@@ -1246,13 +1246,13 @@ int arpTimeOut = 0;
 						send_renew(xid, server_addr, requested_ip); /* unicast */
 					else send_selecting(xid, server_addr, requested_ip); /* broadcast */
 					
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
                     timeout = time(0) + (2 << packet_num); //modify william 2011-12-14
 #else
 					timeout = time(0) + ((packet_num == 2) ? REQ_TIMEOUT : 2);
 #endif
 					packet_num++;
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                     if (packet_num == MAXNONVALIDIPCOUNT)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME)
                     sendEventMessage(FALSE,FALSE, NULL, NULL, NULL, NULL, 1,0);
@@ -1314,7 +1314,7 @@ int arpTimeOut = 0;
 					/* send a request packet */
 					send_renew(xid, 0, requested_ip); /* broadcast */
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
                     listen_mode = LISTEN_RAW;
 #endif
 
@@ -1411,7 +1411,7 @@ int arpTimeOut = 0;
 						   ((state == RENEWING || state == REBINDING) ? "renew" : "bound"));
 
 					state = BOUND;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 					if (need_update_serveraddr == 1)
 					{
 						temp = (char *)get_option(&packet, DHCP_SERVER_ID);
@@ -1419,7 +1419,7 @@ int arpTimeOut = 0;
 						need_update_serveraddr = 0;
 					}
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                     backoff_state = 0;
                     reconn = 0;
                                         AEI_find_ntp_server(&packet);
@@ -1470,7 +1470,7 @@ int arpTimeOut = 0;
 
 					// brcm
 					setStatus(0);
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                     backoff_state = 1;
                     if(reconn<7)
                         reconn++;

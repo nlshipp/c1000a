@@ -90,6 +90,20 @@ static unsigned long select_end_time = 0;
 extern void AEI_bcmSearchOptCmdByVendorId(struct dhcpMessage *oldpacket, const char *vendorid);
 #endif
 
+#ifdef SUPPPORT_GPL
+static UBOOL8 is_IPTVSTB_vid(char *vid)
+{
+    UBOOL8 stb = FALSE;
+
+    if ( vid && (!strncmp(vid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(vid, "IPTV_STB", strlen("IPTV_STB"))) ) 
+    {
+        stb = TRUE;
+              printf("option 60 is %s\n", vid);
+    }
+    return stb;
+}
+#endif
+
 /* Exit and cleanup */
 void exit_server(int retval)
 {
@@ -179,7 +193,7 @@ int main(int argc, char *argv[])
 	mallopt(M_TRIM_THRESHOLD, 8192);
 	mallopt(M_MMAP_THRESHOLD, 16384);
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 	memset(&static_lease, 0, sizeof(static_lease));
 #endif
 	//argc = argv[0][0]; /* get rid of some warnings */
@@ -197,7 +211,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 	if (!read_config(argc < 2 ? DHCPD_CONF_FILE : argv[1])) {
 		LOG(LOG_ERR, "read_config failed, ret=%d===[%ld]", ret,getppid());
 		cmsMsg_cleanup(&msgHandle);
@@ -292,7 +306,7 @@ int main(int argc, char *argv[])
 					LOG(LOG_ERR, "couldn't create server "
 						"socket on %s -- au revoir",
 						cur_iface->interface);
-#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 					if (strcmp(cur_iface->interface, "br0") == 0) {
 						exit_server(0);
 					} else {
@@ -383,7 +397,7 @@ int main(int argc, char *argv[])
 					read_config(argc < 2 ? DHCPD_CONF_FILE : argv[1]);
 					read_leases(server_config.lease_file);
 					break;
-#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_VDSL_DHCP_LEASE)
+#if defined(SUPPPORT_GPL) && !defined(AEI_VDSL_DHCP_LEASE)
 				case CMS_MSG_DHCP_TIME_UPDATED:
 				{
 					for (cur_iface = iface_config; cur_iface;
@@ -447,7 +461,7 @@ int main(int argc, char *argv[])
 								msg->src = EID_DHCPD;
 								msg->flags_request = 0;
 								msg->flags_response = 1;
-#if defined (AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined (SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL_UNDEFINED)
 								//static leases
 								if (getIpByMac(cur_iface->static_leases, chaddr))
 									msg->wordData = 0;
@@ -457,7 +471,7 @@ int main(int argc, char *argv[])
 								msg->dataLength = 0;
 								cmsMsg_send(msgHandle, msg);
 							}
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 							else {
 								msg->dst = msg->src;
 								msg->src = EID_DHCPD;
@@ -603,7 +617,7 @@ int main(int argc, char *argv[])
 			if (requested) memcpy(&requested_align, requested, 4);
 			if (server_id) memcpy(&server_id_align, server_id, 4);
 		
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)|| defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL)|| defined(SUPPPORT_GPL_UNDEFINED)
 			if (lease)
 				getClientIDOption(&packet,lease);
 #endif
@@ -616,7 +630,7 @@ int main(int argc, char *argv[])
 			AEI_bcmSearchOptCmdByVendorId(&packet, vendorid);
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-1-11
+#if defined(SUPPPORT_GPL) //add william 2012-1-11
 			char actVendorid[VENDOR_CLASS_ID_STR_SIZE + 1];
 			actVendorid[0] = '\0';
 			if (1 != AEI_is_vendor_equipped(&packet, actVendorid))
@@ -624,7 +638,7 @@ int main(int argc, char *argv[])
 
 			if (!declined) {
 				if (lease) {
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 					int illegal_name = 0;
 					int iconflag = 0;
 
@@ -649,7 +663,7 @@ int main(int argc, char *argv[])
 						strncpy(lease->hostname, hostname, bytes);
 						lease->hostname[bytes] = '\0';
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 						if (strstr(lease->hostname, "\(") ||
 						    strstr(lease->hostname, "\)") ||
 						    strstr(lease->hostname, ".") ||
@@ -673,13 +687,13 @@ int main(int argc, char *argv[])
 						}
 #endif
 
-#if !defined(AEI_VDSL_CUSTOMER_QWEST)
+#if !defined(SUPPPORT_GPL)
 						send_lease_info(FALSE, lease);
 #endif
 					}  else
 						lease->hostname[0] = '\0';
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 					if (vendorid) {
 						int len = vendorid[-1];
 						if (len >= (int)sizeof(lease->vendorid))
@@ -687,11 +701,11 @@ int main(int argc, char *argv[])
 
 						snprintf(lease->vendorid, len + 1, "%s", vendorid);
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
-						if (!strncmp(vendorid, "MSFT_IPTV", strlen("MSFT_IPTV"))) {
+#if defined(SUPPPORT_GPL)
+                        if( is_IPTVSTB_vid(vendorid) ){
 							iconflag = 4;
 
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+#ifdef SUPPPORT_GPL
 							strncpy(lease->hostname,IPTV_STB_STR, sizeof(lease->hostname));
 #else
 							strncpy(lease->hostname, "Qwest Video", sizeof(lease->hostname));
@@ -699,7 +713,7 @@ int main(int argc, char *argv[])
 						}
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
                                                 if (!strncmp(vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(vendorid, "SAIP", strlen("SAIP"))) {
                                                         if (hostname == NULL) {
                                                                strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
@@ -717,27 +731,27 @@ int main(int argc, char *argv[])
 						if (server_id_align == cur_iface->server && requested && 
 						    requested_align == lease->yiaddr) {
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 							if (illegal_name == 1) {
 								printf("host name has illegal characters and return NAK!\n");
 								sendNAK(&packet);
 							} else {
 #endif
 								sendACK(&packet, lease->yiaddr);
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 								lease->icon = iconflag;
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
-								if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+#ifdef SUPPPORT_GPL
+                                if( is_IPTVSTB_vid(lease->vendorid) )
 									strncpy(lease->hostname,IPTV_STB_STR, sizeof(lease->hostname));
 #else
-								if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+                                if( is_IPTVSTB_vid(lease->vendorid) )
 									strncpy(lease->hostname, "Qwest Video", sizeof(lease->hostname));
 #endif
 								if (lease->icon == 1)
 									snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
                                                                if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
                                                                       if (hostname == NULL) {
                                                                              strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
@@ -746,7 +760,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 								if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 									strncpy(lease->hostname, hostname, bytes);
 									lease->hostname[bytes] = '\0';
@@ -763,7 +777,7 @@ int main(int argc, char *argv[])
 								bcmExecOptCmd();
 								//brcm end
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 							}
 #endif
 						}
@@ -771,27 +785,27 @@ int main(int argc, char *argv[])
 						if (requested) {
 							/* INIT-REBOOT State */
 							if (lease->yiaddr == requested_align) {
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 								if (illegal_name == 1) {
 									printf("host name has illegal characters and return NAK!\n");
 									sendNAK(&packet);
 								} else {
 #endif
 									sendACK(&packet, lease->yiaddr);
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 									lease->icon = iconflag;
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
-									if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+#ifdef SUPPPORT_GPL
+                                    if( is_IPTVSTB_vid(lease->vendorid) )
 										strncpy(lease->hostname,IPTV_STB_STR, sizeof(lease->hostname));
 #else
-									if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+                                    if( is_IPTVSTB_vid(lease->vendorid) )
 										strncpy(lease->hostname, "Qwest Video", sizeof(lease->hostname));
 #endif
 									if (lease->icon == 1)
 										snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
                                                                        if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
                                                                             if (hostname == NULL) {
                                                                                   strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
@@ -800,7 +814,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 									if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 										strncpy(lease->hostname, hostname, bytes);
 										lease->hostname[bytes] = '\0';
@@ -815,7 +829,7 @@ int main(int argc, char *argv[])
 									bcmDelObsoleteRules();
 									bcmExecOptCmd();
 //brcm end
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 								}
 #endif
 							}
@@ -823,7 +837,7 @@ int main(int argc, char *argv[])
 						} else {
 							/* RENEWING or REBINDING State */
 							if (lease->yiaddr == packet.ciaddr) {
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 								if (illegal_name == 1) {
 									printf("host name has illegal characters and return NAK!\n");
 									sendNAK(&packet);
@@ -831,20 +845,20 @@ int main(int argc, char *argv[])
 #endif
 									sendACK(&packet, lease->yiaddr);
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 									lease->icon = iconflag;
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
-									if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+#ifdef SUPPPORT_GPL
+                                    if( is_IPTVSTB_vid(lease->vendorid) )
 										strncpy(lease->hostname,IPTV_STB_STR, sizeof(lease->hostname));
 #else
-									if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")))
+                                    if( is_IPTVSTB_vid(lease->vendorid) )
 										strncpy(lease->hostname, "Qwest Video", sizeof(lease->hostname));
 #endif
 									if (lease->icon == 1)
 										snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
                                                                        if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
                                                                                if (hostname == NULL) {
                                                                                        strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
@@ -853,7 +867,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 									if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 										strncpy(lease->hostname, hostname, bytes);
 										lease->hostname[bytes] = '\0';
@@ -868,7 +882,7 @@ int main(int argc, char *argv[])
 									bcmDelObsoleteRules();
 									bcmExecOptCmd();
 									//brcm end
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 								}
 #endif
 							}
@@ -945,7 +959,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK //add william 2012-4-25
+#ifdef SUPPPORT_GPL //add william 2012-4-25
 void sendDhcpVlanUpdatedMsg(char *ip,char *vlanId)
 {
     CmsRet ret;

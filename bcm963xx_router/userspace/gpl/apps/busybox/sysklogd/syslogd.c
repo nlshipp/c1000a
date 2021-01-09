@@ -447,7 +447,7 @@ static int parse_fac_prio_20(int pri, char *res20)
 	    return 0;
 // brcm end
 }
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define TZ2SYSLOG
 #ifdef TZ2SYSLOG
 char *weekday_abbr[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
@@ -462,7 +462,7 @@ static void timestamp_and_log(int pri, const char *msg, int len)
 	char *timestamp;
 	time_t now;
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #ifdef TZ2SYSLOG
 	FILE *fp;
 	char timezone[128]="(GMT)";
@@ -500,7 +500,7 @@ static void timestamp_and_log(int pri, const char *msg, int len)
 		msg += 16;
 	}
 	timestamp[15] = '\0';
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #ifdef TZ2SYSLOG
 	   fp = fopen("/var/timezone", "r");
 	   if(fp != NULL) {

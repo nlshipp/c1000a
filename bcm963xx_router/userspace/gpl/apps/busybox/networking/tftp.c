@@ -193,7 +193,7 @@ static int myRead(char *outBuf, int inLen)
    return readLen;
 }
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 static void tftp_killAppWhileUpgrade()
 {
       system("killall -9 consoled");
@@ -223,7 +223,7 @@ static void tftp_killAppWhileUpgrade()
 }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(SUPPPORT_GPL)
 #define BLOCK_ALLOC 1000000
 /* let's do a 1MB alloc and add realloc increment upto max flash size */
 static int myWrite(char *inBuf, int inBufLen)
@@ -330,7 +330,7 @@ static int myWrite(char *inBuf, int inBufLen)
       // The Linux kernel will not assign physical pages to the buffer
       // until we write to it, so it is OK if we allocate a little more
       // than we really need.
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
       tftp_killAppWhileUpgrade();
 #endif
 

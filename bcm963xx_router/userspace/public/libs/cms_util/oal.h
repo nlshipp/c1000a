@@ -48,7 +48,7 @@
 #include "cms_net.h"
 #include "prctl.h"
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #include "aei_oal.h"
 #endif
 

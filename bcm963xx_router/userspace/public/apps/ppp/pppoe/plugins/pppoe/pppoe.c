@@ -83,7 +83,7 @@ static char *bad_options[] = {
 
 bool	pppoe_server=0;
 char	pppoe_srv_name[MAXSRVNAMELEN]="";
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 char	pppoe_ac_name[MAXACNAMELEN]="";
 #else
 char	*pppoe_ac_name=NULL;
@@ -223,7 +223,7 @@ static void init_device_pppoe(void)
     filt=ses->filt;  /* makes the code more readable */
     memset(filt,0,sizeof(struct filter));
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
     if (strlen(pppoe_ac_name)) {
 #else
     if (pppoe_ac_name !=NULL) {

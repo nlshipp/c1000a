@@ -204,7 +204,7 @@ struct nfnl_handle *nfnl_open(void)
 		errno = EINVAL;
 		goto err_close;
 	}
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 
 	printf("set NETLINK_RECV_NO_ENOBUFS\n");
 	unsigned int enable=1;

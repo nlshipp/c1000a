@@ -40,7 +40,7 @@ BASE_OBJS := oal_logging.o oal_readlog.o oal_memory.o oal_timestamp.o \
 
 OBJS = $(BASE_OBJS) $(MODULAR_OBJS)
 
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 OBJS += aei_oal_timestamp.o
 endif
 

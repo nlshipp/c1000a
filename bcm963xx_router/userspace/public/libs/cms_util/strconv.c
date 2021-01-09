@@ -168,7 +168,7 @@ CmsRet cmsUtl_macStrToNum(const char *macStr, UINT8 *macNum)
     * xx:xx:xx:xx:xx:xx where x is hex number 
     */
    pToken = strtok_r(buf, ":", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    if (pToken == NULL) {
        cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
        cmsMem_free(buf);
@@ -179,7 +179,7 @@ CmsRet cmsUtl_macStrToNum(const char *macStr, UINT8 *macNum)
    for (i = 1; i < MAC_ADDR_LEN; i++) 
    {
       pToken = strtok_r(NULL, ":", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
       if (pToken == NULL) {
           cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
           cmsMem_free(buf);
@@ -475,7 +475,7 @@ CmsRet cmsUtl_parseDNS(const char *inDsnServers, char *outDnsPrimary, char *outD
    char *separator1;
    UINT32 len;
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
    if (IS_EMPTY_STRING(inDsnServers))
 #else
    if (inDsnServers == NULL)
@@ -938,7 +938,7 @@ UBOOL8 cmsUtl_isValidIpv4Address(const char* input)
    /* IP address has the following format
       xxx.xxx.xxx.xxx where x is decimal number */
    pToken = strtok_r(buf, ".", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    if (pToken == NULL) {
        cmsLog_error("[%s:%d] not IP address format", __FILE__, __LINE__);
        return FALSE;
@@ -994,7 +994,7 @@ UBOOL8 cmsUtl_isValidMacAddress(const char* input)
    /* Mac address has the following format
        xx:xx:xx:xx:xx:xx where x is hex number */
    pToken = strtok_r(buf, ":", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    if (pToken == NULL) {
        cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
        return FALSE;
@@ -1010,7 +1010,7 @@ UBOOL8 cmsUtl_isValidMacAddress(const char* input)
       for ( i = 0; i < 5; i++ )
       {
          pToken = strtok_r(NULL, ":", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
          if (pToken == NULL) {
              cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
              return FALSE;
@@ -1581,7 +1581,7 @@ UBOOL8 cmsUtl_ipStrToOctets(const char *input, char *output)
    /* IP address has the following format
       xxx.xxx.xxx.xxx where x is decimal number */
    pToken = strtok_r(buf, ".", &pLast);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    if (pToken == NULL) {
        cmsLog_error("[%s:%d] not IP address format", __FILE__, __LINE__);
        return FALSE;

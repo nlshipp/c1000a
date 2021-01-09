@@ -352,7 +352,7 @@ main(argc,argv)
 #endif
 
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     if( parse_args(argc, argv) == 0 )
     {
         return -1;
@@ -2399,7 +2399,7 @@ SINT32 isWanLinkUp(char *deviceName)
          else if (msgPtr->type == CMS_MSG_SET_PPP_DOWN)
          {
             manualState = 0;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
             //if username or password was changed by tr69, get new username or password from temp file.
             {
                 FILE *fs;
@@ -2420,6 +2420,7 @@ SINT32 isWanLinkUp(char *deviceName)
                         cmsUtl_strncpy(user, usern, MAXNAMELEN);
                         cmsUtl_strncpy(our_name, usern, MAXNAMELEN);
                         cmsUtl_strncpy(passwd, pass, MAXSECRETLEN);
+                        cmsUtl_strncpy(PAPpasswd, pass, MAXSECRETLEN);
                     }
                     fclose(fs);
                     unlink("/var/pppinfo");

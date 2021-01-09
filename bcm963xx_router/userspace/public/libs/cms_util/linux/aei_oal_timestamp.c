@@ -14,7 +14,7 @@
 
 #include "cms.h"
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 CmsRet AEI_oalTms_getGUIDateTime(char *buf, UINT32 bufLen)
 {
     int c;

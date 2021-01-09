@@ -431,7 +431,7 @@ struct BUG_off_t_size_is_misdetected {
 #if defined(__GLIBC__)
 /* glibc uses __errno_location() to get a ptr to errno */
 /* We can just memorize it once - no multithreading in busybox :) */
-#ifndef AEI_VDSL_CUSTOMER_NCS
+#ifndef SUPPPORT_GPL
 extern int *const bb_errno;
 #undef errno
 #define errno (*bb_errno)

@@ -211,9 +211,10 @@ extern "C" {
 #define	DIAG_ACK_TIMEOUT			-1
 #define	DIAG_ACK_LEN_INDICATION		-1
 
-#define	LOG_CMD_DISABLE_CLIENT		        230
-#define	LOG_CMD_ENABLE_CLIENT		        231
-#define	LOG_CMD_BONDING		                232
+#define	LOG_CMD_DIAG_CONNECT_INFO	229
+#define	LOG_CMD_DISABLE_CLIENT		230
+#define	LOG_CMD_ENABLE_CLIENT		231
+#define	LOG_CMD_BONDING				232
 #define	LOG_CMD_MIB_GET1			233
 #define	LOG_CMD_CFG_PHY3			234
 #define	LOG_CMD_CFG_PHY2			235
@@ -263,6 +264,7 @@ typedef struct {
 #define	DIAG_BONDING_LDSTRDB				1
 
 #define	DIAG_DEBUG_CMD_READ_MEM				1
+#define	CMDID_READ_MEM_CHIPID				1
 #define	DIAG_DEBUG_CMD_SET_MEM				2
 #define	DIAG_DEBUG_CMD_RESET_CONNECTION		3
 #define	DIAG_DEBUG_CMD_RESET_PHY			4
@@ -301,12 +303,18 @@ typedef struct {
 #define DIAG_DEBUG_CMD_CLR_REGRESSION_LOCK	34
 #define DIAG_DEBUG_CMD_SYNC_CPE_TIME		35
 #define DIAG_DEBUG_CMD_SWITCH_PHY_IMAGE	36	/* param1 = 0/1 -> bonding/single line image */
-#define DIAG_DEBUG_CMD_SAVE_CFG			37	/* Save DSL CFG in flash */
+#define DIAG_DEBUG_CMD_SAVE_PREFERRED_LINE	37	/* Save DSL preferred line info in flash */
 #define DIAG_DEBUG_CMD_MEDIASEARCH_CFG		38
 #define DIAG_DEBUG_CMD_SET_EXTBONDINGDBG_PRINT	39
 #define DIAG_DEBUG_CMD_DUMPBUF_CFG			40
 #define DIAG_DEBUG_CMD_SET_XTM_LINKUP		41	/* param1 - lineId, param2 - tpsTc */
 #define DIAG_DEBUG_CMD_SET_XTM_LINKDOWN		42	/* param1 - lineId */
+#define DIAG_DEBUG_CMD_READ_AFEPLLMDIV			43	/* For 63138 */
+#define DIAG_DEBUG_CMD_WRITE_AFEPLLMDIV			44	/* param1-pllch01_cfg.Bits.mdiv0, param2-pllch45_cfg.Bits.mdiv1 */
+#define DIAG_DEBUG_CMD_CONFIG_BKUPIMAGE			45	/* param1-0/1 ==> Disable/Enable */
+#define DIAG_DEBUG_CMD_READ_AFEPLLNDIV			46	/* For 63138 */
+#define DIAG_DEBUG_CMD_WRITE_AFEPLLNDIV			47	/* param1-pllch01_cfg.Bits.mdiv0, param2-pllch45_cfg.Bits.mdiv1 */
+#define DIAG_DEBUG_CMD_PHY_TYPE_CFG			48
 
 typedef struct {
 	unsigned short	cmd;
@@ -374,6 +382,11 @@ typedef struct {
 	unsigned long	frStart;
 	unsigned long	frNum;
 } DiagLogRetrData;
+
+typedef struct {
+	unsigned char macAddr[6];
+	char	devName[32];
+} DiagConnectInfo;
 
 /* shared DSL message codes */
 

@@ -700,14 +700,14 @@ void ethsw_set_wanoe_portmap(uint16 wan_port_map)
 #else
     map = PBMAP_MIPS | wan_port_map;
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)    
+#if defined(SUPPPORT_GPL)    
     fast_age_all(1);
 #endif
 
     /* Disable learning */
     ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&map, 2);
 /* Flush ARL table to solve DVR issue 82460 */
-#if defined(AEI_VDSL_CUSTOMER_NCS)    
+#if defined(SUPPPORT_GPL)    
     fast_age_all(1);
 #endif
 
@@ -2952,21 +2952,6 @@ void bcmsw_set_ext_switch_pbvlan(int port, uint16_t portMap)
     extsw_wreg(PAGE_PORT_BASED_VLAN, REG_VLAN_CTRL_P0 + (port * 2), (uint8_t *)&v16, sizeof(v16));
 }
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-void AEI_convert_mac_vid_v64_format(uint8_t *mac_vid_v64)
-{
-        uint8_t mac_tmp[8]={0};
-        memcpy(mac_tmp,mac_vid_v64,8);
-        ((uint32 *)mac_tmp)[0] = swab32(((uint32 *)mac_tmp)[0]);
-        ((uint32 *)mac_tmp)[1] = swab32(((uint32 *)mac_tmp)[1]);
-        //memset(mac_vid_v64,0,sizeof(mac_vid_v64));
-        memcpy(mac_vid_v64,&mac_tmp[2],6);
-        memcpy(&mac_vid_v64[6],&mac_tmp[0],2);
-        BCM_ENET_DEBUG("covert result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
-                       mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
-}
-#endif
-
 int remove_arl_entry_ext(uint8_t *mac)
 {
     int timeout, count = 0;
@@ -3014,29 +2999,17 @@ int remove_arl_entry_ext(uint8_t *mac)
         extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY_531xx,&mac_vid_v64[0], 8);
         BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
                        mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-        AEI_convert_mac_vid_v64_format(mac_vid_v64);
-#endif
         /* ARL Search results are read; Mark it done(by reading the reg)
            so ARL will start searching the next entry */
         extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_RESULT_DONE_531xx,
                    (uint8_t *)&v32, 4);
         /* Check if found the matching ARL entry */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-        if ( mac_vid_v64[5] == mac[5] &&
-             mac_vid_v64[4] == mac[4] &&
-             mac_vid_v64[3] == mac[3] &&
-             mac_vid_v64[2] == mac[2] &&
-             mac_vid_v64[1] == mac[1] &&
-             mac_vid_v64[0] == mac[0])
-#else
         if ( mac_vid_v64[0] == mac[5] && 
              mac_vid_v64[1] == mac[4] &&
              mac_vid_v64[2] == mac[3] &&
              mac_vid_v64[3] == mac[2] &&
              mac_vid_v64[4] == mac[1] &&
              mac_vid_v64[5] == mac[0])
-#endif
         { /* found the matching entry ; invalidate it */
             BCM_ENET_DEBUG("Found matching ARL Entry\n");
             /* Write the MAC Address */
@@ -3062,22 +3035,12 @@ int remove_arl_entry_ext(uint8_t *mac)
             BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
                            mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
             /* Compare the MAC */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-            AEI_convert_mac_vid_v64_format(mac_vid_v64);
-            if ( !(mac_vid_v64[5] == mac[5] &&
-                 mac_vid_v64[4] == mac[4] &&
-                 mac_vid_v64[3] == mac[3] &&
-                 mac_vid_v64[2] == mac[2] &&
-                 mac_vid_v64[1] == mac[1] &&
-                 mac_vid_v64[0] == mac[0]))
-#else
             if (!(mac_vid_v64[0] == mac[5] && 
                   mac_vid_v64[1] == mac[4] &&
                   mac_vid_v64[2] == mac[3] &&
                   mac_vid_v64[3] == mac[2] &&
                   mac_vid_v64[4] == mac[1] &&
                   mac_vid_v64[5] == mac[0]))
-#endif
             {
                 printk("Error - can't find the requested ARL entry\n");
                 return 0;

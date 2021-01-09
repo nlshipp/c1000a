@@ -42,7 +42,7 @@ extern "C" {
 #endif
 
 /* Incldes. */
-#ifndef _CFE_
+#if !defined(_CFE_) && !defined(_NOOS)
 #include <linux/version.h>
 #endif
 #include "AdslMibDef.h"
@@ -103,7 +103,10 @@ typedef enum AdslTestMode
 	ADSL_TEST_DIAGMODE,
 	ADSL_TEST_L0,
 	ADSL_TEST_FREEZE_REVERB = 20,
-	ADSL_TEST_FREEZE_MEDLEY
+	ADSL_TEST_FREEZE_MEDLEY,
+#ifdef SUPPORT_SELT
+	ADSL_TEST_NEXT_SELT,
+#endif
 } ADSL_TEST_MODE;
 
 // ADSL_CHANNEL_ADDR Contains ADSL Utopia PHY addresses
@@ -123,7 +126,7 @@ typedef struct AdslConnectionInfo
 	UINT32 ulFastDnStreamRate;
 	UINT32 ulInterleavedUpStreamRate;
 	UINT32 ulInterleavedDnStreamRate;
-#if defined (AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined (SUPPPORT_GPL)
 	UINT32 demodCapabilities;
 	UINT32 demodCapabilities2;
 #endif
@@ -164,6 +167,19 @@ typedef struct AdslConnectionInfo
 #define	BCM_SAVEPREFERMEDIA_SHIFT	7
 #define	BCM_SAVEPREFERMEDIA_MSK		(1 << BCM_SAVEPREFERMEDIA_SHIFT)
 #define	BCM_SAVEPREFERMEDIA_DISABLED	(1 << BCM_SAVEPREFERMEDIA_SHIFT)
+#if defined(SUPPORT_DSL_GFAST) || defined(CONFIG_BCM_DSL_GFAST)
+#define	BCM_PHYSWITCH_SHIFT		0
+#define	BCM_PHYSWITCH_MSK		(1 << BCM_PHYSWITCH_SHIFT)
+#define	BCM_PHYSWITCH_DISABLED		(1 << BCM_PHYSWITCH_SHIFT)
+#define	BCM_PHYTYPE_SHIFT		1
+#define	BCM_PHYTYPE_MSK			(1 << BCM_PHYTYPE_SHIFT)
+#define	BCM_PHYTYPE_NON_GFAST		(0 << BCM_PHYTYPE_SHIFT)
+#define	BCM_PHYTYPE_GFAST		(1 << BCM_PHYTYPE_SHIFT)
+#define	BCM_SAVEPREFERPHY_SHIFT		2
+#define	BCM_SAVEPREFERPHY_MSK		(1 << BCM_SAVEPREFERPHY_SHIFT)
+#define	BCM_SAVEPREFERPHY_DISABLED	(1 << BCM_SAVEPREFERPHY_SHIFT)
+#define	BCM_PREFERREDPHY_FOUND		BCM_PREFERREDTYPE_FOUND
+#endif
 #endif
 
 typedef struct
@@ -206,7 +222,7 @@ BCMADSL_STATUS BcmAdsl_Check(void);
 BCMADSL_STATUS BcmAdsl_MapAtmPortIDs(UINT16 usAtmFastPortId, UINT16 usAtmInterleavedPortId);
 #endif
 
-#if defined(__KERNEL__) || defined(_CFE_) || defined(__ECOS)
+#if defined(__KERNEL__) || defined(_CFE_) || defined(__ECOS) || defined(_NOOS)
 BCMADSL_STATUS BcmAdsl_Initialize(unsigned char lineId, ADSL_FN_NOTIFY_CB pFnNotifyCb, UINT32 ulParm, adslCfgProfile *pAdslCfg);
 BCMADSL_STATUS BcmAdsl_Uninitialize(unsigned char lineId);
 BCMADSL_STATUS BcmAdsl_ConnectionStart(unsigned char lineId);

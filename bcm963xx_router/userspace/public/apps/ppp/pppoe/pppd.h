@@ -64,7 +64,7 @@
 #define MAXNAMELEN	256	/* max length of hostname or name for auth */
 #define MAXSECRETLEN	256	/* max length of password or secret */
 #define MAXSRVNAMELEN	256
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define MAXACNAMELEN    256
 extern char	pppoe_ac_name[];
 #endif
@@ -265,7 +265,7 @@ extern char	*ptycommand;	/* Command to run on other side of pty */
 extern int	maxconnect;	/* Maximum connect time (seconds) */
 extern char	user[MAXNAMELEN];/* Our name for authenticating ourselves */
 extern char	passwd[MAXSECRETLEN];	/* Password for PAP or CHAP */
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 extern char	PAPpasswd[MAXSECRETLEN];	/* Password for PAP */
 #endif
 extern bool	auth_required;	/* Peer is required to authenticate */
@@ -856,7 +856,7 @@ extern void sendPppEventMessage(const SINT32 state, const char *ip, const char *
 #ifdef AEI_CONTROL_LAYER
 extern void sendCtlPppEventMessage(const SINT32 state, const char *ip, const char *mask, const char *gateway, const char *nameserver, const char *lastconnectionerror);
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 void setbackoff();
 void unsetbackoff();
 #endif

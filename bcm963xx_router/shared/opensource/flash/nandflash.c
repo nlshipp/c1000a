@@ -109,14 +109,14 @@
 #define FLASHTYPE_TOSHIBA       0x98
 #define FLASHTYPE_MXIC          0xc2
 #define FLASHTYPE_SPANSION      0x01
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define FLASHTYPE_ESMT          0x92
 #endif
 
 /* Samsung flash parts. */
 #define SAMSUNG_K9F5608U0A      0x55
 #define SAMSUNG_K9F1208U0       0x76
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define SAMSUNG_K9F1G08U0D      0xf1
 #endif
 
@@ -139,7 +139,7 @@
 #define SPANSION_S34ML02G1      0xda
 #define SPANSION_S34ML04G1      0xdc
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define ESMT_F59L1G81A          0xf1
 #endif
 
@@ -148,7 +148,7 @@
 #define NAND_MAKE_ID(A,B)    \
     (((unsigned short) (A) << 8) | ((unsigned short) B & 0xff))
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define NAND_FLASH_DEVICES                                                    \
   {{NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F5608U0A),"Samsung K9F5608U0"},  \
    {NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F1208U0),"Samsung K9F1208U0"},   \

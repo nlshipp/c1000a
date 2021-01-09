@@ -103,9 +103,7 @@ $(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS):
 # DO_BUILD_OPENSSL is set in make.common
 ifneq ($(strip $(DO_BUILD_OPENSSL)),)
 openssl: sanity_check
-	(tar xkfj openssl.tar.bz2 2> /dev/null || true)
-	$(MAKE) -j 1 -C openssl all
-	$(MAKE) -j 1 -C openssl install
+	$(MAKE) -j 1 -C openssl-1.0.1j all
 else
 openssl: sanity_check
 	@echo "skipping openssl (not configured)"

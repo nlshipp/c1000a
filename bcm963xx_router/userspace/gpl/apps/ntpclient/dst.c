@@ -552,7 +552,7 @@ get_offset(long gm_time,int zone_n)
                         current_offset = rule->r_stdoff;
         }
 
-#if defined (AEI_VDSL_CUSTOMER_NCS)
+#if defined (SUPPPORT_GPL)
 		return zone->z_gmtoff;
 #else
         return zone->z_gmtoff + current_offset;

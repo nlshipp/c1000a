@@ -136,7 +136,7 @@ written consent.
  *
  *
  *****************************************************************************/
-#ifndef _CFE_
+#if !defined(_CFE_) && !defined(_NOOS)
 #include <linux/version.h>
 #endif
 
@@ -147,20 +147,43 @@ written consent.
 extern "C" {
 #endif
 
-#define  ADSLMIBDEF_H_VER  2
+#define  ADSLMIBDEF_H_VER  3
+
+#if !defined( __GNUC__) && defined(__arm)
+#pragma anon_unions
+#endif
 
 //#define SAVE_CRATESRA_MSG
 //#define CO_G994_NSIF
 //#define SUPPORT_24HR_CNT_STAT
 
 #ifndef CONFIG_VDSL_SUPPORTED
-#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268) || defined(DMP_VDSL2WAN_1)
+#if defined(CONFIG_BCM963268) ||   defined(CHIP_63268) ||    \
+	defined(CONFIG_BCM963138) ||    \
+	 defined(CHIP_63138) ||    \
+	  defined(CONFIG_BCM963148) ||    \
+	   defined(CHIP_63148) ||    \
+	    \
+	defined(CONFIG_BCM963381) ||    \
+	    \
+	 defined(CHIP_63381) ||    \
+	    \
+	  defined(DMP_VDSL2WAN_1)
 #define CONFIG_VDSL_SUPPORTED
 #endif
 #endif
 
 #if defined(CONFIG_VDSL_SUPPORTED)
 #define SUPPORT_VECTORING
+#if defined(SUPPORT_DSL_GFAST) || defined(CONFIG_BCM_DSL_GFAST)
+#define US_GFAST_TONE_OFFSET    2048
+#endif
+#endif
+
+#if defined(CONFIG_BCM963138)
+#ifndef CONFIG_VDSLBRCMPRIV1_SUPPORT
+#define CONFIG_VDSLBRCMPRIV1_SUPPORT
+#endif
 #endif
 
 /*
@@ -169,16 +192,18 @@ extern "C" {
 **
 */
 
-#define kAdslCfgModMask                      (0x00000007 | 0x0000F000)
-#define kAdslCfgModAny                        0x00000000
+#define kAdslCfgModMask                     (0x00000007 | 0x0000F000)
+#define kAdslCfgModAny                      0x00000000
 
-#define kAdslCfgModGdmtOnly               0x00000001
+#define kAdslCfgModGdmtOnly                 0x00000001
 #define kAdslCfgModGliteOnly                0x00000002
-#define kAdslCfgModT1413Only             0x00000004
-#define kAdslCfgModAnnexIOnly            0x00000004
-#define kAdslCfgModAdsl2Only              0x00001000
-#define kAdslCfgModAdsl2pOnly            0x00002000
-#define kDslCfgModVdsl2Only                0x00004000
+#define kAdslCfgModT1413Only                0x00000004
+#define kAdslCfgModAnnexIOnly               0x00000004
+#define kAdslCfgModAdsl2Only                0x00001000
+#define kAdslCfgModAdsl2pOnly               0x00002000
+#define kDslCfgModVdsl2Only                 0x00004000
+#define kDslCfgModGfastOnly                 0x00008000
+
 
 #define kAdslCfgBitmapMask                  0x00000018
 #define kAdslCfgDBM                               0x00000000
@@ -312,9 +337,11 @@ extern "C" {
 #define		kVdslProfile12b		0x00000020
 #define		kVdslProfile17a		0x00000040
 #define		kVdslProfile30a		0x00000080
+#define		kVdslProfileBrcmPriv1		0x00000100
 #define		kVdslProfileMask	(kVdslProfile8a | kVdslProfile8b | kVdslProfile8c |kVdslProfile8d |\
 								kVdslProfile12a | kVdslProfile12b | kVdslProfile17a)
-#define		kVdslProfileMask1	(kVdslProfileMask| kVdslProfile30a)
+#define		kVdslProfileMask1	(kVdslProfileMask | kVdslProfile30a)
+#define		kVdslProfileMask2	(kVdslProfileMask1 | kVdslProfileBrcmPriv1)
 
 #define		kVdslUS0MaskShift	16
 #define		kVdsl8aUS0Mask	(0x00000001 << kVdslUS0MaskShift)
@@ -516,6 +543,13 @@ typedef struct _adslVersionInfo {
 #define kOidAdslPrivSNRMperband        3
 #define kOidAdslPrivTxPwrperband       4
 
+#define kOidAdslPrivUER                44
+#define kOidAdslPrivEchoVariance       45
+#define kOidAdslPrivSetSeltData        46
+#define kOidAdslPrivGetSeltData        47
+#define kOidAdslPrivQuietLineNoiseRnc  48
+
+
 #define kPlnNumberOfDurationBins       32
 #define kPlnNumberOfInterArrivalBins   16
 
@@ -656,7 +690,7 @@ typedef struct _adslVersionInfo {
 
 /* AnnexC modulation and bitmap types for the field (adslConnection.modType) */
 
-#define kAdslModMask        0x7
+#define kAdslModMask        0xF
 
 #define kAdslModGdmt        0
 #define kAdslModT1413       1
@@ -666,6 +700,7 @@ typedef struct _adslVersionInfo {
 #define kAdslModAdsl2p      5
 #define kAdslModReAdsl2     6
 #define kVdslModVdsl2       7
+#define kXdslModGfast       8
 
 #define kAdslBitmapShift    3
 #define kAdslBitmapMask     kAdslCfgBitmapMask
@@ -757,6 +792,10 @@ typedef struct _xdslPhysEntry {
     unsigned char  attnDrMethod;
     unsigned char  attnDrInp;
     unsigned char  attnDrDelay;
+#ifdef USE_TRAINING_ATTNDR
+    long        adslShowAttainableRate;
+    long        adslTrainAttainableRate;
+#endif
 } xdslPhysEntry;
 #endif
 
@@ -875,6 +914,7 @@ typedef struct _adslPerfDataEntry {
     long                    lastShowtimeDropReason;
     unsigned long       adslSinceLinkTimeElapsed;
     unsigned long       adslSincePrevLinkTimeElapsed;
+    unsigned long       adslSinceDrvStartedTimeElapsed; /*total time since driver started, reset when driver restarted*/
 } adslPerfDataEntry;
 
 #define kAdslMibPerfIntervals       4
@@ -925,12 +965,13 @@ typedef struct _adslPLNDataEntry {
 } adslPLNDataEntry;
 	
 typedef struct _adslINMConfiguration {
-    unsigned short              INMCC;
-    unsigned short              INM_INPEQ_MODE;
+    unsigned short        INMCC;
+    unsigned short        INM_INPEQ_MODE;
     unsigned short        INMIATS;
     unsigned short        INMIATO;
     unsigned char         INMDF;
-    unsigned short       INM_INPEQ_FORMAT;
+    unsigned short        INM_INPEQ_FORMAT;
+	unsigned char         newConfig;	
 }adslINMConfiguration;
 
 #define kAdslMibChanPerfIntervals   4
@@ -1061,7 +1102,7 @@ struct UDenomNum16
 typedef struct _xdslFramingInfo {
     unsigned short          N;
     unsigned short          D;
-    unsigned short          L;
+    unsigned short          L16;
     unsigned char           B[2];
     unsigned char           I;
     unsigned char           M;
@@ -1091,7 +1132,8 @@ typedef struct _xdslFramingInfo {
     unsigned char           A;            /* is the integer number of ATM cells or PTM codwords per DTU */
     long                        dataRate;
     long                        etrRate;
-	unsigned char           tpsTcOptions;
+    unsigned char           tpsTcOptions;
+    unsigned int            L;
 } xdslFramingInfo;
 
 // ADSL.K = B[0] + B[1] + 1
@@ -1188,6 +1230,11 @@ typedef struct
     unsigned int        minEFTR;        /* Lowest EFTR observed in the current interval */
 } ginpCounters;     /* No longer the same as GinpCounters in SoftDsl.h; SEFTR was added for driver's internal use */
 
+#define kXdslFireDsEnabled            0x1
+#define kXdslFireUsEnabled            0x2
+#define kXdslGinpDsEnabled            0x4
+#define kXdslGinpUsEnabled            0x8
+
 typedef struct _xdslGinpStat {
     unsigned long   status;
     ginpCounters    cntDS;
@@ -1236,11 +1283,41 @@ typedef struct _adslDiagModeData {
     unsigned short    ldLastStateUS;    /* US LD last state transmitted */
 } adslDiagModeData;
 
+#define SELT_STATE_IDLE                    0
+#define SELT_STATE_MEASURING               1
+#define SELT_STATE_POSTPROCESSING          2
+#define SELT_STATE_COMPLETE                3
+
+#define SELT_STATE_MEASUREMENT_SHIFT       8
+#define SELT_STATE_MASK                    ((1<<SELT_STATE_MEASUREMENT_SHIFT)-1)
+
+#define SELT_STATE_WAITING                 ((1<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
+#define SELT_STATE_MEASURING_QLN           ((2<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
+#define SELT_STATE_MEASURING_ENR           ((4<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
+#define SELT_STATE_MEASURING_SELT          ((8<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
+
+#define SELT_STATE_STEP_WAIT               0x01
+#define SELT_STATE_STEP_QLN                0x02
+#define SELT_STATE_STEP_ENR                0x04
+#define SELT_STATE_STEP_SELT               0x08
+#define SELT_STATE_STEP_POSTPROCESSING     0x10
+
+#define SELT_STATE_ALL_STEPS               0x1F
+
+typedef struct SeltData {
+    unsigned long seltCfg;
+    long          seltState;
+    unsigned char seltSteps;
+    int           seltAgc;
+} SeltData;
+
 //#ifdef NTR_SUPPORT
-#if 1    /* Prevent inconsistent structure size b/w modules when BRCM_NTR_SUPPORT is enabled (i.e XTM does not define NTR_SUPPORT) */
 #define kNtrOperMode6368            (0)
 #define kNtrOperModeInt                (1)
 #define kNtrOperModeExtDriver    (2)
+
+#define kNtrStop                (18)
+#define kNtrStart               (19)
 
 typedef struct dslNtrCfg {
    unsigned long   intModeDivRatio;     /* NTR output freq = 17.664e6/intModeDivRatio */
@@ -1263,12 +1340,13 @@ typedef struct dslNtrData {
     unsigned long   ncoCntAtNtr;
     /* 6362/6328 */
 #if defined(CONFIG_BCM96362) || defined(CHIP_6362) || defined(CONFIG_BCM96328) || defined(CHIP_6328) ||\
-    defined(CONFIG_BCM963268) || defined(CHIP_63268) || defined(CONFIG_BCM96318) || defined(CHIP_6318)
+    defined(CONFIG_BCM963268) || defined(CHIP_63268) || defined(CONFIG_BCM96318) || defined(CHIP_6318) ||\
+    defined(CONFIG_BCM963138) || defined(CHIP_63138) || defined(CONFIG_BCM963381) || defined(CHIP_63381) ||\
+    defined(CONFIG_BCM963148) || defined(CHIP_63148)
     long    phaseError;       /* 32.0 format */
     long    VCOAdjInfo;
 #endif
 } dslNtrData;
-#endif
 
 #ifndef VDSLTONEGROUP
 #define VDSLTONEGROUP
@@ -1277,7 +1355,6 @@ typedef struct _VdslToneGroup {
    unsigned short            startTone;
 } VdslToneGroup;
 #endif
-#if !defined(CONFIG_BCM96358) && !defined(CONFIG_BCM96348) && !defined(CONFIG_BCM96338)
 typedef struct _bandPlanDescriptor {
    unsigned char             noOfToneGroups;
    unsigned char             reserved;
@@ -1302,7 +1379,6 @@ typedef struct _vdslperbandPMDdata {
     long        adslCurrAtn;
     long        adslSignalAttn;
 } vdslperbandPMDdata;
-#endif
 
 #if defined(CONFIG_VDSL_SUPPORTED)
 
@@ -1666,7 +1742,6 @@ typedef struct _adslMibInfo {
 	adslPerfCounters			adslTxPerfSinceShowTime;
 	adslPerfCounters			adslTxPerfLast;
 	adslNonLinearityData		adslNonLinData;
-#if !defined(CONFIG_BCM96358) && !defined(CONFIG_BCM96348) && !defined(CONFIG_BCM96338)
 	vdslperbandPMDdata		perbandDataUs[MAX_NUM_BANDS];
 	vdslperbandPMDdata		perbandDataDs[MAX_NUM_BANDS];
 	
@@ -1687,14 +1762,14 @@ typedef struct _adslMibInfo {
 #if defined(SUPPORT_VECTORING)
 	VectData				vectData;
 #endif
-#endif
 	unsigned char			lp2Active;
 	unsigned char			lp2TxActive;
 	adslPLNDataEntry			adslPLNData;
 //#if defined(NTR_SUPPORT)
-#if 1	/* Prevent inconsistent structure size b/w modules when BRCM_NTR_SUPPORT is enabled */
 	dslNtrData					ntrCnt;
 	dslNtrCfg					ntrCfg;
+#ifdef SUPPORT_SELT
+	SeltData				selt;
 #endif
 	unsigned long					afeId[2];
 	long					transceiverClkError;	/* Q8 format */
@@ -1707,8 +1782,10 @@ typedef struct _adslMibInfo {
 	unsigned char IkanosCO4Detected;
 #ifdef SUPPORT_VECTORING
 	unsigned char reportVectoringCounter;
+	unsigned char fdps_us;
 #endif
 	unsigned long maxBondingDelay;
+	gFactorsEntry			physGfactors;
 } adslMibInfo;
 
 #if defined(__cplusplus)

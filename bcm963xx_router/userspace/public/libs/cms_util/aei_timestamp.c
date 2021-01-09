@@ -38,7 +38,7 @@ CmsRet AEI_cmsTms_subXSIDateTime(const char *xsiTime1, const char *xsiTime2, UIN
 }
 #endif /* DMP_PERIODICSTATSBASE_1 */
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 CmsRet AEI_cmsTms_getGUIDateTime(char *buf, UINT32 bufLen)
 {
    return (AEI_oalTms_getGUIDateTime(buf, bufLen));

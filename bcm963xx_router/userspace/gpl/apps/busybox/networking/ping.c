@@ -282,7 +282,7 @@ struct globals {
 	unsigned timeout;
 	unsigned total_secs;
 	unsigned sizeof_rcv_packet;
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
     unsigned dscp;
 #endif
 	char *rcv_packet; /* [datalen + MAXIPLEN + MAXICMPLEN] */
@@ -317,7 +317,7 @@ struct globals {
 #define deadline     (G.deadline    )
 #define timeout      (G.timeout     )
 #define total_secs   (G.total_secs  )
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define dscp         (G.dscp        )
 #endif
 #define hostname     (G.hostname    )
@@ -507,7 +507,7 @@ static void print_stats_and_exit(int junk UNUSED_PARAM)
 	// call logStat before ntransmitted is wiped out below
 	logStat(PING_FINISHED);
 #endif
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 	usleep(10000);//wait for send msg finished.
 #endif
 
@@ -889,7 +889,7 @@ static void ping4(len_and_sockaddr *lsa)
 	sockopt = (datalen * 2) + 7 * 1024; /* giving it a bit of extra room */
 	setsockopt(pingsock, SOL_SOCKET, SO_RCVBUF, &sockopt, sizeof(sockopt));
 
- #ifdef AEI_VDSL_CUSTOMER_NCS
+ #ifdef SUPPPORT_GPL
 	if (dscp > 0)
 	{
 		unsigned int val = dscp << 2;
@@ -973,7 +973,7 @@ static void ping6(len_and_sockaddr *lsa)
 	/* request ttl info to be returned in ancillary data */
 	setsockopt(pingsock, SOL_IPV6, IPV6_HOPLIMIT, &const_int_1, sizeof(const_int_1));
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 	if (dscp > 0)
 	{
 		unsigned int val = dscp;
@@ -1063,7 +1063,7 @@ static int common_ping_main(int opt, char **argv)
 	INIT_G();
 
 	/* exactly one argument needed; -v and -q don't mix; -c NUM, -w NUM, -W NUM -Q dscp*/
-#ifdef AEI_VDSL_CUSTOMER_NCS   
+#ifdef SUPPPORT_GPL   
 	opt_complementary = "=1:q--v:v--q:c+:w+:W+:Q+";
 	opt |= getopt32(argv, OPT_STRING, &pingcount, &str_s, &deadline, &timeout, &str_I, &str_t, &str_i,&dscp);
 #else
@@ -1109,7 +1109,7 @@ static int common_ping_main(int opt, char **argv)
 			af = AF_INET;
 		if (opt & OPT_IPV6)
 			af = AF_INET6;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define DNS_RESOLVE_TEST_WEBSITE "www.google.com"
 		if ((requesterId == EID_HTTPD) && (strncmp(hostname, DNS_RESOLVE_TEST_WEBSITE, strlen(DNS_RESOLVE_TEST_WEBSITE)) == 0))
 		{

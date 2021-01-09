@@ -782,8 +782,8 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 	iph->saddr		=	rt->rt_src;
 
 	if ((iph->ttl = tiph->ttl) == 0)
-#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK	
-    //CENTURYLINK require in 6rd data, the v4 TTL should  independent of the v6 Hop/TTL for traceroute6
+#ifdef SUPPPORT_GPL	
+    //C require in 6rd data, the v4 TTL should  independent of the v6 Hop/TTL for traceroute6
     {
         if(iph6->hop_limit < 64)
           iph->ttl = 64;

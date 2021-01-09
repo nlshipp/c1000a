@@ -36,7 +36,7 @@
 extern int ip_changed;
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 /*
  * check the ip is in the lease range
  */
@@ -108,7 +108,7 @@ static UBOOL8 is_IPTVSTB(struct dhcpMessage *oldpacket)
 }
 #endif
 
-#if defined(AEI_VDSL_DHCP_LEASE)||defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_DHCP_LEASE)||defined(SUPPPORT_GPL)
 UBOOL8 is_stb(const char *vid)
 {
     int i;
@@ -336,7 +336,7 @@ static void add_bootp_options(struct dhcpMessage *packet)
         strncpy(packet->file, cur_iface->boot_file, sizeof(packet->file) - 1);
 }
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 static int is_dhcpvlan_vendor(char *ip,char *optionvendor) //add william 2012-4-25
 {
 	struct dhcpvlanOption60 * curr = cur_iface->dhcpvlanOption60list;
@@ -365,7 +365,8 @@ static UBOOL8 is_IPTVSTB(struct dhcpMessage *oldpacket)
 
     vendorid = get_option(oldpacket, DHCP_VENDOR);
 
-    if (vendorid && !strncmp(vendorid, "MSFT_IPTV", strlen("MSFT_IPTV"))) {
+    if ( vendorid && (!strncmp(vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(vendorid, "IPTV_STB", strlen("IPTV_STB"))) ) 
+    {
         stb = TRUE;
         //      printf("option 60 is %s\n", vendorid);
     }
@@ -387,7 +388,7 @@ static int is_in_range(struct dhcpMessage *oldpacket, u_int32_t req_align)
 }
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
 void custom_dns_option(struct dhcpMessage *packet, struct option_set *curr)
 {
     unsigned char data[256];
@@ -523,7 +524,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
 	struct static_lease *special_lease = NULL;
 #endif
 
-	#if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-1-11
+	#if defined(SUPPPORT_GPL) //add william 2012-1-11
 	    /* */
         int vendor;
         char vendorid[VENDOR_CLASS_ID_STR_SIZE + 1];
@@ -569,7 +570,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
 
     if (!static_lease_ip) {
         /* the client is in our lease/offered table */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         lease = find_lease_by_chaddr(oldpacket->chaddr);
 
         /* if this IP address has already been assigned to other client as a static lease,
@@ -594,11 +595,11 @@ int sendOffer(struct dhcpMessage *oldpacket)
         } else if ((req = get_option(oldpacket, DHCP_REQUESTED_IP)) &&
                    /* Don't look here (ugly hackish thing to do) */
                    memcpy(&req_align, req, 4) &&
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
                    (!reservedIp(cur_iface->static_leases, req_align)) &&
 #endif
                    /* and the ip is in the lease range */
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                    is_in_range(oldpacket, req_align) &&
 #else
                    ntohl(req_align) >= ntohl(cur_iface->start) && ntohl(req_align) <= ntohl(cur_iface->end) &&
@@ -610,7 +611,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
             packet.yiaddr = req_align;
             /* otherwise, find a free IP */
         } else {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
             if (is_IPTVSTB(oldpacket)) {
                 packet.yiaddr = find_address_vendorid(0);
                 /* try for an expired lease */
@@ -623,12 +624,12 @@ int sendOffer(struct dhcpMessage *oldpacket)
                 if (!packet.yiaddr)
                     packet.yiaddr = find_address(1);
 
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
                 /* get oldest lease ipaddress from lease tables */
                 if (!packet.yiaddr)
                     packet.yiaddr = AEI_find_address();
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                 if (!packet.yiaddr)
                     packet.yiaddr = AEI_find_rs_staticaddress();
             }
@@ -700,7 +701,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
         return -1;
     }
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(SUPPPORT_GPL)
     struct dhcpOfferedAddr *tmp_lease;
     char tmp_vendorid[256];
     char *tmp_vid;
@@ -734,11 +735,11 @@ int sendOffer(struct dhcpMessage *oldpacket)
     curr = cur_iface->options;
     while (curr) {
         if (curr->data[OPT_CODE] != DHCP_LEASE_TIME) {
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
             if (curr->data[OPT_CODE] == DHCP_DNS_SERVER)
                 custom_dns_option(&packet, curr);
 #endif
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
             if (curr->data[OPT_CODE] == DHCP_BOOT_FILE) {
                 int i, len;
                 char vendorid[256];
@@ -872,11 +873,11 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
     curr = cur_iface->options;
     while (curr) {
         if (curr->data[OPT_CODE] != DHCP_LEASE_TIME) {
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
             if (curr->data[OPT_CODE] == DHCP_DNS_SERVER)
                 custom_dns_option(&packet, curr);
 #endif
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
             if (curr->data[OPT_CODE] == DHCP_BOOT_FILE) {
                 if (is_IPTVSTB(oldpacket) && wantOption(oldpacket, DHCP_BOOT_FILE)) {
                     add_option_string(packet.options, curr->data);
@@ -948,7 +949,7 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
         offerlist->classid[length] = '\0';
     }
 
-#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(SUPPPORT_GPL)
     if (is_stb(offerlist->vendorid))
     {
         offerlist->is_stb = TRUE;
@@ -969,17 +970,17 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
         offerlist->is_stb = FALSE;
     }
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+#if defined(SUPPPORT_GPL) //add william 2012-4-25
 	if ( strlen(offerlist->vendorid) > 0 )
 	{
 		is_dhcpvlan_vendor(inet_ntoa(addr),offerlist->vendorid);
 	}
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
     getClientIDOption(oldpacket, offerlist);
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     getClientIDOption(oldpacket, offerlist);
 #endif
 
@@ -1004,12 +1005,12 @@ int send_inform(struct dhcpMessage *oldpacket)
     curr = cur_iface->options;
     while (curr) {
         if (curr->data[OPT_CODE] != DHCP_LEASE_TIME) {
-#ifdef AEI_VDSL_CUSTOMER_QWEST
+#ifdef SUPPPORT_GPL
             if (curr->data[OPT_CODE] == DHCP_DNS_SERVER)
                 custom_dns_option(&packet, curr);
 #endif
 
-#ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef SUPPPORT_GPL_UNDEFINED
             if (curr->data[OPT_CODE] == DHCP_BOOT_FILE) {
                 if (is_IPTVSTB(oldpacket) && wantOption(oldpacket, DHCP_BOOT_FILE)) {
                     add_option_string(packet.options, curr->data);

@@ -246,7 +246,7 @@ volatile uint32 *ledCtrlStrobeReg = (volatile uint32 *) LED_CTRL_STROBE_REG; \
 #if defined(CONFIG_BCM_ENDPOINT) || defined(CONFIG_BCM_ENDPOINT_MODULE) || (defined(CONFIG_BCM96816) && defined(CONFIG_BCM_MOCA_SOFT_SWITCHING))
 #define NETDEV_WEIGHT  16 // lower weight for less voice latency
 #else
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define NETDEV_WEIGHT  32
 #else
 #define NETDEV_WEIGHT  32
@@ -401,7 +401,7 @@ int enet_gmac_log_port( void );
 #endif
 
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+#if defined(SUPPPORT_GPL) && !defined(AEI_63168_CHIP)
 UBOOL8 extSwitchExist = FALSE;
 #endif
 
@@ -1565,7 +1565,7 @@ static int create_vport(void)
             dev_alloc_name(dev, ewanif_name);
         } else
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         if ((j >= LAN_PORT_ID_1) && (j <= LAN_PORT_ID_4))
         {
             char ifname[IFNAMSIZ];
@@ -1652,7 +1652,7 @@ static int create_vport(void)
             pVnetDev0->wanPort |= 1 << j;
             BCM_ENET_DEBUG("Getting MAC for WAN port %d", j);
 #ifdef SEPARATE_MAC_FOR_WAN_INTERFACES
-       #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+       #if defined(SUPPPORT_GPL_UNDEFINED)
         if(strstr(dev->name,"ewan0")!=NULL)
             status=kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
@@ -2125,7 +2125,7 @@ bcm63xx_enet_query(struct net_device * dev)
         BcmEnet_devctrl *pDevCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
         uint32 rxDropped, txDropped;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         //int a = avenrun[0] + (FIXED_1/200);
         /* Reading many stats for many ports when cpu 0 and 1 are busy can
            screw up memory of skb that ingress ethernet and egress wifi,
@@ -2146,7 +2146,7 @@ bcm63xx_enet_query(struct net_device * dev)
         /* Add the dropped packets in software */
         stats->rx_dropped += pDevCtrl->stats.rx_dropped;
         stats->tx_dropped += pDevCtrl->stats.tx_dropped;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         stats->multicast += pDevCtrl->stats.multicast;
 #endif
 
@@ -2515,7 +2515,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
                 mib->ulIfSpeed = SPEED_1000MBIT;
    //roll back it because it will cause packet loss of STB which is connected to DUT directly
 /* this will reduce the performance from WAN ETH->HPNA and LAN ETH->HPNA */
-//#if defined(AEI_VDSL_CUSTOMER_NCS)
+//#if defined(SUPPPORT_GPL)
 #if 0
 	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
                 //QA-Bug#37910: STB connected to router through 1000M switch will have many packet loss.
@@ -2530,7 +2530,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
             {
                 mib->ulIfSpeed = SPEED_100MBIT;
    //roll back it because it will cause packet loss of STB which is connected to DUT directly
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 			   //Agile QA-Bug #38053,The result of HPNA throughput (LAN Ethernt to LAN HPNA and LAN HPNA to LAN Ethernet) is very poor. We need set HPNA's FAP TM rate to the big one such as 200M which is confirmed to have good performance.	
                if(strcmp(pNetDev->name,"eth4")==0)
                {
@@ -2546,7 +2546,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
             {
                 mib->ulIfSpeed = SPEED_10MBIT;
    //roll back it because it will cause packet loss of STB which is connected to DUT directly
-//#if !defined(AEI_VDSL_CUSTOMER_NCS)
+//#if !defined(SUPPPORT_GPL)
                 bcmPktDma_EthSetPhyRate(port, 1, 9900, pNetDev->priv_flags & IFF_WANDEV);
 //#endif
             }
@@ -2597,7 +2597,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
             }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+#if defined(SUPPPORT_GPL) && !defined(AEI_63168_CHIP)
                 if (extSwitchExist)
                 {
                     uint8 v8=0;
@@ -2655,7 +2655,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
             priv->linkState &= ~mask;
 #if 1
 //Roll back the fix because it will cause packet loss of STB which is connected to DUT directly.
-//#if !defined(AEI_VDSL_CUSTOMER_NCS)
+//#if !defined(SUPPPORT_GPL)
             bcmPktDma_EthSetPhyRate(port, 0, 0, pNetDev->priv_flags & IFF_WANDEV);
 #endif
 
@@ -4362,7 +4362,7 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         }
     }
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS) 
+#if defined(SUPPPORT_GPL) 
     txdma = global.pVnetDev0_g->txdma[pParam->channel];
 #endif
 
@@ -6758,7 +6758,7 @@ int __init bcm63xx_enet_probe(void)
 
     TRACE(("bcm63xxenet: bcm63xx_enet_probe\n"));
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     /*set Power Led Green Blink */
     kerSysLedCtrl(kLedPower, kLedStatePowerOneSecondBlinkContinues);
 #endif
@@ -6766,7 +6766,7 @@ int __init bcm63xx_enet_probe(void)
 #if defined(AEI_VDSL_HPNA)
     kerSysNvRamGetBoardId(board_id);
 
-    if (strstr(board_id, "C1000") != NULL)
+    if ((strstr(board_id, "C1000") != NULL) || (strstr(board_id, "C1900A") != NULL))
         hpna_support = 0;
     else
         hpna_support = 1;
@@ -6789,7 +6789,7 @@ int __init bcm63xx_enet_probe(void)
         /* device has already been initialized */
         return -ENXIO;
     }
-#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+#if defined(SUPPPORT_GPL) && !defined(AEI_63168_CHIP)
     /* if external switch exists, then shut down all ports at first to prevent any packets from coming into driver.
      * Only when a port has linked up do we turn on tx/rx for that port
      */
@@ -7030,7 +7030,7 @@ int __init bcm63xx_enet_probe(void)
 #endif
 
     macAddr[0] = 0xff;
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
         if(strstr(dev->name,"ewan0")!=NULL)
             kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
@@ -7888,7 +7888,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             mii = (struct mii_ioctl_data *)&rq->ifr_data;
             flags = mii->val_out;
             down(&bcm_ethlock_switch_config);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
             ethsw_phy_rreg(mii->phy_id, mii->reg_num & 0x1f, (uint16 *)&mii->val_out);
 #else           
             ethsw_phyport_rreg2(mii->phy_id, mii->reg_num & 0x1f,
@@ -8115,7 +8115,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     switch(mib->ulIfSpeed)
                     {
                         case SPEED_1000MBIT:
-//#if defined(AEI_VDSL_CUSTOMER_NCS)
+//#if defined(SUPPPORT_GPL)
 #if 0
 	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
 
@@ -8127,7 +8127,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 #endif
                             break;
                         case SPEED_100MBIT:
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 			   //Agile QA-Bug #38053,The result of HPNA throughput (LAN Ethernt to LAN HPNA and LAN HPNA to LAN Ethernet) is very poor. We need set HPNA's FAP TM rate to the big one such as 200M which is confirmed to have good performance.	
                             if(strcmp(dev->name,"eth4")==0)
                             {
@@ -8147,7 +8147,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 }
 
 #ifdef SEPARATE_MAC_FOR_WAN_INTERFACES
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
         if(strstr(dev->name,"ewan0")!=NULL)
             val=kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
@@ -8236,7 +8236,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     switch(mib->ulIfSpeed)
                     {
                         case SPEED_1000MBIT:
-//#if defined(AEI_VDSL_CUSTOMER_NCS)
+//#if defined(SUPPPORT_GPL)
 #if 0
 	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
                 	//QA-Bug#37910: STB connected to router through 1000M switch will have many packet loss.

@@ -221,7 +221,7 @@ typedef struct {
         #define REG_CONTROL_MPSO_FDX                      0x02
         #define REG_CONTROL_MPSO_LINKPASS                 0x01
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_LED_REFRESH                               0x0f
     #define REG_LED_FUNCTION0_CTRL                        0x10
     #define REG_LED_FUNCTION1_CTRL                        0x12
@@ -270,7 +270,7 @@ typedef struct {
         #define REG_PAUSE_CAPBILITY_EPHY1_TX              (1<<1)
         #define REG_PAUSE_CAPBILITY_EPHY0_TX              (1<<0)
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_RESERVED_MULTICAST_CTRL                   0x2f
 #endif
 
@@ -280,14 +280,14 @@ typedef struct {
 
     #define REG_IPMC_LOOKUP_FAIL                          0x36 /* 5397 only */
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_PAUSE_PASS_THROUGH_RX                     0x38
     #define REG_PAUSE_PASS_THROUGH_TX                     0x3a
 #endif
 
     #define REG_DISABLE_LEARNING                          0x3c
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_SOFTWARE_LEARNING                         0x3e
 #endif
 
@@ -302,7 +302,7 @@ typedef struct {
         #define LINK_OVERRIDE_1000FDX  (REG_PORT_STATE_OVERRIDE |  \
             REG_PORT_STATE_1000 | REG_PORT_STATE_FDX | REG_PORT_STATE_LNK)
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #if defined(AEI_63168_CHIP)
 #else
     #define REG_PORT5_STATE                                0x5D /*For HPNA port in 6368 chip*/
@@ -334,7 +334,7 @@ typedef struct {
             #define RGMII_DELAY_CLK_GTXR                  0x9
             #define RGMII_DELAY_CLK_RXR                   0xb
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_MDIO_WAN_PORT_ADDR                        0x75
     #define REG_MDIO_IMP_PORT_ADDR                        0x78
 #endif
@@ -344,7 +344,7 @@ typedef struct {
         #define REG_EN_RESET_REG                          0x02
         #define REG_EN_RESET_SW_CORE                      0x01
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_FRAME_DETECT_CTRL                         0x80
 #endif
 
@@ -357,7 +357,7 @@ typedef struct {
         #define FAST_AGE_SPT                              0x10
     #define REG_FAST_AGING_PORT                           0x89
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     #define REG_FAST_AGING_VID_CTRL                       0x8a
 #endif
 
@@ -776,7 +776,7 @@ typedef struct {
 #if defined(AEI_VDSL_WAN_ETH)
 #define EWAN_PORT_ID    4
 #endif
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define LAN_PORT_ID_4   3
 #define LAN_PORT_ID_3   2
 #define LAN_PORT_ID_2   1

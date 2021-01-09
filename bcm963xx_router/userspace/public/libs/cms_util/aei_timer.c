@@ -214,7 +214,7 @@ UINT32 AEI_cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, 
 }
 #endif /* DMP_PERIODICSTATSBASE_1 */
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 UBOOL8 AEI_cmsTmr_isWlanBatchEventPresent(const void *handle, CmsEventHandler func)
 {
    const CmsTimerHandle *tmrHandle = (const CmsTimerHandle *) handle;

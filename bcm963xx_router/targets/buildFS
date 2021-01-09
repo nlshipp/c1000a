@@ -28,7 +28,7 @@ fi
 chmod 777 $ROOTFS
 # Copy files onto root file system
 echo "Creating target root file system..."
-if [ "$AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A" != "" ]; then
+if [ "$SUPPPORT_GPL" != "" ]; then
 #STRIP bin and lib
 eval "find $PROFILE/fs.install/bin $PROFILE/fs.install/lib -type f | xargs file | grep "ELF" | sed "s/\:.*//g"|xargs $STRIP"
 #delete section that is not neccesary
@@ -288,7 +288,7 @@ find $TOP_DIR/$ROOTFS/lib/modules -name "*.ko"
       eval "find $TOP_DIR/$ROOTFS/lib/modules -name 'ip*.ko' |xargs $STRIP --strip-debug"
    fi
 fi
-if [ "$AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A" != "" ]; then
+if [ "$SUPPPORT_GPL" != "" ]; then
 #delete section that is not neccesary
 eval "find $TOP_DIR/$ROOTFS/lib/modules -name '*.ko' | xargs $STRIP -g -S -x -X -R .pdr -R .rel.pdr -R .gnu.version_r -R .gnu.version -R .comment -R .reginfo -R .gnu.attributes"
 
@@ -337,7 +337,7 @@ fi
 ###################################################
 # ACTIONTEC DO MERGE
 ##################################################
-if [ "$AEI_VDSL_CUSTOMER_NCS" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then
+if [ "$SUPPPORT_GPL" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then
 echo "##############################"
 echo " Do Actiontec merge ..."
 echo "##############################"

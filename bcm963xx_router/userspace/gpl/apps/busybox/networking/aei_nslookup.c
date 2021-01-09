@@ -500,7 +500,7 @@ void AEI_cleanup()
 }
 #endif /* AEI_VDSL_SMARTLED */
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
 #include "cms_msg.h"
 #include "cms_util.h"
 void AEI_sendNslookupResult(void *msgHandle)
@@ -531,5 +531,5 @@ void AEI_sendNslookupResult(void *msgHandle)
    return;
 }
 
-#endif /* #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A) */
+#endif /* #if defined(SUPPPORT_GPL) */
 

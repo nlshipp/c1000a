@@ -30,7 +30,7 @@ static time_t probe_next_time;
 static int probe_tried;
 static time_t probe_timeout;
 static uint16_t probe_id;
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 static char probe_pkt[35] =
 	{0x0, 0x0, 0x1, 0x0, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
 	 0x3, 'w','w','w', 0x9, 'm', 'i', 'c', 'r', 'o', 's','o','f','t', 0x3, 'c', 'o',

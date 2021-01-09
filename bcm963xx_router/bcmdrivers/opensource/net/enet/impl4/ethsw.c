@@ -58,7 +58,7 @@ int uni_to_uni_enabled = 0;
 #include "bcmgmac.h"
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 void extsw_rreg(int page, int reg, uint8 *data, int len);
 void extsw_wreg(int page, int reg, uint8 *data, int len);
 #endif
@@ -1199,8 +1199,8 @@ void ethsw_init_config(void)
         extsw_wreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8 *)&v32, sizeof(v32));
     }
 #endif
-// Agile QA-Bug #192716 CenturyLink Reported: Fail on the CDRouter DOS Attack 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+// Agile QA-Bug #192716 C Reported: Fail on the CDRouter DOS Attack 
+#if defined(SUPPPORT_GPL)
     {
         uint8 v8;
         uint32 v32;
@@ -1225,7 +1225,7 @@ int ethsw_setup_led(void)
     unsigned int phy_id, i;
     uint16 v16;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     uint32 v32;
 
     extsw_rreg(PAGE_MANAGEMENT, REG_DEV_ID, (uint8 *)&v32, sizeof(v32));

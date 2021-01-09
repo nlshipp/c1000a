@@ -115,7 +115,7 @@ CmsRet oal_spawnProcess(const SpawnProcessInfo *spawnInfo, SpawnedProcessInfo *p
          dup2(spawnInfo->serverFd, CMS_DYNAMIC_LAUNCH_SERVER_FD);
       }
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #ifdef SUPPORT_HTTPD_SSL
       /* httpd second listen fd, dup it if necessary to the fixed number also */
 	 if (spawnInfo->eid == EID_HTTPD || spawnInfo->eid == EID_HTTPSD)
@@ -131,7 +131,7 @@ CmsRet oal_spawnProcess(const SpawnProcessInfo *spawnInfo, SpawnedProcessInfo *p
       /* close all of the child's other fd's */
       for (i=3; i <= spawnInfo->maxFd; i++)
       {
-#if defined(AEI_VDSL_CUSTOMER_NCS) && defined(SUPPORT_HTTPD_SSL)
+#if defined(SUPPPORT_GPL) && defined(SUPPORT_HTTPD_SSL)
          if (i == CMS_DYNAMIC_LAUNCH_SERVER_FD || i == CMS_DYNAMIC_LAUNCH_SERVER_FD2)
 #else
          if (i == CMS_DYNAMIC_LAUNCH_SERVER_FD)

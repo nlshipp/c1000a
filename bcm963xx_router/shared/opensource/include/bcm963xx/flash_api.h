@@ -64,7 +64,7 @@ int flash_get_numsectors(void);
 int flash_get_sector_size(unsigned short sector);
 unsigned char *flash_get_memptr(unsigned short sector);
 int flash_get_blk(int addr);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int flash_get_total_size(void);
 #else
 unsigned long flash_get_total_size(void);

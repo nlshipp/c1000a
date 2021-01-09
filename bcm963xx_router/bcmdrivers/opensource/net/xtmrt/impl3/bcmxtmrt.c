@@ -161,7 +161,7 @@ static void ProcessRxCell(PBCMXTMRT_GLOBAL_INFO pGi, BcmXtm_RxDma *rxdma, UINT8 
 static void AEI_UpdateMirrorFlag(UINT16 *mirFlags, char *intfName, UINT8 enable);
 static void AEI_MultiMirrorPacket( struct sk_buff *skb, UINT16 mirFlags );
 static void AEI_MirrorPacket( struct sk_buff *skb, char *intfName );
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb);
 static UBOOL8 AEI_matchVlanId(struct sk_buff *skb, int vlanId);
 #endif
@@ -711,7 +711,7 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         else
         {
 #if defined(AEI_VDSL_TOOLBOX)
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
             pDevCtx->matchVlanId = mirrorCfg.vlanId;
 #endif
 
@@ -754,7 +754,7 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         break;
 #endif
 
-#if defined(AEI_VDSL_STATS_DIAG) && !defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(AEI_VDSL_STATS_DIAG) && !defined(SUPPPORT_GPL)
     case SIOCGETMULTICASTSTATS:
     {
         if (copy_to_user((void *)data, (void *)&pDevCtx->multi_stats,
@@ -1443,7 +1443,7 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                      ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
                      ulHdrType ==  HT_VC_MUX_ETHERNET) )
                 {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
                     if (pDevCtx->matchVlanId >= 0)
                     {
                         if (pDevCtx->matchVlanId == 0)
@@ -2479,7 +2479,7 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
              ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
              ulHdrType ==  HT_VC_MUX_ETHERNET) )
        {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
            if (pDevCtx->matchVlanId >= 0)
            {
                if (pDevCtx->matchVlanId == 0)
@@ -2659,7 +2659,7 @@ static char * pMirrorIntfNames[] =
     NULL
 };
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #define AEI_VLAN_VID_MASK    0x0FFF
 
 static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb)
@@ -3550,7 +3550,7 @@ static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd )
         /* set unit number to bit 20-27 */
         macId |= ((unit & 0xff) << 20);
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
         printk("KEN- devname=%s\n",dev->name);
 	if(strstr(dev->name,"atm0")!=NULL || strstr(dev->name,"ptm0")!=NULL)
         kerSysGetMacAddress( dev->dev_addr,  0x12ffffff);
@@ -3645,7 +3645,7 @@ static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd )
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         netif_napi_add(dev, &pDevCtx->napi, bcmxtmrt_poll_napi, 32);
 #else
         netif_napi_add(dev, &pDevCtx->napi, bcmxtmrt_poll_napi, 32);

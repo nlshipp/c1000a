@@ -472,7 +472,7 @@ static int vif_add(struct net *net, struct vifctl *vifc, int mrtsock)
 		break;
 	case 0:
 		dev = ip_dev_find(net, vifc->vifc_lcl_addr.s_addr);
-#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(SUPPPORT_GPL_UNDEFINED)
                 if (!dev)
                 {
                         dev = __dev_get_by_index(net, vifc->vifc_vifi);

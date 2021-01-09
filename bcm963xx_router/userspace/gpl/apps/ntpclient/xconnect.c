@@ -264,7 +264,7 @@ IF_NOT_FEATURE_IPV6(sa_family_t af = AF_INET;)
 	rc = getaddrinfo(host, NULL, &hint, &result);
 	if (rc || !result) {
 		bb_error_msg("bad address '%s'", org_host);
-#ifndef AEI_VDSL_CUSTOMER_NCS
+#ifndef SUPPPORT_GPL
 		if (ai_flags & DIE_ON_ERROR)
 			xfunc_die();
 #endif

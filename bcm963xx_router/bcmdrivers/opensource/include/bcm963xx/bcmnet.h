@@ -206,7 +206,7 @@ typedef struct _MirrorCfg
     char szMirrorInterface[MIRROR_INTF_SIZE];
     int nDirection;
     int nStatus;
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     int vlanId;
 #endif
 #if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || defined(DMP_X_ITU_ORG_GPON_1)

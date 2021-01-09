@@ -1,4 +1,4 @@
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,11 +23,11 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include "aei_utiles.h"
-#if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
 #include "bcmTag.h" /* in shared/opensource/include/bcm963xx, for FILE_TAG */
 #include "board.h" /* in bcmdrivers/opensource/include/bcm963xx, for BCM_IMAGE_CFE */
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #include "cms_boardioctl.h"
 #endif
 #define READ_BUF_SIZE 128
@@ -381,7 +381,7 @@ int AEI_GetPid(char * command)
 }
 
 
-#if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
 CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, int partition)
 {
    CmsImageFormat format;
@@ -395,7 +395,7 @@ CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, 
    {
       ret = CMSRET_INVALID_IMAGE;
    }
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
    else if(format == CMS_IMAGE_FORMAT_CORRUPTED)
    {
       ret = CMSRET_INVALID_IMAGE;
@@ -412,7 +412,7 @@ CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, 
    return ret;
 }
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 int AEI_save_syslog()
 {
     return devCtl_boardIoctl(BOARD_IOCTL_FLASH_WRITE,SYSLOGONREBOOT,NULL,0,0,0);

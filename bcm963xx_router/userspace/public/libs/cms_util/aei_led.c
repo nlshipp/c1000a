@@ -20,7 +20,7 @@
 #include "cms_boardioctl.h"
 #include "aei_cms_msg.h"
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int AEI_boardIoctl(int boardFd, int board_ioctl, BOARD_IOCTL_ACTION action,
                    char *string, int strLen, int offset)
 {
@@ -54,7 +54,7 @@ void AEI_cmsLed_setPowerGreen(void)
    devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedPower, kLedStateOn, NULL);
 }
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPPORT_GPL)
 void AEI_cmsLed_setPowerAmber(void)
 {
    devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedPower, kLedStateAmber, NULL);
@@ -78,14 +78,14 @@ void AEI_cmsLed_setEthWanDisconnected(void)
    devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedEnetWan, kLedStateOff, NULL);
 #endif
 }
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 void AEI_cmsLed_setWanDetect(void)
 {
    devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedWanData, kLedStateUserWANGreenRedVerySlowBlinkContinues, NULL);
 }
 #endif
 
-#if defined(SUPPORT_DSL_BONDING) && defined(AEI_VDSL_CUSTOMER_QWEST)
+#if defined(SUPPORT_DSL_BONDING) && defined(SUPPPORT_GPL)
 
 void AEI_cmsLed_setWanLineStatus(int state)
 {
@@ -146,4 +146,4 @@ UBOOL8 convertOptToLedCase(InetLedControlBody *pLedCtlBody, InetLedCase *pLedCtl
 }
 #endif
 
-#endif /* AEI_VDSL_CUSTOMER_NCS */
+#endif /* SUPPPORT_GPL */

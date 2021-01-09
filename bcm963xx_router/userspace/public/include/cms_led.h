@@ -46,7 +46,7 @@ void cmsLed_setWanConnected(void);
 
 void cmsLed_setWanDisconnected(void);
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 void cmsLed_setWanFailed(void);
 #endif
 

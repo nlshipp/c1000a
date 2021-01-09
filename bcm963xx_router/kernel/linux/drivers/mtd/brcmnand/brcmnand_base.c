@@ -795,7 +795,7 @@ static brcmnand_chip_Id brcmnand_chips[] = {
 		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0, 
 	},
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 	{	/* 39 */
 		.chipId = ESMT_F59L1G81A,
 		.mafId = FLASHTYPE_ESMT,

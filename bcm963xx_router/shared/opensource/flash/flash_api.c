@@ -125,7 +125,7 @@ static void display_flash_info(int ret, flash_device_info_t *flash_info)
 #else
         if (flash_info->flash_type == FLASH_IFC_NAND)
             printk(" block %dKB", flash_get_sector_size(0) / 1024);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         printk(" size %dKB", flash_get_total_size() / 1024);
 #else
         printk(" size %luKB", flash_get_total_size() / 1024);
@@ -318,13 +318,13 @@ int flash_get_blk(int addr)
  * Description  : Returns the number of bytes in the flash device.
  * Returns      : Number of bytes in the flash device.
  ***************************************************************************/
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 int flash_get_total_size(void)
 #else
 unsigned long flash_get_total_size(void)
 #endif
 {
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     return( (g_flash_info)
         ? (*g_flash_info->fn_flash_get_total_size) ()
         : FLASH_API_ERROR );

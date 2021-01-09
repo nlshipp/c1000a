@@ -13,13 +13,13 @@ struct dhcpOfferedAddr {
 	u_int32_t expires;	/* host order */
 	char hostname[64];
 	// BRCM
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     int icon;                   /* get device identifier according to option 12/60 */
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(SUPPPORT_GPL)
     u_int32_t is_stb;
 #endif
-#if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL)
     char clientid[256];         /* Client Identifier DHCP option (Option 61) */
 #endif
     char vendorid[256]; /* vendor class id, option 60, rfc 2132, max length is 255.  We add 1 for the null. */
@@ -38,10 +38,10 @@ struct dhcpOfferedAddr *oldest_expired_lease(void);
 struct dhcpOfferedAddr *find_lease_by_chaddr(u_int8_t *chaddr);
 struct dhcpOfferedAddr *find_lease_by_yiaddr(u_int32_t yiaddr);
 u_int32_t find_address(int check_expired);
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 u_int32_t find_address_vendorid(int check_expired);
 #endif
-#ifdef AEI_VDSL_CUSTOMER_BELLALIANT
+#ifdef SUPPPORT_GPL_UNDEFINED
 u_int32_t AEI_find_address();
 #endif
 struct iface_config_t *find_iface_by_ifname(const char *name);

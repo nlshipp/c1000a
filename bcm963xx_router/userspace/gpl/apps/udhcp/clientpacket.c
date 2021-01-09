@@ -55,7 +55,7 @@ unsigned long random_xid(void)
     return rand();
 }
 
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 /* get an integer between -1000X1000 and 1000X1000 */
 int get_randomize_usec()
 {
@@ -121,13 +121,13 @@ static void add_requests(struct dhcpMessage *packet)
 {
 	#if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_OPTION121)
 	char request_list[] = { DHCP_PARAM_REQ, 0,DHCP_CLASSLESS_ROUTE,PARM_REQUESTS
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
             , DHCP_NTP_SERVER
 #endif
         };
 	#else
     char request_list[] = { DHCP_PARAM_REQ, 0, PARM_REQUESTS
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
             , DHCP_NTP_SERVER
 #endif
     };
@@ -211,7 +211,7 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
     else
         ret = raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
                          SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
-#ifdef AEI_VDSL_CUSTOMER_BELLALIANT
+#ifdef SUPPPORT_GPL_UNDEFINED
     system("echo 1 > /var/renew_completed");
 #endif
     return ret;
@@ -233,7 +233,7 @@ int send_release(unsigned long server, unsigned long ciaddr)
 
     LOG(LOG_DEBUG, "Sending release...");
     ret =kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
-#ifdef AEI_VDSL_CUSTOMER_BELLALIANT
+#ifdef SUPPPORT_GPL_UNDEFINED
     system("echo 1 > /var/release_completed");
 #endif
     return ret;

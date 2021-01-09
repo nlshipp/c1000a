@@ -88,6 +88,13 @@ ifneq ($strip $(AEI_TWO_IN_ONE_FIRMWARE)),)
 	@echo -n "L." >> $(VERSION_FILE)
 	@echo -n $(BRCM_EXTRAVERSION2) >> $(VERSION_FILE)
 	@echo "\"" >> $(VERSION_FILE)
+	@echo -n "#define CMS_RELEASE_VERSION3 \"" >> $(VERSION_FILE)
+	@echo -n $(BRCM_VERSION3) >> $(VERSION_FILE)
+	@echo -n "." >> $(VERSION_FILE)
+	@echo -n $(BRCM_RELEASE3) >> $(VERSION_FILE)
+	@echo -n "L." >> $(VERSION_FILE)
+	@echo -n $(BRCM_EXTRAVERSION3) >> $(VERSION_FILE)
+	@echo "\"" >> $(VERSION_FILE)
 endif
 	@echo "#endif" >> $(VERSION_FILE)
 

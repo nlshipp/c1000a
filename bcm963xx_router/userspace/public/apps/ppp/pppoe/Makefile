@@ -44,7 +44,7 @@ endif
 COPTS = -s -pipe -Wall -Os -fno-strict-aliasing 
 COPTS += $(BRCM_WERROR_CFLAGS)
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
-LIBS = $(ATMLIBDIR)/libatm.a -L../../../../public/include -ldbus -ldbussend_msg
+LIBS = $(ATMLIBDIR)/libatm.a -L../../../../private/apps/ctl_layer/lib -ldbus -ldbussend_msg
 COPTS +=  -DAEI_CONTROL_LAYER
 else
 LIBS = $(ATMLIBDIR)/libatm.a

@@ -183,11 +183,11 @@ typedef enum
    CMSRET_CONFIG_PSI = 9853,         /**< old PSI/3.x config file was detected */
    CMSRET_IMAGE_FLASH_FAILED = 9854, /**< could not write the image to flash */
    CMSRET_RESOURCE_NOT_CONFIGURED = 9855, /**< requested resource is not configured/found */
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    CMSRET_OLD_IMAGE = 9856, /**< old image was given for download */
    CMSRET_CURRENT_IMAGE = 9857, /**< current image was given for download */
    CMSRET_ERASED_CONFIG_FILE = 9858,  /**< the config file was erased */
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
    CMSRET_CORRUPTED_IMAGE = 9859, /**< corrupted image was given for download*/
 #endif
 #endif
@@ -468,7 +468,7 @@ typedef enum
 /********************************************************************************
     Actiontec specific defines.
 ********************************************************************************/
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define EWAN_IFC_STR          "ewan"
 #endif
 

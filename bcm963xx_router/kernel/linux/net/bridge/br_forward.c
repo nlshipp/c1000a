@@ -237,7 +237,7 @@ static void __br_forward(const struct net_bridge_port *to, struct sk_buff *skb)
 		return;
 	}
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
         //give ARP packets highest priority for bridge mode.
         if (to->dev && (to->dev->priv_flags & IFF_WANDEV))
         {

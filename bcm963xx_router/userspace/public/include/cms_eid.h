@@ -162,13 +162,13 @@ typedef enum {
 #if defined(AEI_VDSL_SMARTLED)
    EID_SMARTLED=116,
 #endif
-#if defined(AEI_VDSL_SMARTLED)  || defined (AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(AEI_VDSL_SMARTLED)  || defined (SUPPPORT_GPL_UNDEFINED)
    EID_NSLOOKUP=117,
 #endif
 #if defined(DMP_TRACEROUTE_1)
    EID_TRACEROUTE=120,
 #endif
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #ifdef SUPPORT_HTTPD_SSL
    EID_HTTPSD = 119,
 #endif
@@ -176,10 +176,10 @@ typedef enum {
 #if defined(AEI_VDSL_STATS_DIAG)
    EID_STATS_DIAG=122,
 #endif
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
    EID_LEDCTL=123,
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
    EID_SAVESYSLOG=124,
 #endif
 #if defined(AEI_VDSL_CUSTOMER_NTPV4)
@@ -199,7 +199,7 @@ typedef enum {
 #if defined(AEI_VDSL_CAPTIVE_PAGES)
     EID_IPTABLES=505,
 #endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     EID_VOICEPR=506,
 #endif
 EID_LAST=65535

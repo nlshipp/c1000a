@@ -61,13 +61,13 @@
  */
 #define MAX_VERBOSE     4
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #include "cms_util.h"
 #include "cms_msg.h"
 #include "cms_log.h"
 #include "cms_eid.h"
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 #define NTP_STATUS_FILE "/var/ntp-status"
 #endif
 
@@ -466,7 +466,7 @@ void FAST_FUNC bb_show_usage(void)
 	full_write2_str("\nusage:	ntpd [-dnqNw] [-S PROG] [-p PEER]...\n");
 	full_write2_str("NTP client/server\n");
 	full_write2_str("\n	-d	Verbose");
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 	full_write2_str("\n	-t	[TimeZone]");
 	full_write2_str("\n	-s	daylight saving");
 #endif
@@ -1035,18 +1035,18 @@ static void
 add_peers(char *s)
 {
 	peer_t *p;
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     FILE *fp = NULL;
     fp = fopen(NTP_STATUS_FILE, "a+");
 #endif
 
 	p = xzalloc(sizeof(*p));
 	p->p_lsa = xhost2sockaddr(s, 123);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         if(p->p_lsa==NULL)
         {
           free(p);
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
           if(fp != NULL)
           {
               fprintf(fp, "%s+FAILED|", s);
@@ -1059,7 +1059,7 @@ add_peers(char *s)
 
 #endif
 	p->p_dotted = xmalloc_sockaddr2dotted_noport(&p->p_lsa->u.sa);
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
     if(fp != NULL)
     {
         fprintf(fp, "%s+%s|", s,p->p_dotted);
@@ -1224,7 +1224,7 @@ static void run_script(const char *action, double offset)
 	G.last_script_run = G.cur_time;
 }
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 #define NTP_SYNCED_FILE "/var/system_time_synced"
 /*
  * Function: aei_ntp_create_file().
@@ -1322,7 +1322,7 @@ step_time(double offset)
 	gettimeofday(&tvc, NULL); /* never fails */
 	dtime = tvc.tv_sec + (1.0e-6 * tvc.tv_usec) + offset;
 	d_to_tv(dtime, &tvn);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
     tvn.tv_sec = tvn.tv_sec + get_offset( tvn.tv_sec, tz_idx );
     bb_error_msg("Update time ,offset %ld",get_offset( tvn.tv_sec, tz_idx ));
  
@@ -1340,7 +1340,7 @@ step_time(double offset)
 #endif
 	if (settimeofday(&tvn, NULL) == -1)
 		bb_perror_msg_and_die("settimeofday");
-#if defined(AEI_VDSL_CUSTOMER_NCS)		
+#if defined(SUPPPORT_GPL)		
 	else
 	{
 	    if(firstsync == 0)
@@ -2437,7 +2437,7 @@ static NOINLINE void ntp_init(char **argv)
 {
 	unsigned opts;
 	llist_t *peers;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
  char* tzname;
  int i;
 #endif
@@ -2460,7 +2460,7 @@ static NOINLINE void ntp_init(char **argv)
 			"d" /* compat */
 			"46aAbgL", /* compat, ignored */
 			&peers, &G.script_name,&tzname, &G.verbose);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 	if (opts & OPT_s)
 		daylight_saving = 1;
  if(tzname)
@@ -2491,7 +2491,7 @@ static NOINLINE void ntp_init(char **argv)
 //		G.time_was_stepped = 1;
 
 	if (peers) {
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
         unlink(NTP_STATUS_FILE);
 #endif
 		while (peers)
@@ -2530,7 +2530,7 @@ static NOINLINE void ntp_init(char **argv)
 		alarm(10);
 	}
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
         //in order to avoid ntpclient crash, use below code is safe.
         signal_no_SA_RESTART_empty_mask(SIGTERM, record_signo);
         //signal_no_SA_RESTART_empty_mask(SIGINT, record_signo);
@@ -2564,7 +2564,7 @@ int main(int argc UNUSED_PARAM, char **argv)
 	peer_t **idx2peer;
 	unsigned cnt;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
  CmsRet ret;
  cmsLog_init(EID_NTPV4);
  cmsLog_setLevel(DEFAULT_LOG_LEVEL);
@@ -2706,7 +2706,7 @@ int main(int argc UNUSED_PARAM, char **argv)
 		}
 	} /* while (!bb_got_signal) */
 	
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    cmsMsg_cleanup(&msgHandle);
    cmsLog_cleanup();
 #endif

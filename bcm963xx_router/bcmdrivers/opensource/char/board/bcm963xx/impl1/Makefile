@@ -1,6 +1,6 @@
 # Makefile for the bcm963xx board drivers
 #
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 obj-y := board.o aei_bcm63xx_flash.o bcm63xx_flash.o bcm63xx_led.o bcm63xx_gpio.o
 else
 obj-y := board.o bcm63xx_flash.o bcm63xx_led.o bcm63xx_gpio.o
@@ -34,7 +34,7 @@ endif
 
 EXTRA_CFLAGS += -I. -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD) -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD) -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
 
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 EXTRA_CFLAGS += $(ACTION_TEC_DFLAGS)
 else
 ifneq ($(strip $(AEI_VDSL_BCMSDK)),)

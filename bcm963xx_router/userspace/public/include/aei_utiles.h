@@ -12,7 +12,7 @@ int AEI_convert_spec_chars(char *src,char *dst);
 char* AEI_SpeciCharEncode(char *s, int len);
 pid_t* find_pid_by_name( char* pidName);
 int AEI_GetPid(char * command);
-#if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
 CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, int partition);
 #endif
 
@@ -23,7 +23,7 @@ typedef enum
     AEI_WAN_VDSL,
 }AEIWanDevType;
 
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(SUPPPORT_GPL)
 int AEI_save_syslog();
 
 #endif

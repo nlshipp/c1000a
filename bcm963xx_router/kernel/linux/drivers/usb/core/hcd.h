@@ -25,7 +25,7 @@
 
 #define MAX_TOPO_LEVEL		6
 
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(SUPPPORT_GPL_UNDEFINED)
 #include <board.h>
 void usbledTimerStart(void);
 void usbledTimerEnd(void);

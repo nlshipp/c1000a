@@ -2,6 +2,7 @@
 /* modify version.make at the top. */
 #ifndef _CMS_VERSION_H_
 #define _CMS_VERSION_H_
-#define CMS_RELEASE_VERSION "CAC002-31.30L.76"
-#define CMS_RELEASE_VERSION2 "CAH005-31.30L.76"
+#define CMS_RELEASE_VERSION ".L."
+#define CMS_RELEASE_VERSION2 ".L."
+#define CMS_RELEASE_VERSION3 ".L."
 #endif

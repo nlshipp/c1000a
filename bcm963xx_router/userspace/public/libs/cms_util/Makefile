@@ -71,7 +71,7 @@ ifneq ($(strip $(BUILD_VODSL)),)
 include $(BUILD_DIR)/make.voice
 endif
 
-ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(SUPPPORT_GPL)),)
 OBJS += aei_utiles.o aei_led.o
 OBJS += aei_timestamp.o aei_timer.o
 OBJS += aei_md5_encode.o

@@ -518,7 +518,7 @@ void dns_mapping_conifg_init(void)
    char line[BUFLEN_128];
    char applicationBuf[BUFLEN_64];
    DNSInfoEntry *curr = NULL;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
    DNSInfoEntry *next = NULL;
 #endif
    UBOOL8 done = FALSE;
@@ -547,7 +547,7 @@ void dns_mapping_conifg_init(void)
       cmsMem_free(curr->ipv6_dns1);
       cmsMem_free(curr->ipv6_dns2);
       cmsMem_free(curr->processNameList);
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if defined(SUPPPORT_GPL)
 /*QA-Bug #101962 fix,'head' is not freed clean*/
       next = curr->next;
       cmsMem_free(curr);

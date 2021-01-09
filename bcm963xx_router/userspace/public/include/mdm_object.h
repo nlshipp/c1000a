@@ -40,6 +40,8 @@ typedef struct
     char *    X_ACTIONTEC_COM_ETH_TRSPT_MODE;	/**< X_ACTIONTEC_COM_ETH_TRSPT_MODE */
     UINT32    X_ACTIONTEC_COM_RESTORE_DEFAULT_FLAG;	/**< X_ACTIONTEC_COM_RESTORE_DEFAULT_FLAG */
     UINT32    X_ACTIONTEC_COM_PVC_SELECT;	/**< X_ACTIONTEC_COM_PVC_SELECT */
+    UBOOL8    X_ACTIONTEC_COM_EnableBonding_Adjust;	/**< X_ACTIONTEC_COM_EnableBonding_Adjust */
+    UBOOL8    X_ACTIONTEC_COM_IPTVSTB_Adjust;	/**< X_ACTIONTEC_COM_IPTVSTB_Adjust */
 } IGDObject;
 
 /*! \brief _IGDObject is used internally to represent IGDObject */

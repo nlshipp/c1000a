@@ -149,7 +149,7 @@
 #define FLASHTYPE_SAMSUNG       0xEC
 #define SAMSUNG_K9F1G08R0A      0xA1
 #define SAMSUNG_K9F1G08U0A      0xF1
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 #define SAMSUNG_K9F1G08U0D      0xF1
 #endif
 #define SAMSUNG_K9F2G08U1A      0xF1
@@ -157,7 +157,7 @@
 #define SAMSUNG_K9K8G08U0A      0xD3
 #define SAMSUNG_K9F8G08U0M	0xD3
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef SUPPPORT_GPL
 //ESMT NAND flash
 #define FLASHTYPE_ESMT          0x92
 #define ESMT_F59L1G81A          0xF1
