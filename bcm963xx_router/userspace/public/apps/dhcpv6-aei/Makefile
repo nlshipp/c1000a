@@ -53,14 +53,14 @@ CFLAGS += -DACTION_TEC_IPV6_CODE_FOR_DAD
 CFLAGS += -DACTION_TEC_IPV6_CODE_FOR_DECLINE
 CFLAGS += -DACTION_TEC_IPV6_CODE_FOR_REBIND
 #CFLAGS += -DACTION_TEC_IPV6_CODE_FOR_CONFIRM
-CFLAGS += -DSUPPPORT_GPL
+CFLAGS += -DSUPPORT_GPL
 CFLAGS += -I../../../private/apps/ctl_layer/tr69fw/framework/tr69_lib
 CFLAGS += -I../../../../kernel/linux/include
 LDFLAGS=
 LDFLAGS += -lm
 LIBOBJS= strlcpy$U.o strlcat$U.o arc4random$U.o
-LIBOBJS+= ../../../private/apps/ctl_layer/tr69fw/framework/tr69_lib/libtr69_client.o
-LIBOBJS+= ../../../private/apps/ctl_layer/tr69fw/framework/tr69_lib/tsl_socket.o
+LIBOBJS+= ../../include/libtr69_client.o
+LIBOBJS+= ../../include/tsl_socket.o
 ##LIBS=	 -lfl
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
 LIBS=-Wl,-rpath,/lib:/lib/public -L../../../private/apps/ctl_layer/lib -L$(INSTALL_DIR)/lib -L$(INSTALL_DIR)/lib/public -ldbus -ldbussend_msg -lcms_util -lcms_msg -lcms_boardctl

@@ -103,7 +103,7 @@ typedef struct
    SINT32 stderrFd;  /**< Standard error of spawned process tied to this, -1 means /dev/null */
    SINT32 serverFd;  /**< Special hack for smd dynamic launch service.
                       *   This server fd, if not -1, is tied to CMS_DYNAMIC_LAUNCH_SERVER_FD */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #ifdef SUPPORT_HTTPD_SSL
   SINT32 serverFd2; /*for httpd only*/
   SINT32 eid;		/*which eid ?*/

@@ -315,6 +315,10 @@ typedef struct {
 #define DIAG_DEBUG_CMD_READ_AFEPLLNDIV			46	/* For 63138 */
 #define DIAG_DEBUG_CMD_WRITE_AFEPLLNDIV			47	/* param1-pllch01_cfg.Bits.mdiv0, param2-pllch45_cfg.Bits.mdiv1 */
 #define DIAG_DEBUG_CMD_PHY_TYPE_CFG			48
+#define DIAG_DEBUG_CMD_MICRO_INTERRUPT			49	/* param1- number of mSecs */
+#define DIAG_DEBUG_CMD_GFAST_TESTMODE			50	/* param1: 1-startRtxTestMode, 2-stopRtxTestMode, 3-startTpsTestMode, 4-stopTpsTestMode */
+#define DIAG_DEBUG_CMD_SET_AFEPLLHOLDENABLEBITS		51	/* param1 - set/clear pllch45_cfg.Bits.hold_ch1, param2 - set/clear pllch45_cfg.Bits.enableb_ch1 */
+
 
 typedef struct {
 	unsigned short	cmd;

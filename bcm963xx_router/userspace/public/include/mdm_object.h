@@ -480,6 +480,9 @@ typedef struct
     char *    X_ACTIONTEC_COM_ConsolePassword;	/**< X_ACTIONTEC_COM_ConsolePassword */
     char *    X_ACTIONTEC_COM_SupportConsoleName;	/**< X_ACTIONTEC_COM_SupportConsoleName */
     char *    X_ACTIONTEC_COM_SupportConsolePassword;	/**< X_ACTIONTEC_COM_SupportConsolePassword */
+    UINT32    currFailedAttempts;	/**< CurrFailedAttempts */
+    UINT32    maxFailedAttempts;	/**< MaxFailedAttempts */
+    UINT32    maxLockInterval;	/**< MaxLockInterval */
 } LoginCfgObject;
 
 /*! \brief _LoginCfgObject is used internally to represent LoginCfgObject */
@@ -761,6 +764,7 @@ typedef struct
     char *    loggingDestination;	/**< LoggingDestination */
     char *    userName;	/**< UserName */
     char *    password;	/**< Password */
+    UBOOL8    X_ACTIONTEC_COM_AdjustValue;	/**< X_ACTIONTEC_COM_AdjustValue */
     SINT32    timeoutValue;	/**< TimeoutValue */
 } TelnetdCfgObject;
 
@@ -1153,6 +1157,7 @@ typedef struct
     UINT32    X_ACTIONTEC_COM_AuthenticationFailures;	/**< X_ACTIONTEC_COM_AuthenticationFailures */
     DATETIME  X_ACTIONTEC_COM_LastTR069Upgrade;	/**< X_ACTIONTEC_COM_LastTR069Upgrade */
     UINT32    X_ACTIONTEC_COM_AdjustValue;	/**< X_ACTIONTEC_COM_AdjustValue */
+    UBOOL8    X_ACTIONTEC_COM_TR64Enable;	/**< X_ACTIONTEC_COM_TR64Enable */
 } ManagementServerObject;
 
 /*! \brief _ManagementServerObject is used internally to represent ManagementServerObject */
@@ -11258,6 +11263,7 @@ typedef struct
     UBOOL8    enable;	/**< Enable */
     char *    username;	/**< Username */
     char *    password;	/**< Password */
+    UBOOL8    passwdhashed;	/**< passwdhashed */
 } SupportConsoleObject;
 
 /*! \brief _SupportConsoleObject is used internally to represent SupportConsoleObject */
@@ -11315,9 +11321,27 @@ typedef SskMonitorObject _SskMonitorObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WifiMonitor.
+ *
+ * MDMOID_WIFI_MONITOR 461
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    UINT32    lifetimeCount;	/**< LifetimeCount */
+    UINT32    count;	/**< Count */
+    DATETIME  timestamp;	/**< Timestamp */
+} WifiMonitorObject;
+
+/*! \brief _WifiMonitorObject is used internally to represent WifiMonitorObject */
+typedef WifiMonitorObject _WifiMonitorObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_QoS_Vlanctl_Classification.{i}.
  *
- * MDMOID_VLANCTL_CLASS 461
+ * MDMOID_VLANCTL_CLASS 462
  */
 typedef struct
 {
@@ -11342,7 +11366,7 @@ typedef VlanctlClassObject _VlanctlClassObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.
  *
- * MDMOID_DEVICE 462
+ * MDMOID_DEVICE 463
  */
 typedef struct
 {
@@ -11356,7 +11380,7 @@ typedef DeviceObject _DeviceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.Optical.
  *
- * MDMOID_DEVICE_OPTICAL 463
+ * MDMOID_DEVICE_OPTICAL 464
  */
 typedef struct
 {
@@ -11371,7 +11395,7 @@ typedef DeviceOpticalObject _DeviceOpticalObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.Optical.Interface.{i}.
  *
- * MDMOID_OPTICAL_INTERFACE 464
+ * MDMOID_OPTICAL_INTERFACE 465
  */
 typedef struct
 {
@@ -11390,7 +11414,7 @@ typedef OpticalInterfaceObject _OpticalInterfaceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.Optical.Interface.{i}.Stats.
  *
- * MDMOID_OPTICAL_INTERFACE_STATS 465
+ * MDMOID_OPTICAL_INTERFACE_STATS 466
  */
 typedef struct
 {
@@ -11412,7 +11436,7 @@ typedef OpticalInterfaceStatsObject _OpticalInterfaceStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.
  *
- * MDMOID_DEVICE_HOME_PLUG 466
+ * MDMOID_DEVICE_HOME_PLUG 467
  */
 typedef struct
 {
@@ -11427,7 +11451,7 @@ typedef DeviceHomePlugObject _DeviceHomePlugObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.
  *
- * MDMOID_HOME_PLUG_INTERFACE 467
+ * MDMOID_HOME_PLUG_INTERFACE 468
  */
 typedef struct
 {
@@ -11457,7 +11481,7 @@ typedef HomePlugInterfaceObject _HomePlugInterfaceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.Stats.
  *
- * MDMOID_HOME_PLUG_INTERFACE_STATS 468
+ * MDMOID_HOME_PLUG_INTERFACE_STATS 469
  */
 typedef struct
 {
@@ -11491,7 +11515,7 @@ typedef HomePlugInterfaceStatsObject _HomePlugInterfaceStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.AssociatedDevice.{i}.
  *
- * MDMOID_HOME_PLUG_INTERFACE_ASSOCIATED_DEVICE 469
+ * MDMOID_HOME_PLUG_INTERFACE_ASSOCIATED_DEVICE 470
  */
 typedef struct
 {

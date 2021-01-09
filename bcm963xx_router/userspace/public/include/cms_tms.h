@@ -41,7 +41,7 @@
 
 #include "cms.h"
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include "aei_cms_tms.h"
 #endif
 

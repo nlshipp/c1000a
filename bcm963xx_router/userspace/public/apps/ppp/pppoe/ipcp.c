@@ -1644,7 +1644,7 @@ static void config_save()
 }
 #endif /* ifndef BRCM_CMS_BUILD */
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #define IPCP_STATUS_INFO_PATH  "var/ppp/ipcp_status"
 #define  PPP_Auth_FAIL   	"var/ppp/ppp_auth_fail"
 extern void AEI_save_status_to_file(const char *PATH , int status );
@@ -1807,7 +1807,7 @@ ipcp_up(f)
     np_up(f->unit, PPP_IP);
     ipcp_is_up = 1;
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     AEI_save_status_to_file(IPCP_STATUS_INFO_PATH , ipcp_is_up);
 #endif
 
@@ -1849,7 +1849,7 @@ ipcp_up(f)
     }
 #endif /* BRCM_CMS_BUILD */
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     FILE *f_auth;
 
     f_auth = fopen(PPP_Auth_FAIL, "w");
@@ -1930,7 +1930,7 @@ ipcp_down(f)
     }
     sifvjcomp(f->unit, 0, 0, 0);
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     AEI_save_status_to_file(IPCP_STATUS_INFO_PATH , ipcp_is_up);
 #endif
     /*

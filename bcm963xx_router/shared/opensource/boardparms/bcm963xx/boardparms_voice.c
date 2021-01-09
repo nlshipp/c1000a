@@ -2230,7 +2230,7 @@ VOICE_BOARD_PARMS_NEW g_voice_bcm963168VX_P400 =
    }
 };
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 VOICE_BOARD_PARMS_NEW g_voice_bcm963168VX_C2000A = 
 {
    "C2000A",   /* Base Board ID */ 
@@ -2342,7 +2342,7 @@ static PVOICE_BOARD_PARMS_NEW g_VoiceBoardParms_new[]=
    &g_voice_bcm963168VX,
    &g_voice_bcm963168MBV_17A_302,
    &g_voice_bcm963168MBV_30A_302,
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    &g_voice_bcm963168VX_C2000A,
 #endif
    0

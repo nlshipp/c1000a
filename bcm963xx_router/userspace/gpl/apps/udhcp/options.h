@@ -57,7 +57,7 @@ int saveVIoption(char *option, struct dhcpOfferedAddr *lease);
 
 /* option header: 2 bytes + subcode headers (6) + option data (64*2+6);
    these are TR111 option data.    Option can be longer.  */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define VENDOR_BRCM_ENTERPRISE_NUMBER     3561
 #else
 #define VENDOR_BRCM_ENTERPRISE_NUMBER     4413

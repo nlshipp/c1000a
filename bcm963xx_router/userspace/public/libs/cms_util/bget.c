@@ -481,7 +481,7 @@ extern char *sprintf();               /* Sun includes don't define sprintf */
  * this layer of code, so the locking here would be redundant.
  */
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 /*
  * As stated at above comments, upper layers MUST held the lock.
  * But unfortunately, below debug patch found that some of the
@@ -1096,7 +1096,7 @@ void bcm_secondary_bpool(void *buf)
     */
    g_bg = buf;
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #ifdef bcm_use_semaphore
    if( (bg_semid = semget(0x2222, 0, IPC_CREAT|0666)) == -1) {
        perror("bget: semget\n");

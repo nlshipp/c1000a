@@ -51,7 +51,7 @@ void dns_subnet_init(void)
    char dns2[CMS_IPADDR_LENGTH];
    char line[BUFLEN_128];
    SubnetDnsPair *curr = NULL;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    SubnetDnsPair *next = NULL;
 #endif
    UBOOL8 done = FALSE;
@@ -75,7 +75,7 @@ void dns_subnet_init(void)
                     curr->dns1, curr->dns2);
       cmsMem_free(curr->dns1);
       cmsMem_free(curr->dns2);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /*QA-Bug #101962 fix,'head' is not freed clean*/
       next = curr->next;
       cmsMem_free(curr);

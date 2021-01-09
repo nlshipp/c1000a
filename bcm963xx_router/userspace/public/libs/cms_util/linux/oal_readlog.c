@@ -124,7 +124,7 @@ int oal_readLogPartial(int ptr, char* buffer)
     goto nothing2display;
   }
 
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
 readnext:
 #endif
   if ( i != buf->tail) {
@@ -144,7 +144,7 @@ readnext:
           i = 0;
       }
     /* work around for syslogd.c bug which generate first log without timestamp */
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
     if (strlen(buffer) < 16 || buffer[3] != ' ' || buffer[6] != ' ' ||
       buffer[9] != ':' || buffer[12] != ':' || buffer[15] != ' ') {
         goto readnext;

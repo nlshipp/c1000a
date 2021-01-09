@@ -69,7 +69,11 @@ char *cmsUtil_cryptMakeSalt(void)
 // function to support passowrd hashing
 char *cmsUtil_pwEncrypt(const char *clear, const char *salt)
 {
+#if defined(AEI_VDSL_PASSWORD_HASHED)
+    static char cipher[BUFLEN_32];
+#else
     static char cipher[BUFLEN_24];
+#endif
     char *cp;
 
 #ifdef CONFIG_FEATURE_SHA1_PASSWORDS

@@ -27,7 +27,7 @@
 #include <board.h>
 #include <bcmTag.h>
 #include "flash_api.h"
-#include "../../../../../../shared/opensource/include/bcm963xx/63268_map.h"
+#include "63268_map.h"
 
 
 typedef struct CfeNandChip

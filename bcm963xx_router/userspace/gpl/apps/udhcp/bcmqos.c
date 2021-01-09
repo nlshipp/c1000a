@@ -71,7 +71,7 @@ static void bcmAddOptCmdIP(struct optioncmd * optcmd, u_int32_t leaseip, int ind
 static struct optioncmd * bcmAddOptCmd(int optionnum, char action, char *cmd);
 static void bcmDelOptCmd(char *cmd);
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 
 int AEI_wstrcmp(const char *pat, const char *str)
 {
@@ -352,7 +352,7 @@ void AEI_bcmSearchOptCmdByVendorId(struct dhcpMessage *oldpacket, const char *ve
        need to store MAC address in config/datamodel so pass vendor id and mac and let ssk decide
      */
     if (optioncmdHead == NULL) {
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
         /* if can do checking here, can cut down messaging back to ssk which will check again */
         if (!is_stb(vendorString))
             return;
@@ -396,7 +396,7 @@ void bcmSetQosRule(char action, char *command, u_int32_t leaseip)
    char cmdseg[1024];
    char actionStr[3];   /* -A or -I or -D */
    struct in_addr ip;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    char tempstr[256] = {0};
 #endif
 
@@ -425,7 +425,7 @@ void bcmSetQosRule(char action, char *command, u_int32_t leaseip)
    strcpy(ptokenstart, inet_ntoa(ip));
    strcat(cmdseg, strstr(command, "]") + 1);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    if (action == 'A')
    {
        // we should insert this rule, not append.
@@ -462,7 +462,7 @@ void bcmAddOptCmdIP(struct optioncmd * optcmd, u_int32_t leaseip, int index)
       optcmd->execip[index].execflag = 1;
 
       /* add QoS rule with the new lease ip */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
       // first, we must delete old rule, in case duplicate rule
       bcmSetQosRule('D', optcmd->command, leaseip);
 #endif

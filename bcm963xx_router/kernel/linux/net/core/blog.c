@@ -68,12 +68,12 @@
 
 /* RFC4008 */
 uint32_t blog_nat_tcp_def_idle_timeout = BLOG_NAT_TCP_DEFAULT_IDLE_TIMEOUT; /* 1 DAY */
-/*QA-Bug #203421 C Reported: VoIP calls dropping
+/*QA-Bug #203421 CenturyLink Reported: VoIP calls dropping
   it should not change the flow control UDP timeout to 30 seconds,
   change the default flow cache UDP timeout value back to 300 seconds.  
   Telus and all the other Vendors also use 300 seconds which has been tested and approved
 */
-#if 0 //defined(SUPPPORT_GPL)
+#if 0 //defined(SUPPORT_GPL)
 uint32_t blog_nat_udp_def_idle_timeout = 30 *HZ;    /* 30 seconds */
 #else
 uint32_t blog_nat_udp_def_idle_timeout = BLOG_NAT_UDP_DEFAULT_IDLE_TIMEOUT; /* 300 seconds */

@@ -136,7 +136,7 @@ int raw_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_port
     memcpy(&(packet.data), payload, payload_length);
     packet.udp.check = checksum(&packet, sizeof(packet.ip) + sizeof(packet.udp) + payload_length);
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     if (dest_port == SERVER_PORT)       //only client packet need mark
         packet.ip.tos = 0x40;   //DSCP CS2
 #endif

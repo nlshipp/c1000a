@@ -33,7 +33,7 @@ written consent.
 #include "cms.h"
 #include "cms_util.h"
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 static void *msgHandle = NULL;
 static UBOOL8 keepLooping = TRUE;
 #endif
@@ -83,7 +83,7 @@ void processWanLed(const char *state)
 
 int main(int argc, char *argv[])
 {
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     CmsRet ret;
     cmsLog_init(EID_LEDCTL);
     cmsLog_setLevel(DEFAULT_LOG_LEVEL);
@@ -109,7 +109,7 @@ cmsLog_error("++++++++%s %s",argv[1],argv[2]);
    {
       usage(1);
    }
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     cmsMsg_cleanup(&msgHandle);
     cmsLog_cleanup();
 #endif

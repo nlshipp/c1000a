@@ -125,7 +125,7 @@
 #define HAVE_STRSTR 1
 
 /* Define to 1 if you have the <sys/acl.h> header file. */
-#define HAVE_SYS_ACL_H 1
+/* #undef HAVE_SYS_ACL_H */
 
 /* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
    */
@@ -191,7 +191,7 @@
 #define READLINK_BUF_TYPE char
 
 /* type of readlink return value */
-#define READLINK_RETVAL_TYPE int
+#define READLINK_RETVAL_TYPE ssize_t
 
 /* type of setgroups size */
 #define SETGROUPS_SIZE_TYPE size_t

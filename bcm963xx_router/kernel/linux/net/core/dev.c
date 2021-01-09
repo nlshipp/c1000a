@@ -4375,7 +4375,7 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
 
 		default:
 			if ((cmd >= SIOCDEVPRIVATE &&
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 			    cmd <= SIOCDEVPRIVATE + 64) ||
 #else
 			    cmd <= SIOCDEVPRIVATE + 15) ||
@@ -4584,7 +4584,7 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 #endif
 #endif                
 			    (cmd >= SIOCDEVPRIVATE &&
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 			     cmd <= SIOCDEVPRIVATE + 64)) {
 #else
 			     cmd <= SIOCDEVPRIVATE + 15)) {

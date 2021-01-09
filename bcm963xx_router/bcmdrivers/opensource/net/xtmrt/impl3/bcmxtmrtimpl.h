@@ -323,7 +323,7 @@ typedef struct bcmxtmrt_dev_context
 #if defined(AEI_VDSL_TOOLBOX)
     UINT16 usMirrorInFlags;
     UINT16 usMirrorOutFlags;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     int matchVlanId;
 #endif
 #else

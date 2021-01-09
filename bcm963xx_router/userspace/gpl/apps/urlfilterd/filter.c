@@ -7,14 +7,14 @@
 #include <unistd.h>
 #include "filter.h"
 #include <signal.h>
-#if defined (SUPPPORT_GPL)
+#if defined (SUPPORT_GPL)
 #include "cms.h"
 #include "cms_util.h"
 #include "cms_msg.h"
 #endif
 
 #include "aei_url_util.h"
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -29,7 +29,7 @@ char captiveURL[BUFLEN_256] = {0};
 char captiveIPAddr[32] = {0};
 char GlbRedirectUrl[BUFLEN_256]={ 0 };
 
-#if defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_TR098_QWEST)
 int flagOneTimeRedirect = 0;
 char oneTimeRedirectURL[256] = {0};
 char oneTimeRedirectIPAdress[32];
@@ -42,7 +42,7 @@ int webActiveLogEnable = 0;
 void AEI_getWebActiveInfo();
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int log_count = 0;
 int url_count = -1;
 char circularLog[URL_COUNT][ENTRY_SIZE] = { {0} };
@@ -69,12 +69,12 @@ char listtype[8];
 char brname[16]={0};
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 char allLanIpList[1024] = { 0 };
 void AEI_HandleWebActivityLog(const char *match, const struct iphdr *iph);
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 void add_entry(char *website, char *folder, char *lanIP)
 #else
 void add_entry(char *website, char *folder)
@@ -90,7 +90,7 @@ void add_entry(char *website, char *folder)
 	strcpy(new_entry->folder, folder);
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     strncpy(new_entry->lanIP, lanIP, 15);
 #endif
 
@@ -120,7 +120,7 @@ int get_url_info()
 	if (f != NULL){
 	   while (fgets(temp,96, f) != '\0')
 	   {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         char lanIP[16] = { 0 };
         char *pos = NULL;
         char *pe = NULL;
@@ -176,7 +176,7 @@ int get_url_info()
 			strcpy(folder, ++temp1);		
 #endif
 		}
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         add_entry(web, folder, lanIP);
 #else
         add_entry(web, folder);
@@ -262,7 +262,7 @@ static int pkt_decision(struct nfq_data * payload)
 	struct iphdr *iph;
 	uint8_t isIPv4;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     char domain[1024+1]="";
 #endif
 
@@ -299,7 +299,7 @@ static int pkt_decision(struct nfq_data * payload)
 #endif
 		return PKT_ACCEPT;
 	}
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         else{
                 AEI_getdomain(match, domain);
         }
@@ -351,7 +351,7 @@ static int pkt_decision(struct nfq_data * payload)
 #endif
 
 #if defined (DMP_CAPTIVEPORTAL_1)
-#if defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_TR098_QWEST)
 	if (flagOneTimeRedirect == 1)
 	{
 		if(strstr(match, "GET / HTTP/") || strstr(match, "get HTTP/"))
@@ -375,7 +375,7 @@ static int pkt_decision(struct nfq_data * payload)
 			if ((strstr(match, oneTimeRedirectURL) == NULL) && (strstr(oneTimeRedirectIPAdress, inet_ntoa(*(struct in_addr *) &iph->daddr)) == NULL))
 			{
 				flagOneTimeRedirect = 0;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                                 if ((flagCaptiveURL == 1) && ((!AEI_checkCaptiveAllowList(captiveAllowList, iph->daddr))
                                         &&(domain[0] && (!AEI_checkCaptiveAllowDomain(captiveAllowDomain, domain)))))
 #else
@@ -397,7 +397,7 @@ static int pkt_decision(struct nfq_data * payload)
 	else
 #endif
 	{
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 if ((flagCaptiveURL == 1) && ((!AEI_checkCaptiveAllowList(captiveAllowList, iph->daddr))
                         &&(domain[0] && (!AEI_checkCaptiveAllowDomain(captiveAllowDomain, domain)))))
 #else
@@ -417,7 +417,7 @@ static int pkt_decision(struct nfq_data * payload)
 				}
 			}
 		}
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 else if ((flagCaptiveURL == 2) && ((!AEI_checkCaptiveAllowList(captiveAllowList, iph->daddr))
                         &&(domain[0] && (!AEI_checkCaptiveAllowDomain(captiveAllowDomain, domain)))))
 #else
@@ -440,7 +440,7 @@ static int pkt_decision(struct nfq_data * payload)
 	}
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     AEI_HandleWebActivityLog(match, iph);
 #endif
 	for (current = purl; current != NULL; current = current->next)
@@ -456,7 +456,7 @@ static int pkt_decision(struct nfq_data * payload)
 			{
 				if ( (folder != NULL) || (current->folder[0] == '\0') )
 				{
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                     if (strstr(current->lanIP, "all") != NULL) {        //block all PCs
                         printf("All####This page is blocked by Exclude list!, into send_redirect\n");
 #if defined(AEI_VDSL_CAPTIVE_PAGES)
@@ -675,7 +675,7 @@ int main(int argc, char **argv)
 	}
 
 	memset(buf, 0, sizeof(buf));
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     signal(SIGINT, SIG_IGN);
 #endif
 #if defined (DMP_CAPTIVEPORTAL_1)
@@ -683,7 +683,7 @@ int main(int argc, char **argv)
 	cmsLog_init(EID_URLFILTERD);
 
 	AEI_getCaptiveURLandIPAddr(capURLFile, captiveURL, captiveIPAddr, &flagCaptiveURL);
-#if defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_TR098_QWEST)
 	AEI_getCaptiveURLandIPAddr(oneTimeCapURLFile, oneTimeRedirectURL, oneTimeRedirectIPAdress, &flagOneTimeRedirect);
 #endif
 
@@ -694,10 +694,10 @@ int main(int argc, char **argv)
     sprintf(GlbRedirectUrl, "%s/captiveportal_pageblocked.html", lan_ip);
 #endif
 	AEI_getCaptiveAllowList();
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         AEI_getCaptiveAllowDomain();
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {
     char line[BCM_SYSLOG_MAX_LINE_SIZE];
     FILE *fp;
@@ -763,7 +763,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 time_t before;
 int logNeedChange = 0;
 

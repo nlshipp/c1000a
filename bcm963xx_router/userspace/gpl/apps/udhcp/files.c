@@ -191,7 +191,7 @@ static int read_yn(char *line, void *arg)
     return 1;
 }
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 static int read_dns_opt(char *line, struct ip_list **dns_list)
 {
     int i;
@@ -406,7 +406,7 @@ static int read_staticlease(const char *const_line, void *arg)
 
 }
 
-#if defined(SUPPPORT_GPL) //add william 2012-4-25
+#if defined(SUPPORT_GPL) //add william 2012-4-25
 static int AEI_read_dhcpvlanoption60(const char *const_line, struct iface_config_t *iface)
 {
 	int i = 0;
@@ -475,7 +475,7 @@ static int AEI_read_dhcpvlanoption60(const char *const_line, struct iface_config
 }
 #endif
 
-#if defined(SUPPPORT_GPL) //add william 2012-1-11
+#if defined(SUPPORT_GPL) //add william 2012-1-11
 static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *iface)
 {
 	int i = 0;
@@ -553,7 +553,7 @@ static void release_iface_config(struct iface_config_t *iface)
         close(iface->skt);
         iface->skt = -1;
     }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	//int i;
     struct vlanOption60 * curr = iface->vlanOption60list;
     struct vlanOption60 * prev = NULL;
@@ -585,7 +585,7 @@ static void release_iface_config(struct iface_config_t *iface)
     }
 #endif
 
-#if defined(SUPPPORT_GPL) //add william 2012-4-25
+#if defined(SUPPORT_GPL) //add william 2012-4-25
 	struct vlanOption60 * vlancurr = iface->dhcpvlanOption60list;
     struct vlanOption60 * vlanprev = NULL;
 	while (vlancurr)
@@ -599,14 +599,14 @@ static void release_iface_config(struct iface_config_t *iface)
 #endif
 
 
-#ifdef SUPPPORT_GPL_UNDEFINED
+#ifdef CUSTOMER_NOT_USED_X
     for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
         if (iface->opt67WarrantVids[i])
             free(iface->opt67WarrantVids[i]);
     }
 #endif
 
-#if defined(AEI_VDSL_DHCP_LEASE)|| defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_DHCP_LEASE)|| defined(SUPPORT_GPL)
     for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
         if (iface->stbVids[i])
             free(iface->stbVids[i]);
@@ -624,7 +624,7 @@ static void release_iface_config(struct iface_config_t *iface)
     }
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     struct ip_list *p, *n;
 
     for (p = iface->dns_srv_ips; p != NULL; p = n) {
@@ -746,7 +746,7 @@ static int set_iface_config_defaults(void)
                 DEBUG(LOG_INFO, "server_ip(%s) = %s", ifr.ifr_name, inet_ntoa(sin->sin_addr));
                 break;
             }
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)   //hk_qwest//hk_ctl
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)   //hk_qwest//hk_ctl
             sleep((retry_count + 1) * (1 + retry_count));
 #else
             sleep(BRCM_RETRY_INTERVAL);
@@ -754,7 +754,7 @@ static int set_iface_config_defaults(void)
         }
         if (local_rc < 0) {
             LOG(LOG_ERR, "SIOCGIFADDR failed on %s!", ifr.ifr_name);
-#if !defined(SUPPPORT_GPL) && !defined(SUPPPORT_GPL_UNDEFINED)  //hk_qwest //hk_ctl
+#if !defined(SUPPORT_GPL) && !defined(CUSTOMER_NOT_USED_X)  //hk_qwest //hk_ctl
             /*Coverity Fix CID:11895 Resource leak*/
             close(fd);
             return 0;
@@ -782,7 +782,7 @@ static int set_iface_config_defaults(void)
         if (iface->end == 0) {
             iface->end = (iface->server & htonl(0xffffff00)) | htonl(254);
         }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if (iface->vendorClassIdMinAddress == 0) {
             iface->vendorClassIdMinAddress = iface->start;
         }
@@ -949,7 +949,7 @@ void set_relays(void)
 }
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 static void read_vids(const char *line, char **vids, int size)
 {
     int i;
@@ -970,7 +970,7 @@ static void read_vids(const char *line, char **vids, int size)
 int read_config(char *file)
 {
     FILE *in;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     char buffer[_CONFIG_BUF_SIZE], *token, *line;
 #else
     char buffer[80], *token, *line;
@@ -1005,7 +1005,7 @@ int read_config(char *file)
 #endif
 #endif
     /* Read lines */
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     while (fgets(buffer, _CONFIG_BUF_SIZE, in)) {
 #else
     while (fgets(buffer, 150, in)) {
@@ -1057,7 +1057,7 @@ int read_config(char *file)
             read_ip(line, &cur_iface->start);
         else if (strcasecmp(token, "end") == 0)
             read_ip(line, &cur_iface->end);
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
         else if (strcasecmp(token, "opt67_warrant_vid") == 0)
             read_vids(line, cur_iface->opt67WarrantVids, VENDOR_CLASS_ID_TAB_SIZE);
 #endif
@@ -1065,11 +1065,11 @@ int read_config(char *file)
         else if (strcasecmp(token, "stb_vid") == 0)
             read_vids(line, cur_iface->stbVids, VENDOR_CLASS_ID_TAB_SIZE);
 #endif
-#if defined(SUPPPORT_GPL) //add william 2012-4-25
+#if defined(SUPPORT_GPL) //add william 2012-4-25
 		else if (strcasecmp(token, "dhcpvlanoption60") == 0)
 			AEI_read_dhcpvlanoption60(line, cur_iface);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         else if (strcasecmp(token, "vendorClassIdMinAddress") == 0)
             read_ip(line, &cur_iface->vendorClassIdMinAddress);
         else if (strcasecmp(token, "vendorClassIdMaxAddress") == 0)
@@ -1077,14 +1077,14 @@ int read_config(char *file)
 		else if (strcasecmp(token, "vlanoption60") == 0) //add william 2012-1-10
 			AEI_read_vlanoption60(line, cur_iface);
 #endif
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
         else if (strcasecmp(token, "dns_proxy") == 0)
             read_ip(line, &cur_iface->dns_proxy_ip);
         else if (strcasecmp(token, "dns_passthrough") == 0)
             read_str(line, &cur_iface->dns_passthru_chaddr);
 #endif
         else if (strcasecmp(token, "option") == 0 || strcasecmp(token, "opt") == 0) {
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
             if (strstr(line, "dns"))
                 read_dns_opt(line, &cur_iface->dns_srv_ips);
 #endif
@@ -1153,7 +1153,7 @@ int read_config(char *file)
     }
     fclose(in);
 #ifndef AEI_VDSL_DHCP_LEASE
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     snprintf(buffer,sizeof(buffer),"MSFT_IPTV,IPTV_STB,SAIP*,Xbox 360,PS3");
     read_vids(buffer, cur_iface->stbVids, VENDOR_CLASS_ID_TAB_SIZE);
 #endif
@@ -1229,7 +1229,7 @@ void write_leases(int dummy __attribute__ ((unused)))
                     fwrite(iface->interface, 32, 1, fp);
                 fwrite(&(iface->leases[i].is_stb), 4, 1, fp);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 fwrite(iface->leases[i].vendorid, sizeof(iface->leases[i].vendorid), 1, fp);
 #endif
 
@@ -1254,7 +1254,7 @@ struct saved_lease {
     char layer2Interface[32];
     u_int32_t is_stb;
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 //in bcmqos.c function bcmExecOptCmd() need checking vendorid, so we also need saving it.
     char vendorid[256];
 #endif
@@ -1294,10 +1294,10 @@ void read_leases(char *file)
                     iface->leases[cur_iface->cnt_leases].expires += curr;
                 memcpy(iface->leases[cur_iface->cnt_leases].chaddr, lease.chaddr, sizeof(lease.chaddr));
                 memcpy(iface->leases[cur_iface->cnt_leases].hostname, lease.hostname, sizeof(lease.hostname));
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 memcpy(iface->leases[cur_iface->cnt_leases].vendorid, lease.vendorid, sizeof(lease.vendorid));
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 struct static_lease *static_lease;
 
                 static_lease = AEI_getLeaseByIp(iface->static_leases, lease.yiaddr);
@@ -1332,7 +1332,7 @@ void send_lease_info(UBOOL8 isDelete, const struct dhcpOfferedAddr *lease)
 
     inaddr.s_addr = lease->yiaddr;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     write_leases(0);
 #endif
 
@@ -1382,18 +1382,18 @@ void send_lease_info(UBOOL8 isDelete, const struct dhcpOfferedAddr *lease)
     snprintf(body->ipAddr, sizeof(body->ipAddr), inet_ntoa(inaddr));
     snprintf(body->hostName, sizeof(body->hostName), lease->hostname);
     cmsUtl_macNumToStr(lease->chaddr, body->macAddr);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     body->icon = lease->icon;
     //printf("msg icon:%d\n", lease->icon);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     snprintf(body->venderClassID, sizeof(body->venderClassID), lease->vendorid);
     snprintf(body->userClassID, sizeof(body->userClassID), lease->classid);
 #endif
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
     snprintf(body->clientID, sizeof(body->clientID), lease->clientid);
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE) ||defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_DHCP_LEASE) ||defined(SUPPORT_GPL)
     body->isStb = is_stb(lease->vendorid);
 #endif
 

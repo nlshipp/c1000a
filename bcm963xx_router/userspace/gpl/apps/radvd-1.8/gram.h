@@ -1,10 +1,8 @@
+/* A Bison parser, made by GNU Bison 3.0.4.  */
 
-/* A Bison parser, made by GNU Bison 2.4.1.  */
+/* Bison interface for Yacc-like parsers in C
 
-/* Skeleton interface for Bison's Yacc-like parsers in C
-
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-   Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,67 +30,75 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
+#ifndef YY_YY_GRAM_H_INCLUDED
+# define YY_YY_GRAM_H_INCLUDED
+/* Debug traces.  */
+#ifndef YYDEBUG
+# define YYDEBUG 0
+#endif
+#if YYDEBUG
+extern int yydebug;
+#endif
 
-/* Tokens.  */
+/* Token type.  */
 #ifndef YYTOKENTYPE
 # define YYTOKENTYPE
-   /* Put the tokens into the symbol table, so that GDB and other debuggers
-      know about them.  */
-   enum yytokentype {
-     T_INTERFACE = 258,
-     T_PREFIX = 259,
-     T_ROUTE = 260,
-     T_RDNSS = 261,
-     T_DNSSL = 262,
-     T_CLIENTS = 263,
-     STRING = 264,
-     NUMBER = 265,
-     SIGNEDNUMBER = 266,
-     DECIMAL = 267,
-     SWITCH = 268,
-     IPV6ADDR = 269,
-     INFINITY = 270,
-     T_IgnoreIfMissing = 271,
-     T_AdvSendAdvert = 272,
-     T_MaxRtrAdvInterval = 273,
-     T_MinRtrAdvInterval = 274,
-     T_MinDelayBetweenRAs = 275,
-     T_AdvManagedFlag = 276,
-     T_AdvOtherConfigFlag = 277,
-     T_AdvLinkMTU = 278,
-     T_AdvReachableTime = 279,
-     T_AdvRetransTimer = 280,
-     T_AdvCurHopLimit = 281,
-     T_AdvDefaultLifetime = 282,
-     T_AdvDefaultPreference = 283,
-     T_AdvSourceLLAddress = 284,
-     T_AdvOnLink = 285,
-     T_AdvAutonomous = 286,
-     T_AdvValidLifetime = 287,
-     T_AdvPreferredLifetime = 288,
-     T_DeprecatePrefix = 289,
-     T_DecrementLifetimes = 290,
-     T_AdvRouterAddr = 291,
-     T_AdvHomeAgentFlag = 292,
-     T_AdvIntervalOpt = 293,
-     T_AdvHomeAgentInfo = 294,
-     T_Base6Interface = 295,
-     T_Base6to4Interface = 296,
-     T_UnicastOnly = 297,
-     T_HomeAgentPreference = 298,
-     T_HomeAgentLifetime = 299,
-     T_AdvRoutePreference = 300,
-     T_AdvRouteLifetime = 301,
-     T_RemoveRoute = 302,
-     T_AdvRDNSSPreference = 303,
-     T_AdvRDNSSOpenFlag = 304,
-     T_AdvRDNSSLifetime = 305,
-     T_FlushRDNSS = 306,
-     T_AdvDNSSLLifetime = 307,
-     T_FlushDNSSL = 308,
-     T_AdvMobRtrSupportFlag = 309,
-     T_BAD_TOKEN = 310
-   };
+  enum yytokentype
+  {
+    T_INTERFACE = 258,
+    T_PREFIX = 259,
+    T_ROUTE = 260,
+    T_RDNSS = 261,
+    T_DNSSL = 262,
+    T_CLIENTS = 263,
+    STRING = 264,
+    NUMBER = 265,
+    SIGNEDNUMBER = 266,
+    DECIMAL = 267,
+    SWITCH = 268,
+    IPV6ADDR = 269,
+    INFINITY = 270,
+    T_IgnoreIfMissing = 271,
+    T_AdvSendAdvert = 272,
+    T_MaxRtrAdvInterval = 273,
+    T_MinRtrAdvInterval = 274,
+    T_MinDelayBetweenRAs = 275,
+    T_AdvManagedFlag = 276,
+    T_AdvOtherConfigFlag = 277,
+    T_AdvLinkMTU = 278,
+    T_AdvReachableTime = 279,
+    T_AdvRetransTimer = 280,
+    T_AdvCurHopLimit = 281,
+    T_AdvDefaultLifetime = 282,
+    T_AdvDefaultPreference = 283,
+    T_AdvSourceLLAddress = 284,
+    T_AdvOnLink = 285,
+    T_AdvAutonomous = 286,
+    T_AdvValidLifetime = 287,
+    T_AdvPreferredLifetime = 288,
+    T_DeprecatePrefix = 289,
+    T_DecrementLifetimes = 290,
+    T_AdvRouterAddr = 291,
+    T_AdvHomeAgentFlag = 292,
+    T_AdvIntervalOpt = 293,
+    T_AdvHomeAgentInfo = 294,
+    T_Base6Interface = 295,
+    T_Base6to4Interface = 296,
+    T_UnicastOnly = 297,
+    T_HomeAgentPreference = 298,
+    T_HomeAgentLifetime = 299,
+    T_AdvRoutePreference = 300,
+    T_AdvRouteLifetime = 301,
+    T_RemoveRoute = 302,
+    T_AdvRDNSSPreference = 303,
+    T_AdvRDNSSOpenFlag = 304,
+    T_AdvRDNSSLifetime = 305,
+    T_FlushRDNSS = 306,
+    T_AdvDNSSLLifetime = 307,
+    T_FlushDNSSL = 308,
+    T_AdvMobRtrSupportFlag = 309,
+    T_BAD_TOKEN = 310
+  };
 #endif
 /* Tokens.  */
 #define T_INTERFACE 258
@@ -149,15 +155,12 @@
 #define T_AdvMobRtrSupportFlag 309
 #define T_BAD_TOKEN 310
 
-
-
-
+/* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef union YYSTYPE
-{
 
-/* Line 1676 of yacc.c  */
-#line 137 "gram.y"
+union YYSTYPE
+{
+#line 137 "gram.y" /* yacc.c:1909  */
 
 	unsigned int		num;
 	int			snum;
@@ -170,14 +173,17 @@ typedef union YYSTYPE
 	struct AdvDNSSL		*dnsslinfo;
 	struct Clients		*ainfo;
 
+#line 177 "gram.h" /* yacc.c:1909  */
+};
 
-
-/* Line 1676 of yacc.c  */
-#line 177 "gram.h"
-} YYSTYPE;
+typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
-# define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
+
 extern YYSTYPE yylval;
+
+int yyparse (void);
+
+#endif /* !YY_YY_GRAM_H_INCLUDED  */

@@ -160,7 +160,7 @@ static void ProcessRxCell(PBCMXTMRT_GLOBAL_INFO pGi, BcmXtm_RxDma *rxdma, UINT8 
 static void AEI_UpdateMirrorFlag(UINT16 *mirFlags, char *intfName, UINT8 enable);
 static void AEI_MultiMirrorPacket( struct sk_buff *skb, UINT16 mirFlags );
 static void AEI_MirrorPacket( struct sk_buff *skb, char *intfName );
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb);
 static UBOOL8 AEI_matchVlanId(struct sk_buff *skb, int vlanId);
 #endif
@@ -294,7 +294,7 @@ static int xtm_bpm_txq_thresh( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 static RecycleFuncP enet_recycle_hook = NULL;
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 unsigned short inet_green_led;
 unsigned short inet_red_led;
 #endif
@@ -356,7 +356,7 @@ int __init bcmxtmrt_init( void )
     iqos_xtm_status_hook_g = xtm_iq_status;
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     BpGetWanDataLedGpio(&inet_green_led);
     BpGetWanErrorLedGpio(&inet_red_led);
     inet_green_led &= 0x00FF;
@@ -687,7 +687,7 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         else
         {
 #if defined(AEI_VDSL_TOOLBOX)
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             pDevCtx->matchVlanId = mirrorCfg.vlanId;
 #endif
 
@@ -1419,7 +1419,7 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                      ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
                      ulHdrType ==  HT_VC_MUX_ETHERNET) )
                 {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                     if (pDevCtx->matchVlanId >= 0)
                     {
                         if (pDevCtx->matchVlanId == 0)
@@ -2493,7 +2493,7 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
               ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
               ulHdrType ==  HT_VC_MUX_ETHERNET) )
         {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             if (pDevCtx->matchVlanId >= 0)
             {
                 if (pDevCtx->matchVlanId == 0)
@@ -2730,7 +2730,7 @@ static char * pMirrorIntfNames[] =
     NULL
 };
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define AEI_VLAN_VID_MASK    0x0FFF
 
 static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb)
@@ -3553,7 +3553,7 @@ static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd )
         /* set unit number to bit 20-27 */
         macId |= ((unit & 0xff) << 20);
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if(strstr(dev->name,"atm0")!=NULL || strstr(dev->name,"ptm0")!=NULL)
         kerSysGetMacAddress( dev->dev_addr,  0x12ffffff);
         else

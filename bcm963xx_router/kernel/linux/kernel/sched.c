@@ -4945,7 +4945,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
 	printk(KERN_ERR "BUG: scheduling while atomic: %s/%d/0x%08x\n",
 		prev->comm, prev->pid, preempt_count());
 
-#if defined(SUPPPORT_GPL) /* Actiontec: Always print the entire stack in case of kernel panic */
+#if defined(SUPPORT_GPL) /* Actiontec: Always print the entire stack in case of kernel panic */
     dump_stack();
 #endif
     debug_show_held_locks(prev);

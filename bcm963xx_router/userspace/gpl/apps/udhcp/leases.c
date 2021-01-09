@@ -18,7 +18,7 @@
 
 //For static IP lease
 #include "static_leases.h"
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include "cms_msg.h"
 #endif
 /* clear every lease out that chaddr OR yiaddr matches and is nonzero */
@@ -228,7 +228,7 @@ u_int32_t find_address(int check_expired)
 	return 0;
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 u_int32_t find_address_vendorid(int check_expired)
 {
     u_int32_t addr, ret = 0;
@@ -264,7 +264,7 @@ u_int32_t find_address_vendorid(int check_expired)
 }
 #endif
 
-#if defined(SUPPPORT_GPL) //add william 2012-1-11
+#if defined(SUPPORT_GPL) //add william 2012-1-11
 
 /*
 int wstrcmp( const char *pat, const char *str ) {
@@ -563,7 +563,7 @@ void adjust_lease_time(long delta)
 #endif
 }
 
-#ifdef SUPPPORT_GPL_UNDEFINED
+#ifdef CUSTOMER_NOT_USED_X
 /* get oldest lease ipaddress from lease tables */
 u_int32_t AEI_find_address()
 {
@@ -589,7 +589,7 @@ u_int32_t AEI_find_address()
 	return 0;
 }
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 u_int32_t AEI_find_rs_staticaddress()
 {
     CmsMsgHeader *msg;

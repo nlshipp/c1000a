@@ -534,7 +534,7 @@ reestablish_ia(ia)
 
 	/* cancel the current event for the prefix. */
 	if (ia->evdata) {
-#ifdef SUPPPORT_GPL		
+#ifdef SUPPORT_GPL		
 		free_ev_datalist(ia->evdata);
 #else
 		TAILQ_REMOVE(&ia->evdata->event->data_list, ia->evdata, link);
@@ -566,9 +566,9 @@ reestablish_ia(ia)
 		goto fail;
 	}
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 	ia->state = IAS_REQUEST;
-	//C require request IA_NA and IA_PD at the same time
+	//CENTURYLINK require request IA_NA and IA_PD at the same time
 	if(get_all_ia_data(ia,ev) <= 0)
 	{
 		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
@@ -648,7 +648,7 @@ release_all_ia(ifp)
 	    iac = TAILQ_NEXT(iac, link)) {
 		for (ia = TAILQ_FIRST(&iac->iadata); ia; ia = ia_next) {
 			ia_next = TAILQ_NEXT(ia, link);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 			ia_num ++;
 			if(ia_num == 1) //release all ia at the same time
 #endif
@@ -700,9 +700,9 @@ release_ia(ia)
 		goto fail;
 	}
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 	ia->state = IAS_RELEASE;
-	//C require release IA_NA and IA_PD at the same time
+	//CENTURYLINK require release IA_NA and IA_PD at the same time
 	if(get_all_ia_data(ia,ev) <= 0)
 	{
 		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
@@ -777,7 +777,7 @@ remove_ia(ia)
 		dhcp6_remove_timer(&ia->timer);
 
 	if (ia->evdata) {
-#ifdef SUPPPORT_GPL		
+#ifdef SUPPORT_GPL		
 		free_ev_datalist(ia->evdata);
 #else
 
@@ -817,7 +817,7 @@ ia_timo(arg)
 	/* cancel the current event for the prefix. */
 	if (ia->evdata) {
 		ia_type=ia->evdata->type;
-#ifdef SUPPPORT_GPL		
+#ifdef SUPPORT_GPL		
 		free_ev_datalist(ia->evdata);
 #else
 		TAILQ_REMOVE(&ia->evdata->event->data_list, ia->evdata, link);
@@ -873,8 +873,8 @@ ia_timo(arg)
 		}
 	}
 
-#ifdef SUPPPORT_GPL	
-	//C require renew/rebind IA_NA and IA_PD at the same time
+#ifdef SUPPORT_GPL	
+	//CENTURYLINK require renew/rebind IA_NA and IA_PD at the same time
 	if(get_all_ia_data(ia,ev) <= 0)
 	{
 		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
@@ -1202,7 +1202,7 @@ fail:
 
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 /*
 *   Function: get_all_ia_data
 *

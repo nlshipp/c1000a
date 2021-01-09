@@ -52,7 +52,7 @@ static CmsRet sendConfigMsg(const char *imagePtr, UINT32 imageLen, void *msgHand
 static void sendStartModupdtdMsg(void *msgHandle);
 #endif
 #if defined(AEI_CONFIG_JFFS)
-#include "../../../../cfe/cfe/arch/mips/board/bcm63xx_ram/include/jffs2.h"
+#include "../../include/jffs2.h"
 #endif
 
 
@@ -453,7 +453,7 @@ CmsRet cmsImg_writeImage(char *imagePtr, UINT32 imageLen, void *msgHandle)
    {
       ret = CMSRET_INVALID_IMAGE;
    }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    else if(format == CMS_IMAGE_FORMAT_CORRUPTED)
    {
       ret = CMSRET_INVALID_IMAGE;
@@ -498,7 +498,7 @@ CmsRet cmsImg_writeValidatedImage(char *imagePtr, UINT32 imageLen, CmsImageForma
           * to flash, thus wiping out what we just written.
           */
          cmsLog_debug("config file download written, request reboot");
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
          cmsUtil_sendRequestRebootMsg(msgHandle);
 #endif
       }
@@ -597,7 +597,7 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
          cmsLog_debug("CMS XML config format verified.");
          return CMS_IMAGE_FORMAT_XML_CFG;
       }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
       else
          result = CMS_IMAGE_FORMAT_CORRUPTED;
 #endif
@@ -653,6 +653,7 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
    else
    {
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+#define JFFS2_MAGIC_BITMASK   0x1985
         if(imageLen > offset+2 && (((*(unsigned short *)imageBuf == JFFS2_MAGIC_BITMASK && *(unsigned short *)(imageBuf+2) == AEI_MAGIC_BITMASK)) || ((*(unsigned short *)(imageBuf+offset) == JFFS2_MAGIC_BITMASK && *(unsigned short *)(imageBuf+offset+2) == AEI_MAGIC_BITMASK))))
         {
 #endif
@@ -700,7 +701,7 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
             cmsLog_error("Could not determine image format [%d bytes]", imageLen);
 #endif
             cmsLog_debug("calculated crc=0x%x image crc=0x%x", crc, imageCrc);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             result = CMS_IMAGE_FORMAT_CORRUPTED;
 #endif
          }

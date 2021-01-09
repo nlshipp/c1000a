@@ -25,7 +25,7 @@
 
 #define MAX_TOPO_LEVEL		6
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 #include <board.h>
 void usbledTimerStart(void);
 void usbledTimerEnd(void);

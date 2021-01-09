@@ -35,7 +35,7 @@
 #include "cms.h"
 #include "cms_eid.h"
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #include "aei_cms_msg.h"
 #endif
 
@@ -304,7 +304,7 @@ typedef enum
    CMS_MSG_OMCIPMD_MCAST_COUNTER_REQ            = 0x10002410, /**< OMCIPMD command message request for multicast RX octets. */
    CMS_MSG_OMCIPMD_MCAST_COUNTER_RSP            = 0x10002411, /**< OMCIPMD command message response for multicast RX octets. */
 #if defined (DMP_CAPTIVEPORTAL_1)
-#if defined (SUPPPORT_GPL)
+#if defined (AEI_VDSL_TR098_QWEST)
    CMS_MSG_SET_ONE_TIME_REDIRECT_URL_FLAG       = 0x10002412,
 #endif
 #endif
@@ -335,13 +335,13 @@ typedef enum
    CMS_MSG_BMU_GET_STATUS                       = 0x10002601, /**<  */
 
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
    CMS_MSG_SET_PortMapping_LeaseDuration        = 0x10002602,
    CMS_MSG_GET_PortMapping_Remaining_Time       = 0x10002603,
    CMS_MSG_USER_AUTH_CHANGED                    = 0x10002604,
    CMS_MSG_FORCE_WAN_LINK_CHANGE                = 0x10002605,
 #endif
-#ifdef SUPPPORT_GPL_UNDEFINED
+#ifdef CUSTOMER_NOT_USED_X
    CMS_MSG_TR69_ALG_ENABLE                      = 0x10002606,
    CMS_MSG_TR69_ALG_DISABLE                     = 0x10002607,
 #endif
@@ -351,7 +351,7 @@ typedef enum
 #if defined(DMP_UPNPDISCBASIC_1) && defined (DMP_UPNPDISCADV_1)
     CMS_MSG_UPNP_DISCOVERY_INFO                 = 0x10002609,   /*Send upnp device and service info */
 #endif
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     CMS_MSG_GET_LANHOSTS_RENEW                  = 0x10002610,  /**< ask mynetwork to renew the lanhost table */
     CMS_MSG_SET_LEASE_TO_SCRATCHPAD             = 0x10002611,  /**< ask mynetwork to write the LANhosts info into the flash*/
     CMS_MSG_GET_LEASE_TO_SCRATCHPAD             = 0x10002612,  /**< ask XXX to read the LANhosts info from the flash*/
@@ -369,14 +369,14 @@ typedef enum
     CMS_MSG_NSLOOKUP_TXT_RDATA                  = 0x10002621,
 #endif
     CMS_MSG_REMOTE_TIMEOUT_CHANGED              = 0x10002622,
-#endif /* SUPPPORT_GPL */
+#endif /* SUPPORT_GPL */
 #ifdef DMP_SIMPLEFIREWALL_1
    CMS_MSG_TR69_FIREWALL_LEVEL_CHANGED          = 0x10002623,
 #endif
-#if defined (SUPPPORT_GPL)
+#if defined (AEI_VDSL_TR098_QWEST)
    CMS_MSG_SNTP_DAY_LIGHT_TIMER                 = 0x10002624,
 #endif
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
    CMS_MSG_SET_FIRSTUSEDATE                     = 0x10002625, /* ask ssk to write the FirstUseDate to mdm*/
    CMS_MSG_SET_STATUS                           = 0x10002626,
 #endif
@@ -390,7 +390,7 @@ typedef enum
    CMS_MSG_DO_EBTABLES                          = 0x10002629,
    CMS_MSG_DHCPD_MACS_TO_CMS                    = 0x10002630,
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
    CMS_MSG_NSLOOKUP_BACKOFF_RETURN              = 0x10002631, // NSLOOKUP return
 #endif
    CMS_MSG_OSGID_PRINT                          = 0x10002654, /**< OSGID command to print debug info to console */
@@ -399,16 +399,16 @@ typedef enum
    CMS_MSG_DHCP_LEASES_UPDATED                  = 0x10002656,
    CMS_MSG_UPDATE_LEASE_TIME_REMAINING          = 0x10002657,
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL)
+#if defined(CUSTOMER_NOT_USED_X) || defined(SUPPORT_GPL)
    CMS_MSG_LHCM_IPINTERFACE_CHANGE              = 0x10002658,/*LANHostConfigManagement IP gateway change*/
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
    CMS_MSG_WPSCOUNT_SYNC                        = 0x10002659,
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X) || defined(AEI_VDSL_TR098_QWEST) || defined(CUSTOMER_NOT_USED_X)
    CMS_MSG_DHCP_TIME_UPDATED                    = 0x10002660,
 #endif
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
    CMS_MSG_NSLOOKUP_RESULT                      = 0x10002661,
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
@@ -416,7 +416,7 @@ typedef enum
    CMS_MSG_STATS_DIAG_COMPLETED                 = 0x10002663,
 #endif
 
-#if defined(SUPPPORT_GPL) //add william 2012-4-25
+#if defined(SUPPORT_GPL) //add william 2012-4-25
    CMS_MSG_PPPD_DISCONNTECT                      = 0x10002665,
    CMS_MSG_DHCP_VLAN_VENDOR                      = 0x10002666,
    CMS_MSG_DHCP_NTP_SERVER_FOUND                 = 0x10002668, //ADD BY LARRY @2012/08/24
@@ -426,11 +426,11 @@ typedef enum
 #ifdef AEI_SUPPORT_IPV6_STATICROUTE
     CMS_MSG_AEI_CTL_INFOR_FOR_STATIC_ROUTE   = 0x10002664,
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL_UNDEFINED_V2000H)||defined(SUPPPORT_GPL)
+#if defined(CUSTOMER_NOT_USED_X) || defined(CUSTOMER_NOT_USED_X_V2000H)||defined(SUPPORT_GPL)
     CMS_MSG_AEI_CTL_GET_PHYTYPE_IFNAME       = 0x10002667,
 #endif
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    CMS_MSG_SELECT_VALID_RESERVATION                = 0x10002669,
    CMS_MSG_DSL_STANDARD_PROFILE_CHANGE                = 0x10002670,
    CMS_MSG_AEI_CLEAR_30MIN_PACKETS                 = 0x10002671,
@@ -439,13 +439,16 @@ typedef enum
    CMS_MSG_TIMER_CHANGED                           = 0x10002674,
    CMS_MSG_UPDATE_SIPMODE                          = 0x10002675,
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    CMS_MSG_TR69C_ENABLE_CWMP_FLAG                = 0x10002676,
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    CMS_MSG_SIP_REG_OK                = 0x10002677,
    CMS_MSG_SIP_REG_FAIL                = 0x10002678,
    CMS_MSG_VOICE_CONFIG_AEIVOICESHUTDOWN     = 0x10002679,
+#endif
+#if defined(AEI_VDSL_FACTORY_TELNET)
+   CMS_MSG_AEI_CANCEL_FACTORYTELNET_TIMER = 0x10002680,
 #endif
 } CmsMsgType;
 
@@ -508,7 +511,7 @@ typedef struct {
 } UPnPDiscoveryInfo;
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 /** Data body for the CMS_MSG_REMOTE_TIMEOUT_CHANGED message type.
  *
  */
@@ -610,10 +613,10 @@ typedef struct
    char acsProvisioningCode[CMS_MAX_ACS_PROVISIONING_CODE_LENGTH];  /**< dhcp server may provide this */
    UINT32 cwmpRetryMinimumWaitInterval; /**< dhcp server may provide this */
    UINT32 cwmpRetryIntervalMultiplier; /**< dhcp server may provide this */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    UINT32 ledControl;
 #endif
-//#if defined(SUPPPORT_GPL_UNDEFINED)
+//#if defined(CUSTOMER_NOT_USED_X)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
    unsigned int lease_time;
 #endif
@@ -744,7 +747,7 @@ typedef enum {
 } DhcpEventType;
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 typedef struct {
    InstanceIdStack iidStack;
    char standard[BUFLEN_32];
@@ -766,7 +769,7 @@ typedef struct
                                      * LANDevice.{i}.Hosts.Host.{i}.addressSource */
    char interfaceType[BUFLEN_32];  /** type of interface used by LAN host, same values as 
                                      * LANDevice.{i}.Hosts.Host.{i}.InterfaceType */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     UBOOL8 active;                  /** the host is active or not , same value as */
     int icon;                       /** Device Identifer according to DHCP option 12/60 */
     char reservstatus[2];           /** DHCP Reservation Status */
@@ -778,7 +781,7 @@ typedef struct
    char oui[BUFLEN_8];             /** Host's manufacturing OUI */
    char serialNum[BUFLEN_64];      /** Host's serial number */
    char productClass[BUFLEN_64];   /** Host's product class */
-#if defined (SUPPPORT_GPL)
+#if defined (SUPPORT_GPL)
     char userClassID[BUFLEN_256];
     char venderClassID[BUFLEN_256];
     char clientID[BUFLEN_256];
@@ -788,7 +791,7 @@ typedef struct
     char macs[BUFLEN_128];
     char option60String[BUFLEN_16];
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE)||defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_DHCP_LEASE)||defined(SUPPORT_GPL)
    UBOOL8 isStb;                  /** The lan host pc is stb or not */
 #endif
 } DhcpdHostInfoMsgBody;
@@ -1131,7 +1134,7 @@ typedef struct
    UINT32 dnsErrors; 	      /**< dns query error counter  */
 } DnsGetStatsMsgBody;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 typedef struct {
     UBOOL8 enable;
     UINT32 sampleInterval;

@@ -688,7 +688,7 @@ viError:
 }
 
 //brcm end
-#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL)
+#if defined(CUSTOMER_NOT_USED_X) || defined(SUPPORT_GPL)
 void getClientIDOption(struct dhcpMessage *packet, struct dhcpOfferedAddr *lease)
 {
     char *clientid = NULL;

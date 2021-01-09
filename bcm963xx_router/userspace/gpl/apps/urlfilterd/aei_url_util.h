@@ -12,7 +12,7 @@ int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payloa
 void AEI_get_lan_ip(char *addr);
 void AEI_getCaptiveAllowList();
 void AEI_getCaptiveURLandIPAddr(char *fileName, char *url, char *ipAddr, int *flag);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 char *AEI_getdomain(char *data, char *url);
 int AEI_checkCaptiveAllowDomain(char *allowDomain, char* host);
 void AEI_getCaptiveAllowDomain();
@@ -24,7 +24,7 @@ int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac,char *brn
 #else
 int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_TR098_QWEST)
 CmsRet AEI_send_msg_to_set_oneTimeRedirectURLFlag();
 #endif
 

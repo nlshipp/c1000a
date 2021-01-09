@@ -16,7 +16,7 @@
 #include <net/netfilter/nf_conntrack_extend.h>
 #include <net/netfilter/nf_conntrack_acct.h>
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #define NF_CT_ACCT_DEFAULT 1
 #else
 #ifdef CONFIG_NF_CT_ACCT

@@ -85,7 +85,7 @@ CmsRet cmsMsg_sendReply(void *msgHandle, const CmsMsgHeader *msg, CmsRet retCode
 {
    CmsMsgHandle *handle = (CmsMsgHandle *) msgHandle;
    CmsMsgHeader replyMsg = EMPTY_MSG_HEADER;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
    //Since the old message is a reply message, we needn't send the reply message of the old reply message back.
   if(msg->flags_response==1)
 	return CMSRET_INTERNAL_ERROR;	

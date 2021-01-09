@@ -143,6 +143,8 @@ written consent.
 #ifndef AdslMibDefHeader
 #define AdslMibDefHeader
 
+#include "SeltDef.h"
+
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -743,6 +745,8 @@ typedef struct _adslLineEntry {
 #define kAdslPhysStatusLPR          (1 << 3)    /* lossOfPower */
 #define kAdslPhysStatusLOSQ         (1 << 4)    /* lossOfSignalQuality */
 #define kAdslPhysStatusLOM          (1 << 5)    /* lossOfMargin */
+#define kAdslPhysStatusLOR          (1 << 6)    /* lossOfRMC */
+
 
 #define kAdslPhysVendorIdLen        8
 #define kAdslPhysSerialNumLen       32
@@ -796,6 +800,7 @@ typedef struct _xdslPhysEntry {
     long        adslShowAttainableRate;
     long        adslTrainAttainableRate;
 #endif
+    long        snrmRoc; /* SNRM ROC/SNRM RMC --> VDSL2/G.fast */
 } xdslPhysEntry;
 #endif
 
@@ -850,6 +855,7 @@ typedef struct _xdslFullPhysEntry {
     unsigned char  attnDrMethod;
     unsigned char  attnDrInp;
     unsigned char  attnDrDelay;
+    long        snrmRoc; /* SNRM ROC/SNRM RMC --> VDSL2/G.fast */
 } xdslFullPhysEntry;
 #endif
 
@@ -865,20 +871,29 @@ typedef struct _adslChanEntry {
 /* Adsl performance data definitions */
 
 typedef struct _adslPerfCounters {
+   union {
     unsigned long       adslLofs;
+    unsigned long       xdslLors;   /* Count of LOR */
+    };
     unsigned long       adslLoss;
+    union {
     unsigned long       adslLols;   /* Loss of Link failures (ATUC only) */
+    unsigned long       xdslLoms;   /* Count of LOM */
+    };
     unsigned long       adslLprs;
     unsigned long       adslESs;    /* Count of Errored Seconds */
     union {
     unsigned long       adslInits;  /* Count of Line initialization attempts (ATUC only) */
-    unsigned long       adslLOMS;  /* Count of LOM seconds */
+    unsigned long       adslLOMS;  /* Count of LOM Seconds */
     };
     unsigned long       adslUAS;    /* Count of Unavailable Seconds */
     unsigned long       adslSES;    /* Count of Severely Errored Seconds */
     unsigned long       adslLOSS;   /* Count of LOS seconds */
     unsigned long       adslFECs;   /* Count of FEC seconds  */
+    union {
     unsigned long       adslLCDS;   /* Count of LCD Errored Seconds */
+    unsigned long       xdslLORS;   /* Count of LOR Seconds */
+    };
     unsigned long       adslAS;         /* Count of Availabe in second */ 
 } adslPerfCounters;
 
@@ -988,6 +1003,9 @@ typedef struct _adslINMConfiguration {
 #define kAdslEventIntlUpThresh      0x080
 #define kAdslEventFastDownThresh    0x100
 #define kAdslEventIntlDwonThresh    0x200
+
+#define kXdslEventContSESThresh     0x400
+
 
 typedef struct _adslThreshCounters {
     unsigned long       adslThreshLofs;
@@ -1283,34 +1301,6 @@ typedef struct _adslDiagModeData {
     unsigned short    ldLastStateUS;    /* US LD last state transmitted */
 } adslDiagModeData;
 
-#define SELT_STATE_IDLE                    0
-#define SELT_STATE_MEASURING               1
-#define SELT_STATE_POSTPROCESSING          2
-#define SELT_STATE_COMPLETE                3
-
-#define SELT_STATE_MEASUREMENT_SHIFT       8
-#define SELT_STATE_MASK                    ((1<<SELT_STATE_MEASUREMENT_SHIFT)-1)
-
-#define SELT_STATE_WAITING                 ((1<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
-#define SELT_STATE_MEASURING_QLN           ((2<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
-#define SELT_STATE_MEASURING_ENR           ((4<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
-#define SELT_STATE_MEASURING_SELT          ((8<<SELT_STATE_MEASUREMENT_SHIFT)|SELT_STATE_MEASURING)
-
-#define SELT_STATE_STEP_WAIT               0x01
-#define SELT_STATE_STEP_QLN                0x02
-#define SELT_STATE_STEP_ENR                0x04
-#define SELT_STATE_STEP_SELT               0x08
-#define SELT_STATE_STEP_POSTPROCESSING     0x10
-
-#define SELT_STATE_ALL_STEPS               0x1F
-
-typedef struct SeltData {
-    unsigned long seltCfg;
-    long          seltState;
-    unsigned char seltSteps;
-    int           seltAgc;
-} SeltData;
-
 //#ifdef NTR_SUPPORT
 #define kNtrOperMode6368            (0)
 #define kNtrOperModeInt                (1)
@@ -1372,6 +1362,9 @@ typedef struct _gFactorsEntry {
   short                      Gfactor_SUPPORTERCARRIERSus;
   short                      Gfactor_MEDLEYSETds;
   short                      Gfactor_MEDLEYSETus;
+#if defined(SUPPORT_DSL_GFAST) || defined(CONFIG_BCM_DSL_GFAST)
+  short                      Gfactor_Gfast_mode;
+#endif
 } gFactorsEntry;
 
 typedef struct _vdslperbandPMDdata {

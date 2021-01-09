@@ -59,6 +59,13 @@ static int get_sb_mtd_aux(struct file_system_type *fs_type, int flags,
 	struct super_block *sb;
 	int ret;
 
+#if defined(SUPPORT_GPL)
+    /*Don't allow to mount bootfs or rootfs with R/W mode*/
+    if (strstr(mtd->name, "ootfs") && !(flags & MS_RDONLY))
+        return -EINVAL;
+#endif
+
+
 	sb = sget(fs_type, get_sb_mtd_compare, get_sb_mtd_set, mtd);
 	if (IS_ERR(sb))
 		goto out_error;

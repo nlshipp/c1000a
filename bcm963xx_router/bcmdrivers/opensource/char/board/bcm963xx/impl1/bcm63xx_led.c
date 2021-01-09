@@ -54,7 +54,7 @@ extern spinlock_t bcm_gpio_spinlock;
 #define kFastBlinkCount     0          // 125ms
 #define kSlowBlinkCount     1          // 250ms
 #define kVerySlowBlinkCount     3          // 500ms
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
 #define kOneSecondBlinkCount 7          //1 second
 #endif
 #define kLedOff             0
@@ -97,11 +97,11 @@ static BP_LED_INFO bpLedInfo[] =
     {kLedDect, BpGetDectLedGpio, NULL},
     {kLedGpon, BpGetGponLedGpio, BpGetGponFailLedGpio},
     {kLedMoCA, BpGetMoCALedGpio, BpGetMoCAFailLedGpio},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {kLedUsb, BpGetUsbLedGpio, NULL},
     {kLedPower, BpGetBootloaderPowerOnLedGpio, BpGetBootloaderStopLedGpio},
     {kLedSes, BpGetWirelessSesLedGpio, BpGetWirelessFailSesLedGpio},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {AEI_kLedWlanAct, BpGetWirelessLedGpioAct, NULL},
     {AEI_kLedWlan, BpGetWirelessLedGpioGreen, BpGetWirelessLedGpioRed},
     {AEI_kLedWlanGreen, BpGetWirelessLedGpioGreen, NULL},
@@ -122,7 +122,7 @@ static int gTimerOn = FALSE;
 static int gTimerOnRequests = 0;
 static unsigned int gLedRunningCounter = 0;  // only used by WLAN
 
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
 static bool gPowerLedLocalUpgrade = FALSE;
 static bool gPowerLedTr69Upgrade = TRUE;
 int  gPowerLedStatus = 1;                              //1:green; 2:amber and green alternative;3 amber blink
@@ -142,7 +142,7 @@ static void ledTimerExpire(void);
 //**************************************************************************************
 // LED operations
 //**************************************************************************************
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /* ken, Set HW control for WAN Data LED. */
 void AEI_SetWanLedHwControl(BOARD_LED_NAME ledName,PLED_CTRL pLed,int enable)
 {
@@ -272,7 +272,7 @@ static void setLed (PLED_CTRL pLed, unsigned short led_state, unsigned short led
     spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void wpsledToggle(PLED_CTRL pLed)
 {
     short led_gpio;
@@ -481,14 +481,14 @@ static void ledTimerExpire(void)
         case kLedStateOn:
         case kLedStateOff:
         case kLedStateFail:
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         case kLedStateAmber:
 #endif
             pCurLed->blinkCountDown = 0;            // reset the blink count down
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         case kLedStateVerySlowBlinkContinues:
             if (pCurLed->blinkCountDown-- == 0)
             {
@@ -558,7 +558,7 @@ static void ledTimerExpire(void)
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         case kLedStateAmberSlowBlinkContinues:
             if (pCurLed->blinkCountDown-- == 0)
             {
@@ -606,7 +606,7 @@ static void ledTimerExpire(void)
             if (pCurLed->blinkCountDown-- == 0)
             {
                 pCurLed->blinkCountDown = (((gLedRunningCounter++)&1)? kFastBlinkCount: kSlowBlinkCount);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 wpsledToggle(pCurLed);
 #else
                 ledToggle(pCurLed);
@@ -620,7 +620,7 @@ static void ledTimerExpire(void)
             if (pCurLed->blinkCountDown-- == 0)
             {
                 pCurLed->blinkCountDown = kFastBlinkCount;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 wpsledToggle(pCurLed);
 #else
                 ledToggle(pCurLed);
@@ -641,7 +641,7 @@ static void ledTimerExpire(void)
                 else
                 {
                     pCurLed->blinkCountDown = kFastBlinkCount;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                     wpsledToggle(pCurLed);
 #else
                     ledToggle(pCurLed);
@@ -651,7 +651,7 @@ static void ledTimerExpire(void)
             gTimerOnRequests++;
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;        
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
         case kLedStateUserWANGreenRedVerySlowBlinkContinues:
             if (pCurLed->blinkCountDown-- == 0)
             {
@@ -755,7 +755,7 @@ void __init boardLedInit(void)
             gLedCtrl[pInfo->ledName].ledRedGpio = gpio;
         }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if (pInfo->ledName == kLedPower)
         {
             continue;
@@ -821,7 +821,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
 
     spin_lock_irqsave(&brcm_ledlock, flags);     // LED can be changed from ISR
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     if( ((int) ledName < kLedEnd) && ((int) ledState < kLedStateEnd) ) {
 #else
     if( (int) ledName < kLedEnd ) {
@@ -833,7 +833,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
         // in the board parameters, change the state to kLedStateSlowBlinkContinues.
         if( ledState == kLedStateFail && pLed->ledRedGpio == -1 )
             ledState = kLedStateSlowBlinkContinues;
-#if defined(SUPPPORT_GPL) && defined(AEI_VOIP_LED)
+#if defined(SUPPORT_GPL) && defined(AEI_VOIP_LED)
         if(ledState==kLedStateOn && pLed->ledState==kLedStateMWIBlinkContinues)
             return;
 #endif
@@ -846,7 +846,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
 
         // Disable HW control for WAN Data LED. 
         // It will be enabled only if LED state is On
- #if defined(SUPPPORT_GPL)
+ #if defined(SUPPORT_GPL)
         AEI_SetWanLedHwControl(ledName,pLed,0);
 #else
 #if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
@@ -865,7 +865,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
         switch (ledState) {
         case kLedStateOn:
             // Enable SAR to control INET LED
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             AEI_SetWanLedHwControl(ledName,pLed,1);
 #else
 #if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
@@ -891,7 +891,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
             setLed (pLed, kLedOn, kLedRed);
             break;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         case kLedStateAmber:
             setLed (pLed, kLedOn, kLedGreen);
             setLed (pLed, kLedOn, kLedRed);
@@ -914,7 +914,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
             gTimerOnRequests++;
             break;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #if defined(AEI_VOIP_LED)
         case kLedStateAmberBlinkContinues:
             pLed->blinkCountDown = kFastBlinkCount;
@@ -955,7 +955,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
             pLed->blinkCountDown = kFastBlinkCount;
             gTimerOnRequests++;
             break;        
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
         case kLedStateUserWANGreenRedVerySlowBlinkContinues:      /*rotate between green and red in a 1 second on/off interval*/
             pLed->blinkCountDown = kVerySlowBlinkCount;
             gTimerOnRequests++;

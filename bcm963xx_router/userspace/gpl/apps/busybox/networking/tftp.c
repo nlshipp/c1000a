@@ -26,7 +26,9 @@
 #include "cms_util.h"
 #include "cms_msg.h"
 // brcm end
-
+#if defined(AEI_VDSL_FACTORY_TELNET)
+extern UBOOL8 AEI_cgi_getFactoryTelnetFlag(void);
+#endif
 
 #if ENABLE_FEATURE_TFTP_GET || ENABLE_FEATURE_TFTP_PUT
 
@@ -193,7 +195,7 @@ static int myRead(char *outBuf, int inLen)
    return readLen;
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void tftp_killAppWhileUpgrade()
 {
       system("killall -9 consoled");
@@ -223,7 +225,7 @@ static void tftp_killAppWhileUpgrade()
 }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define BLOCK_ALLOC 1000000
 /* let's do a 1MB alloc and add realloc increment upto max flash size */
 static int myWrite(char *inBuf, int inBufLen)
@@ -330,7 +332,7 @@ static int myWrite(char *inBuf, int inBufLen)
       // The Linux kernel will not assign physical pages to the buffer
       // until we write to it, so it is OK if we allocate a little more
       // than we really need.
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
       tftp_killAppWhileUpgrade();
 #endif
 
@@ -997,6 +999,14 @@ int tftp_main(int argc UNUSED_PARAM, char **argv)
 // brcm end
 	int result;
 	int port;
+#if defined(AEI_VDSL_FACTORY_TELNET)
+    if(AEI_cgi_getFactoryTelnetFlag() != TRUE)
+    {
+        bb_error_msg(" !! tftp is restricted.\n\n");
+        return 0;
+    }
+#endif
+
 	IF_GETPUT(int opt;)
 
 	INIT_G();

@@ -7,7 +7,7 @@ all:
 	$(MAKE) -C ./source srcdir=./ builddir=./
 	install -m 755 ./source/bin/smbd $(INSTALL_DIR)/bin/smbd
 	install -m 755 ./source/bin/smbpasswd $(INSTALL_DIR)/bin/smbpasswd
-ifneq ($(strip $(SUPPPORT_GPL_UNDEFINED)),)
+ifneq ($(strip $(CUSTOMER_NOT_USED_X)),)
 	install -m 444 ./source/conf/smb_telus.conf $(INSTALL_DIR)/etc/smb.conf
 else
 	install -m 444 ./source/conf/smb.conf $(INSTALL_DIR)/etc

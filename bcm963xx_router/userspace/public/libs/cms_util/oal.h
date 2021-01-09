@@ -48,7 +48,7 @@
 #include "cms_net.h"
 #include "prctl.h"
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include "aei_oal.h"
 #endif
 

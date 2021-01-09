@@ -89,7 +89,7 @@
 #endif
 #define LOGICAL_PORT_TO_PHYSICAL_PORT(port) ( (port < MAX_EXT_SWITCH_PORTS) ? port : (port-MAX_EXT_SWITCH_PORTS))
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define WHOLE_N_MAX_THRESHOLD 3
 #define AEI_IS_CPU_FREE() (((avenrun[0] + (FIXED_1/200)) >> FSHIFT) < WHOLE_N_MAX_THRESHOLD ?1 : 0) 
 #endif

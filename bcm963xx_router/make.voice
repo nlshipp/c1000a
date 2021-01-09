@@ -56,7 +56,7 @@ ifeq ($(strip $(BRCM_SIP_CMGR_CCTK)),y)
 export SIP_CMGR_CCTK=1
 endif
 
-ifeq ($(strip $(SUPPPORT_GPL)),)
+ifeq ($(strip $(SUPPORT_GPL)),)
 BRCM_RELEASETAG := $(BRCM_RELEASETAG).sip
 endif
 endif
@@ -521,7 +521,7 @@ ifndef EXTRA_VOICE_TAG
 EXTRA_VOICE_TAG := default
 endif
 
-ifeq ($(strip $(SUPPPORT_GPL)),)
+ifeq ($(strip $(SUPPORT_GPL)),)
 BRCM_RELEASETAG := $(BRCM_RELEASETAG)_$(BRCM_DSP_HAL)_$(EXTRA_VOICE_TAG)
 endif
 

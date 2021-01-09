@@ -117,7 +117,7 @@ UINT32 devCtl_getNumEnetMacs(void)
    return (ret == CMSRET_SUCCESS ? num : 0);
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 UINT32 AEI_devCtl_getPowerLedStatus(void)        // 1:green;2:amber and green alternative; 3:amber blink;
 {
    UINT32 num;
@@ -276,7 +276,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
         ioctlParms.buf    = data;
         ioctlParms.result = -1;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if(boardIoctl == BOARD_IOCTL_FLASH_WRITE && (action ==PERSISTENT))
         {
             FILE *fp = NULL;
@@ -292,7 +292,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
         close(boardFd);
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if(boardIoctl == BOARD_IOCTL_FLASH_WRITE && (action ==PERSISTENT))
             unlink("/var/write_psi_lock");
 #endif
@@ -334,7 +334,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                   (boardIoctl == BOARD_IOCTL_GET_NUM_VOIP_PORTS) ||
                   (boardIoctl == BOARD_IOCTL_GET_SWITCH_PORT_MAP) ||
                   (boardIoctl == BOARD_IOCTL_GET_NUM_ENET_PORTS) ||
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 				  (boardIoctl == BOARD_IOCTL_GET_POWERLED_STATUS) ||
 				  (boardIoctl == BOARD_IOCTL_GET_FLASH_TOTAL) ||
 				  (boardIoctl == BOARD_IOCTL_GET_FLASH_USED) ||
@@ -347,7 +347,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                     *((UINT32 *)data) = (UINT32) ioctlParms.result;
                  }
               }
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
               else if(boardIoctl == BOARD_IOCTL_GET_FS_OFFSET)
               {
                  if (data != NULL)
@@ -370,8 +370,8 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
     return ret;
 }
 #ifdef AEI_TWO_IN_ONE_FIRMWARE
-#ifdef SUPPPORT_GPL_UNDEFINED
-#ifdef AEI_VDSL_CUSTOMER_TDS
+#ifdef CUSTOMER_NOT_USED_X
+#ifdef CUSTOMER_NOT_USED_X
 product_info pinfo[1] ={{"V1000H","TDS V1000H","V1000H",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
 #else
 #if defined(AEI_63168_CHIP) && defined(AEI_CONFIG_JFFS)
@@ -380,7 +380,7 @@ product_info pinfo[2] ={{"V2200H","TELUS V2200H","V2200H",CMS_RELEASE_VERSION,"/
 product_info pinfo[2] ={{"V2000H","TELUS V2000H","V2000H",CMS_RELEASE_VERSION,"/etc/default.cfg","/webs/perm.txt",0 },{"V1000H","V1000H","V1000H",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
 #endif
 #endif
-#elif defined(SUPPPORT_GPL)
+#elif defined(SUPPORT_GPL)
 #ifdef AEI_FRONTIER_V2200H
 product_info pinfo[1] ={{"FV2200","FV2200","FV2200",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
 #else
@@ -404,7 +404,7 @@ product_info * AEI_find_pinfo_by_boardid(char *boardid)
 #endif
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int AEI_devCtl_getBoardID(char *boardid)
 {
     char board_id[NVRAM_BOARD_ID_STRING_LEN]={0};

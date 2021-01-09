@@ -383,6 +383,12 @@ int jffs2_remount_fs (struct super_block *sb, int *flags, char *data)
 	if (c->flags & JFFS2_SB_FLAG_RO && !(sb->s_flags & MS_RDONLY))
 		return -EROFS;
 
+#if defined(SUPPORT_GPL)
+    /*Don't allow to remount bootfs or rootfs with R/W mode*/
+    if (c->mtd && c->mtd->name && strstr(c->mtd->name, "ootfs") && !(*flags & MS_RDONLY))
+        return -EINVAL;
+#endif
+
 	/* We stop if it was running, then restart if it needs to.
 	   This also catches the case where it was stopped and this
 	   is just a remount to restart it.

@@ -700,14 +700,14 @@ void ethsw_set_wanoe_portmap(uint16 wan_port_map)
 #else
     map = PBMAP_MIPS | wan_port_map;
 #endif
-#if defined(SUPPPORT_GPL)    
+#if defined(SUPPORT_GPL)    
     fast_age_all(1);
 #endif
 
     /* Disable learning */
     ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&map, 2);
 /* Flush ARL table to solve DVR issue 82460 */
-#if defined(SUPPPORT_GPL)    
+#if defined(SUPPORT_GPL)    
     fast_age_all(1);
 #endif
 

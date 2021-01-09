@@ -500,7 +500,7 @@ void AEI_cleanup()
 }
 #endif /* AEI_VDSL_SMARTLED */
 
-#if defined(SUPPPORT_GPL) || defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL) || defined(CUSTOMER_NOT_USED_X)
 #include "cms_msg.h"
 #include "cms_util.h"
 void AEI_sendNslookupResult(void *msgHandle)
@@ -531,5 +531,5 @@ void AEI_sendNslookupResult(void *msgHandle)
    return;
 }
 
-#endif /* #if defined(SUPPPORT_GPL) */
+#endif /* #if defined(SUPPORT_GPL) */
 

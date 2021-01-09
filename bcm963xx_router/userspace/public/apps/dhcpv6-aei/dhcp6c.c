@@ -94,8 +94,8 @@
 #include <linux/rtnetlink.h>
 #include <asm/byteorder.h>
 
-#include "../../../private/apps/ctl_layer/include/ctl_objectid.h"
-#include "../../../private/apps/ctl_layer/include/ctl_validstrings.h"
+#include "ctl_objectid.h"
+#include "ctl_validstrings.h"
 
 static int rad_ra_Mbit = -1;
 static int rad_ra_Obit = -1;

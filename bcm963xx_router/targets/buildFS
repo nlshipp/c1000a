@@ -16,6 +16,9 @@ if [ "$INSTALL_DIR" == "" ]; then
     INSTALL_DIR=./$PROFILE/fs.install
 fi
 
+cd /opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/lib
+cp libmdm.so libcms_dal.so libcms_cli.so libatmctl.so libxdslctl.so libvlanctl.so libethswctl.so libspuctl.so libpwrctl.so libnanoxml.so libfcctl.so libiqctl.so libsnoopctl.so libgmacctl.so libfapctl.so libcms_core.so libcdkshell.so libcdkmain.so libcdkpkgsrc.so libcdkshared.so libcdksym.so libcdklibc.so libcdkdsym.so libphypkgsrc.so libphygeneric.so libphyutil.so libphysym.so libbmdshell.so libbmdapi.so libbmdpkgsrc.so libbmdshared.so libbos.so  libcms_msg.so libcms_util.so libcms_boardctl.so  $TOP_DIR/$PROFILE/fs.install/lib
+cd $TOP_DIR
 ROOTFS=$PROFILE/fs
 
 # Create file system dir
@@ -28,7 +31,7 @@ fi
 chmod 777 $ROOTFS
 # Copy files onto root file system
 echo "Creating target root file system..."
-if [ "$SUPPPORT_GPL" != "" ]; then
+if [ "$SUPPORT_GPL" != "" ]; then
 #STRIP bin and lib
 eval "find $PROFILE/fs.install/bin $PROFILE/fs.install/lib -type f | xargs file | grep "ELF" | sed "s/\:.*//g"|xargs $STRIP"
 #delete section that is not neccesary
@@ -271,7 +274,7 @@ fi
 cd $MOD_DIR
 cp -a lib $TOP_DIR/$ROOTFS/.
 
-cp ../../wget $TOP_DIR/$ROOTFS/sbin
+#cp ../../wget $TOP_DIR/$ROOTFS/sbin
 
 if [ "$STRIP" != "/bin/touch" ]; then
 # Stripping unneeded module symbols only when strip is "enabled"
@@ -288,7 +291,7 @@ find $TOP_DIR/$ROOTFS/lib/modules -name "*.ko"
       eval "find $TOP_DIR/$ROOTFS/lib/modules -name 'ip*.ko' |xargs $STRIP --strip-debug"
    fi
 fi
-if [ "$SUPPPORT_GPL" != "" ]; then
+if [ "$SUPPORT_GPL" != "" ]; then
 #delete section that is not neccesary
 eval "find $TOP_DIR/$ROOTFS/lib/modules -name '*.ko' | xargs $STRIP -g -S -x -X -R .pdr -R .rel.pdr -R .gnu.version_r -R .gnu.version -R .comment -R .reginfo -R .gnu.attributes"
 
@@ -337,7 +340,7 @@ fi
 ###################################################
 # ACTIONTEC DO MERGE
 ##################################################
-if [ "$SUPPPORT_GPL" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then
+if [ "$SUPPORT_GPL" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then
 echo "##############################"
 echo " Do Actiontec merge ..."
 echo "##############################"

@@ -19,7 +19,7 @@
 # include <utmp.h> /* DEAD_PROCESS */
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 extern int AEI_save_syslog();
 #endif
 
@@ -750,7 +750,7 @@ static void halt_reboot_pwoff(int sig)
 	const char *m;
 	unsigned rb;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     AEI_save_syslog();
 #endif
 
@@ -783,7 +783,7 @@ static void halt_reboot_pwoff(int sig)
 static void restart_handler(int sig UNUSED_PARAM)
 {
 	struct init_action *a;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     AEI_save_syslog();
 #endif
 

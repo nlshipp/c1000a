@@ -60,7 +60,11 @@ static CmsEntityInfo entityInfoArray[] = {
     "tr64c",
     "/bin/tr64c",
     "",
+#if defined(SUPPORT_GPL)
+    EIF_MDM,
+#else
     EIF_MDM|EIF_LAUNCH_ON_BOOT,
+#endif
     0,
     TR64C_HTTP_CONN_PORT,
 #ifdef SUPPORT_TR64C
@@ -285,7 +289,7 @@ static CmsEntityInfo entityInfoArray[] = {
     "dhcpd",
     "/bin/dhcpd",
     "",
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     EIF_AUTO_RELAUNCH|
 #endif
     EIF_MESSAGING_CAPABLE,
@@ -568,7 +572,7 @@ static CmsEntityInfo entityInfoArray[] = {
     EIF_LAUNCH_ON_BOOT,
     0,
     0,
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     FALSE,            /*so much compile error after disable DSL, so rescue memory only here*/
 #else
 #ifdef SUPPORT_DSLDIAGD
@@ -719,7 +723,7 @@ static CmsEntityInfo entityInfoArray[] = {
     0,
     "smbd",
     "/bin/smbd",
-#if defined(SUPPPORT_GPL_UNDEFINED) && defined(SUPPORT_SAMBA)
+#if defined(CUSTOMER_NOT_USED_X) && defined(SUPPORT_SAMBA)
     "-i",
 #else
     "-D",
@@ -840,7 +844,7 @@ static CmsEntityInfo entityInfoArray[] = {
     "mcpd",
     "/bin/mcpd",
     "",                 /* run args */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     EIF_MESSAGING_CAPABLE | EIF_AUTO_RELAUNCH,  /* flags (later make it desktop capable) */
 #else
     EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
@@ -1148,7 +1152,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,
     0, 0, 0},
 
-#ifdef SUPPPORT_GPL_UNDEFINED
+#ifdef CUSTOMER_NOT_USED_X
    {EID_NETPERD,
     0,
     "netperd",
@@ -1200,7 +1204,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},           /* misc memory parameters */
 #endif
-#if defined(AEI_VDSL_SMARTLED)  || defined (SUPPPORT_GPL_UNDEFINED)
+#if defined(AEI_VDSL_SMARTLED)  || defined (CUSTOMER_NOT_USED_X)
    {EID_NSLOOKUP,
     0,
     "nslookup",
@@ -1212,7 +1216,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},
 #endif
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     {EID_LEDCTL,
     0,
     "ledctl",
@@ -1224,7 +1228,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},           /* misc memory parameters */
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {EID_SAVESYSLOG,
     0,
     "savesyslog",
@@ -1236,7 +1240,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},           /* misc memory parameters */
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #ifdef SUPPORT_HTTPD_SSL
    {EID_HTTPSD,
     NDA_ACCESS_HTTPD,
@@ -1352,7 +1356,7 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,             /* isFeatureCompiledIn */
     0, 0, 0},
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    {EID_VOICEPR,     
     NDA_ACCESS_VODSL,
     "voicepr",       

@@ -994,7 +994,7 @@ void create_msg(int lognumber, char *lastConnectionError)
    sendPppEventMessage(lognumber, NULL, NULL, NULL, NULL, lastConnectionError);   
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include <sys/sysinfo.h>
 
 #define SESSION_INFO_PATH  "/var/ppp/session_info"
@@ -1005,7 +1005,7 @@ void create_msg(int lognumber, char *lastConnectionError)
  */
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 void AEI_set_clearinfo_txt()
 {
     FILE *fp;
@@ -1097,9 +1097,9 @@ void save_session_info(unsigned char *remote_addr, int sid)
    {
       /* we can remove this printf once this issue is fixed */
       printf("saving ppp session info %s(%s)\n", req_name, oldsession);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
       AEI_save_session_info_temp(oldsession);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
       AEI_set_clearinfo_txt();
 #endif
 #endif

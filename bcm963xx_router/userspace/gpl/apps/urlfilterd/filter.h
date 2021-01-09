@@ -6,7 +6,7 @@
 #define MAX_FOLDER_LEN	56
 #define MAX_LIST_NUM	100
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define URL_COUNT 100
 #define ENTRY_SIZE 256
 #define LOG_TIMEOUT 10
@@ -15,7 +15,7 @@
 typedef struct _URL{
 	char website[MAX_WEB_LEN];
 	char folder[MAX_FOLDER_LEN];
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	char lanIP[16];
 #endif
 	struct _URL *next;

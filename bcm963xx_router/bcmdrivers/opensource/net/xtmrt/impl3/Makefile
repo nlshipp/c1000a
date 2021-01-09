@@ -11,7 +11,7 @@ EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/opensource/net/enet/shared
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/opensource/net/xtmrt/impl$(CONFIG_BCM_XTMRT_IMPL)
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/broadcom/char/fap/impl$(CONFIG_BCM_FAP_IMPL)
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/broadcom/char/fap/impl$(CONFIG_BCM_FAP_IMPL)/4ke
-ifneq ($(strip $(SUPPPORT_GPL)),)
+ifneq ($(strip $(SUPPORT_GPL)),)
 EXTRA_CFLAGS += $(ACTION_TEC_DFLAGS)
 else
 ifneq ($(strip $(AEI_VDSL_BCMSDK)),)

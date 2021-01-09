@@ -46,7 +46,7 @@ void cmsLed_setWanConnected(void);
 
 void cmsLed_setWanDisconnected(void);
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 void cmsLed_setWanFailed(void);
 #endif
 

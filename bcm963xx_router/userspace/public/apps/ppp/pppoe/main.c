@@ -352,7 +352,7 @@ main(argc,argv)
 #endif
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     if( parse_args(argc, argv) == 0 )
     {
         return -1;
@@ -2399,7 +2399,7 @@ SINT32 isWanLinkUp(char *deviceName)
          else if (msgPtr->type == CMS_MSG_SET_PPP_DOWN)
          {
             manualState = 0;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             //if username or password was changed by tr69, get new username or password from temp file.
             {
                 FILE *fs;

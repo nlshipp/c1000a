@@ -129,7 +129,7 @@
  */
 #define CMS_DYNAMIC_LAUNCH_SERVER_FD  3
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /*for httpd only*/
 #define CMS_DYNAMIC_LAUNCH_SERVER_FD2  4
 #endif
@@ -176,7 +176,7 @@
  * then gets confused and have to look up some manual.
  * If 0, then no timeout.
  */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define SSHD_EXIT_ON_IDLE_TIMEOUT  300
 #else
 #define SSHD_EXIT_ON_IDLE_TIMEOUT  600
@@ -259,10 +259,10 @@
 /** This is the port tr69c listens on for connection requests from the ACS.
  * 
  */
-#if defined(SUPPPORT_GPL)
-#if defined(AEI_VDSL_CUSTOMER_TDS)
+#if defined(SUPPORT_GPL)
+#if defined(CUSTOMER_NOT_USED_X)
 #define TR69C_CONN_REQ_PORT      4567
-#elif defined(SUPPPORT_GPL_UNDEFINED)||defined(SUPPPORT_GPL_UNDEFINED)
+#elif defined(CUSTOMER_NOT_USED_X)||defined(CUSTOMER_NOT_USED_X)
 #define TR69C_CONN_REQ_PORT      7547
 #else
 #define TR69C_CONN_REQ_PORT      4567
@@ -270,7 +270,7 @@
 #else
 #define TR69C_CONN_REQ_PORT      30005
 #endif
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #define BRIDGE_2IP_INF_STR          "br0:private"
 #endif
 
@@ -278,7 +278,7 @@
 /** This is the path part of the URL for tr69c connection requests from the ACS.
  * 
  */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define TR69C_CONN_REQ_PATH      "/cwmp/"
 #else
 #define TR69C_CONN_REQ_PATH      "/"
@@ -294,7 +294,7 @@
  * is very important, and you do not want the tr69c client to exit, then you
  * can set this to a very large value (e.g. 2160356, which is one year).
  */
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 /* we do not want tr69c client to exit, because each time tr69c startup
  *  * it will reset some configuration and save it to flash, this time consuming
  *   */

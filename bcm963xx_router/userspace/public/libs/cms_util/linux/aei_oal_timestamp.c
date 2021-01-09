@@ -14,7 +14,7 @@
 
 #include "cms.h"
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 CmsRet AEI_oalTms_getGUIDateTime(char *buf, UINT32 bufLen)
 {
     int c;

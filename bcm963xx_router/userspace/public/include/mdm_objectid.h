@@ -1394,35 +1394,38 @@
 /*! \brief InternetGatewayDevice.X_ACTIONTEC_COM_SskMonitor. */
 #define MDMOID_SSK_MONITOR  460
 
+/*! \brief InternetGatewayDevice.X_ACTIONTEC_COM_WifiMonitor. */
+#define MDMOID_WIFI_MONITOR  461
+
 /*! \brief InternetGatewayDevice.X_ACTIONTEC_COM_QoS_Vlanctl_Classification.{i}. */
-#define MDMOID_VLANCTL_CLASS  461
+#define MDMOID_VLANCTL_CLASS  462
 
 /*! \brief InternetGatewayDevice.Device. */
-#define MDMOID_DEVICE  462
+#define MDMOID_DEVICE  463
 
 /*! \brief InternetGatewayDevice.Device.Optical. */
-#define MDMOID_DEVICE_OPTICAL  463
+#define MDMOID_DEVICE_OPTICAL  464
 
 /*! \brief InternetGatewayDevice.Device.Optical.Interface.{i}. */
-#define MDMOID_OPTICAL_INTERFACE  464
+#define MDMOID_OPTICAL_INTERFACE  465
 
 /*! \brief InternetGatewayDevice.Device.Optical.Interface.{i}.Stats. */
-#define MDMOID_OPTICAL_INTERFACE_STATS  465
+#define MDMOID_OPTICAL_INTERFACE_STATS  466
 
 /*! \brief InternetGatewayDevice.Device.HomePlug. */
-#define MDMOID_DEVICE_HOME_PLUG  466
+#define MDMOID_DEVICE_HOME_PLUG  467
 
 /*! \brief InternetGatewayDevice.Device.HomePlug.Interface.{i}. */
-#define MDMOID_HOME_PLUG_INTERFACE  467
+#define MDMOID_HOME_PLUG_INTERFACE  468
 
 /*! \brief InternetGatewayDevice.Device.HomePlug.Interface.{i}.Stats. */
-#define MDMOID_HOME_PLUG_INTERFACE_STATS  468
+#define MDMOID_HOME_PLUG_INTERFACE_STATS  469
 
 /*! \brief InternetGatewayDevice.Device.HomePlug.Interface.{i}.AssociatedDevice.{i}. */
-#define MDMOID_HOME_PLUG_INTERFACE_ASSOCIATED_DEVICE  469
+#define MDMOID_HOME_PLUG_INTERFACE_ASSOCIATED_DEVICE  470
 
 /*! \brief maximum OID value */
-#define MDM_MAX_OID 469
+#define MDM_MAX_OID 470
 
 
 

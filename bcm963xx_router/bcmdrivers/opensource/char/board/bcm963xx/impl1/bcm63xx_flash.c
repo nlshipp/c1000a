@@ -68,7 +68,7 @@
 extern int gSetWrongCRC; //1=set wrong crc
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 //#define BCMTAG_EXE_USE
 static unsigned long Crc32_table[256] = {
     0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA,
@@ -162,7 +162,7 @@ static void updateInMemNvramData(const unsigned char *data, int len, int offset)
 #define UNINITIALIZED_FLASH_DATA_CHAR  0xff
 static FLASH_ADDR_INFO fInfo;
 static struct semaphore semflash;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 static struct semaphore rd_semflash;
 #endif
 
@@ -209,7 +209,7 @@ static void *retriedKmalloc(size_t size)
     }
     else { // kmalloc is still needed if in interrupt
         printk("retriedKmalloc: someone calling from intrrupt context?!");
-#ifndef SUPPPORT_GPL
+#ifndef SUPPORT_GPL
         BUG();
 #endif
         pBuf = kmalloc(size, GFP_ATOMIC);
@@ -315,7 +315,7 @@ static int setSharedBlks(int start_blk, int num_blks, char *pTempBuf)
 // Initialize the flash and fill out the fInfo structure
 void kerSysEarlyFlashInit( void )
 {
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
    unsigned long flags;
    NVRAM_DATA NvramDataTmp;
    unsigned char *pStrTmp=(unsigned char *)&NvramDataTmp;
@@ -377,7 +377,7 @@ void kerSysEarlyFlashInit( void )
         flash_read_buf (NVRAM_SECTOR, NVRAM_DATA_OFFSET,
                         inMemNvramData_buf, sizeof (NVRAM_DATA)) ;
     }
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     /* Enable Backup PSI by default */
     //printk("###set backup psi before,crc=%x\n",inMemNvramData.ulCheckSum);
     spin_lock_irqsave(&inMemNvramData_spinlock, flags);
@@ -393,7 +393,7 @@ void kerSysEarlyFlashInit( void )
         //printk("Enable Backup PSI inMemNvramData.backupPsi = 0x%x\n", inMemNvramData.backupPsi);
     }
     spin_unlock_irqrestore(&inMemNvramData_spinlock, flags);
-#endif  // SUPPPORT_GPL
+#endif  // SUPPORT_GPL
 
 #if defined(DEBUG_FLASH)
     printk("reading nvram into inMemNvramData\n");
@@ -623,13 +623,13 @@ unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr,
     int sect = flash_get_blk((int) fromaddr);
     unsigned char *start = flash_get_memptr(sect);
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     down(&rd_semflash);
 #else
     down(&semflash);
 #endif
     flash_read_buf( sect, (int) fromaddr - (int) start, toaddr, len );
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     up(&rd_semflash);
 #else
     up(&semflash);
@@ -784,7 +784,7 @@ void kerSysNvRamGetBaseMacAddr(unsigned char *baseMacAddr)
     memcpy(baseMacAddr, inMemNvramData.ucaBaseMacAddr,
                         sizeof(inMemNvramData.ucaBaseMacAddr));
     spin_unlock_irqrestore(&inMemNvramData_spinlock, flags);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     printk("###baseMacAddr(%s)\n",baseMacAddr);
 #endif
 }
@@ -805,7 +805,7 @@ EXPORT_SYMBOL(kerSysNvRamGetVersion);
 void kerSysFlashInit( void )
 {
     sema_init(&semflash, 1);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     sema_init(&rd_semflash, 1);
 #endif
 
@@ -1047,7 +1047,7 @@ int kerSysBackupPsiSet(char *string, int strLen, int offset)
        usedBlkSize += flash_get_sector_size((unsigned short) i);
     }
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     if (strLen + offset > usedBlkSize)
     {
         printk("kerSysBackupPsiSet strLen = %d, offset = %d, usedBlkSize = %d\n", strLen, offset, usedBlkSize);
@@ -1080,7 +1080,7 @@ int kerSysBackupPsiSet(char *string, int strLen, int offset)
  * so that we can persist crash dump or other system diagnostics info
  * across reboots.  This feature is current not implemented.
  *******************************************************************************/
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define SYSLOG_FILE_NAME        "/data/syslog"
 #else
 #define SYSLOG_FILE_NAME        "/etc/syslog"
@@ -1109,7 +1109,7 @@ int kerSysSyslogGet(char *string, int strLen, int offset)
 
             if((int) fp->f_op->read(fp, (void *) string, strLen,
                &fp->f_pos) <= 0)
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 printk("Failed to read syslog from '%s'\n", SYSLOG_FILE_NAME);
 #else
                 printk("Failed to read psi from '%s'\n", SYSLOG_FILE_NAME);
@@ -1155,7 +1155,7 @@ int kerSysSyslogSet(char *string, int strLen, int offset)
          * a file on the NAND flash.
          */
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         return kerSysFsFileSet(SYSLOG_FILE_NAME, string, strLen);
 #else
         return kerSysFsFileSet(PSI_FILE_NAME, string, strLen);
@@ -1228,7 +1228,7 @@ static int nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkLen)
     int seq = -1;
     int seq2 = -1;
     int ret = 1;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     int seqnum1=-1;
     int seqnum2=-1;
 #endif
@@ -1241,13 +1241,13 @@ static int nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkLen)
 #else
     seq = kerSysGetSequenceNumber(1);
     seq2 = kerSysGetSequenceNumber(2);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     seqnum1=seq;
     seqnum2=seq2;
 #endif
     seq = (seq >= seq2) ? seq : seq2;
 #endif
-#ifndef SUPPPORT_GPL
+#ifndef SUPPORT_GPL
     if( seq != -1 )
 #endif
     {
@@ -1270,7 +1270,7 @@ static int nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkLen)
          */
         seq++;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	//If the  seqnum is more than 999, the sequence number need be set to the small squence +1. 
         if(seq<=0)
           seq=0;
@@ -1426,7 +1426,7 @@ static int nandEraseBlkNotSpare( struct mtd_info *mtd, int blk )
     return( sts );
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void reportUpgradePercent(int percent)
 {
         struct file     *f;
@@ -1675,7 +1675,7 @@ int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
         // Need to disable interrupts so that RCU stall checker will not complain.
         if (!should_yield)
         {
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
             //If stop other CPU before beginning writing flash,
             //it'll cause client Browser has no upgrade's status!
             stopOtherCpu();
@@ -1683,7 +1683,7 @@ int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
             local_irq_save(flags);
         }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	// do nothing here
 #else
         local_bh_disable();
@@ -1860,7 +1860,7 @@ int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
                     {
                         printk(".");
                         string += writelen;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                         reportUpgradePercent(100-(unsigned int) (end_string - string)*100/img_size);
 #endif
 #ifdef AEI_CONFIG_JFFS
@@ -2004,7 +2004,7 @@ int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
             if (!should_yield)
             {
                 local_irq_restore(flags);
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
                 local_bh_enable();
 #endif
             }
@@ -2033,7 +2033,7 @@ int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
         for( blk = 0; blk < mtd0->size; blk += mtd0->erasesize )
             nandEraseBlkNotSpare( mtd0, blk );
     }
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     //
     // Why stop other CPU here? Because the kernel will happen "call stack overflow"
     // after finishing writing flash, so stop other CPU before restart kernel. If do
@@ -2094,7 +2094,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
     unsigned long flags=0;
     int is_cfe_write=0;
     WFI_TAG wt = {0};
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     int whole_size = size;
 #endif
 
@@ -2156,7 +2156,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
     // Need to disable interrupts so that RCU stall checker will not complain.
     if (!is_cfe_write && !should_yield)
     {
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
     //If stop other CPU before beginning writing flash,
 	//it'll cause client Browser has no upgrade's status!
 #else
@@ -2165,7 +2165,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
         local_irq_save(flags);
     }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
     local_bh_disable();
@@ -2194,7 +2194,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
         {
             updateInMemNvramData(string+NVRAM_DATA_OFFSET, NVRAM_LENGTH, 0);
         }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         reportUpgradePercent(100-size*100/whole_size);
 #endif
 
@@ -2205,13 +2205,13 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
 
         if (should_yield)
         {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
             local_bh_enable();
 #endif
             yield();
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
             local_bh_disable();
@@ -2231,13 +2231,13 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
 
             if (should_yield)
             {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
                 local_bh_enable();
 #endif
                 yield();
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
                 local_bh_disable();
@@ -2252,7 +2252,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
 
     if (is_cfe_write || should_yield)
     {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
         local_bh_enable();
@@ -2275,14 +2275,14 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
         if (!is_cfe_write && !should_yield)
         {
             local_irq_restore(flags);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     // do nothing here
 #else
             local_bh_enable();
 #endif
         }
     }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     //
     // Why stop other CPU here? Because the kernel will happen "call stack overflow"
     // after finishing writing flash, so stop other CPU before restart kernel. If do
@@ -2708,7 +2708,7 @@ int kerSysScratchPadSet(char *tokenId, char *tokBuf, int bufLen)
     
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int kerClearScratchPad(int blk_size)
 {
     char buf[256];
@@ -2727,7 +2727,7 @@ int kerClearScratchPad(int blk_size)
 #endif
 
         kerSysScratchPadClearAll();
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         unsigned char boardid[NVRAM_BOARD_ID_STRING_LEN] = {0};
 
         kerSysGetBoardID(boardid);
@@ -2738,7 +2738,7 @@ int kerClearScratchPad(int blk_size)
            restoreDatapump(2);
 
 #else  // AEI_CONFIG_JFFS
-#if defined(AEI_VDSL_CUSTOMER_Q2000H)
+#if defined(CUSTOMER_NOT_USED_X)
         restoreDatapump(2);
 #else
         restoreDatapump(0);
@@ -2772,7 +2772,7 @@ int kerSysScratchPadClearAll(void)
     }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	typedef struct {
 	    char date[128];
 	    char time[128];
@@ -2840,7 +2840,7 @@ int kerSysScratchPadClearAll(void)
     }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	if ( ret )
 	{
 	  kerSysScratchPadSet("CfgSaveState", &savedTime, sizeof(CfgSaveTime) );
@@ -2920,7 +2920,7 @@ static int writeBootImageState( int currState, int newState )
 
         if( currState == -1 )
         {
-#ifndef SUPPPORT_GPL
+#ifndef SUPPORT_GPL
             /* Create new state file name. */
             struct file *fp;
 
@@ -2992,7 +2992,7 @@ static int readBootImageState( void )
     }
     else
     {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         NVRAM_DATA NvramData;
         char *p;
         UINT32 crc = CRC32_INIT_VALUE, savedCrc;
@@ -3347,7 +3347,7 @@ int kerSysSetBootImageState( int newState )
                  * image the highest sequence number in order for it
                  * to become the new image.
                  */
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 incSeqNumPart = -1;
 #else
                 incSeqNumPart = 0;
@@ -3814,7 +3814,7 @@ int kerSysWriteToFlashREW( unsigned long toaddr,
     return ( len );
 }
 #endif
-#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPORT_GPL)
 static void AEI_reportTftpUpgradeStat(int partition)
 {
         struct file     *f;

@@ -1,4 +1,4 @@
-prefix=/home/wmeng/cl/c2000a/bcmcpe/targets/963268BGW/fs.build/public/
+prefix=/home/AC/git/C2000A/bcmcpe/targets/963268BGW/fs.build/public/
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include

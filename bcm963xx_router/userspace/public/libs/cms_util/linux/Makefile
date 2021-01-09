@@ -40,7 +40,7 @@ BASE_OBJS := oal_logging.o oal_readlog.o oal_memory.o oal_timestamp.o \
 
 OBJS = $(BASE_OBJS) $(MODULAR_OBJS)
 
-ifneq ($(strip $(SUPPPORT_GPL)),)
+ifneq ($(strip $(SUPPORT_GPL)),)
 OBJS += aei_oal_timestamp.o
 endif
 

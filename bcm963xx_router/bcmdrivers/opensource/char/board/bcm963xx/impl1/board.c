@@ -109,7 +109,7 @@ Boston, MA 02111-1307, USA.
 #define WLAN_ON   1
 #define WLAN_OFF  0
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 
 #define WSC_PROC_IDLE         0
 #define WSC_PROC_WAITING      1
@@ -132,14 +132,14 @@ Boston, MA 02111-1307, USA.
 #define WSC_EVENTS_PROC_MSG_DONE           (WSC_PROC_MSG_DONE + WSC_EVENTS_PROC_START)
 #define WSC_EVENTS_PROC_PBC_OVERLAP        (WSC_PROC_PBC_OVERLAP + WSC_EVENTS_PROC_START)
 
-#endif //SUPPPORT_GPL
+#endif //SUPPORT_GPL
 
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 extern int gPowerLedStatus;
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL_ONLY)
 int  CPURevId=0;
 char CPUSerialNumber[32]={0};
 static void AEI_setExpSerialNumber();
@@ -149,7 +149,7 @@ static void AEI_setExpSerialNumber();
 int gSetWrongCRC = 0; //1=set wrong crc
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 AEI_BOARD_ID aeiBoardId = AEI_BOARD_UNKNOWN;
 #endif
 
@@ -238,7 +238,7 @@ static unsigned int sesBtn_poll(struct file *file, struct poll_table_struct *wai
 static ssize_t sesBtn_read(struct file *file,  char __user *buffer, size_t count, loff_t *ppos);
 static void __init sesLed_mapGpio(void);
 static void sesLed_ctrl(int action);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void AEI_wlanLed_ctrl(int action);
 #endif
 #if defined(AEI_VOIP_LED)
@@ -263,20 +263,20 @@ static int proc_set_led(struct file *f, const char *buf, unsigned long cnt, void
 
 static irqreturn_t reset_isr(int irq, void *dev_id);
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
  #define RESET_HOLD_TIME		10
  #define FACTORY_HOLD_TIME	20
-#elif defined(SUPPPORT_GPL_UNDEFINED)
+#elif defined(CUSTOMER_NOT_USED_X)
  #define NOT_LONG_ENOUGH_TIME    3
  #define FACTORY_HOLD_TIME	30
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define RESET_POLL_TIME		1
 static int holdTime = 0;
 static struct timer_list resetBtnTimer, *pTimer = NULL;
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 static unsigned short rirq = BP_NOT_DEFINED;
 #endif
 #endif
@@ -307,13 +307,13 @@ static void PI_upper_set( volatile uint32 *PI_reg, int newPhaseInt );
 static void PI_lower_set( volatile uint32 *PI_reg, int newPhaseInt );
 static void TurnOffSyncMode( void );
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static int  AEI_get_flash_mafId(void);
 #endif
 #if defined(CONFIG_BCM96816)
 void board_Init6829( void );
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 AEI_WAN_TYPE aeiWanType = AEI_WAN_NONE;
 #endif
 
@@ -325,7 +325,7 @@ static kerSysMacAddressNotifyHook_t kerSysMacAddressNotifyHook = NULL;
 
 /* restore default work structure */
 static struct work_struct restoreDefaultWork;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /* reboot work structure */
 static struct work_struct rebootWork;
 #endif
@@ -370,7 +370,7 @@ void cleanup_module(void)
 }
 #endif //MODULE
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include <linux/syscalls.h>
 #define BCM_SYSLOG_MAX_LINE_SIZE 256
 static int AEI_SaveSyslogOnReboot()
@@ -816,7 +816,7 @@ static int __init brcm_board_init( void )
     unsigned short rstToDflt_irq;
     int ret;
     bcmLogSpiCallbacks_t loggingCallbacks;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     char board_id[32]={0};
 #endif
 
@@ -922,7 +922,7 @@ static int __init brcm_board_init( void )
     loggingCallbacks.syncTrans         = BcmSpiSyncTrans;
     bcmLog_registerSpiCallbacks(loggingCallbacks);
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     kerSysNvRamGetBoardId(board_id);
 
     if (strstr(board_id, "C2000") != NULL)
@@ -941,7 +941,7 @@ static int __init brcm_board_init( void )
         aeiBoardId = AEI_BOARD_V2200H;
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL_ONLY)
     AEI_setExpSerialNumber();
 #endif
 
@@ -961,7 +961,7 @@ static void __init set_mac_info( void )
 
     ulNumMacAddrs = pNvramData->ulNumMacAddrs;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     /* If MAC OUI is 00-26-88, then re-write to 10:9F:A9 not 40-8b-07 */
     if (pNvramData->ucaBaseMacAddr[0]==0x0 && pNvramData->ucaBaseMacAddr[1]==0x26 && pNvramData->ucaBaseMacAddr[2]==0x88)
     {
@@ -1231,7 +1231,7 @@ static PNVRAM_DATA readNvramData(void)
 
     return pNvramData;
 }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static int AEI_readNvramData(PNVRAM_DATA pNvramData)
 {
     UINT32 crc = CRC32_INIT_VALUE, savedCrc;
@@ -1247,7 +1247,7 @@ static int AEI_readNvramData(PNVRAM_DATA pNvramData)
 }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL_ONLY)
 static void AEI_setExpSerialNumber()
 {
     NVRAM_DATA nvramData;
@@ -1456,7 +1456,7 @@ unsigned long kerSysGetMacAddressType( unsigned char *ifName )
     }
     else if(strstr(ifName, IF_NAME_PTM))
     {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         macAddressType = 0x12ffffff;
 #else
         macAddressType = MAC_ADDRESS_PTM;
@@ -1500,7 +1500,7 @@ int kerSysMacAddressNotifyBind(kerSysMacAddressNotifyHook_t hook)
     return nRet;
 }
 
-#if defined(SUPPPORT_GPL_UNDEFINED_STATIC_MAC_ADDR) || defined(AEI_VDSL_CUSTOMER_SASKTEL_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR) || defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
 #define AEI_INVALID_ASSIGN_ID -1
 #endif
 
@@ -1513,7 +1513,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
     PMAC_ADDR_INFO pMaiFreeId = NULL;
     unsigned long i = 0, ulIdxNoId = 0, ulIdxId = 0, baseMacAddr = 0;
 
-#if defined(SUPPPORT_GPL_UNDEFINED_STATIC_MAC_ADDR) || defined(AEI_VDSL_CUSTOMER_SASKTEL_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR) || defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
     UINT32 valueType = 0;
     UINT32 valueNum = 0;
     UINT32 valueId = 0;
@@ -1532,7 +1532,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
         NVRAM_MAC_ADDRESS_LEN - constMacAddrIncIndex);
     baseMacAddr >>= 8;
 
-#if defined(SUPPPORT_GPL_UNDEFINED_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
     /*
      *  1. It is used to keep using WAN MAC address is same as before while upgrade TELUS SDK3/SDK6 image to SDK12.
      *  2. SDK3-V1000H/VB784WG, atm0 = B + 1, atm1 = B +4, ptm0 = B + 1, ewan0 = B + 2.
@@ -1620,7 +1620,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
     }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_SASKTEL_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
     /*
      *  Keep WAN MAC address same as SDK 16 while updated image  from SDK6 to SDK12
      *  SDK6 WAN MAC list : atm0 = B + 4, atm1 = B + 5;  ptm0.1 = B + 5; ewan0.1 = B + 4;
@@ -1679,7 +1679,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
     }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     if(ulId == 0x12ffffff)
     {
             baseMacAddr = (baseMacAddr + 1) << 8;
@@ -1709,7 +1709,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
     }
 #endif
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
     if(ulId == 0x13ffffff)
     {
             baseMacAddr = (baseMacAddr + 2) << 8;
@@ -1730,7 +1730,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
         i++, pMai++ )
     {
 
-#if defined(SUPPPORT_GPL_UNDEFINED_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
         /*
          *  1. It is used to preserve mac address.
          *  2. i = 0 (B) could not be preserved, because it is used for LAN ethernet(eth0~eth4).
@@ -1758,7 +1758,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
         }
 #endif
 
-#if defined(AEI_VDSL_CUSTOMER_SASKTEL_STATIC_MAC_ADDR)
+#if defined(CUSTOMER_NOT_USED_X_STATIC_MAC_ADDR)
         if (aeiBoardId == AEI_BOARD_V1000H)
         {
             if ((i == 4) || (i == 5))
@@ -1771,7 +1771,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
         }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if (i == 1)  /*This mac addr is used for atm0 or ptm0*/
            continue;
 
@@ -1779,7 +1779,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
            continue;
 #endif
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
         if (i == 2)  /*This mac addr is used for ewan0*/
         {
             continue;
@@ -1808,7 +1808,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
                     */
                     pMaiFreeNoId = pMai;
                     ulIdxNoId = i;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
                     continue;
 #endif
                 }
@@ -1821,7 +1821,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
                         */
                         pMaiFreeId = pMai;
                         ulIdxId = i;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
                         continue;
 #endif
                     }
@@ -1832,7 +1832,7 @@ int kerSysGetMacAddress( unsigned char *pucaMacAddr, unsigned long ulId )
     {
         /* An available MAC address was found. */
         memcpy(pucaMacAddr, g_pMacInfo->ucaBaseMacAddr,NVRAM_MAC_ADDRESS_LEN);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
         if( pMaiFreeId )
         {
             baseMacAddr = (baseMacAddr + ulIdxId) << 8;
@@ -2590,7 +2590,7 @@ static int flashFsKernelImage( unsigned char *imagePtr, int imageLen,
     PFILE_TAG pTag = (PFILE_TAG) imagePtr;
     int rootfsAddr = simple_strtoul(pTag->rootfsAddress, NULL, 10);
     int kernelAddr = simple_strtoul(pTag->kernelAddress, NULL, 10);
-#if defined(SUPPPORT_GPL) && !defined(AEI_VDSL_DUAL_IMAGE)
+#if defined(SUPPORT_GPL) && !defined(AEI_VDSL_DUAL_IMAGE)
     char *p;
 #endif
     char *tagFs = imagePtr;
@@ -2719,7 +2719,7 @@ static int flashFsKernelImage( unsigned char *imagePtr, int imageLen,
     }
     
 
-#if defined(SUPPPORT_GPL) && !defined(AEI_VDSL_DUAL_IMAGE)
+#if defined(SUPPORT_GPL) && !defined(AEI_VDSL_DUAL_IMAGE)
     for( p = pNvramData->szBootline; p[2] != '\0'; p++ )
     {
         if( p[0] == 'p' && p[1] == '=' && p[2] != BOOT_LATEST_IMAGE )
@@ -2767,7 +2767,7 @@ static int flashFsKernelImage( unsigned char *imagePtr, int imageLen,
 #define IMAGE_VERSION_FILE_NAME "/etc/image_version"
 #define IMAGE_VERSION_MAX_SIZE  64
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static int getFlashUsedSize()
 {
 //    unsigned int totalSize = (unsigned int) flash_get_total_size();
@@ -2844,7 +2844,7 @@ static int getImageVersion( int imageNumber, char *verStr, int verStrSize)
         else
         {
             /* NAND Flash */
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
             PFILE_TAG pTag = NULL;
 
             if( imageNumber == 1 )
@@ -3261,7 +3261,7 @@ static int commonImageWrite(int flash_start_addr, char *string, int size,
     return ret;
 }
 
-#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPORT_GPL)
 /*
  * Common function used by BCM_IMAGE_CFE and BCM_IMAGE_WHOLE ioctls.
  * This function will acquire the flashImageMutex
@@ -3367,7 +3367,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
     unsigned char ucaMacAddr[NVRAM_MAC_ADDRESS_LEN];
 
     switch (command) {
-#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPORT_GPL)
     case BOARD_IOCTL_PARTITION_WRITE:
         if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
 		{
@@ -3431,7 +3431,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
             case SYSLOG:
                 ret = kerSysSyslogSet(ctrlParms.string, ctrlParms.strLen, ctrlParms.offset);
                 break;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             case SYSLOGONREBOOT:
                 ret = AEI_SaveSyslogOnReboot();
                 break;
@@ -3461,7 +3461,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
                         ctrlParms.strLen-8);
                     writeNvramDataCrcLocked(pNvramData);
                 }
-#if defined (SUPPPORT_GPL)
+#if defined (SUPPORT_GPL)
                 //SUPPORT_DSL_BONDING macro not carried here so leave out since non-bonding will not call this anyways
                 else if (ctrlParms.string && !strncmp(ctrlParms.string, "DSLDATAPUMP", 11)) {
                     if (strlen(ctrlParms.string) > 11)
@@ -3697,7 +3697,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
             {
                 char p[NVRAM_BOARD_ID_STRING_LEN];
                 kerSysNvRamGetBoardId(p);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
                 if(strstr(p,"C1000"))
                 {
                     memset(p,0,sizeof(p));
@@ -3809,7 +3809,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
             ret = -EFAULT;
         break;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         case BOARD_IOCTL_GET_SN:
             if (copy_from_user((void*)&ctrlParms, (void*)arg,
                 sizeof(ctrlParms)) == 0)
@@ -3863,7 +3863,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
                         }
 
                 }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                 else if(ctrlParms.offset==4){
                         if( ctrlParms.string )
                         {
@@ -3910,7 +3910,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
                         nvramData.wpaKey[0]='\0';
                         writeNvramDataCrcLocked(&nvramData);
                  }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                  else if(ctrlParms.offset==4){
                         NVRAM_DATA nvramData;
                         AEI_readNvramData(&nvramData);
@@ -3962,7 +3962,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
                                 writeNvramDataCrcLocked(&nvramData);
 
                         }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
                         else if(ctrlParms.offset==4){
                                 NVRAM_DATA nvramData;
                                 AEI_readNvramData(&nvramData);
@@ -3979,7 +3979,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
 
              }
              break;
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
          case BOARD_IOCTL_ADJUST_NVRAM:
             {
 
@@ -4080,7 +4080,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
              break;
 
 #endif
-#endif   //SUPPPORT_GPL
+#endif   //SUPPORT_GPL
 #if defined(AEI_VDSL_DEBUG_NVRAM)
          case BOARD_IOCTL_PRINT_NVRAM:
 			//if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
@@ -4117,7 +4117,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
 #if defined(AEI_TWO_IN_ONE_FIRMWARE)
                                   unsigned char boardid[16]={0};
 #endif
-#if defined(AEI_TWO_IN_ONE_FIRMWARE) && defined(SUPPPORT_GPL)
+#if defined(AEI_TWO_IN_ONE_FIRMWARE) && defined(SUPPORT_GPL)
                                   if((kerSysGetBoardID(boardid)==0) && (!strcmp(boardid,"C2000A") || !strcmp(boardid,"C1900A")))
                                   {
                                       if (!strcmp(boardid,"C2000A"))
@@ -4141,7 +4141,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
 #if defined(AEI_TWO_IN_ONE_FIRMWARE)
                                   unsigned char boardid[16]={0};
 #endif
-#if defined(AEI_TWO_IN_ONE_FIRMWARE) && defined(SUPPPORT_GPL)
+#if defined(AEI_TWO_IN_ONE_FIRMWARE) && defined(SUPPORT_GPL)
                                   if((kerSysGetBoardID(boardid)==0) && (!strcmp(boardid,"C2000A") || !strcmp(boardid,"C1900A")))
                                   {
                                       if (!strcmp(boardid,"C2000A"))
@@ -4269,7 +4269,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
               }
 	break;
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     case BOARD_IOCTL_GET_PRODUCTID:
         if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
         {
@@ -4383,12 +4383,12 @@ static int board_ioctl( struct inode *inode, struct file *flip,
         break;
 
     case BOARD_IOCTL_GET_CHIP_ID:
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
         {
             if(ctrlParms.offset==1 && ctrlParms.string)
             {
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL_ONLY)
 	//This is a special requirement from PLM. Please don't override it.
                 sprintf(ctrlParms.string, "%x", (int)CPURevId);
 #else
@@ -4410,7 +4410,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
         ret = 0;
         break;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     case BOARD_IOCTL_GET_FLASH_TOTAL:
          ctrlParms.result = flash_get_total_size()/1024;
          __copy_to_user((BOARD_IOCTL_PARMS*)arg, &ctrlParms,  sizeof(BOARD_IOCTL_PARMS));
@@ -4596,7 +4596,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
 #endif
          break;
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
      case AEI_BOARD_IOCTL_WIRELESS_REDLED:
 #if defined(AEI_63168_CHIP)
          if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0) {
@@ -4668,7 +4668,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
         }
 #endif /*AEI_63168_CHIP*/
         break;
-#endif /*end SUPPPORT_GPL*/
+#endif /*end SUPPORT_GPL*/
 #endif /*end WIRELESS*/
 
     case BOARD_IOCTL_SET_MONITOR_FD:
@@ -4950,7 +4950,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
                (*pv32) |= 0x00004000;
             else
                (*pv32) &= 0xffffbfff;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
             /*Activity blink of .5 seconds on and off during LAN to WAN and WAN to LAN activity.*/
             pv32 = (uint32 *)0xb00018ac;
             //printk("18ac =%x\n",*pv32);
@@ -4980,7 +4980,7 @@ static int board_ioctl( struct inode *inode, struct file *flip,
 #endif
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     case AEI_BOARD_IOCTL_SET_WAN_TYPE:
         if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
         {
@@ -4991,6 +4991,57 @@ static int board_ioctl( struct inode *inode, struct file *flip,
             ret = -EFAULT;
         }
         break;
+#endif
+
+#if defined(AEI_VDSL_FACTORY_TELNET)
+    case AEI_BOARD_IOCTL_SET_FACTORYTELNET_FLAG:
+        if (copy_from_user((void*)&ctrlParms, (void*)arg, sizeof(ctrlParms)) == 0)
+        {
+            if(ctrlParms.string && ctrlParms.strLen ==1)
+            {
+                if (ctrlParms.offset==0)
+                {
+                    ret=kerSysScratchPadSet("FactoryTelnet",ctrlParms.string,ctrlParms.strLen);
+                }
+                else{
+                    ret = -EFAULT;
+                }
+            }
+            else{
+                ret = -EFAULT;
+            }
+            ctrlParms.result = ret;
+            __copy_to_user((BOARD_IOCTL_PARMS*)arg, &ctrlParms, sizeof(BOARD_IOCTL_PARMS));
+       }
+       else {
+            ret = -EFAULT;
+       }
+       break;
+
+    case AEI_BOARD_IOCTL_GET_FACTORYTELNET_FLAG:
+    if (copy_from_user((void*)&ctrlParms, (void*)arg,sizeof(ctrlParms)) == 0)
+        {
+             if (ctrlParms.offset==0)
+         {
+                if( ctrlParms.string )
+                {
+                  ret= kerSysScratchPadGet("FactoryTelnet",ctrlParms.string,ctrlParms.strLen);
+                }
+                else{
+                    ret = -EFAULT;
+                }
+             }
+             else{
+                 ret = -EFAULT;
+             }
+             ctrlParms.result = ret;
+             __copy_to_user((BOARD_IOCTL_PARMS*)arg, &ctrlParms, sizeof(BOARD_IOCTL_PARMS));
+        }
+        else {
+            ret = -EFAULT;
+        }
+
+    break;
 #endif
 
     default:
@@ -5177,7 +5228,7 @@ static void AEI_VoipLed_ctrl(char *action)
     line = *p - 48 + kLedVoip1;
     p = p+2;
     status = *p - 48;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     if(line==5)
         line=6;
     else if(line==6)
@@ -5193,7 +5244,7 @@ static void AEI_VoipLed_ctrl(char *action)
     return;
 }
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void AEI_wlanLed_ctrl(int action)
 {
     if (action == kLedStateAmber){
@@ -5236,7 +5287,7 @@ static void sesLed_ctrl(int action)
     if(sesLed_gpio == BP_NOT_DEFINED)
         return;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {
     char status = ((action >> 8) & 0xff); /* extract status */
     char event = ((action >> 16) & 0xff); /* extract event */
@@ -5308,7 +5359,7 @@ static void sesLed_ctrl(int action)
     }
 
     kerSysLedCtrl(kLedSes, led);
-#endif //(SUPPPORT_GPL)
+#endif //(SUPPORT_GPL)
 }
 
 static void __init ses_board_init()
@@ -5580,7 +5631,7 @@ static int ConfigCs (BOARD_IOCTL_PARMS *parms)
     return( retv );
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 static void reboot_thread(struct work_struct *work)
 #else
@@ -5591,7 +5642,7 @@ static void reboot_thread(void *arg)
     kerSysMipsSoftReset();
     return;
 }
-#endif /* SUPPPORT_GPL */
+#endif /* SUPPORT_GPL */
 
 
 /***************************************************************************
@@ -5607,27 +5658,27 @@ static void restore_to_default_thread(void *arg)
 
     memset(buf, 0, sizeof(buf));
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 
     printk("\n*** Restore to Factory Default Setting ***\n\n");
     printk("\r\nThe system is being reset. Please wait...\r\n");
 
     kerSysPersistentSet( buf, sizeof(buf), 0 );
-#if defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPORT_BACKUP_PSI)
+#if defined(CUSTOMER_NOT_USED_X) || defined(CUSTOMER_NOT_USED_X) || defined(SUPPORT_BACKUP_PSI)
     kerSysBackupPsiSet( buf, sizeof(buf), 0 );
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #if defined(AEI_CONFIG_JFFS)
     /*Now in 63268 Chip, we use jffs2 fs. So we need to sync data to flash from buffer before reboot system.*/
     sys_sync();
 #endif
-#endif /* SUPPPORT_GPL */
+#endif /* SUPPORT_GPL */
 #else	
     // Do this in a kernel thread so we don't have any restriction
     printk("Restore to Factory Default Setting ***\n\n");
     kerSysPersistentSet( buf, sizeof(buf), 0 );
-#endif /* SUPPPORT_GPL */
+#endif /* SUPPORT_GPL */
 
 #if defined(CONFIG_BCM_PLC_BOOT)
     kerSysFsFileSet("/data/plc/plc_pconfig_state", buf, 1);
@@ -5642,7 +5693,7 @@ static void restore_to_default_thread(void *arg)
 }
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #if defined(AEI_63168_CHIP)
 #define RESET_FLAG_LEFT_SHIFT 4
 #else
@@ -5650,7 +5701,7 @@ static void restore_to_default_thread(void *arg)
 #endif
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static void AEI_resetBtnTimerFunc(unsigned long data)
 {
     uint64 flag = ((uint64)0x10000000 << RESET_FLAG_LEFT_SHIFT);
@@ -5694,7 +5745,7 @@ static void AEI_resetBtnTimerFunc(unsigned long data)
 
     return;
 }
-#elif defined(SUPPPORT_GPL_UNDEFINED)
+#elif defined(CUSTOMER_NOT_USED_X)
 /* BA wants reset button to only restore default and not pause at cfe so just keep waiting until button released unless we change cfe also */
 static void AEI_resetBtnTimerFunc(unsigned long data)
 {
@@ -5715,7 +5766,7 @@ static void AEI_resetBtnTimerFunc(unsigned long data)
 
     return;
 }
-#elif defined(SUPPPORT_GPL_UNDEFINED)
+#elif defined(CUSTOMER_NOT_USED_X)
 /* Telus requirement:  If reset button is held up to 3 seconds, do nothing.  If held from 3 to 30 seconds restore default
 */
 static void AEI_resetBtnTimerFunc(unsigned long data)
@@ -5785,14 +5836,14 @@ static irqreturn_t reset_isr(int irq, void *dev_id)
 
         is_rstToDflt_irq_triggered  = 1;
 		
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         /* Create a timer which fires every seconds */
         pTimer = &resetBtnTimer;
         init_timer(pTimer);
         pTimer->function = AEI_resetBtnTimerFunc;
         pTimer->data = 0;
 
-#if defined (SUPPPORT_GPL_UNDEFINED)
+#if defined (CUSTOMER_NOT_USED_X)
         rirq = irq;
 #endif
 
@@ -5965,7 +6016,7 @@ static void __init kerSysCheckPowerDownPcie(void)
 }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define SEQ_THRESHOLD 100
 #endif
 #if defined(AEI_VDSL_DUAL_IMAGE) || defined(AEI_VER2_DUAL_IMAGE)
@@ -6138,7 +6189,7 @@ static int proc_set_bootimage_param(struct file *f, const char *buf, unsigned lo
 
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static int proc_get_other_param(char *page, char **start, off_t off, int cnt, int *eof, void *data)
 {
     int r = 0;
@@ -6296,7 +6347,7 @@ static int add_proc_files(void)
     static int BootImage[2] = {offset(NVRAM_DATA, szBootline), NVRAM_BOOTLINE_LEN};
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     static int Serial_num[2] = {offset(NVRAM_DATA, ulSerialNumber), 32};
     static int Wpa_key[2] = {offset(NVRAM_DATA, wpaKey), 32};
     static int Wps_pin[2] = {offset(NVRAM_DATA,wpsPin), 32};
@@ -6352,7 +6403,7 @@ static int add_proc_files(void)
 
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     p1 = create_proc_entry("Serial_num", 0644, p0);
 
     if (p1 == NULL)
@@ -6908,14 +6959,14 @@ unsigned long kerSysGetUbusFreq(unsigned long miscStrapBus)
 
 }  /* kerSysGetUbusFreq */
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int AEI_getCurrentUpWanType()
 {
     return aeiWanType;
 }
 #endif
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 void restoreDatapump(int value){
     NVRAM_DATA *pNvramData;
 
@@ -7085,7 +7136,7 @@ EXPORT_SYMBOL(BpGetVoip1LedGpio);
 EXPORT_SYMBOL(BpGetDectLedGpio);
 EXPORT_SYMBOL(BpGetMoCALedGpio);
 EXPORT_SYMBOL(BpGetMoCAFailLedGpio);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 EXPORT_SYMBOL(BpGetUsbLedGpio);
 EXPORT_SYMBOL(BpGetBootloaderPowerOnLedGpio);
 EXPORT_SYMBOL(BpGetBootloaderStopLedGpio);
@@ -7139,16 +7190,16 @@ EXPORT_SYMBOL(BpGetNumVoipPorts);
 #endif
 
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 EXPORT_SYMBOL(kerSysGetDslDatapump);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 EXPORT_SYMBOL(AEI_getCurrentUpWanType);
 #endif
 #ifdef AEI_TWO_IN_ONE_FIRMWARE
 EXPORT_SYMBOL(kerSysGetBoardID);
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL_ONLY)
 EXPORT_SYMBOL(CPURevId);
 EXPORT_SYMBOL(CPUSerialNumber);
 #endif

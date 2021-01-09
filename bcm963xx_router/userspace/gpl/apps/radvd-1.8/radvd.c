@@ -338,7 +338,7 @@ main(int argc, char *argv[])
 	 */
 	signal(SIGHUP, sighup_handler);
 	signal(SIGTERM, sigterm_handler);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     signal(SIGINT, SIG_IGN);
 #else
 	signal(SIGINT, sigint_handler);

@@ -188,7 +188,7 @@ static void fill_options(char *dest, unsigned char *option, struct dhcp_option *
             memcpy(&val_u32, option, 4);
             dest += sprintf(dest, "%lu", (unsigned long)ntohl(val_u32));
 
-//#if defined(SUPPPORT_GPL_UNDEFINED)
+//#if defined(CUSTOMER_NOT_USED_X)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
             if (!strcmp(type_p->name, "lease")) {
                 lease_time = val_u32;
@@ -445,7 +445,7 @@ static char **fill_envp(struct dhcpMessage *packet)
     }
     envp[j] = NULL;
 
-//#if defined(SUPPPORT_GPL_UNDEFINED)
+//#if defined(CUSTOMER_NOT_USED_X)
 
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_OPTION121)
 
@@ -490,7 +490,7 @@ void run_script(struct dhcpMessage *packet, const char *name)
         envp = fill_envp(packet);
 
         /*Coverity Fix CID 11898 Resource Leak fix*/
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         int i = 0;
         while ( envp[i] != NULL)
         {

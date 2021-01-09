@@ -732,7 +732,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
 	{
 	int i,ok=0,n;
 	X509 *xs,*xi;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
         X509 *xs_temp = NULL, *xi_temp = NULL;
         static int store_cert = -1;
 #endif
@@ -773,7 +773,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
 	while (n >= 0)
 		{
 		ctx->error_depth=n;
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
                 if (-1 != store_cert) {
                     int num = n;
                     xs_temp = xs;
@@ -854,7 +854,7 @@ static int internal_verify(X509_STORE_CTX *ctx)
 		/* The last error (if any) is still in the error value */
                 ctx->current_cert=xs;
                 ok=(*cb)(1,ctx);
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 		/* change the behavior of the certificate check,
 		 * only check the last certificate in the chain.
 		 */

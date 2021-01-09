@@ -12,7 +12,7 @@ endif
 
 LIBS = -lnetfilter_queue -lnfnetlink
 CFLAGS+=-Wall -I./libnetfilter_queue/include -I./libnfnetlink/include -I$(BUILD_DIR)/userspace/public/include -I$(BUILD_DIR)/userspace/public/include/linux
-ifneq ($(strip $(SUPPPORT_GPL)),) 
+ifneq ($(strip $(SUPPORT_GPL)),) 
 CFLAGS += -Werror -Wfatal-errors 
 endif
 OBJS = filter.o 

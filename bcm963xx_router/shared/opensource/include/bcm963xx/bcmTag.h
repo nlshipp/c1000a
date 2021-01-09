@@ -34,7 +34,7 @@
 #ifndef _BCMTAG_H_
 #define _BCMTAG_H_
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #include "AEI_productinfo.h"
 #define BCM_SIG_1   "Actiontec"
 #else
@@ -47,7 +47,7 @@
 // file tag (head) structure all is in clear text except validationTokens (crc, md5, sha1, etc). Total: 128 unsigned chars
 #define TAG_LEN         256
 #define TAG_VER_LEN     4
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #define SIG_LEN         10
 #define SIG_LEN_2       24
 #else
@@ -109,7 +109,7 @@ typedef struct _FILE_TAG
 #define WFI_NAND16_FLASH        2
 #define WFI_NAND128_FLASH       3
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /* block size of flash. */
 #define NAND16_FLASH_BLOCK_SIZE        (16 * 1024)
 #define NAND128_FLASH_BLOCK_SIZE       (128 * 1024)

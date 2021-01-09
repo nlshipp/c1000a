@@ -88,10 +88,10 @@ enum bp_id {
   bp_usGpioLedGponFail,
   bp_usGpioLedMoCA,
   bp_usGpioLedMoCAFail,
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
   bp_usGpioLedUsb,            /* GPIO pin or not defined */
   bp_usGpioLedSesWirelessFail,
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   bp_usGpioLedWirelessRed,
   bp_usGpioLedWirelessGreen,
   bp_usGpioLedWirelessAct,
@@ -781,7 +781,7 @@ static bp_elem_t * g_BoardParms[] = {g_bcm96362advnx, g_bcm96362advngr, g_bcm963
 #endif
 
 #if defined(_BCM96368_) || defined(CONFIG_BCM96368)
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 static bp_elem_t g_Q1000[] = {
     {bp_cpBoardId ,              .u.cp = "Q1000"},
     {bp_usGpioOverlay,           .u.ul =(BP_OVERLAY_PCI |
@@ -991,7 +991,7 @@ static bp_elem_t g_V2000H[] = {
     {bp_usExtIntrSesBtnWireless, .u.us = BP_EXT_INTR_1},
     {bp_usAntInUseWireless,      .u.us = BP_WLAN_ANT_MAIN},
     {bp_usWirelessFlags,         .u.us = 0},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_30_AL},
 #endif
     {bp_ucPhyType0,              .u.uc = BP_ENET_EXTERNAL_SWITCH},
@@ -1039,7 +1039,7 @@ static bp_elem_t g_R1000H[] = {
     {bp_usExtIntrSesBtnWireless, .u.us = BP_EXT_INTR_1},
     {bp_usAntInUseWireless,      .u.us = BP_WLAN_ANT_MAIN},
     {bp_usWirelessFlags,         .u.us = 0},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_30_AL},
 #endif
     {bp_ucPhyType0,              .u.uc = BP_ENET_EXTERNAL_SWITCH},
@@ -1082,7 +1082,7 @@ static bp_elem_t g_V1000H[] = {
     {bp_usExtIntrSesBtnWireless, .u.us = BP_EXT_INTR_1},
     {bp_usAntInUseWireless,      .u.us = BP_WLAN_ANT_MAIN},
     {bp_usWirelessFlags,         .u.us = 0},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_30_AL},
 #endif
     {bp_ucPhyType0,              .u.uc = BP_ENET_EXTERNAL_SWITCH},
@@ -1674,7 +1674,7 @@ static bp_elem_t g_bcm96368Ext[] = {
 };
 
 static bp_elem_t * g_BoardParms[] =
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 {g_Q1000, g_Q2000, g_R1000H,g_V2000H,g_V1000H,g_C1000A,g_C2000A,
 g_bcm96368vvw, g_bcm96368mvwg, g_bcm96368sv2, g_bcm96368mb2g,
 #else
@@ -3231,7 +3231,7 @@ static bp_elem_t g_bcm963268bu[] = {
   {bp_last}
 };
 
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 static bp_elem_t g_C1000A[] = {
   {bp_cpBoardId,               .u.cp = "C1000A"},
   {bp_ulDeviceOptions,         .u.ul = BP_DEVICE_OPTION_ENABLE_GMAC},
@@ -3244,7 +3244,7 @@ static bp_elem_t g_C1000A[] = {
   {bp_usGpioLedAdslFail,    .u.us = BP_GPIO_8_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_18_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_19_AL},
 #endif
   {bp_usGpioLedUsb,            .u.us = BP_GPIO_22_AL},
@@ -3298,7 +3298,7 @@ static bp_elem_t g_C1000B[] = {
   {bp_usGpioLedAdslFail,    .u.us = BP_GPIO_8_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_18_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_19_AL},
 #endif
   {bp_usGpioLedUsb,            .u.us = BP_GPIO_22_AL},
@@ -3355,12 +3355,12 @@ static bp_elem_t g_C2000A[] = {
   {bp_usGpioSecLedAdslFail,    .u.us = BP_GPIO_49_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_43_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedWirelessAct,    .u.us = BP_GPIO_36_AL},
   {bp_usGpioLedWirelessGreen,  .u.us = BP_GPIO_37_AH},
   {bp_usGpioLedWirelessRed,    .u.us = BP_GPIO_39_AL},
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_44_AL},
   {bp_ucDspType0,              .u.uc = BP_VOIP_MIPS},
   {bp_ucDspAddress,            .u.uc = 0},
@@ -3435,12 +3435,12 @@ static bp_elem_t g_C1900A[] = {
   {bp_usGpioSecLedAdslFail,    .u.us = BP_GPIO_49_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_43_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedWirelessAct,    .u.us = BP_GPIO_36_AL},
   {bp_usGpioLedWirelessGreen,  .u.us = BP_GPIO_37_AH},
   {bp_usGpioLedWirelessRed,    .u.us = BP_GPIO_39_AL},
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_44_AL},
 #endif
   {bp_usGpioLedUsb,            .u.us = BP_GPIO_9_AL},
@@ -3497,7 +3497,7 @@ static bp_elem_t g_R2200H[] = {
 //  {bp_usGpioSecLedAdslFail,    .u.us = BP_GPIO_8_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_43_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_44_AL},
   {bp_ucDspType0,              .u.uc = BP_VOIP_MIPS},
   {bp_ucDspAddress,            .u.uc = 0},
@@ -3563,7 +3563,7 @@ static bp_elem_t g_V2200H[] = {
   {bp_usGpioLedAdsl,           .u.us = BP_GPIO_40_AL},
   {bp_usGpioSecLedAdsl,        .u.us = BP_GPIO_46_AL},
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_43_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_44_AL},
   {bp_ucDspType0,              .u.uc = BP_VOIP_MIPS},
   {bp_ucDspAddress,            .u.uc = 0},
@@ -3625,12 +3625,12 @@ static bp_elem_t g_FV2200[] = {
   {bp_usGpioSecLedAdslFail,    .u.us = BP_GPIO_8_AL},
 
   {bp_usGpioLedSesWireless,    .u.us = BP_GPIO_43_AL},
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedWirelessAct,    .u.us = BP_GPIO_36_AL},
   {bp_usGpioLedWirelessGreen,  .u.us = BP_GPIO_37_AH},
   {bp_usGpioLedWirelessRed,    .u.us = BP_GPIO_39_AL},
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
   {bp_usGpioLedSesWirelessFail,.u.us = BP_GPIO_44_AL},
   {bp_ucDspType0,              .u.uc = BP_VOIP_MIPS},
   {bp_ucDspAddress,            .u.uc = 0},
@@ -4038,7 +4038,7 @@ static bp_elem_t g_bcm963168xfg3[] = {
   {bp_last}
 };
 
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 static bp_elem_t * g_BoardParms[] = {g_C1000A,g_C2000A,g_C1900A,g_R2200H,g_V2200H,g_FV2200,g_C1000B, g_bcm963268sv1, g_bcm963268mbv, g_bcm963168vx, g_bcm963168vx_p300, g_bcm963268bu, g_bcm963268bu_p300, g_bcm963268sv2_extswitch, g_bcm963168mbv_17a, g_bcm963168mbv_30a, g_bcm963168xh, g_bcm963168xh5, g_bcm963168mp, g_bcm963268v30a, g_bcm963168media, g_bcm963268sv2, g_bcm963168xfg3, g_bcm963168xf, g_bcm963168xm, g_bcm963168mbv3, g_bcm963168mbv17a302, g_bcm963168mbv30a302, g_bcm963168vx_p400, g_bcm963168vx_ext1p8, 0};
 #else
 static bp_elem_t * g_BoardParms[] = {g_bcm963268sv1, g_bcm963268mbv, g_bcm963168vx, g_bcm963168vx_p300, g_bcm963268bu, g_bcm963268bu_p300, g_bcm963268sv2_extswitch, g_bcm963168mbv_17a, g_bcm963168mbv_30a, g_bcm963168xh, g_bcm963168xh5, g_bcm963168mp, g_bcm963268v30a, g_bcm963168media, g_bcm963268sv2, g_bcm963168xfg3, g_bcm963168xf, g_bcm963168xm, g_bcm963168mbv3, g_bcm963168mbv17a302, g_bcm963168mbv30a302, g_bcm963168vx_p400, g_bcm963168vx_ext1p8, 0};
@@ -5589,7 +5589,7 @@ int BpGetWirelessSesLedGpio( unsigned short *pusValue )
     return( BpGetGpio(bp_usGpioLedSesWireless, pusValue ) );
 } /* BpGetWirelessSesLedGpio */
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int BpGetWirelessLedGpioRed( unsigned short *pusValue )
 {
     return ( BpGetUs(bp_usGpioLedWirelessRed, pusValue ) );
@@ -6073,7 +6073,7 @@ static WLAN_SROM_ENTRY wlan_patch_common_96828MBV[] = {
 
 #endif
 
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 static WLAN_SROM_ENTRY wlan_patch_unique_C1000A[] = {
     { 97,  0xfe80},
     { 98,  0x1fa2},
@@ -6198,7 +6198,7 @@ static WLAN_SROM_PATCH_INFO wlanPaInfo[]={
     {"96828BU",      0x6362, 220, wlan_patch_unique_96828BU,        wlan_patch_common_96828MBV},
 #endif
 
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
     {"C1000A",      0x6362, 220, wlan_patch_unique_C1000A,        wlan_patch_common_C1000A},
     {"C2000A",      0x6362, 220, wlan_patch_unique_C2000A,        wlan_patch_common_C1000A},
     {"C1900A",      0x6362, 220, wlan_patch_unique_C2000A,        wlan_patch_common_C1000A},
@@ -6364,7 +6364,7 @@ static WLAN_PCI_PATCH_INFO wlanPciInfo[]={
     {"963168XH5", 0x435f14e4, 64,
     {{"subpciids", 11, 0x64014e4},
     {"",       0,      0}}},
-#if defined(SUPPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
+#if defined(SUPPORT_GPL) || defined(AEI_VDSL_BCMSDK)
 /* AEI start */
     /* this is the patch to boardtype(boardid) for C1000 */
     {"C1000A", 0x435f14e4, 64,
@@ -6781,7 +6781,7 @@ int BpGetMoCAFailLedGpio( unsigned short *pusValue )
     return( BpGetGpio(bp_usGpioLedMoCAFail, pusValue ) );
 } /* BpGetMoCAFailLedGpio */
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /**************************************************************************
 * Name       : BpGetUsbLedGpio
 *

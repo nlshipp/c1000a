@@ -737,7 +737,7 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 
 			mreq.imr_multiaddr.s_addr = mreqs.imr_multiaddr;
 			mreq.imr_address.s_addr = mreqs.imr_interface;
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
                         mreq.imr_ifindex = mreqs.imr_ifindex;
 #else
 			mreq.imr_ifindex = 0;
@@ -1185,7 +1185,7 @@ static int do_ip_getsockopt(struct sock *sk, int level, int optname,
 	case IP_TRANSPARENT:
 		val = inet->transparent;
 		break;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	case IP_DESTIP:
 		val = inet->saddr;
 		break;

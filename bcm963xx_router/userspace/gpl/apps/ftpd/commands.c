@@ -693,7 +693,7 @@ void command_quit(char *params __attribute__((unused)))
        */
        /*note: in order to fix some  bugs of gui, the function  that trigger a reboot in  "cmsImg_writeValidatedImage"  was disabled now,
           so we send messages to smd to reboot the modem . */
-          #if  defined(SUPPPORT_GPL)
+          #if  defined(SUPPORT_GPL)
           cmsUtil_sendRequestRebootMsg(msgHandle);
            #endif
       exit(0);

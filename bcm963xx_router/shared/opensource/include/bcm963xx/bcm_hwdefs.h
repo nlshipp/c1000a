@@ -133,7 +133,7 @@ extern "C" {
 #define NVRAM_MAC_COUNT_MAX         32
 #define NVRAM_MAX_PSI_SIZE          64
 #define NVRAM_MAX_SYSLOG_SIZE       256
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #define NVRAM_OPTICAL_PARAMS_SIZE   64
 #endif
 
@@ -173,7 +173,7 @@ typedef struct
     unsigned long ulPsiSize;
     unsigned long ulNumMacAddrs;
     unsigned char ucaBaseMacAddr[NVRAM_MAC_ADDRESS_LEN];
-#if (defined(SUPPPORT_GPL_UNDEFINED) || defined(SUPPPORT_GPL_UNDEFINED)) && (!defined(AEI_63168_CHIP) && !defined(AEI_CONFIG_JFFS))
+#if (defined(CUSTOMER_NOT_USED_X) || defined(CUSTOMER_NOT_USED_X)) && (!defined(AEI_63168_CHIP) && !defined(AEI_CONFIG_JFFS))
     /* add new parameters below dslDatapump parameter and substract size, don't move parameters */
     char ulSerialNumber[32];
     char chFactoryFWVersion[48];
@@ -192,12 +192,12 @@ typedef struct
     unsigned long ulNandPartSizeKb[NP_TOTAL];
     char szVoiceBoardId[NVRAM_BOARD_ID_STRING_LEN];
     unsigned long afeId[2];
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 //for compatible with sdk1204 nvram
     char OpticalParams[NVRAM_OPTICAL_PARAMS_SIZE]; 
 #endif
-#if defined(SUPPPORT_GPL)
-#if   (!defined(SUPPPORT_GPL_UNDEFINED) && !defined(SUPPPORT_GPL_UNDEFINED)) || (defined(AEI_63168_CHIP) && defined(AEI_CONFIG_JFFS))
+#if defined(SUPPORT_GPL)
+#if   (!defined(CUSTOMER_NOT_USED_X) && !defined(CUSTOMER_NOT_USED_X)) || (defined(AEI_63168_CHIP) && defined(AEI_CONFIG_JFFS))
     /* add new parameters below dslDatapump parameter and substract size, don't move parameters */
     char ulSerialNumber[32];
     char chFactoryFWVersion[48];
@@ -209,33 +209,33 @@ typedef struct
     char ugstatus[3];  // who define this array? CPU aligment should be 4! sizeof(arr[3]) = sizeof(arr[4])! 
     char ugimage1[30];   // should be defined 4 times
     char ugimage2[30];
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     char adminPassword[32];
 #endif
 #else // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
     char adminPassword[32];
 #endif
 #endif // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-#endif // SUPPPORT_GPL
+#endif // SUPPORT_GPL
     unsigned short opticRxPwrReading;   // optical initial rx power reading
     unsigned short opticRxPwrOffset;    // optical rx power offset
     unsigned short opticTxPwrReading;   // optical initial tx power reading
-#if !defined(SUPPPORT_GPL)
+#if !defined(SUPPORT_GPL)
     unsigned char ucUnused2[58];
 #endif
     unsigned char ucFlashBlkSize;
     unsigned char ucAuxFSPercent;
     unsigned long ulBoardStuffOption;   // board options. bit0-3 is for DECT    
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #ifdef AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         char chUnused[290-32-48-32-32-4-63-32-64+58];
 #else
         char chUnused[290-32-48-32-32-4-63-64+58];
 #endif
 #else // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         char chUnused[290-32-48-32-32-4-32-64+58];
 #else
         char chUnused[290-32-48-32-32-4-64+58];
@@ -243,12 +243,12 @@ typedef struct
 #endif // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
 #else
     char chUnused[290];
-#endif // SUPPPORT_GPL
+#endif // SUPPORT_GPL
     unsigned long ulCheckSum;
 } NVRAM_DATA, *PNVRAM_DATA;
 
-#if defined(SUPPPORT_GPL)
-#if !defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(SUPPORT_GPL)
+#if !defined(CUSTOMER_NOT_USED_X)
 typedef struct
 {
     unsigned long ulVersion;
@@ -273,7 +273,7 @@ typedef struct
 } NVRAM_DATA_OLD, *PNVRAM_DATA_OLD;
 #endif
 
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 typedef struct
 {
     unsigned long ulVersion;
@@ -320,7 +320,7 @@ typedef struct
 #define CFE_VERSION_OFFSET           0x0570
 #define CFE_VERSION_MARK_SIZE        5
 
-#ifdef SUPPPORT_GPL
+#ifdef SUPPORT_GPL
 #define CFE_VERSION_SIZE             6
 #else
 #define CFE_VERSION_SIZE             5

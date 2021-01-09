@@ -204,7 +204,7 @@ struct nfnl_handle *nfnl_open(void)
 		errno = EINVAL;
 		goto err_close;
 	}
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 
 	printf("set NETLINK_RECV_NO_ENOBUFS\n");
 	unsigned int enable=1;

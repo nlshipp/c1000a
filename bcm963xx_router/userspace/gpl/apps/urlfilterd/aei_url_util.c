@@ -11,7 +11,7 @@
 #include <syslog.h>
 //#include "filter.h"
 
-#if defined (SUPPPORT_GPL)
+#if defined (SUPPORT_GPL)
 #include "cms.h"
 #include "cms_util.h"
 #include "cms_msg.h"
@@ -20,7 +20,7 @@
 #include "aei_url_util.h"
 
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 
 #if defined(AEI_WLAN_URL_REDIRECT)
 extern char brname[16];
@@ -29,7 +29,7 @@ extern char brname[16];
 #if defined (DMP_CAPTIVEPORTAL_1)
 extern void *msgHandle;
 extern char captiveAllowList[10001];
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 extern char captiveAllowDomain[10001];
 #endif
 
@@ -49,7 +49,7 @@ void AEI_getCaptiveAllowList()
 	}
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 void AEI_getCaptiveAllowDomain()
 {
 	FILE *fp = NULL;
@@ -67,7 +67,7 @@ void AEI_getCaptiveAllowDomain()
 }
 #endif
 
-#if defined(SUPPPORT_GPL)
+#if defined(AEI_VDSL_TR098_QWEST)
 CmsRet AEI_send_msg_to_set_oneTimeRedirectURLFlag()
 {
 	CmsRet ret = CMSRET_SUCCESS;
@@ -85,9 +85,9 @@ CmsRet AEI_send_msg_to_set_oneTimeRedirectURLFlag()
 
 	return ret;
 }
-#endif	//SUPPPORT_GPL
+#endif	//AEI_VDSL_TR098_QWEST
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int AEI_checkCaptiveAllowDomain(char *allowDomain, char* host)
 {
         char *p, *pLast;

@@ -147,7 +147,7 @@ static void sf_markstate(struct ip_mc_list *pmc);
 static void ip_mc_clear_src(struct ip_mc_list *pmc);
 static int ip_mc_add_src(struct in_device *in_dev, __be32 *pmca, int sfmode,
 			 int sfcount, __be32 *psfsrc, int delta);
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 static int AEI_ip_mc_clear_old_group(struct sock *sk, struct ip_mreqn *imr);
 #endif
 static void ip_ma_put(struct ip_mc_list *im)
@@ -324,7 +324,7 @@ static struct sk_buff *igmpv3_newpack(struct net_device *dev, int size)
 
 	pip->version  = 4;
 	pip->ihl      = (sizeof(struct iphdr)+4)>>2;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         pip->tos      = 0x58;
 #else
 	pip->tos      = 0xc0;
@@ -692,7 +692,7 @@ static int igmp_send_report(struct in_device *in_dev, struct ip_mc_list *pmc,
 
 	iph->version  = 4;
 	iph->ihl      = (sizeof(struct iphdr)+4)>>2;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
         iph->tos      = 0x58;
 #else
 	iph->tos      = 0xc0;
@@ -1791,7 +1791,7 @@ int ip_mc_join_group(struct sock *sk , struct ip_mreqn *imr)
 
 	if (!ipv4_is_multicast(addr))
 		return -EINVAL;
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	AEI_ip_mc_clear_old_group(sk,imr);
 #endif
 	rtnl_lock();
@@ -1849,7 +1849,7 @@ static int ip_mc_leave_src(struct sock *sk, struct ip_mc_socklist *iml,
 	return err;
 }
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 /* Background:
  * After multiple retrains I lost multicast IPTV but can surf the Internet.
  * Root Cause:
@@ -1967,7 +1967,7 @@ int ip_mc_source(int add, int omode, struct sock *sk, struct
 
 	imr.imr_multiaddr.s_addr = mreqs->imr_multiaddr;
 	imr.imr_address.s_addr = mreqs->imr_interface;
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
         if (ifindex == 0)
         {
             if (mreqs->imr_ifindex)
@@ -2113,7 +2113,7 @@ int ip_mc_msfilter(struct sock *sk, struct ip_msfilter *msf, int ifindex)
 
 	imr.imr_multiaddr.s_addr = msf->imsf_multiaddr;
 	imr.imr_address.s_addr = msf->imsf_interface;
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
         if (ifindex == 0)
         {
             if (msf->imsf_ifindex)

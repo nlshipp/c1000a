@@ -1,4 +1,4 @@
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,11 +23,11 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include "aei_utiles.h"
-#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPORT_GPL)
 #include "bcmTag.h" /* in shared/opensource/include/bcm963xx, for FILE_TAG */
 #include "board.h" /* in bcmdrivers/opensource/include/bcm963xx, for BCM_IMAGE_CFE */
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include "cms_boardioctl.h"
 #endif
 #define READ_BUF_SIZE 128
@@ -381,7 +381,7 @@ int AEI_GetPid(char * command)
 }
 
 
-#if defined(AEI_CONFIG_JFFS) && defined(SUPPPORT_GPL)
+#if defined(AEI_CONFIG_JFFS) && defined(SUPPORT_GPL)
 CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, int partition)
 {
    CmsImageFormat format;
@@ -395,7 +395,7 @@ CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, 
    {
       ret = CMSRET_INVALID_IMAGE;
    }
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
    else if(format == CMS_IMAGE_FORMAT_CORRUPTED)
    {
       ret = CMSRET_INVALID_IMAGE;
@@ -412,10 +412,118 @@ CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, 
    return ret;
 }
 #endif
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 int AEI_save_syslog()
 {
     return devCtl_boardIoctl(BOARD_IOCTL_FLASH_WRITE,SYSLOGONREBOOT,NULL,0,0,0);
 }
 #endif
+#endif
+#ifdef AEI_LOCKOUT_AGAINST_BRUTE_FORCE_ATTACKS
+UINT32 getUptime()
+{
+
+    CmsTimestamp ts;
+    cmsTms_get(&ts);
+    return ts.sec;
+}
+
+CmsRet getCliLockInfo(UINT32* max_retry, UINT32* curr_retry, UINT32* timeout)
+{
+    FILE* fd = NULL;
+    char buf[64] = {0};
+    fd = fopen("/data/cli_lock_info","r");
+    if (fd)
+    {
+        fgets(buf,sizeof(buf)-1,fd);
+        *curr_retry = atoi(buf);
+        fgets(buf,sizeof(buf)-1,fd);
+        *max_retry = atoi(buf);
+        fgets(buf,sizeof(buf)-1,fd);
+        *timeout = atoi(buf);
+        fclose(fd);
+    }
+    else
+    {
+        cmsLog_error("create /data/cli_lock_info file");
+        *max_retry = 4;
+        *curr_retry = 0;
+        *timeout = 900;
+        saveCliLockInfo(*max_retry, *curr_retry, *timeout);
+    }
+    //
+    cmsLog_debug("max_retry=%d,curr_retry=%d,timeout=%d",* max_retry, * curr_retry, * timeout);
+
+    return CMSRET_SUCCESS;
+}
+
+CmsRet saveCliLockInfo(UINT32 max_retry, UINT32 curr_retry, UINT32 timeout)
+{
+    FILE* fd = NULL;
+    fd = fopen("/data/cli_lock_info","w");
+    if (fd)
+    {
+        fprintf(fd,"%d\n",curr_retry);
+        fprintf(fd,"%d\n",max_retry);
+        fprintf(fd,"%d\n",timeout);
+        fclose(fd);
+    }
+    else
+    {
+        cmsLog_error("create /data/cli_lock_info failed");
+        return CMSRET_INTERNAL_ERROR;
+    }
+
+    return CMSRET_SUCCESS;
+}
+
+
+void saveCliLockUptime(char *appname)
+{
+    FILE* fd = NULL;
+
+    fd = fopen("/var/cli_lock_uptime","w");
+    if (fd)
+    {
+        fprintf(fd,"%d\n",getUptime() );
+        fprintf(fd,"appName=%s\n", appname);
+        /*fprintf(fd,"ipAddr=%s\n", pSLD->ipAddr);
+        fprintf(fd,"port=%d\n", pSLD->port);
+        fprintf(fd,"user=%s\n", pSLD->user);*/
+        fclose(fd);
+    }
+}
+
+UBOOL8 isCliLocked(UINT32 timeout)
+{
+    FILE* fd = NULL;
+    char buf[64] = {0};
+    UINT32 lockTime = 0;
+    UINT32 upTimeNow = getUptime();
+    int    delta = 0;
+    fd = fopen("/var/cli_lock_uptime","r");
+    if (fd)
+    {
+        fgets(buf,sizeof(buf)-1,fd);
+        fclose(fd);
+    }
+    lockTime = atoi(buf);
+    delta = upTimeNow - lockTime;
+    //
+    //fprintf(stderr,"\nUp Time : expired(%d),now(%d), last(%d)\n",expiredTime,upTimeNow,expiredTime-upTimeNow);
+    if (lockTime > 0 && delta < timeout)
+    {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+#endif
+#if defined(AEI_VDSL_FACTORY_TELNET)    
+UBOOL8 AEI_cgi_getFactoryTelnetFlag(void)
+{
+    UBOOL8 factoryTelnet = FALSE;
+    devCtl_boardIoctl(AEI_BOARD_IOCTL_GET_FACTORYTELNET_FLAG, 0, (char*)&factoryTelnet, sizeof(factoryTelnet), 0, NULL);
+    return factoryTelnet;
+}
 #endif

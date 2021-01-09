@@ -26,7 +26,7 @@
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 #include <board.h>
 #endif
 
@@ -1419,9 +1419,9 @@ void usb_disconnect(struct usb_device **pdev)
 		return;
 	}
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	kerSysLedCtrl(kLedUsb, kLedStateOff);
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 	usbledTimerEnd();
 #endif
 #endif
@@ -2670,9 +2670,9 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 
 	retval = 0;
 
-#if defined(SUPPPORT_GPL)
+#if defined(SUPPORT_GPL)
 	kerSysLedCtrl(kLedUsb, kLedStateOn);
-#if defined(SUPPPORT_GPL_UNDEFINED)
+#if defined(CUSTOMER_NOT_USED_X)
 	usb_led_flag = kLedStateOn;
 	usbledTimerStart();
 #endif
