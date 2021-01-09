@@ -40,6 +40,8 @@ PATH: /home/xxia/adt-bundle-linux-x86-20140702/sdk/platform-tools/
 PATH: /home/xxia/bin
 PATH: /home/xxia/adt-bundle-linux-x86-20140702/sdk/tools/
 PATH: /home/xxia/adt-bundle-linux-x86-20140702/sdk/platform-tools/
+PATH: /home/xxia/adt-bundle-linux-x86-20140702/sdk/tools/
+PATH: /home/xxia/adt-bundle-linux-x86-20140702/sdk/platform-tools/
 
 
 ## ----------- ##
@@ -94,7 +96,7 @@ gcc: fatal error: no input files
 compilation terminated.
 configure:3136: $? = 4
 configure:3159: checking for C compiler default output file name
-configure:3186: gcc   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
+configure:3186: gcc   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
 configure:3189: $? = 0
 configure:3227: result: a.out
 configure:3244: checking whether the C compiler works
@@ -104,15 +106,15 @@ configure:3274: result: yes
 configure:3281: checking whether we are cross compiling
 configure:3283: result: no
 configure:3286: checking for suffix of executables
-configure:3293: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
+configure:3293: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
 configure:3296: $? = 0
 configure:3320: result: 
 configure:3326: checking for suffix of object files
-configure:3352: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:3352: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:3355: $? = 0
 configure:3378: result: o
 configure:3382: checking whether we are using the GNU C compiler
-configure:3411: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:3411: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:3417: $? = 0
 configure:3434: result: yes
 configure:3439: checking whether gcc accepts -g
@@ -120,7 +122,7 @@ configure:3469: gcc -c -g  conftest.c >&5
 configure:3475: $? = 0
 configure:3574: result: yes
 configure:3591: checking for gcc option to accept ISO C89
-configure:3665: gcc  -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:3665: gcc  -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:3671: $? = 0
 configure:3694: result: none needed
 configure:3714: checking dependency style of gcc
@@ -140,7 +142,7 @@ configure:4283: result: yes
 configure:4296: checking for BSD- or MS-compatible name lister (nm)
 configure:4345: result: /usr/bin/nm -B
 configure:4467: checking the name lister (/usr/bin/nm -B) interface
-configure:4474: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:4474: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:4477: /usr/bin/nm -B "conftest.o"
 configure:4480: output
 00000000 B some_variable
@@ -166,11 +168,11 @@ configure:5183: checking for ranlib
 configure:5199: found /usr/bin/ranlib
 configure:5210: result: ranlib
 configure:5304: checking command to parse /usr/bin/nm -B output from gcc object
-configure:5421: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:5421: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:5424: $? = 0
 configure:5428: /usr/bin/nm -B conftest.o \| sed -n -e 's/^.*[	 ]\([ABCDGIRSTW][ABCDGIRSTW]*\)[	 ][	 ]*\([_A-Za-z][_A-Za-z0-9]*\)$/\1 \2 \2/p' \> conftest.nm
 configure:5431: $? = 0
-configure:5485: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c conftstm.o >&5
+configure:5485: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c conftstm.o >&5
 configure:5488: $? = 0
 configure:5526: result: ok
 configure:5766: checking how to run the C preprocessor
@@ -210,57 +212,57 @@ configure: failed program was:
 | /* end confdefs.h.  */
 | #include <ac_nonexistent.h>
 configure:5992: checking for ANSI C header files
-configure:6022: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6022: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6028: $? = 0
-configure:6127: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
+configure:6127: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c  >&5
 configure:6130: $? = 0
 configure:6136: ./conftest
 configure:6139: $? = 0
 configure:6156: result: yes
 configure:6180: checking for sys/types.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for sys/stat.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for stdlib.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for string.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for memory.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for strings.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for inttypes.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for stdint.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6180: checking for unistd.h
-configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6201: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6207: $? = 0
 configure:6223: result: yes
 configure:6239: checking for dlfcn.h
-configure:6260: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:6260: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:6266: $? = 0
 configure:6282: result: yes
 configure:6344: checking for objdir
 configure:6359: result: .libs
 configure:6651: checking if gcc supports -fno-rtti -fno-exceptions
-configure:6669: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -fno-rtti -fno-exceptions conftest.c >&5
+configure:6669: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -fno-rtti -fno-exceptions conftest.c >&5
 cc1: warning: command line option '-fno-rtti' is valid for C++/ObjC++ but not for C [enabled by default]
 cc1: warning: command line option '-fno-rtti' is valid for C++/ObjC++ but not for C [enabled by default]
 configure:6673: $? = 0
@@ -268,13 +270,13 @@ configure:6686: result: no
 configure:6706: checking for gcc option to produce PIC
 configure:6961: result: -fPIC -DPIC
 configure:6973: checking if gcc PIC flag -fPIC -DPIC works
-configure:6991: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -fPIC -DPIC -DPIC conftest.c >&5
+configure:6991: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -fPIC -DPIC -DPIC conftest.c >&5
 configure:6995: $? = 0
 configure:7008: result: yes
 configure:7032: checking if gcc static flag -static works
 configure:7060: result: no
 configure:7075: checking if gcc supports -c -o file.o
-configure:7096: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -o out/conftest2.o conftest.c >&5
+configure:7096: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  -o out/conftest2.o conftest.c >&5
 configure:7100: $? = 0
 configure:7122: result: yes
 configure:7130: checking if gcc supports -c -o file.o
@@ -282,13 +284,13 @@ configure:7177: result: yes
 configure:7210: checking whether the gcc linker (/usr/bin/ld) supports shared libraries
 configure:8289: result: yes
 configure:8326: checking whether -lc should be explicitly linked in
-configure:8331: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:8331: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:8334: $? = 0
 configure:8349: gcc -shared conftest.o  -v -Wl,-soname -Wl,conftest -o conftest 2\>\&1 \| /bin/grep  -lc  \>/dev/null 2\>\&1
 configure:8352: $? = 0
 configure:8364: result: no
 configure:8528: checking dynamic linker characteristics
-configure:8966: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   -Wl,-rpath -Wl,/foo conftest.c  >&5
+configure:8966: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   -Wl,-rpath -Wl,/foo conftest.c  >&5
 configure:8972: $? = 0
 configure:9214: result: GNU/Linux ld.so
 configure:9309: checking how to hardcode library paths into programs
@@ -306,21 +308,21 @@ configure:10276: result: sysv
 configure:10288: checking which database format to use
 configure:10295: result: inode
 configure:10309: checking for dlopen in -ldl
-configure:10344: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl   >&5
+configure:10344: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl   >&5
 configure:10350: $? = 0
 configure:10368: result: yes
 configure:10543: checking for dirent.h that defines DIR
-configure:10572: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10572: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10578: $? = 0
 configure:10594: result: yes
 configure:10607: checking for library containing opendir
-configure:10648: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:10648: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:10654: $? = 0
 configure:10682: result: none required
 configure:10776: checking for ANSI C header files
 configure:10940: result: yes
 configure:10976: checking fcntl.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking fcntl.h presence
@@ -332,7 +334,7 @@ configure:11093: result: yes
 configure:10966: checking for unistd.h
 configure:10972: result: yes
 configure:10976: checking features.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking features.h presence
@@ -342,7 +344,7 @@ configure:11052: result: yes
 configure:11085: checking for features.h
 configure:11093: result: yes
 configure:10976: checking sys/feature_tests.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:61:31: fatal error: sys/feature_tests.h: No such file or directory
 compilation terminated.
 configure:10999: $? = 1
@@ -447,7 +449,7 @@ configure:11052: result: no
 configure:11085: checking for sys/feature_tests.h
 configure:11093: result: no
 configure:10976: checking pthread.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking pthread.h presence
@@ -461,7 +463,7 @@ configure:10972: result: yes
 configure:10966: checking for inttypes.h
 configure:10972: result: yes
 configure:10976: checking grp.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking grp.h presence
@@ -471,7 +473,7 @@ configure:11052: result: yes
 configure:11085: checking for grp.h
 configure:11093: result: yes
 configure:10976: checking endian.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking endian.h presence
@@ -481,7 +483,7 @@ configure:11052: result: yes
 configure:11085: checking for endian.h
 configure:11093: result: yes
 configure:10976: checking sys/sysmacros.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking sys/sysmacros.h presence
@@ -491,7 +493,7 @@ configure:11052: result: yes
 configure:11085: checking for sys/sysmacros.h
 configure:11093: result: yes
 configure:10976: checking sys/socket.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking sys/socket.h presence
@@ -501,7 +503,7 @@ configure:11052: result: yes
 configure:11085: checking for sys/socket.h
 configure:11093: result: yes
 configure:10976: checking sys/acl.h usability
-configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:10993: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:10999: $? = 0
 configure:11013: result: yes
 configure:11017: checking sys/acl.h presence
@@ -511,23 +513,23 @@ configure:11052: result: yes
 configure:11085: checking for sys/acl.h
 configure:11093: result: yes
 configure:11107: checking for an ANSI C-conforming const
-configure:11182: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11182: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11188: $? = 0
 configure:11203: result: yes
 configure:11213: checking for mode_t
-configure:11243: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11243: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11249: $? = 0
 configure:11264: result: yes
 configure:11276: checking for off_t
-configure:11306: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11306: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11312: $? = 0
 configure:11327: result: yes
 configure:11339: checking for size_t
-configure:11369: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11369: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11375: $? = 0
 configure:11390: result: yes
 configure:11418: checking for return value and second and third argument of readlink
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:17: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -577,7 +579,7 @@ configure: failed program was:
 |   ;
 |   return 0;
 | }
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:17: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -627,9 +629,9 @@ configure: failed program was:
 |   ;
 |   return 0;
 | }
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11453: $? = 0
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:17: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -679,7 +681,7 @@ configure: failed program was:
 |   ;
 |   return 0;
 | }
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:13: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -729,7 +731,7 @@ configure: failed program was:
 |   ;
 |   return 0;
 | }
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:13: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -779,9 +781,9 @@ configure: failed program was:
 |   ;
 |   return 0;
 | }
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11453: $? = 0
-configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11447: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:38:13: error: conflicting types for 'readlink'
 /usr/include/unistd.h:828:16: note: previous declaration of 'readlink' was here
 configure:11453: $? = 1
@@ -833,9 +835,9 @@ configure: failed program was:
 | }
 configure:11473: result: int, char, size_t
 configure:11494: checking for first argument of setgroups
-configure:11527: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11527: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11533: $? = 0
-configure:11527: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11527: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c:48:7: error: conflicting types for 'setgroups'
 /usr/include/grp.h:182:12: note: previous declaration of 'setgroups' was here
 configure:11533: $? = 1
@@ -897,7 +899,7 @@ configure: failed program was:
 | }
 configure:11548: result: size_t
 configure:11560: checking for union semun
-configure:11589: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11589: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c: In function 'main':
 conftest.c:50:20: error: storage size of 's' isn't known
 configure:11595: $? = 1
@@ -958,7 +960,7 @@ configure: failed program was:
 | }
 configure:11611: result: no
 configure:11620: checking for type of arg of __xmknod
-configure:11652: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11652: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c: In function 'main':
 conftest.c:51:12: error: conflicting types for '__xmknod'
 /usr/include/sys/stat.h:444:12: note: previous declaration of '__xmknod' was here
@@ -1023,7 +1025,7 @@ configure: failed program was:
 | }
 configure:11680: result: needs *
 configure:11690: checking for type of arg of __xmknodat
-configure:11723: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11723: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 conftest.c: In function 'main':
 conftest.c:53:26: error: unknown type name 'inf'
 configure:11729: $? = 1
@@ -1089,149 +1091,149 @@ configure: failed program was:
 | }
 configure:11751: result: needs *
 configure:11761: checking for type of arg of initgroups
-configure:11789: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11789: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11795: $? = 0
 configure:11805: result: gid_t
 configure:11826: checking for type of arg of setreuid
-configure:11854: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11854: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11860: $? = 0
 configure:11870: result: gid_t
 configure:11891: checking for type of arg of setregid
-configure:11919: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11919: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11925: $? = 0
 configure:11935: result: gid_t
 configure:11956: checking for type of second arg to stat
-configure:11985: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:11985: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:11991: $? = 0
 configure:12001: result: struct stat *
 configure:12073: checking for d_off in struct dirent
-configure:12103: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:12103: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:12109: $? = 0
 configure:12118: result: yes
 configure:12073: checking for d_type in struct dirent
-configure:12103: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:12103: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:12109: $? = 0
 configure:12118: result: yes
 configure:12144: checking for fchmodat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for fchownat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for fstatat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for mkdirat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for mknodat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for openat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for renameat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12144: checking for unlinkat
-configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12200: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12206: $? = 0
 configure:12224: result: yes
 configure:12247: checking for __xstat
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __fxstat
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __lxstat
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __fxstatat
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __xstat64
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __fxstat64
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __lxstat64
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __fxstatat64
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __xmknod
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12247: checking for __xmknodat
-configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12303: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12309: $? = 0
 configure:12327: result: yes
 configure:12398: result: created fakerootconfig.h
 configure:12475: checking for strdup
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 conftest.c:131:6: warning: conflicting types for built-in function 'strdup' [enabled by default]
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for strstr
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 conftest.c:132:6: warning: conflicting types for built-in function 'strstr' [enabled by default]
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for getresuid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for setresuid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for getresgid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for setresgid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for setfsuid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12475: checking for setfsgid
-configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12531: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12537: $? = 0
 configure:12555: result: yes
 configure:12566: checking whether setenv is declared
-configure:12595: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:12595: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:12601: $? = 0
 configure:12616: result: yes
 configure:12632: checking whether unsetenv is declared
-configure:12661: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
+configure:12661: gcc -c   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.  conftest.c >&5
 configure:12667: $? = 0
 configure:12682: result: yes
 configure:12704: checking for setenv
-configure:12760: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12760: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12766: $? = 0
 configure:12784: result: yes
-configure:12824: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
+configure:12824: gcc -o conftest   -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.   conftest.c -ldl  >&5
 configure:12830: $? = 0
 configure:12854: checking for a working shell...
 configure:12870: result: /bin/bash
@@ -1275,7 +1277,7 @@ ac_cv_dbformat=inode
 ac_cv_env_CC_set=set
 ac_cv_env_CC_value=gcc
 ac_cv_env_CFLAGS_set=set
-ac_cv_env_CFLAGS_value='  -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.'
+ac_cv_env_CFLAGS_value='  -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.'
 ac_cv_env_CPPFLAGS_set=
 ac_cv_env_CPPFLAGS_value=
 ac_cv_env_CPP_set=
@@ -1385,19 +1387,19 @@ lt_cv_sys_max_cmd_len=32768
 ## Output variables. ##
 ## ----------------- ##
 
-ACLOCAL='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run aclocal-1.10'
+ACLOCAL='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run aclocal-1.10'
 AMDEPBACKSLASH='\'
 AMDEP_FALSE='#'
 AMDEP_TRUE=''
-AMTAR='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run tar'
+AMTAR='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run tar'
 AR='ar'
-AUTOCONF='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run autoconf'
-AUTOHEADER='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run autoheader'
-AUTOMAKE='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run automake-1.10'
+AUTOCONF='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run autoconf'
+AUTOHEADER='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run autoheader'
+AUTOMAKE='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run automake-1.10'
 AWK='gawk'
 CC='gcc'
 CCDEPMODE='depmode=gcc3'
-CFLAGS='  -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.'
+CFLAGS='  -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I.'
 CPP='gcc -E'
 CPPFLAGS=''
 CYGPATH_W='echo'
@@ -1430,7 +1432,7 @@ LTLIBOBJS=''
 MAINT='#'
 MAINTAINER_MODE_FALSE=''
 MAINTAINER_MODE_TRUE='#'
-MAKEINFO='${SHELL} /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/missing --run makeinfo'
+MAKEINFO='${SHELL} /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/missing --run makeinfo'
 NM='/usr/bin/nm -B'
 OBJEXT='o'
 PACKAGE='fakeroot'
@@ -1475,7 +1477,7 @@ host_vendor='pc'
 htmldir='${docdir}'
 includedir='${prefix}/include'
 infodir='${datarootdir}/info'
-install_sh='$(SHELL) /home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/hostTools/fakeroot/install-sh'
+install_sh='$(SHELL) /home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/hostTools/fakeroot/install-sh'
 libdir='${exec_prefix}/lib'
 libexecdir='${exec_prefix}/libexec'
 localedir='${datarootdir}/locale'
@@ -1621,6 +1623,42 @@ target_vendor='pc'
 #define HAVE_BUILTIN_EXPECT 1
 
 configure: exit 0
+
+## ---------------------- ##
+## Running config.status. ##
+## ---------------------- ##
+
+This file was extended by fakeroot config.status 1.9.1, which was
+generated by GNU Autoconf 2.61.  Invocation command line was
+
+  CONFIG_FILES    = 
+  CONFIG_HEADERS  = 
+  CONFIG_LINKS    = 
+  CONFIG_COMMANDS = 
+  $ ./config.status 
+
+on localhost.localdomain
+
+config.status:1243: executing depfiles commands
+config.status:1243: executing libtool commands
+
+## ---------------------- ##
+## Running config.status. ##
+## ---------------------- ##
+
+This file was extended by fakeroot config.status 1.9.1, which was
+generated by GNU Autoconf 2.61.  Invocation command line was
+
+  CONFIG_FILES    = 
+  CONFIG_HEADERS  = 
+  CONFIG_LINKS    = 
+  CONFIG_COMMANDS = 
+  $ ./config.status 
+
+on localhost.localdomain
+
+config.status:1243: executing depfiles commands
+config.status:1243: executing libtool commands
 
 ## ---------------------- ##
 ## Running config.status. ##

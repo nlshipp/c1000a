@@ -129,7 +129,7 @@ old_postuninstall_cmds=""
 LTCC="gcc"
 
 # LTCC compiler flags.
-LTCFLAGS="  -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I."
+LTCFLAGS="  -O2 -DGNU -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I."
 
 # Take the output of nm and produce a listing of raw symbols and C names.
 global_symbol_pipe="sed -n -e 's/^.*[	 ]\\([ABCDGIRSTW][ABCDGIRSTW]*\\)[	 ][	 ]*\\([_A-Za-z][_A-Za-z0-9]*\\)\$/\\1 \\2 \\2/p'"

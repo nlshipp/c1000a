@@ -17,7 +17,7 @@ if you compile the BCM963xx GPL source code on Ubuntu, Maybe you need to run the
 The Actiontec C1000A Source Code can be obtained from the Actiontec support website at http://opensource.actiontec.com.
 
 
-IMPORTANT: When entering the file name at the command prompt be sure to replace the question marks "??.???.??" with the release number "31.30L.74".
+IMPORTANT: When entering the file name at the command prompt be sure to replace the question marks "??.???.??" with the release number "31.30L.76".
 
 
 1. INSTALL THE BCM963XX ??.???.?? CONSUMER RELEASE C1000A.
