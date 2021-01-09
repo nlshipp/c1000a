@@ -120,11 +120,11 @@ netlink_recv( int fd,
         struct dhcp6_if **pp_if)
 {
     int status;
-    struct msghdr msg;
+    struct msghdr msg = {0};
     struct sockaddr_nl dest_addr;
     struct nlmsghdr *nlh;
     struct iovec iov;
-    struct dad_failed_msg_t *dad_msg;
+    struct dad_failed_msg_t *dad_msg = NULL;
 
     nlh = (struct nlmsghdr *)malloc(NLMSG_SPACE(sizeof(struct dad_failed_msg_t)));
     if (!nlh) {
@@ -141,7 +141,7 @@ netlink_recv( int fd,
     msg.msg_iovlen = 1;
 
     dprintf(LOG_INFO, FNAME, "Starting recv,iov length is %d",(int)iov.iov_len);
-    
+
     status = recvmsg(fd, &msg, 0);
     if (status < 0) {
         // close(fd);
@@ -169,21 +169,24 @@ netlink_recv( int fd,
 
     free(nlh);
     // close(fd);
-    
 
-    struct dhcp6_if *ifp = NULL;
-    if ((ifp = find_ifconfbyname(dad_msg->name)) == NULL) {
-        dprintf(LOG_INFO, FNAME,
-                "failed to find interface configuration for %s",
-                dad_msg->name);
-        return 11;
+
+    if(dad_msg)
+    {
+        struct dhcp6_if *ifp = NULL;
+        if ((ifp = find_ifconfbyname(dad_msg->name)) == NULL) {
+            dprintf(LOG_INFO, FNAME,
+                    "failed to find interface configuration for %s",
+                    dad_msg->name);
+            return 11;
+        }
+
+        // returned value
+        memcpy( &(ifp->addr.s6_addr32), &(dad_msg->addr.s6_addr32), sizeof( struct in6_addr ) );
+        *pp_if = ifp;
+
+        dprintf(LOG_INFO, FNAME, "Then we should send DH6_DECLINE to: %s", ifp->ifname );
     }
-
-    // returned value
-    memcpy( &(ifp->addr.s6_addr32), &(dad_msg->addr.s6_addr32), sizeof( struct in6_addr ) );
-    *pp_if = ifp;
-
-    dprintf(LOG_INFO, FNAME, "Then we should send DH6_DECLINE to: %s", ifp->ifname );
 
     return 0;
 }
@@ -257,4 +260,3 @@ main(int argc,char **argv)
     return 0;
 }
 #endif
-

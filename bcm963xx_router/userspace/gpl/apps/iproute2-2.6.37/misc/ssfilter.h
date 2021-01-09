@@ -18,4 +18,3 @@ struct ssfilter
 
 int ssfilter_parse(struct ssfilter **f, int argc, char **argv, FILE *fp);
 void *parse_hostcond(char*);
-

@@ -116,7 +116,11 @@ can_activate(pcap_t* handle)
 
 	/* get interface index */
 	memset(&ifr, 0, sizeof(ifr));
+#ifdef AEI_COVERITY_FIX
+	strlcpy(ifr.ifr_name, handle->opt.source, sizeof(ifr.ifr_name));
+#else
 	strncpy(ifr.ifr_name, handle->opt.source, sizeof(ifr.ifr_name));
+#endif
 	if (ioctl(handle->fd, SIOCGIFINDEX, &ifr) < 0)
 	{
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
@@ -188,7 +192,11 @@ can_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		}
 	} while ((pkth.caplen == -1) && (errno == EINTR));
 
+#ifdef AEI_COVERITY_FIX
+	if (pkth.caplen <= 0)
+#else
 	if (pkth.caplen < 0)
+#endif
 	{
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Can't receive packet %d:%s",
 			errno, strerror(errno));

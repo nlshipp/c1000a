@@ -43,6 +43,7 @@
 #include "lcp.h"
 #include "aei_utiles.h"
 #endif
+
 extern int DEB_DISC,DEB_DISC2;
 
 #if defined(ultrix) || defined(NeXT)
@@ -73,8 +74,8 @@ char	devnam[MAXPATHLEN];	/* Device name */
 bool	nodetach = 1;		/* Don't detach from controlling tty */
 bool	updetach = 0;		/* Detach once link is up */
 int	maxconnect = 0;		/* Maximum connect time */
-char	user[MAXNAMELEN]="";	/* Username for PAP /CHAP*/
-char	passwd[MAXSECRETLEN]="";	/* Password for CHAP */
+char	user[MAXNAMELEN]="";	/* Username for PAP */
+char	passwd[MAXSECRETLEN]="";	/* Password for PAP */
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 char	PAPpasswd[MAXSECRETLEN]="";	/* Password for PAP */
 #endif
@@ -306,7 +307,6 @@ option_t general_options[] = {
 #define IMPLEMENTATION ""
 #endif
 
-
 static char *usage_string = "\
 pppd version %s\n\
 Usage: %s [ options ], where options are:\n\
@@ -332,47 +332,107 @@ parse_args(argc, argv)
     char **argv;
 {
     int opt;
+
 #if defined(AEI_VDSL_CUSTOMER_NCS)
     char strtmp1[MAXNAMELEN];
     char strtmp[MAXNAMELEN];
     int len=0;
 #endif
-#ifdef INET6
-   {
-      int        i;
-      option_t   *op;
-      char       *cmd[] = {"+ipv6"};
-
+#if defined(INET6) && defined(AEI_VDSL_CUSTOMER_NCS)
+       {
+          int        i;
+          option_t   *op;
+          char       *cmd[] = {"+ipv6"};
       /* Enable ipv6cp by default */
 
-      privileged_option = privileged;
-      option_source     = "command line";
-      option_priority   = OPRIO_CMDLINE;
+          privileged_option = privileged;
+          option_source     = "command line";
+          option_priority   = OPRIO_CMDLINE;
 
-      for (i = 0; i < 1; i++)
-      {
-         op = find_option(cmd[i]);
-         if (op == NULL)
-         {
-            option_error("Unrecognized option '%s'", cmd[i]);
-            return 0;
-         }
-         if (!process_option(op, cmd[i], NULL))
-         {
-            fprintf(stderr, "Failed to process option '%s'", cmd[i]);
-            return 0;
-         }
-      }
-   }
+          for (i = 0; i < 1; i++)
+          {
+             op = find_option(cmd[i]);
+             if (op == NULL)
+             {
+                option_error("Unrecognized option '%s'", cmd[i]);
+	             return 0;
+	          }
+             if (!process_option(op, cmd[i], NULL))
+             {
+                fprintf(stderr, "Failed to process option '%s'", cmd[i]);
+                return 0;
+             }
+          }
+       }
 #endif
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-    while ((opt = getopt(argc, argv, "s:xda:i:ku:n:p:P:o:lc:m:f:r:RA:t:T:CM:hD:")) != -1) 
+    while ((opt = getopt(argc, argv, "s:xda:i:ku:n:p:P:o:lc:m:f:r:RA:t:T:CM:hD:")) != -1) {
 #else
-    while ((opt = getopt(argc, argv, "s:xda:i:ku:p:o:lc:m:f:r:RA:t:T:C")) != -1) 
+#ifdef INET6
+    while ((opt = getopt(argc, argv, "64s:xda:i:ku:p:o:lc:m:f:r:RA:t:T:C")) != -1) {
+#else
+    while ((opt = getopt(argc, argv, "s:xda:i:ku:p:o:lc:m:f:r:RA:t:T:C")) != -1) {
 #endif
-    {
-	    switch (opt) {
+#endif
+	switch (opt) {
+#ifdef INET6
+#ifndef AEI_VDSL_CUSTOMER_NCS
+       case '6':
+	   	{
+		   int        i;
+          option_t   *op;
+          char       *cmd[] = {"+ipv6"};
+      /* Enable ipv6cp by default */
+
+          privileged_option = privileged;
+          option_source     = "command line";
+          option_priority   = OPRIO_CMDLINE;
+
+          for (i = 0; i < 1; i++)
+          {
+             op = find_option(cmd[i]);
+             if (op == NULL)
+             {
+                option_error("Unrecognized option '%s'", cmd[i]);
+	             return 0;
+	          }
+             if (!process_option(op, cmd[i], NULL))
+             {
+                fprintf(stderr, "Failed to process option '%s'", cmd[i]);
+                return 0;
+             }
+          }
+		  break;
+       	}
+#endif
+       case '4':
+       {
+          int        i;
+          option_t   *op;
+          char       *cmd[] = {"noip"};
+
+          privileged_option = privileged;
+          option_source     = "command line";
+          option_priority   = OPRIO_CMDLINE;
+
+          for (i = 0; i < 1; i++)
+          {
+             op = find_option(cmd[i]);
+             if (op == NULL)
+             {
+                option_error("Unrecognized option '%s'", cmd[i]);
+	             return 0;
+	          }
+             if (!process_option(op, cmd[i], NULL))
+             {
+                fprintf(stderr, "Failed to process option '%s'", cmd[i]);
+                return 0;
+             }
+          }
+          break;
+       }
+#endif
 	    case 's':
 		    autoscan = 1;
 		    auth_required = 0;
@@ -415,11 +475,11 @@ parse_args(argc, argv)
                 {
                     strncpy(user, strtmp, MAXNAMELEN);
                     strncpy(our_name, strtmp, MAXNAMELEN);
-                }    
-#else            
-                strncpy(user, optarg, MAXNAMELEN);
-                strncpy(our_name, optarg, MAXNAMELEN);
-#endif			
+                }
+#else
+		    strncpy(user, optarg, MAXNAMELEN);
+		    strncpy(our_name, optarg, MAXNAMELEN);
+#endif
 		    break;
 	    case 'p':
 #if defined(AEI_VDSL_CUSTOMER_NCS)
@@ -435,10 +495,10 @@ parse_args(argc, argv)
                 else
                 {
                     strncpy(passwd, strtmp, MAXSECRETLEN);
-                }    
-#else                
-                strncpy(passwd, optarg, MAXSECRETLEN);
-#endif		
+                }
+#else
+		    strncpy(passwd, optarg, MAXSECRETLEN);
+#endif
 		    break;
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
             case 'P':
@@ -454,10 +514,10 @@ parse_args(argc, argv)
                 else
                 {
                     strncpy(PAPpasswd, strtmp, MAXSECRETLEN);
-                }    
-              
+                }
+
                 break;
-#endif	
+#endif
 	    case 'o':
 		    idle_time_limit = atoi(optarg);
 		    demand=1;
@@ -498,21 +558,21 @@ parse_args(argc, argv)
 		    console=1;
 		    break;
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-            case 'h':
-                    demand = 1;
-                    break;
+        case 'h':
+            demand = 1;
+            break;
         case 'n':
             strncpy(pppoe_ac_name, optarg, MAXACNAMELEN);
-            break;  
-	   case 'M':
-	   	   lcp_allowoptions[0].neg_mru = 1;
-	   	   lcp_allowoptions[0].mru = atoi(optarg);
-		   break;
+            break;
+       case 'M':
+            lcp_allowoptions[0].neg_mru = 1;
+            lcp_allowoptions[0].mru = atoi(optarg);
+            break;
         case 'D':
             maxconnect = atoi(optarg);
-            break;		   
-#endif			
-			
+            break;
+#endif
+
 	    default:
 //#ifdef INET6
 //		    fprintf(stderr, "usage: %s [-6] [-s] [-b] [-d] [-i interface] [-a vcc]  [-u username] [-p passwd] [-o idle] [-m prevmac/prevsid] [-A ipaddr]\n", argv[0]);
@@ -753,7 +813,6 @@ match_option(name, opt, dowild)
     option_t *opt;
     int dowild;
 {
-
 	int (*match) __P((char *, char **, int));
 
 	if (dowild != (opt->type == o_wild))

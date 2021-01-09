@@ -1,25 +1,28 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
-
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the “GPL?, available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
-
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+   <:label-BRCM:2012:DUAL/GPL:standard
+   
+   Unless you and Broadcom execute a separate written software license
+   agreement governing use of this software, this software is licensed
+   to you under the terms of the GNU General Public License version 2
+   (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+   with the following added to such license:
+   
+      As a special exception, the copyright holders of this software give
+      you permission to link this software with independent modules, and
+      to copy and distribute the resulting executable under terms of your
+      choice, provided that you also meet, for each linked independent
+      module, the terms and conditions of the license of that module.
+      An independent module is a module which is not derived from this
+      software.  The special exception does not apply to any modifications
+      of the software.
+   
+   Not withstanding the above, under no circumstances may you combine
+   this software in any way with any other Broadcom software provided
+   under a license other than the GPL, without Broadcom's express prior
+   written consent.
+   
+:>
 */                       
 
 /***************************************************************************
@@ -34,7 +37,7 @@
 #include "lib_types.h"
 #include "lib_printf.h"
 #include "lib_string.h"
-#include "bcm_map.h"  
+#include "bcm_map_part.h"  
 #define printk  printf
 #else // Linux
 #include <linux/kernel.h>
@@ -117,11 +120,16 @@ static void display_flash_info(int ret, flash_device_info_t *flash_info)
             flash_info->flash_device_name, flash_info->flash_device_id);
 #if (INC_SPI_PROG_NAND==1)
         printk(" block %dKB", flash_info->fn_flash_get_sector_size(0) / 1024);
-        printk(" size %dKB", (*flash_info->fn_flash_get_total_size) () / 1024);
+        printk(" size %luKB", (unsigned long )
+            flash_info->fn_flash_get_total_size() / 1024);
 #else
         if (flash_info->flash_type == FLASH_IFC_NAND)
             printk(" block %dKB", flash_get_sector_size(0) / 1024);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
         printk(" size %dKB", flash_get_total_size() / 1024);
+#else
+        printk(" size %luKB", flash_get_total_size() / 1024);
+#endif
 #endif
         printk("\n");
     }
@@ -144,9 +152,9 @@ int flash_init(void)
 #endif
 
     /* If available, use bootstrap to decide which flash to use */
-#if defined(_BCM96816_) || defined(CONFIG_BCM96816) || defined(_BCM96368_) || defined(CONFIG_BCM96368)
+#if defined(_BCM96816_) || defined(CONFIG_BCM96816) || defined(_BCM96818_) || defined(CONFIG_BCM96818) || defined(_BCM96368_) || defined(CONFIG_BCM96368)
     unsigned int bootsel;
-#if defined(_BCM96816_) || defined(CONFIG_BCM96816)
+#if defined(_BCM96816_) || defined(CONFIG_BCM96816) || defined(_BCM96818_) || defined(CONFIG_BCM96818)
     bootsel = MISC->miscStrapBus;
 #elif defined(_BCM96368_) || defined(CONFIG_BCM96368)
     bootsel = GPIO->StrapBus;
@@ -165,7 +173,13 @@ int flash_init(void)
         break;
 
     }
-#elif defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM96328_) || defined(CONFIG_BCM96328) || defined(_BCM963268_) || defined(CONFIG_BCM963268) 
+
+#if (INC_NAND_FLASH_DRIVER == 1) && (defined(_BCM96818_) || defined(CONFIG_BCM96818))
+    // Useful in 6818GR chips.
+    type = FLASH_IFC_NAND;
+#endif
+    
+#elif defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM96328_) || defined(CONFIG_BCM96328) || defined(_BCM963268_) || defined(CONFIG_BCM963268) || defined(_BCM96828_) || defined(CONFIG_BCM96828) 
     if( ((MISC->miscStrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
         MISC_STRAP_BUS_BOOT_SEL_SHIFT) ==  MISC_STRAP_BUS_BOOT_SERIAL )
         type = FLASH_IFC_SPI;
@@ -304,12 +318,49 @@ int flash_get_blk(int addr)
  * Description  : Returns the number of bytes in the flash device.
  * Returns      : Number of bytes in the flash device.
  ***************************************************************************/
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 int flash_get_total_size(void)
+#else
+unsigned long flash_get_total_size(void)
+#endif
 {
+#if defined(AEI_VDSL_CUSTOMER_NCS)
     return( (g_flash_info)
         ? (*g_flash_info->fn_flash_get_total_size) ()
         : FLASH_API_ERROR );
+#else
+    return( (g_flash_info)
+        ? (unsigned long) (*g_flash_info->fn_flash_get_total_size) ()
+        : FLASH_API_ERROR );
+#endif
 } /* flash_get_total_size */
+
+#ifdef AEI_NAND_IMG_CHECK
+/***************************************************************************
+ * Function Name: flash_write_buf_crc
+ * Description  : Writes to flash memory with page crc.
+ * Returns      : number of bytes written or FLASH_API_ERROR
+ ***************************************************************************/
+int flash_write_buf_crc(unsigned short sector, int offset, unsigned char *buffer,
+    int numbytes)
+{
+    return( (g_flash_info)
+        ? (*g_flash_info->fn_flash_write_buf_crc) (sector, offset, buffer, numbytes)
+        : FLASH_API_ERROR );
+} /* flash_write_buf */
+
+/***************************************************************************
+ * Function Name: fn_flash_nand_img_check
+ * Description  : Returns the status of image integrity.
+ * Returns      : 1 - no error, -1 - error in crc check.
+ ***************************************************************************/
+int flash_nand_img_check(unsigned short s_sector, unsigned short e_sector)
+{
+    return( (g_flash_info && g_flash_info->fn_flash_nand_img_check)
+        ? (*g_flash_info->fn_flash_nand_img_check) (s_sector, e_sector)
+        : 0 );
+} /* flash_get_memptr */
+#endif
 
 /***************************************************************************
  * Function Name: flash_get_flash_type
@@ -346,4 +397,11 @@ void flash_change_flash_type(int type)
 } /* flash_change_flash_type */
 
 #endif
-
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+int AEI_flash_get_flash_id(void)
+{
+  return( (g_flash_info)
+        ? (g_flash_info->flash_device_id)
+        : FLASH_API_ERROR );
+}
+#endif

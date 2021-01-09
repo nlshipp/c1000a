@@ -6,7 +6,12 @@ extra-y		:= head.o init_task.o vmlinux.lds
 
 obj-y		+= cpu-probe.o branch.o entry.o genex.o irq.o process.o \
 		   ptrace.o reset.o setup.o signal.o syscall.o \
-		   time.o topology.o traps.o unaligned.o watch.o
+		   time.o topology.o traps.o unaligned.o watch.o \
+		   backtrace.o
+
+# CONFIG_MIPS_BRCM && BCM_KF_TSTAMP Begin Broadcom changed code
+obj-y		+= bcm_tstamp.o
+# CONFIG_MIPS_BRCM && BCM_KF_TSTAMP End Broadcom changed code
 
 ifdef CONFIG_FUNCTION_TRACER
 CFLAGS_REMOVE_ftrace.o = -pg

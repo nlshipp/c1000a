@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2007 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+<:copyright-BRCM:2011:DUAL/GPL:standard
+
+   Copyright (c) 2011 Broadcom Corporation
+   All Rights Reserved
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 /**************************************************************************
@@ -199,6 +209,7 @@ static int constructPtmBondHdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioI
    volatile UINT32       *pulCurrWtPortDistRunIndex   = &pBondInfo->ulCurrWtPortDistRunIndex ;
    volatile UINT32       *pulCurrWtTotalIterationsBeforeReset   = &pBondInfo->ulCurrWtTotalIterationsBeforeReset ;
    UINT8                 portCount ;
+	int					    reloadCount ;
 
    fragNo = 0 ;
    len += ETH_FCS_LEN ;    /* Original Packet Len + 4 bytes of Eth FCS Len */
@@ -212,6 +223,7 @@ static int constructPtmBondHdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioI
       pPtmHeader->sVal.FragSize = fragLen ;
 
 #ifndef PTMBOND_US_PRIO_TRAFFIC_SPLIT
+		reloadCount = 0 ;
       do {
          for (i = 0; i< MAX_BOND_PORTS; i++) {
 
@@ -249,6 +261,13 @@ static int constructPtmBondHdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioI
             break ;
          }
          else {/* No port selection happened  for this fragment, reload the weights with unused credits */
+            reloadCount ++;
+            /* reload the weights more than one time, CPE does not have enought bandwidth. */
+            if (reloadCount > 1) { 
+               //printk (CARDNAME " constructPtmBondHdr: does not have enough uplink bandwidth. \n") ;             
+               return 0 ;
+            }
+
             pulLinkWts[0] += pBondInfo->ulConfLinkUsWt[0] ;
             pulLinkWts[1] += pBondInfo->ulConfLinkUsWt[1] ;
          }
@@ -271,11 +290,11 @@ static int constructPtmBondHdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioI
  *                it.
  * Returns      : None.
  ***************************************************************************/
-void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx,
+int bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx,
                                pNBuff_t *ppNBuff, struct sk_buff **ppNBuffSkb, 
                                UINT8 **ppData, int *pLen)
 {
-   int                   frags ;
+   int                   frags = 0 ;
    XtmRtPtmTxBondHeader  *pPtmBondHdr ;
    int                   headroom ;
    int                   len ;
@@ -305,14 +324,15 @@ void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioId
       if (headroom >= minheadroom) {
          frags = constructPtmBondHdr (pDevCtx, ulPtmPrioIdx, len) ;
 
-         PMON_US_LOG(2) ;
-
-         *ppData = fkb_push (fkb, minheadroom) ;
-         *pLen   = len + minheadroom ;
-         pPtmBondHdr = (XtmRtPtmTxBondHeader *) *ppData ;
-         PMON_US_LOG(3) ;
-         u16cpy (pPtmBondHdr, pPtmSrcBondHdr, sizeof (XtmRtPtmTxBondHeader) * frags) ;
-         PMON_US_LOG(4) ;
+			if (frags != 0) {
+				PMON_US_LOG(2) ;
+				*ppData = fkb_push (fkb, minheadroom) ;
+				*pLen   = len + minheadroom ;
+				pPtmBondHdr = (XtmRtPtmTxBondHeader *) *ppData ;
+				PMON_US_LOG(3) ;
+				bond_memcpy (pPtmBondHdr, pPtmSrcBondHdr, sizeof (XtmRtPtmTxBondHeader) * frags) ;
+				PMON_US_LOG(4) ;
+			}
       }
       else
          printk(CARDNAME "bcmxtmrt_xmit: FKB not enough headroom.\n") ;
@@ -337,14 +357,15 @@ void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioId
       if( skb ) {
          frags = constructPtmBondHdr (pDevCtx, ulPtmPrioIdx, len) ;
 
-         PMON_US_LOG(2) ;
-
-         *ppData = skb_push (skb, minheadroom) ;
-         *pLen   = len + minheadroom ;
-         pPtmBondHdr = (XtmRtPtmTxBondHeader *) *ppData ;
-         PMON_US_LOG(3) ;
-         u16cpy (pPtmBondHdr, pPtmSrcBondHdr, sizeof (XtmRtPtmTxBondHeader) * frags) ;
-         PMON_US_LOG(4) ;
+			if (frags != 0) {
+				PMON_US_LOG(2) ;
+				*ppData = skb_push (skb, minheadroom) ;
+				*pLen   = len + minheadroom ;
+				pPtmBondHdr = (XtmRtPtmTxBondHeader *) *ppData ;
+				PMON_US_LOG(3) ;
+				u16cpy (pPtmBondHdr, pPtmSrcBondHdr, sizeof (XtmRtPtmTxBondHeader) * frags) ;
+				PMON_US_LOG(4) ;
+			}
       }
 
       *ppNBuffSkb = skb ;
@@ -354,6 +375,7 @@ void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioId
    PMON_US_LOG(5) ;
    PMON_US_END(5) ;
 
+   return frags ;
 } /* bcmxtmrt_ptmbond_add_hdr */
 
 
@@ -534,6 +556,7 @@ static void bond_fkb_free (FkBuff_t *fkb, int flushLen, UINT16 rxdmaIndex)
 static void bcmxtmrt_ptmbond_rx_send (XtmRtPtmBondInfo *pBondInfo, XtmRtPtmBondRxQInfo *inBuf,
                                      int flags)
 {
+   int ret ;
    FkBuff_t       *fkb_frag = inBuf->rxFkb ;
    FkBuff_t       *processFkb ;
    XtmRtPtmBondRxQInfo  *fwd = &pBondInfo->fwd [PTMBOND_FWD_BUF_INDEX] ;
@@ -551,6 +574,8 @@ static void bcmxtmrt_ptmbond_rx_send (XtmRtPtmBondInfo *pBondInfo, XtmRtPtmBondR
          FkBuff_t *rxFkb ;
 
          rxFkb = fwd->rxFkb ;
+
+         //if ((rxFkb->len+fkb_frag->len) > (MAX_MTU_SIZE+ENABLED --todo
 #ifdef NOT_NEEDED
          if (unlikely(fkb_tailroom(rxFkb) < fkb_frag->len)) {
             processFkb = fkb_copy_expand(rxFkb, 0, fkb_frag->len, GFP_ATOMIC);
@@ -588,7 +613,9 @@ static void bcmxtmrt_ptmbond_rx_send (XtmRtPtmBondInfo *pBondInfo, XtmRtPtmBondR
    } /* fkb_frag */
   
    /* when packet is complete, send it */
-   if ((fwd->valid == TRUE) && (flags & XTMRT_PTM_BOND_FRAG_HDR_EOP)) {
+   if (fwd->valid == TRUE) {
+
+      if (flags & XTMRT_PTM_BOND_FRAG_HDR_EOP) {
       processFkb = fwd->rxFkb ;
       //__fkb_trim(processFkb, processFkb->len-ETH_FCS_LEN) ; /* remove FCS */
       processFkb->len -= ETH_FCS_LEN ;
@@ -600,14 +627,26 @@ static void bcmxtmrt_ptmbond_rx_send (XtmRtPtmBondInfo *pBondInfo, XtmRtPtmBondR
       cache_flush_len (processFkb->data-XTMRT_PTM_BOND_FRAG_HDR_SIZE, 8) ;
       fwd->valid = FALSE ;
       spin_lock_bh (&pGi->xtmlock_rx) ;
-      if (bcmxtmrt_process_rx_pkt (fwd->pDevCtx, pGi->rxdma[fwd->rxdmaIndex], processFkb, fwd->rxFkbStatus,
-                                   XTMRT_PTM_BOND_FRAG_HDR_SIZE, 4) == PACKET_BLOG)
+         if ((ret = bcmxtmrt_process_rx_pkt (fwd->pDevCtx, pGi->rxdma[fwd->rxdmaIndex], processFkb,
+                                   fwd->rxFkbStatus, XTMRT_PTM_BOND_FRAG_HDR_SIZE, 4, TRUE)) == PACKET_BLOG)
          pBondInfo->bStats.rxp++;
+         else {
+            if (ret == PACKET_NORMAL)
+                pBondInfo->bStats.rxpl++;
       else
-         pBondInfo->bStats.rxpl++;
+                pBondInfo->bStats.rxd++;
+         }
+
       //printk("rx forward frame count fc=%d l=%d\n", pBondInfo->bStats.rxp, pBondInfo->bStats.rxpl) ;
       pBondInfo->bStats.rxo += processFkb->len ;
    }
+      else if (flags & XTMRT_PTM_BOND_FRAG_HDR_EOP_DROP) {
+         processFkb = fwd->rxFkb ;
+         bond_fkb_free (processFkb, processFkb->len, fwd->rxdmaIndex) ;
+         fwd->valid = FALSE ;
+         flags = XTMRT_PTM_BOND_FRAG_HDR_EOP ;
+      }
+   } /* if (fwd->valid == TRUE) */
 
    pBondInfo->lastRxFlags = flags;
 }
@@ -640,7 +679,7 @@ static int bcmxtmrt_ptmbond_rx_send_expected_fragment (XtmRtPtmBondInfo *pBondIn
       XTMRT_BOND_LOG0("E-sop\n") ;
       /* abort previous frame and continue with this new one */
       inBuf->rxFkb = NULL ;
-      bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf, XTMRT_PTM_BOND_FRAG_HDR_EOP);
+		bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf, XTMRT_PTM_BOND_FRAG_HDR_EOP_DROP);
       inBuf->rxFkb = fkb ;
    }
       
@@ -718,7 +757,7 @@ static int bcmxtmrt_ptmbond_rx_resync (XtmRtPtmBondInfo *pBondInfo, int type, in
            //pBondInfo->expectedSeqNum);
       XTMRT_BOND_LOG0("E-end %d\n", pBondInfo->expectedSeqNum);
       inBuf2->rxFkb = NULL ;
-      bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf2, XTMRT_PTM_BOND_FRAG_HDR_EOP);
+		bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf2, XTMRT_PTM_BOND_FRAG_HDR_EOP_DROP);
       pBondInfo->bStats.end ++;
    }
 
@@ -773,6 +812,8 @@ static int bcmxtmrt_ptmbond_rx_resync (XtmRtPtmBondInfo *pBondInfo, int type, in
       pBondInfo->bStats.dro += discardedPackets;
    else if (type & RESYNC_OVERFLOW)
       pBondInfo->bStats.bqo += discardedPackets;
+	else if (type & RESYNC_MISSING)
+		pBondInfo->bStats.mfd += discardedPackets;
    else 
       pBondInfo->bStats.stp += discardedPackets;
 
@@ -978,6 +1019,16 @@ _skip1 :
             XTMRT_BOND_LOG0("buffer queue overrun\n");
             result =  bcmxtmrt_ptmbond_rx_resync (pBondInfo, RESYNC_OVERFLOW, 0) ;
          }
+         else if (delta >= inBuf->pDevCtx->ulDsSeqDeviation) {
+            PBCMXTMRT_DEV_CONTEXT pDevCtx ;
+
+            pDevCtx = inBuf->pDevCtx ;
+				XTMRT_BOND_LOG0("missing fragment\n") ;
+				result =  bcmxtmrt_ptmbond_rx_resync (pBondInfo, RESYNC_MISSING, 0) ;
+            pDevCtx->ulDsSeqDeviation += 2 ;
+            if (pDevCtx->ulDsSeqDeviation > pDevCtx->ulDsOrigSeqDeviation)
+               pDevCtx->ulDsSeqDeviation = pDevCtx->ulDsOrigSeqDeviation ;
+         }
       } /* else store the fragment */
    } /* !result */
    else {
@@ -1071,13 +1122,20 @@ static inline void bcmxtmrt_ptmbond_del_link(XtmRtPtmBondInfo *pBondInfo, int po
  * Description  : Performs some periodic checks/update
  * Returns      : None
  ***************************************************************************/
-void bcmxtmrt_ptmbond_tick (XtmRtPtmBondInfo *pBondInfo, int timeCheck)
+void bcmxtmrt_ptmbond_tick (PBCMXTMRT_DEV_CONTEXT pDevCtx, XtmRtPtmBondInfo *pBondInfo, int timeCheck)
 {
    unsigned long oldest_frag = jiffies-RX_SEQ_TIMEOUT;
+	unsigned long missing_frag  = jiffies-RX_MISSING_TIMEOUT ;
    XtmRtPtmBondRxQInfo  *inBuf2 = &pBondInfo->fwd [PTMBOND_SCRATCHPAD_BUF_INDEX2] ;
    
    /* detect seq time out.
     * Either there are pending fragments (or) we are waiting for an EOP */
+
+   if ((pBondInfo->rxMissingFrag != 0) && time_after(missing_frag, pBondInfo->rxMissingFrag)) {
+      pDevCtx->ulDsSeqDeviation = pDevCtx->ulDsOrigSeqDeviation ;
+      pBondInfo->rxMissingFrag = 0 ;
+   }
+
    if (!timeCheck || time_after(oldest_frag, pBondInfo->rxLastFrag)) {
 
       if (pBondInfo->rxFragQueued) {
@@ -1092,7 +1150,7 @@ void bcmxtmrt_ptmbond_tick (XtmRtPtmBondInfo *pBondInfo, int timeCheck)
          //pBondInfo->expectedSeqNum);
          XTMRT_BOND_LOG0("E-end %d\n", pBondInfo->expectedSeqNum) ;
          inBuf2->rxFkb = NULL ;
-         bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf2, XTMRT_PTM_BOND_FRAG_HDR_EOP) ;
+         bcmxtmrt_ptmbond_rx_send (pBondInfo, inBuf2, XTMRT_PTM_BOND_FRAG_HDR_EOP_DROP) ;
          pBondInfo->bStats.end ++ ;
       }
    } /* (time_after (last frag) */
@@ -1174,16 +1232,17 @@ void bcmxtmrt_ptm_receive_and_drop (PBCMXTMRT_DEV_CONTEXT pDevCtx, FkBuff_t *fkb
  *                down will need to be handled for the ReSync operation.
  * Returns      : 0 on success
  ***************************************************************************/
-void bcmxtmrt_ptmbond_handle_port_status_change (XtmRtPtmBondInfo *pBondInfo,
-                                                 UINT32 ulLinkState, UINT32 ulPortMask)
+void bcmxtmrt_ptmbond_handle_port_status_change (PBCMXTMRT_DEV_CONTEXT pDevCtx, XtmRtPtmBondInfo *pBondInfo,
+                                                 UINT32 ulLinkState, UINT32 dmaSize)
 {
 #ifndef PTMBOND_DS_UNI_CHANNEL
    int port;
+   volatile UINT32 *pulPortMask = &pDevCtx->ulPortDataMask ;
 #endif
    int delport ;
 
    /* on link down we just remove all links associated with slave from the list */
-   if (ulLinkState != LINK_UP) {
+	if (ulLinkState == LINK_DOWN) {
 #ifndef PTMBOND_DS_UNI_CHANNEL
       for (port=0; port<MAX_BOND_PORTS; port++) {
          if (!(ulPortMask & (0x1 << port))) {
@@ -1198,6 +1257,11 @@ void bcmxtmrt_ptmbond_handle_port_status_change (XtmRtPtmBondInfo *pBondInfo,
       bcmxtmrt_ptmbond_del_link (pBondInfo, delport) ;
 #endif
    } /* if (linkstate == down) */
+
+   if (ulLinkState != LINK_UP) {
+      pDevCtx->ulDsSeqDeviation = pBondInfo->rxDsReducedDeviation ;
+      pBondInfo->rxMissingFrag = jiffies ;
+   }
 }
 
 /***************************************************************************
@@ -1227,6 +1291,7 @@ int ProcRxBondCtrs (char *page, char **start, off_t off, int cnt,
        sz += sprintf(page + sz, "Rx Forwarded Octets              : %lu \n", (long unsigned int) pBondInfo->bStats.rxo) ;
        sz += sprintf(page + sz, "Rx Forwarded Packets             : %lu \n", (long unsigned int) pBondInfo->bStats.rxp) ;
        sz += sprintf(page + sz, "Rx Forwarded Packets (NonAccel)  : %lu \n", (long unsigned int) pBondInfo->bStats.rxpl) ;
+       sz += sprintf(page + sz, "Rx Dropped Packets (NonAccel)    : %lu \n", (long unsigned int) pBondInfo->bStats.rxd) ;
        sz += sprintf(page + sz, "Rx Old Seq Nums Rcvd (Past)      : %lu \n", (long unsigned int) pBondInfo->bStats.old) ;
        sz += sprintf(page + sz, "Rx duplicated Seq Rcvd           : %lu \n", (long unsigned int) pBondInfo->bStats.dup) ;
        sz += sprintf(page + sz, "Rx Out Of Sync Fragments Rcvd    : %lu \n", (long unsigned int) pBondInfo->bStats.oos) ;
@@ -1236,6 +1301,7 @@ int ProcRxBondCtrs (char *page, char **start, off_t off, int cnt,
        sz += sprintf(page + sz, "Rx Exp Seq Number Skip           : %lu \n", (long unsigned int) pBondInfo->bStats.ess) ;
        sz += sprintf(page + sz, "Rx Artificially Ended Pkts       : %lu \n", (long unsigned int) pBondInfo->bStats.end) ;
        sz += sprintf(page + sz, "Rx Drop due to Flush/Buf Q ORun  : %lu \n", (long unsigned int) pBondInfo->bStats.bqo) ;
+       sz += sprintf(page + sz, "Rx Drop due to Missing Fragment  : %lu \n", (long unsigned int) pBondInfo->bStats.mfd) ;
        sz += sprintf(page + sz, "Rx Drop due to Startup syncing   : %lu \n", (long unsigned int) pBondInfo->bStats.stp) ;
        sz += sprintf(page + sz, "Rx Drop due to Flush             : %lu \n", (long unsigned int) pBondInfo->bStats.flu) ;
        sz += sprintf(page + sz, "Rx Drop due to Exp Seq Num TmOut : %lu \n", (long unsigned int) pBondInfo->bStats.tim) ;
@@ -1450,6 +1516,8 @@ void bcmxtmrt_ptmbond_initialize (int globalInit)
       PMON_DS_REG(2, "XTMBOND: Rx Fragment Processing Get Seq Info") ;
       PMON_DS_REG(3, "XTMBOND: Rx Fragment Processing exp/non-exp") ;
       PMON_DS_REG(4, "XTMBOND: Rx Fragment Processing Drop Logic due to error") ;
+      pGi->noOfNonAccelPktsDSInSec = 0 ;
+      pGi->ptmBondInfo.rxDsReducedDeviation = XTM_DEF_REDUCED_MISSING_DS_MAX_DEVIATION ;
    }
 
    pGi->ptmBondInfo.expectedSeqNum = -1 ;

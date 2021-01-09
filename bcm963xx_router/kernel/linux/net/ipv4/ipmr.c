@@ -67,12 +67,6 @@
 #define CONFIG_IP_PIMSM	1
 #endif
 
-#if 0
-#if defined(CONFIG_MIPS_BRCM)
-#include <linux/blog.h>
-#endif
-#endif
-
 /* Big lock, protecting vif table, mrt cache and mroute socket state.
    Note that the changes are semaphored via rtnl_lock.
  */
@@ -412,26 +406,14 @@ out:
 
 /* Fill oifs list. It is called under write locked mrt_lock. */
 
-#if defined(CONFIG_MIPS_BRCM)	
-static void ipmr_update_thresholds(struct mfc_cache *cache, unsigned char *ttls, int is_new)
-#else
 static void ipmr_update_thresholds(struct mfc_cache *cache, unsigned char *ttls)
-#endif
 {
 	int vifi;
 	struct net *net = mfc_net(cache);
 
-#if defined(CONFIG_MIPS_BRCM)	
-    if(is_new) {
-	    cache->mfc_un.res.minvif = MAXVIFS;
-	    cache->mfc_un.res.maxvif = 0;
-	    memset(cache->mfc_un.res.ttls, 255, MAXVIFS);
-    }
-#else
 	cache->mfc_un.res.minvif = MAXVIFS;
 	cache->mfc_un.res.maxvif = 0;
 	memset(cache->mfc_un.res.ttls, 255, MAXVIFS);
-#endif
 
 	for (vifi = 0; vifi < net->ipv4.maxvif; vifi++) {
 		if (VIF_EXISTS(net, vifi) &&
@@ -490,6 +472,12 @@ static int vif_add(struct net *net, struct vifctl *vifc, int mrtsock)
 		break;
 	case 0:
 		dev = ip_dev_find(net, vifc->vifc_lcl_addr.s_addr);
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+                if (!dev)
+                {
+                        dev = __dev_get_by_index(net, vifc->vifc_vifi);
+                }
+#endif
 		if (!dev)
 			return -EADDRNOTAVAIL;
 		err = dev_set_allmulti(dev, 1);
@@ -544,21 +532,27 @@ static struct mfc_cache *ipmr_cache_find(struct net *net,
                                          __be32 mcastgrp,
                                          unsigned int ifindex)
 {
-	int line =MFC_HASH(mcastgrp, origin, ifindex);
+	int line = MFC_HASH(mcastgrp, origin);
 	struct mfc_cache *c;
 
 	for (c = net->ipv4.mfc_cache_array[line]; c; c = c->next) {
-		if (c->mfc_origin == origin && c->mfc_mcastgrp == mcastgrp)
-			break;
+		if ((c->mfc_origin == origin) && 
+		    (c->mfc_mcastgrp == mcastgrp) &&
+		    (c->mfc_parent == ifindex))
+		break;
 	}
 
-        if(c == NULL) {
-            line = MFC_HASH(mcastgrp, htonl(0x00000000), ifindex);
-            for (c = net->ipv4.mfc_cache_array[line]; c; c = c->next) {
-		if ( c->mfc_mcastgrp == mcastgrp)
+	/* for ASM multicast source does not matter so need to check
+	   for an entry with NULL origin */
+	if(c == NULL) {
+		line = MFC_HASH(mcastgrp, 0x0);
+		for (c = net->ipv4.mfc_cache_array[line]; c; c = c->next) {
+			if ((c->mfc_origin == 0x0) && 
+			    (c->mfc_mcastgrp == mcastgrp) &&
+			    (c->mfc_parent == ifindex))
 			break;
-            }
-        }
+		}
+	}
 	return c;
 }
 #else
@@ -811,25 +805,22 @@ static int ipmr_mfc_delete(struct net *net, struct mfcctl *mfc)
 	int line;
 	struct mfc_cache *c, **cp;
 
-#if defined(CONFIG_MIPS_BRCM)	
-	line=MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr,mfc->mfcc_parent);
-#else	
-	line=MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr);
-#endif	
+	line = MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr);
 
 	for (cp = &net->ipv4.mfc_cache_array[line];
 	     (c = *cp) != NULL; cp = &c->next) {
+#if defined(CONFIG_MIPS_BRCM)
+		if ((c->mfc_origin == mfc->mfcc_origin.s_addr) &&
+		    (c->mfc_mcastgrp == mfc->mfcc_mcastgrp.s_addr) &&
+		    (c->mfc_parent == mfc->mfcc_parent)) {
+#else
 		if (c->mfc_origin == mfc->mfcc_origin.s_addr &&
 		    c->mfc_mcastgrp == mfc->mfcc_mcastgrp.s_addr) {
+#endif
 			write_lock_bh(&mrt_lock);
 			*cp = c->next;
 			write_unlock_bh(&mrt_lock);
-#if 0
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-			blog_notify(MCAST_CONTROL_EVT, (void*)c,
-						BLOG_PARAM1_MCAST_DEL, BLOG_PARAM2_MCAST_IPV4);
-#endif
-#endif
+
 			ipmr_cache_free(c);
 			return 0;
 		}
@@ -842,27 +833,25 @@ static int ipmr_mfc_add(struct net *net, struct mfcctl *mfc, int mrtsock)
 	int line;
 	struct mfc_cache *uc, *c, **cp;
 
-#if defined(CONFIG_MIPS_BRCM)	
-	line=MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr,mfc->mfcc_parent);
-#else	
-	line=MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr);
-#endif	
+	line = MFC_HASH(mfc->mfcc_mcastgrp.s_addr, mfc->mfcc_origin.s_addr);
 
 	for (cp = &net->ipv4.mfc_cache_array[line];
 	     (c = *cp) != NULL; cp = &c->next) {
+#if defined(CONFIG_MIPS_BRCM)
+		if ((c->mfc_origin == mfc->mfcc_origin.s_addr) &&
+		    (c->mfc_mcastgrp == mfc->mfcc_mcastgrp.s_addr) &&
+		    (c->mfc_parent == mfc->mfcc_parent))
+#else
 		if (c->mfc_origin == mfc->mfcc_origin.s_addr &&
 		    c->mfc_mcastgrp == mfc->mfcc_mcastgrp.s_addr)
+#endif
 			break;
 	}
 
 	if (c != NULL) {
 		write_lock_bh(&mrt_lock);
 		c->mfc_parent = mfc->mfcc_parent;
-#if defined(CONFIG_MIPS_BRCM)	
-		ipmr_update_thresholds(c, mfc->mfcc_ttls, 0);
-#else
 		ipmr_update_thresholds(c, mfc->mfcc_ttls);
-#endif
 		if (!mrtsock)
 			c->mfc_flags |= MFC_STATIC;
 		write_unlock_bh(&mrt_lock);
@@ -879,11 +868,7 @@ static int ipmr_mfc_add(struct net *net, struct mfcctl *mfc, int mrtsock)
 	c->mfc_origin = mfc->mfcc_origin.s_addr;
 	c->mfc_mcastgrp = mfc->mfcc_mcastgrp.s_addr;
 	c->mfc_parent = mfc->mfcc_parent;
-#if defined(CONFIG_MIPS_BRCM)	
-	ipmr_update_thresholds(c, mfc->mfcc_ttls, 1);
-#else
 	ipmr_update_thresholds(c, mfc->mfcc_ttls);
-#endif
 	if (!mrtsock)
 		c->mfc_flags |= MFC_STATIC;
 
@@ -891,13 +876,6 @@ static int ipmr_mfc_add(struct net *net, struct mfcctl *mfc, int mrtsock)
 	c->next = net->ipv4.mfc_cache_array[line];
 	net->ipv4.mfc_cache_array[line] = c;
 	write_unlock_bh(&mrt_lock);
-
-#if 0
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-	blog_notify(MCAST_CONTROL_EVT, (void*)c,
-				BLOG_PARAM1_MCAST_ADD, BLOG_PARAM2_MCAST_IPV4);
-#endif
-#endif
 
 	/*
 	 *	Check to see if we resolved a queued list. If so we
@@ -1174,12 +1152,8 @@ int ipmr_ioctl(struct sock *sk, int cmd, void __user *arg)
 	struct sioc_sg_req sr;
 	struct sioc_vif_req vr;
 	struct vif_device *vif;
-	struct net *net = sock_net(sk);
-#if defined(CONFIG_MIPS_BRCM)	
-	struct mfc_cache *c = NULL;
-#else
 	struct mfc_cache *c;
-#endif	
+	struct net *net = sock_net(sk);
 
 	switch (cmd) {
 	case SIOCGETVIFCNT:
@@ -1207,11 +1181,11 @@ int ipmr_ioctl(struct sock *sk, int cmd, void __user *arg)
 			return -EFAULT;
 
 		read_lock(&mrt_lock);
-#if defined(CONFIG_MIPS_BRCM)			
-		/*c = ipmr_cache_find(net, sr.src.s_addr, sr.grp.s_addr);*/
+#if defined(CONFIG_MIPS_BRCM)
+      c = NULL;
 #else
-                c = ipmr_cache_find(net, sr.src.s_addr, sr.grp.s_addr);
-#endif			
+		c = ipmr_cache_find(net, sr.src.s_addr, sr.grp.s_addr);
+#endif
 		if (c) {
 			sr.pktcnt = c->mfc_un.res.pkt;
 			sr.bytecnt = c->mfc_un.res.bytes;
@@ -1478,7 +1452,12 @@ static int ip_mr_forward(struct sk_buff *skb, struct mfc_cache *cache, int local
 			if (psend != -1) {
 				struct sk_buff *skb2 = skb_clone(skb, GFP_ATOMIC);
 				if (skb2)
+            {
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+					blog_clone(skb, blog_ptr(skb2));
+#endif
 					ipmr_queue_xmit(skb2, cache, psend);
+            }
 			}
 			psend = ct;
 		}
@@ -1543,8 +1522,18 @@ int ip_mr_input(struct sk_buff *skb)
 	}
 
 	read_lock(&mrt_lock);
-#if defined(CONFIG_MIPS_BRCM)	
-	cache = ipmr_cache_find(net, ip_hdr(skb)->saddr, ip_hdr(skb)->daddr, dev->ifindex);
+#if defined(CONFIG_MIPS_BRCM)
+	/* mroute should not apply to IGMP traffic
+	   in addition it does not make sense for TCP protocol to be used
+	   for multicast so just check for UDP */
+	if( ip_hdr(skb)->protocol == IPPROTO_UDP )
+	{
+		cache = ipmr_cache_find(net, ip_hdr(skb)->saddr, ip_hdr(skb)->daddr, dev->ifindex);
+	}
+	else
+	{
+		cache = NULL;
+	}
 #else	
 	cache = ipmr_cache_find(net, ip_hdr(skb)->saddr, ip_hdr(skb)->daddr);
 #endif	
@@ -1582,13 +1571,25 @@ int ip_mr_input(struct sk_buff *skb)
 	read_unlock(&mrt_lock);
 
 	if (local)
+	{
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		/* free blog if present */
+		blog_free(skb);
+#endif
 		return ip_local_deliver(skb);
+	}
 
 	return 0;
 
 dont_forward:
 	if (local)
+	{
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		/* free blog if present */
+		blog_free(skb);
+#endif
 		return ip_local_deliver(skb);
+	}
 	kfree_skb(skb);
 	return 0;
 }
@@ -1738,8 +1739,18 @@ int ipmr_get_route(struct net *net,
 #endif	
 
 	read_lock(&mrt_lock);
-#if defined(CONFIG_MIPS_BRCM)	
-	cache = ipmr_cache_find(net, rt->rt_src, rt->rt_dst, dev->ifindex);
+#if defined(CONFIG_MIPS_BRCM)
+	/* mroute should not apply to IGMP traffic
+      in addition it does not make sense for TCP protocol to be used
+      for multicast so just check for UDP */
+	if( ip_hdr(skb)->protocol == IPPROTO_UDP )
+	{
+		cache = ipmr_cache_find(net, rt->rt_src, rt->rt_dst, dev->ifindex);
+	}
+	else
+	{
+		cache = NULL;
+	}
 #else	
 	cache = ipmr_cache_find(net, rt->rt_src, rt->rt_dst);
 #endif	
@@ -1871,7 +1882,7 @@ static const struct seq_operations ipmr_vif_seq_ops = {
 static int ipmr_vif_open(struct inode *inode, struct file *file)
 {
 	return seq_open_net(inode, file, &ipmr_vif_seq_ops,
-			sizeof(struct ipmr_vif_iter));
+			    sizeof(struct ipmr_vif_iter));
 }
 
 static const struct file_operations ipmr_vif_fops = {
@@ -2008,7 +2019,7 @@ static int ipmr_mfc_seq_show(struct seq_file *seq, void *v)
 			     n < mfc->mfc_un.res.maxvif; n++ ) {
 				if (VIF_EXISTS(net, n) &&
 				    mfc->mfc_un.res.ttls[n] < 255)
-				seq_printf(seq,
+					seq_printf(seq,
 					   " %2d:%-3d",
 					   n, mfc->mfc_un.res.ttls[n]);
 			}
@@ -2033,7 +2044,7 @@ static const struct seq_operations ipmr_mfc_seq_ops = {
 static int ipmr_mfc_open(struct inode *inode, struct file *file)
 {
 	return seq_open_net(inode, file, &ipmr_mfc_seq_ops,
-			sizeof(struct ipmr_mfc_iter));
+			    sizeof(struct ipmr_mfc_iter));
 }
 
 static const struct file_operations ipmr_mfc_fops = {

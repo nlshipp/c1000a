@@ -56,7 +56,7 @@ for q in ${QDISCS}; do
 		ts_tc "cls-testbed" "tree listing" qdisc list dev eth0
 		ts_tc "cls-testbed" "tree class listing" class list dev eth0
 		ts_log "cls-testbed: starting classifier test $c"
-		$c 
+		$c
 
 		case "$q" in
 		*)

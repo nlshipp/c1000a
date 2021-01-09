@@ -153,12 +153,37 @@ void smp_call_function_interrupt(void)
 }
 
 
+#ifdef CONFIG_MIPS_BRCM
+
 // yeah, I know, this won't work if numcpus>2, but its good enough for now
 int other_cpu_stopped=0;
 EXPORT_SYMBOL(other_cpu_stopped);
 
+void stop_other_cpu(void)
+{
+	int count=0;
+	smp_send_stop();
+
+	// make sure the other CPU is really stopped
+	do
+	{
+		udelay(1000);
+		count++;
+		if (count % 4000 == 0)
+		{
+			printk(KERN_WARNING "still waiting for other cpu to stop, "
+			                    "jiffies=%lu\n", jiffies);
+		}
+	} while (!other_cpu_stopped);
+}
+EXPORT_SYMBOL(stop_other_cpu);
+
+#endif /* CONFIG_MIPS_BRCM */
+
+
 static void stop_this_cpu(void *dummy)
 {
+#ifdef CONFIG_MIPS_BRCM
 	printk(KERN_INFO "\nstopping CPU %d\n", smp_processor_id());
 
 	/*
@@ -185,6 +210,16 @@ static void stop_this_cpu(void *dummy)
 	 */
 	for (;;) {
 	}
+#else
+	/*
+	 * Remove this CPU:
+	 */
+	cpu_clear(smp_processor_id(), cpu_online_map);
+	for (;;) {
+		if (cpu_wait)
+			(*cpu_wait)();		/* Wait if available. */
+	}
+#endif /* CONFIG_MIPS_BRCM */
 }
 
 void smp_send_stop(void)

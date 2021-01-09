@@ -208,8 +208,18 @@ struct nfnl_handle *nfnl_open(void)
 
 	printf("set NETLINK_RECV_NO_ENOBUFS\n");
 	unsigned int enable=1;
+#ifdef AEI_COVERITY_FIX
+	if(0 != setsockopt(nfnlh->fd, SOL_NETLINK, NETLINK_NO_ENOBUFS,
+			  &enable, sizeof(enable)))
+	{
+		close(nfnlh->fd);
+		free(nfnlh);
+		return NULL;
+	}
+#else
 	setsockopt(nfnlh->fd, SOL_NETLINK, NETLINK_NO_ENOBUFS,
 			  &enable, sizeof(enable));
+#endif
 #endif
 
 	return nfnlh;
@@ -435,12 +445,22 @@ nfnl_parse_hdr(const struct nfnl_handle *nfnlh,
 
 	if (nlh->nlmsg_len == NLMSG_LENGTH(sizeof(struct nfgenmsg))) {
 		if (genmsg)
+		{
+#ifdef AEI_COVERITY_FIX
+			*genmsg = (struct nfgenmsg *)((char *)nlh+sizeof(struct nlmsghdr));
+#else
 			*genmsg = (struct nfgenmsg *)((void *)nlh+sizeof(nlh));
+#endif
+		}
 		return NULL;
 	}
 
 	if (genmsg)
-		*genmsg = (struct nfgenmsg *)((void *)nlh + sizeof(nlh));
+#ifdef AEI_COVERITY_FIX
+			*genmsg = (struct nfgenmsg *)((char *)nlh+sizeof(struct nlmsghdr));
+#else
+			*genmsg = (struct nfgenmsg *)((void *)nlh+sizeof(nlh));
+#endif
 
 	return ((void *)nlh + NLMSG_LENGTH(sizeof(struct nfgenmsg)));
 }
@@ -969,9 +989,23 @@ unsigned int nfnl_rcvbufsiz(struct nfnl_handle *h, unsigned int size)
 	if (status < 0) {
 		/* if this didn't work, we try at least to get the system
 		 * wide maximum (or whatever the user requested) */
-		setsockopt(h->fd, SOL_SOCKET, SO_RCVBUF, &size, socklen);
+#ifdef AEI_COVERITY_FIX
+	if(0 != setsockopt(h->fd, SOL_SOCKET, SO_RCVBUF, &size, socklen))
+	{
+		return 0;
 	}
+#else
+		setsockopt(h->fd, SOL_SOCKET, SO_RCVBUF, &size, socklen);
+#endif
+	}
+#ifdef AEI_COVERITY_FIX
+	if(0 != getsockopt(h->fd, SOL_SOCKET, SO_RCVBUF, &read_size, socklen))
+	{
+		return 0;
+	}
+#else
 	getsockopt(h->fd, SOL_SOCKET, SO_RCVBUF, &read_size, &socklen);
+#endif
 
 	return read_size;
 }

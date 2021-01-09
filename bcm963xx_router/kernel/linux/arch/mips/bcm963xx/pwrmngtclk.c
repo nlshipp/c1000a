@@ -5,19 +5,25 @@
  *
  * <:label-BRCM:2009:DUAL/GPL:standard
  * 
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License, version 2, as published by
- * the Free Software Foundation (the "GPL").
+ * Unless you and Broadcom execute a separate written software license 
+ * agreement governing use of this software, this software is licensed 
+ * to you under the terms of the GNU General Public License version 2 
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+ * with the following added to such license:
  * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *    As a special exception, the copyright holders of this software give 
+ *    you permission to link this software with independent modules, and 
+ *    to copy and distribute the resulting executable under terms of your 
+ *    choice, provided that you also meet, for each linked independent 
+ *    module, the terms and conditions of the license of that module. 
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications 
+ *    of the software.  
  * 
- * 
- * A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- * writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * Not withstanding the above, under no circumstances may you combine 
+ * this software in any way with any other Broadcom software provided 
+ * under a license other than the GPL, without Broadcom's express prior 
+ * written consent. 
  * 
  * :>
  *
@@ -27,10 +33,20 @@
 #include <bcm_map_part.h>
 #include "board.h"
 
-
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
 #define CLK_ALIGNMENT_REG   0xff410040
 #define KEEPME_MASK         0x00007F00 // bit[14:8]
 
+#if defined (CONFIG_BCM96318)
+#define RATIO_ONE_ASYNC     0x0 /* 0b00 */
+#define RATIO_ONE_HALF      0x1 /* 0b01 */
+#define RATIO_ONE_QUARTER   0x2 /* 0b10 */
+#define RATIO_ONE_EIGHTH    0x3 /* 0b11 */
+
+#define MASK_ASCR_BITS 0x3
+#define MASK_ASCR_SHFT 23
+#define MASK_ASCR (MASK_ASCR_BITS << MASK_ASCR_SHFT)
+#else
 #define RATIO_ONE_SYNC      0x0 /* 0b000 */
 #define RATIO_ONE_ASYNC     0x1 /* 0b001 */
 #define RATIO_ONE_HALF      0x3 /* 0b011 */
@@ -40,16 +56,27 @@
 #define MASK_ASCR_BITS 0x7
 #define MASK_ASCR_SHFT 28
 #define MASK_ASCR (MASK_ASCR_BITS << MASK_ASCR_SHFT)
+#endif
 
 unsigned int originalMipsAscr = 0; // To keep track whether MIPS was in Async mode to start with at boot time
 unsigned int originalMipsAscrChecked = 0;
 unsigned int keepme;
+#endif
+
 #if defined(CONFIG_BCM_PWRMNGT_MODULE)
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 unsigned int self_refresh_enabled = 0; // Wait for the module to control if it is enabled or not
+#endif
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
 unsigned int clock_divide_enabled = 0; // Wait for the module to control if it is enabled or not
+#endif
 #else
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 unsigned int self_refresh_enabled = 1;
+#endif
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
 unsigned int clock_divide_enabled = 1;
+#endif
 #endif
 
 unsigned int clock_divide_low_power0 = 0;
@@ -75,8 +102,9 @@ unsigned int C0divider, C0multiplier, C0ratio, C0adder;
 #endif
 extern volatile int isVoiceIdle;
  
-spinlock_t pwrmgnt_clk_irqlock;
+spinlock_t pwrmgnt_clk_irqlock = SPIN_LOCK_UNLOCKED;
  
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
 /* To put CPU in ASYNC mode and change CPU clock speed */
 void __BcmPwrMngtSetASCR(unsigned int freq_div)
 {
@@ -125,6 +153,11 @@ void __BcmPwrMngtSetASCR(unsigned int freq_div)
    asm("nop" : : ); asm("nop" : : );
    asm("nop" : : ); asm("nop" : : );
    asm("nop" : : ); asm("nop" : : );
+#elif defined(CONFIG_BCM96318)
+   asm("sync" : : );
+   asm("mfc0 %0,$22,4" : "=d"(temp) :);
+   temp = ( temp & ~MASK_ASCR) | (freq_div << MASK_ASCR_SHFT);
+   asm("mtc0 %0,$22,4" : : "d" (temp));
 #else
    if (freq_div == RATIO_ONE_ASYNC) {
       // Gradually bring the processor speed back to 1:1
@@ -173,14 +206,13 @@ void BcmPwrMngtSetASCR(unsigned int freq_div)
    spin_lock_irqsave(&pwrmgnt_clk_irqlock, flags);
    __BcmPwrMngtSetASCR(freq_div);
    spin_unlock_irqrestore(&pwrmgnt_clk_irqlock, flags);
-
    return;
 } /* BcmPwrMngtSetASCR */
 EXPORT_SYMBOL(BcmPwrMngtSetASCR);
 
 
 /* To put CPU in SYNC mode and change CPU clock speed to 1:1 ratio */
-/* No SYNC mode in 63268, use the ASCR with ration 1:1 instead */
+/* No SYNC mode in newer MIPS core, use the __BcmPwrMngtSetASCR with ratio 1:1 instead */
 void __BcmPwrMngtSetSCR(void)
 {
    register unsigned int cp0_ascr_asc;
@@ -299,19 +331,25 @@ int BcmPwrMngtGetAutoClkDivide(void)
    return (clock_divide_enabled);
 }
 EXPORT_SYMBOL(BcmPwrMngtGetAutoClkDivide);
+#endif
 
-
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 void BcmPwrMngtSetDRAMSelfRefresh(unsigned int enable)
 {
    printk("DDR Self Refresh pwrsaving is %s\n", enable?"enabled":"disabled");
    self_refresh_enabled = enable;
 
-#if 0
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) && defined(CONFIG_USB) && defined(CONFIG_BCM963268)
-   if (enable) {
-      // Configure USB port to not access DDR if unused, to save power
-      // Could not be done during setup, have to wait after host driver initialized
-      USBH->USBSimControl |= USBH_OHCI_MEM_REQ_DIS;
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE) && defined(CONFIG_USB) && defined(USBH_OHCI_MEM_REQ_DIS)
+#if defined (CONFIG_BCM963268)
+   if (0xD0 == (PERF->RevID & REV_ID_MASK)) {
+#endif
+      if (enable) {
+         // Configure USB port to not access DDR if unused, to save power
+         USBH->USBSimControl |= USBH_OHCI_MEM_REQ_DIS;
+      } else {
+         USBH->USBSimControl &= ~USBH_OHCI_MEM_REQ_DIS;
+      }
+#if defined (CONFIG_BCM963268)
    }
 #endif
 #endif
@@ -343,6 +381,7 @@ EXPORT_SYMBOL(BcmPwrMngtRegisterLmemAddr);
 PWRMNGT_DDR_SR_CTRL ddrSrCtl = {{.word=0}};
 PWRMNGT_DDR_SR_CTRL *pDdrSrCtrl = &ddrSrCtl;
 #endif
+#endif
 
 // Determine if cpu is busy by checking the number of times we entered the wait
 // state in the last milisecond. If we entered the wait state only once or
@@ -356,9 +395,9 @@ void BcmPwrMngtCheckWaitCount (void)
 
     if (cpu == 0) {
 #if defined(CONFIG_SMP) && defined(CONFIG_BCM_HOSTMIPS_PWRSAVE_TIMERS)
-        if (clock_divide_enabled && isVoiceIdle && TimerC0Snapshot1) {
+        if (isVoiceIdle && TimerC0Snapshot1) {
 #else
-        if (clock_divide_enabled && isVoiceIdle) {
+        if (isVoiceIdle) {
 #endif
            if (wait_count0 > 0 && wait_count0 < 3) {
               clock_divide_low_power0 = 1;
@@ -375,9 +414,9 @@ void BcmPwrMngtCheckWaitCount (void)
 #if defined(CONFIG_SMP)
     else {
 #if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE_TIMERS)
-        if (clock_divide_enabled && TimerC0Snapshot1) {
+        if (TimerC0Snapshot1) {
 #else
-        if (clock_divide_enabled) {
+        {
 #endif
            if (wait_count1 > 0 && wait_count1 < 3) {
               clock_divide_low_power1 = 1;
@@ -408,10 +447,12 @@ void BcmPwrMngtReduceCpuSpeed (void)
         if (clock_divide_low_power0) {
             if (wait_count0 < 2) {
                 clock_divide_active0 = 1;
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
                 if (pDdrSrCtrl && self_refresh_enabled) {
                     // Communicate TP status to PHY MIPS
                     pDdrSrCtrl->tp0Busy = 0;
                 }
+#endif
             }
         }
         wait_count0++;
@@ -423,10 +464,12 @@ void BcmPwrMngtReduceCpuSpeed (void)
         if (clock_divide_low_power1) {
             if (wait_count1 < 2) {
                 clock_divide_active1 = 1;
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
                 if (pDdrSrCtrl && self_refresh_enabled) {
                     // Communicate TP status to PHY MIPS
                     pDdrSrCtrl->tp1Busy = 0;
                 }
+#endif
             }
         }
         wait_count1++;
@@ -438,17 +481,24 @@ void BcmPwrMngtReduceCpuSpeed (void)
 #else
     if (clock_divide_active0) {
 #endif
-        __BcmPwrMngtSetASCR(RATIO_ONE_EIGHTH);
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+        if (clock_divide_enabled) {
+            __BcmPwrMngtSetASCR(RATIO_ONE_EIGHTH);
+		}
+#endif
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96368)
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
         // Place DDR in self-refresh mode if enabled and other processors are OK with it
         if (pDdrSrCtrl && !pDdrSrCtrl->word && self_refresh_enabled) {
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816)
+            // Below defines are CHIP Specific - refer to xxxx_map_part.h
+#if defined(DMODE_1_DRAMSLEEP)
             DDR->DMODE_1 |= DMODE_1_DRAMSLEEP;
-#elif defined(CONFIG_BCM963268)
-            MEMC->DRAM_CFG |= CFG_DRAMSLEEP;
-#elif defined(CONFIG_BCM96368)
+#elif defined(MEMC_SELF_REFRESH)
             MEMC->Control |= MEMC_SELF_REFRESH;
+#elif defined(CFG_DRAMSLEEP)
+            MEMC->DRAM_CFG |= CFG_DRAMSLEEP;
+#else
+            #error "DDR Self refresh definition missing in xxxx_map_part.h for this chip"
 #endif
         }
 #endif
@@ -470,6 +520,9 @@ void BcmPwrMngtResumeFullSpeed (void)
     int cpu = smp_processor_id();
     unsigned long flags;
 
+    spin_lock_irqsave(&pwrmgnt_clk_irqlock, flags);
+
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
     if (pDdrSrCtrl) {
         // Communicate TP status to PHY MIPS
         // Here I don't check if Self-Refresh is enabled because when it is,
@@ -480,25 +533,28 @@ void BcmPwrMngtResumeFullSpeed (void)
             pDdrSrCtrl->tp1Busy = 1;
         }
     }
+#endif
 
-    spin_lock_irqsave(&pwrmgnt_clk_irqlock, flags);
+
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
 
 #if defined(CONFIG_SMP)
-    if (clock_divide_active0 && clock_divide_active1) {
+    if (clock_divide_enabled && clock_divide_active0 && clock_divide_active1) {
 #else
-    if (clock_divide_active0) {
+    if (clock_divide_enabled && clock_divide_active0) {
 #endif
-#if defined(CONFIG_BCM963268)
-        // In 63268, there is no SYNC mode, simply use 1:1 async
-        __BcmPwrMngtSetASCR(RATIO_ONE_ASYNC);
-#else
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96368)
         if (originalMipsAscr) {
             __BcmPwrMngtSetASCR(RATIO_ONE_ASYNC);
         } else {
             __BcmPwrMngtSetSCR();
         }
+#else
+        // In newer MIPS core, there is no SYNC mode, simply use 1:1 async
+        __BcmPwrMngtSetASCR(RATIO_ONE_ASYNC);
 #endif
     }
+#endif
 
 #if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE_TIMERS)
     if (cpu == 0) {
@@ -571,7 +627,5 @@ void BcmPwrMngtInitC0Speed (void)
     rem = 0x40000000%C0divider;
     // Value below may overflow from 32 bits but that's ok
     C0adder = mult*C0multiplier + ((rem*C0ratio)>>10);
-
-    spin_lock_init(&pwrmgnt_clk_irqlock);
 }
 #endif

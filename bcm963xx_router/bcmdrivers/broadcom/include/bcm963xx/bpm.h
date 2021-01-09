@@ -8,19 +8,25 @@
    Copyright (c) 2007 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -78,7 +84,7 @@ Boston, MA 02111-1307, USA.
  */
 #define BPM_ENET_ALLOC_TRIG_PCT         15
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 #define BPM_XTM_ALLOC_TRIG_PCT          15
 #endif
 
@@ -92,7 +98,7 @@ Boston, MA 02111-1307, USA.
  */
 #define BPM_ENET_BULK_ALLOC_COUNT       128
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 #define BPM_XTM_BULK_ALLOC_COUNT        64
 #endif
 
@@ -127,7 +133,7 @@ Boston, MA 02111-1307, USA.
 
 
 /* BPM TxQ Low and High Thresholds for XTM */
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* Dynamically assign the threshold based on the US link speed */
 /* Min # of additional buffers assigned */
 #define XTM_BPM_TXQ_HI_BUF_MIN          48
@@ -136,19 +142,26 @@ Boston, MA 02111-1307, USA.
 /* Low Threshold is set in percent of High Threshold */
 #define XTM_BPM_PCT_BUF_LO_THRESH       50
 
-/* Low and High Thresholds for 100Mbps US link */
-#define XTM_BPM_TXQ_HI_BUF_100MBPS      400
-#define XTM_BPM_TXQ_LO_BUF_100MBPS  \
-    (XTM_BPM_TXQ_HI_BUF_100MBPS * XTM_BPM_PCT_BUF_LO_THRESH/100)
+/* Low and High Thresholds for 120Mbps US link */
+#define XTM_BPM_TXQ_HI_BUF_120MBPS      HOST_XTM_NR_TXBDS
+#define XTM_BPM_TXQ_LO_BUF_120MBPS  \
+    (XTM_BPM_TXQ_HI_BUF_120MBPS * XTM_BPM_PCT_BUF_LO_THRESH/100)
 
 /* Low and high threshold for any US speed is assigned proportionate 
- * to 100MBPS US link
+ * to 120MBPS US link
  */
-#define XTM_BPM_TXQ_LO_THRESH(s)                                            \
-    ((((s) * XTM_BPM_TXQ_LO_BUF_100MBPS) / 100) + XTM_BPM_TXQ_LO_BUF_MIN)
+#define XTM_BPM_CALC_TXQ_LO_THRESH(s)                                           \
+    ((((s) * XTM_BPM_TXQ_LO_BUF_120MBPS) / 120) + XTM_BPM_TXQ_LO_BUF_MIN)
+#define XTM_BPM_CALC_TXQ_HI_THRESH(s)                                           \
+    ((((s) * XTM_BPM_TXQ_HI_BUF_120MBPS) / 120) + XTM_BPM_TXQ_HI_BUF_MIN)
 
-#define XTM_BPM_TXQ_HI_THRESH(s)                                            \
-    ((((s) * XTM_BPM_TXQ_HI_BUF_100MBPS) / 100) + XTM_BPM_TXQ_HI_BUF_MIN)
+#define XTM_BPM_TXQ_LO_THRESH(s)                                            \
+    ((XTM_BPM_CALC_TXQ_LO_THRESH((s))>XTM_BPM_TXQ_HI_BUF_120MBPS)?XTM_BPM_TXQ_HI_BUF_120MBPS: \
+     XTM_BPM_CALC_TXQ_LO_THRESH((s)))
+
+#define XTM_BPM_TXQ_HI_THRESH(s)                                           \
+    ((XTM_BPM_CALC_TXQ_HI_THRESH((s))>XTM_BPM_TXQ_HI_BUF_120MBPS)?XTM_BPM_TXQ_HI_BUF_120MBPS: \
+     XTM_BPM_CALC_TXQ_HI_THRESH((s)))
 #endif
 
 
@@ -178,6 +191,48 @@ typedef struct {
     uint32_t q_hi_thresh;
     uint32_t q_dropped;
 } bpm_thresh_t;
+
+
+/* 
+ * Eth TxQ drop thresholds
+ * -----------------------
+ * An outgoing packet's priority is mapped to one of the four 
+ * egress queues (0-3). Although there are 4 queues but Q0 and Q1 are 
+ * mapped to the same priority level.
+ * 
+ * FAP and MIPS use Tx IuDMA channel to transmit packet to Ethernet switch.
+ * The transmitted packet can have any priority between 0-3. Tx IuDMA ring
+ * can become full because the incoming packet rate is higher than outgoing
+ * pakcet rate. When Tx IuDMA ring becomes full we need to give preference to
+ * higher priority packets. 
+ *
+ * We donot know in advance the mix of high, medium, and low priority packet
+ * rates. But we can reserve some bandwidth for the high and medium priority
+ * packets using the drop thresholds. High priority will have highest 
+ * threshold, and low priority will have lowest threshold and the medium 
+ * will be in between. The drop thresholds are specified in terms of 
+ * percentage of Tx IuDMA ring size. 
+ *
+ * When the outgoing packet has a priority p, and the current instantaneous
+ * queue depth is greater or equal to priority drop threshold, the packet 
+ * will be dropped, in all other cases packet will be queued for transmission.
+ *
+ * The configured drop threshold and the number of packets dropped for a 
+ * priority/queue can be dumped using the "bpm thresh" CLI command
+ *
+ * CAUTION: 
+ * 1. A user may fine tune the threshold values based on the requirements. 
+ * But lowering the threshold too much may affect the packet rates achieved for
+ * lower priorities.
+ */
+#define ENET_BPM_PCT_TXQ0_DROP_THRESH      75
+#define ENET_BPM_PCT_TXQ1_DROP_THRESH      ENET_BPM_PCT_TXQ0_DROP_THRESH
+#define ENET_BPM_PCT_TXQ2_DROP_THRESH      85
+#define ENET_BPM_PCT_TXQ3_DROP_THRESH      100
+
+#if (ENET_BPM_PCT_TXQ1_DROP_THRESH != ENET_BPM_PCT_TXQ0_DROP_THRESH)
+#error "ERROR -(ENET_BPM_PCT_TXQ1_DROP_THRESH != ENET_BPM_PCT_TXQ0_DROP_THRESH)"
+#endif
 
 #endif /*  __BPM_H_INCLUDED__ */
 

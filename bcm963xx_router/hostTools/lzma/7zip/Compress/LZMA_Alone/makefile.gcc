@@ -110,4 +110,3 @@ Vector.o: ../../../Common/Vector.cpp
 
 clean:
 	-$(RM) $(PROG) $(OBJS)
-

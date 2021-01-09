@@ -62,7 +62,11 @@ int option_lengths[] = {
 };
 
 /* these are device info which are query once and store globally */
+#if defined(AEI_COVERITY_FIX)
+char deviceOui[VENDOR_GATEWAY_OUI_MAX_LEN + 1];
+#else
 char deviceOui[VENDOR_GATEWAY_OUI_MAX_LEN];
+#endif
 char deviceSerialNum[VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN];
 char deviceProductClass[VENDOR_GATEWAY_PRODUCT_CLASS_MAX_LEN];
 
@@ -300,7 +304,7 @@ int CreateClntId(char *iaid, char *duid, char *out_op)
     char *vp;
     int value, i, length;
 
-    /* dhcp option 61, rfc4361.txt section 6.1 
+    /* dhcp option 61, rfc4361.txt section 6.1
        Code  Len  Type  IAID                DUID
        +----+----+-----+----+----+----+----+----+----+---
        | 61 | n  | 255 | i1 | i2 | i3 | i4 | d1 | d2 |...
@@ -331,7 +335,7 @@ int CreateClntId(char *iaid, char *duid, char *out_op)
         vp += i;
     }
 
-    //here fill in the client DUID value 
+    //here fill in the client DUID value
     *dataPtr++ = 0;
     *dataPtr++ = 2;
     vp = duid;
@@ -416,6 +420,10 @@ CmsRet queryDeviceInfo(GetDeviceInfoMsgBody * pDeviceInfo)
 
     if ((ret = cmsMsg_send(msgHandle, msg)) != CMSRET_SUCCESS) {
         cmsLog_error("Failed to send message (ret=%d)", ret);
+#ifdef AEI_COVERITY_FIX
+        /*Coverity Fix CID:11897 Memory Leak msg*/
+        CMSMEM_FREE_BUF_AND_NULL_PTR(msg);
+#endif
     } else {
         CMSMEM_FREE_BUF_AND_NULL_PTR(msg);
         if ((ret = cmsMsg_receiveWithTimeout(msgHandle, &msg, 10)) != CMSRET_SUCCESS) {
@@ -460,9 +468,16 @@ int createVIoption(int type, char *VIinfo)
         if (queryDeviceInfo(&deviceInfo) != CMSRET_SUCCESS) {
             return -1;
         } else {
+#if defined(AEI_COVERITY_FIX)
+            /*CID 10198: Buffer not null terminated*/
+            strlcpy(deviceOui, deviceInfo.oui, VENDOR_GATEWAY_OUI_MAX_LEN + 1);
+            strlcpy(deviceSerialNum, deviceInfo.serialNum, VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN);
+            strlcpy(deviceProductClass, deviceInfo.productClass, VENDOR_GATEWAY_PRODUCT_CLASS_MAX_LEN);
+#else
             strncpy(deviceOui, deviceInfo.oui, VENDOR_GATEWAY_OUI_MAX_LEN);
             strncpy(deviceSerialNum, deviceInfo.serialNum, VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN);
             strncpy(deviceProductClass, deviceInfo.productClass, VENDOR_GATEWAY_PRODUCT_CLASS_MAX_LEN);
+#endif
         }
     }
 
@@ -559,12 +574,20 @@ static int notifyApp(short port, void *data, int len)
 
     if (bind(sockfd, (struct sockaddr *)&cli_addr, sizeof(cli_addr)) < 0) {
         printf("dhcpd: Could not bind client socket\n");
+#ifdef AEI_COVERITY_FIX
+        /*Coverity Fix CID:11896 sockfd resource leak*/
+        close(sockfd);
+#endif
         return -2;              /* could not bind client socket */
     }
 
     /* send the data */
     if (sendto(sockfd, data, len, 0, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) != len) {
         printf("dhcpd: Could not sendto\n");
+#ifdef AEI_COVERITY_FIX
+        /*Coverity Fix CID:11896 sockfd resource leak*/
+        close(sockfd);
+#endif
         return -3;              /* could not sendto */
     }
     close(sockfd);
@@ -616,7 +639,12 @@ int saveVIoption(char *option, struct dhcpOfferedAddr *lease)
             break;
         case VENDOR_DEVICE_SERIAL_NUMBER_SUBCODE:
         case VENDOR_GATEWAY_SERIAL_NUMBER_SUBCODE:
+#ifdef AEI_COVERITY_FIX
+            /*Coverity Fix CID:11487 Overrunning array */
+            if (sublen < VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN) {
+#else
             if (sublen <= VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN) {
+#endif
                 memcpy(lease->serialNumber, optionPtr, sublen);
                 lease->serialNumber[sublen] = '\0';
             } else {
@@ -626,7 +654,12 @@ int saveVIoption(char *option, struct dhcpOfferedAddr *lease)
             break;
         case VENDOR_DEVICE_PRODUCT_CLASS_SUBCODE:
         case VENDOR_GATEWAY_PRODUCT_CLASS_SUBCODE:
+#ifdef AEI_COVERITY_FIX
+            /*Coverity Fix CID:11486 Overrunning array */
+            if (sublen < VENDOR_GATEWAY_SERIAL_NUMBER_MAX_LEN) {
+#else
             if (sublen <= VENDOR_GATEWAY_PRODUCT_CLASS_MAX_LEN) {
+#endif
                 memcpy(lease->productClass, optionPtr, sublen);
                 lease->productClass[sublen] = '\0';
             } else {

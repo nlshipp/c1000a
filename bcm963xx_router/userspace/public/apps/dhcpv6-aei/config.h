@@ -172,7 +172,7 @@ struct dhcp6_serverinfo {
 enum {DHCP6S_INIT,
       DHCP6S_SOLICIT, DHCP6S_INFOREQ, DHCP6S_REQUEST,
       DHCP6S_CONFIRM,
-      DHCP6S_RENEW, DHCP6S_REBIND, DHCP6S_RELEASE, 
+      DHCP6S_RENEW, DHCP6S_REBIND, DHCP6S_RELEASE,
       DHCP6S_DECLINE,
       DHCP6S_RECONFIGURE,
       DHCP6S_IDLE};
@@ -285,9 +285,9 @@ enum { DECL_SEND, DECL_ALLOW, DECL_INFO_ONLY, DECL_REQUEST, DECL_DUID,
        DHCPOPT_DNS, DHCPOPT_DNSNAME,
        DHCPOPT_IA_PD, DHCPOPT_IA_NA, DHCPOPT_NTP,
        DHCPOPT_REFRESHTIME,
-       DHCPOPT_NIS, DHCPOPT_NISNAME, 
-       DHCPOPT_NISP, DHCPOPT_NISPNAME, 
-       DHCPOPT_BCMCS, DHCPOPT_BCMCSNAME, 
+       DHCPOPT_NIS, DHCPOPT_NISNAME,
+       DHCPOPT_NISP, DHCPOPT_NISPNAME,
+       DHCPOPT_BCMCS, DHCPOPT_BCMCSNAME,
        CFLISTENT_GENERIC,
        IACONF_PIF, IACONF_PREFIX, IACONF_ADDR,
        DHCPOPT_SIP, DHCPOPT_SIPNAME,
@@ -340,6 +340,7 @@ extern struct pool_conf *find_pool __P((const char *));
 extern int is_available_in_pool __P((struct pool_conf *, struct in6_addr *));
 #ifdef AEI_DHCP6S_SERIALIZE
 extern int is_in_pool __P((struct in6_addr *));
+extern void getPoolNum __P((int *, int *));
 #endif
 extern int get_free_address_from_pool __P((struct pool_conf *,
 	struct in6_addr *));

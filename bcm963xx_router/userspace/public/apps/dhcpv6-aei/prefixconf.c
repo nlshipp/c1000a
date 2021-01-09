@@ -129,6 +129,7 @@ static int pd_ifaddrconf __P((ifaddrconf_cmd_t, struct dhcp6_ifprefix *ifpfx));
 #ifdef AEI_CONTROL_LAYER
 static void sendPrefixEventMessage __P((ifaddrconf_cmd_t, struct siteprefix *));
 extern CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody;
+extern CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody_Old;
 #endif
 
 int
@@ -149,7 +150,7 @@ update_prefix(ia, pinfo, pifc, dhcpifp, ctlp, callback)
 	/*
 	 * A client discards any addresses for which the preferred
          * lifetime is greater than the valid lifetime.
-	 * [RFC3315 22.6] 
+	 * [RFC3315 22.6]
 	 */
 	if (pinfo->vltime != DHCP6_DURATION_INFINITE &&
 	    (pinfo->pltime == DHCP6_DURATION_INFINITE ||
@@ -266,7 +267,7 @@ switch (/*sp->prefix.vltime*/sp->prefix.pltime) {
 		dhcp6_set_timer(&timo, sp->timer);
 		break;
 	}
-	
+
 #if 1 //brcm
    sendPrefixEventMessage(IFADDRCONF_ADD, sp);
 #endif
@@ -365,6 +366,11 @@ cleanup(iac)
 	while ((sp = TAILQ_FIRST(&iac_pd->siteprefix_head)) != NULL) {
 		TAILQ_REMOVE(&iac_pd->siteprefix_head, sp, link);
 		remove_siteprefix(sp);
+        if (memcmp(&ctldhcp6cMsgBody, &ctldhcp6cMsgBody_Old, sizeof(CtlDhcp6cStateChangedMsgBody)))
+        {
+             sendDhcp6cEventMessage();
+             memcpy(&ctldhcp6cMsgBody_Old, &ctldhcp6cMsgBody, sizeof(CtlDhcp6cStateChangedMsgBody));
+        }
 	}
 
 	free(iac);
@@ -446,6 +452,14 @@ siteprefix_timo(arg)
 
 	remove_siteprefix(sp);
 
+        //when prefix tiomeout need send the message to smd immediately
+       //add by harrison 2012-08-07
+       if (memcmp(&ctldhcp6cMsgBody, &ctldhcp6cMsgBody_Old, sizeof(CtlDhcp6cStateChangedMsgBody)))
+      {
+           sendDhcp6cEventMessage();
+           memcpy(&ctldhcp6cMsgBody_Old, &ctldhcp6cMsgBody, sizeof(CtlDhcp6cStateChangedMsgBody));
+      }
+
 	(*callback)(ia);
 
 	return (NULL);
@@ -511,8 +525,12 @@ add_ifprefix(siteprefix, prefix, pconf)
 	ifpfx->ifaddr = ifpfx->paddr;
 	for (i = 15; i >= pconf->ifid_len / 8; i--)
 		ifpfx->ifaddr.sin6_addr.s6_addr[i] = pconf->ifid[i];
+
+/*br0 address control by ctl_layer*/
+#if 0
 	if (pd_ifaddrconf(IFADDRCONF_ADD, ifpfx))
 		goto bad;
+#endif
 
 	/* TODO: send a control message for other processes */
 
@@ -538,7 +556,7 @@ pd_ifaddrconf(cmd, ifpfx)
 	struct prefix_ifconf *pconf;
 
 	pconf = ifpfx->ifconf;
-	return (ifaddrconf(cmd, pconf->ifname, &ifpfx->ifaddr, ifpfx->plen, 
+	return (ifaddrconf(cmd, pconf->ifname, &ifpfx->ifaddr, ifpfx->plen,
 	    ND6_INFINITE_LIFETIME, ND6_INFINITE_LIFETIME));
 }
 
@@ -870,18 +888,27 @@ inline void sendPrefixEventMessage(ifaddrconf_cmd_t cmd, struct siteprefix *sp)
 #ifdef CONFIG_IOT_RECONFIGURATION
     if(cmd==IFADDRCONF_ADD)
         {
-            got_valid_ia_pd++;
+            //got_valid_ia_pd++;
             ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "add valid ia pd(prefix=%s/%d,pltime=%d,vltime=%d) now,got_valid_ia_pd=%d",
                 in6addr2str(&sp->prefix.addr, 0), sp->prefix.plen,sp->prefix.pltime,sp->prefix.vltime,got_valid_ia_pd);
-            
+
         }
-    else if(got_valid_ia_pd >0 )
+       //support remove ia_pd
+       //modify by harrison 2012-08-07
+       else if(cmd==IFADDRCONF_REMOVE)
+       {
+                ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "remove valid ia pd(prefix=%s/%d,pltime=%d,vltime=%d) now,got_valid_ia_pd=%d",
+                in6addr2str(&sp->prefix.addr, 0), sp->prefix.plen,sp->prefix.pltime,sp->prefix.vltime,got_valid_ia_pd);
+       }
+    /*else if(got_valid_ia_pd >0 )
         {
              ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "got valid ia pd(prefix=%s,pltime=%d,vltime=%d) before,cann't do remove!got_valid_ia_pd=%d",
                 ctldhcp6cMsgBody.sitePrefix,ctldhcp6cMsgBody.prefixPltime,ctldhcp6cMsgBody.prefixVltime,got_valid_ia_pd);
             return;
-        }
+        }*/
+
 #endif
+
    ctldhcp6cMsgBody.prefixAssigned = TSL_B_TRUE;
    ctldhcp6cMsgBody.prefixCmd      = cmd;
    sprintf(ctldhcp6cMsgBody.sitePrefix, "%s/%d", in6addr2str(&sp->prefix.addr, 0), sp->prefix.plen);

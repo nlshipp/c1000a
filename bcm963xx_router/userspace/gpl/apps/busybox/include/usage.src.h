@@ -115,6 +115,23 @@ INSERT
      "\n	-s SRC_IP	Sender IP address" \
      "\n	DST_IP		Target IP address" \
 
+// brcm begin
+#define sendarp_trivial_usage \
+       "-s <src device name> -d <dst device name>"
+#define sendarp_full_usage "\n\n" \
+       "Send ARP packet with src device's IP and Hardware address to dst device.\n" \
+     "\nOptions:" \
+     "\n	-s DEVNAME	src device name." \
+     "\n	-d DEVNAME	dst device name." \
+
+#define sysinfo_trivial_usage \
+	"System status report"
+#define sysinfo_full_usage \
+	"System status report\n\n" 
+#define sysinfo_example_usage \
+	"$ sysinfo\n"
+// brcm end
+
 #define sh_trivial_usage NOUSAGE_STR
 #define sh_full_usage ""
 #define ash_trivial_usage NOUSAGE_STR
@@ -1404,6 +1421,28 @@ INSERT
 
 #define ftpget_trivial_usage \
        "[OPTIONS] HOST [LOCAL_FILE] REMOTE_FILE"
+// brcm begin
+#if 1
+#define ftpget_full_usage "\n\n" \
+       "Retrieve a remote file via FTP\n" \
+     "\nOptions:" \
+	IF_FEATURE_FTPGETPUT_LONG_OPTIONS( \
+     "\n	-c,--continue	Continue previous transfer" \
+     "\n	-v,--verbose	Verbose" \
+     "\n	-u,--username	Username" \
+     "\n	-p,--password	Password" \
+     "\n	-P,--port	Port number" \
+	) \
+	IF_NOT_FEATURE_FTPGETPUT_LONG_OPTIONS( \
+     "\n	-c	Continue previous transfer" \
+     "\n	-v	Verbose" \
+     "\n	-u	Username" \
+     "\n	-p	Password" \
+     "\n	-P	Port number" \
+	) \
+     "\n	-f Get (flash) broadcom, whole image or config file to modem" \
+     "\n	   ex. -f -u username -p password server_ip filename" 
+#else
 #define ftpget_full_usage "\n\n" \
        "Retrieve a remote file via FTP\n" \
      "\nOptions:" \
@@ -1421,6 +1460,8 @@ INSERT
      "\n	-p	Password" \
      "\n	-P	Port number" \
 	)
+#endif
+// brcm end
 
 #define ftpput_trivial_usage \
        "[OPTIONS] HOST [REMOTE_FILE] LOCAL_FILE"
@@ -4334,7 +4375,27 @@ INSERT
 
 #define tftp_trivial_usage \
        "[OPTIONS] HOST [PORT]"
-#define tftp_full_usage "\n\n" \
+// brcm begin
+#if 1
+# define tftp_full_usage "\n\n" \
+       "Transfer a file from/to tftp server\n" \
+     "\nOptions:" \
+     "\n	-l FILE	Local FILE" \
+     "\n	-r FILE	Remote FILE" \
+	IF_FEATURE_TFTP_GET( \
+     "\n	-g	Get file" \
+	) \
+	IF_FEATURE_TFTP_PUT( \
+     "\n	-p	Put file" \
+	) \
+	IF_FEATURE_TFTP_BLOCKSIZE( \
+     "\n	-b SIZE	Transfer blocks of SIZE octets" \
+	) \
+     "\n	-g -t i -f filename server_ip   Get (flash) broadcom or whole image to modem" \
+     "\n	-g -t c -f filename server_ip   Get (flash) config file to modem" \
+     "\n	-p -t f -f filename server_ip   Put (backup) config file to tftpd server" 
+#else
+# define tftp_full_usage "\n\n" \
        "Transfer a file from/to tftp server\n" \
      "\nOptions:" \
      "\n	-l FILE	Local FILE" \
@@ -4348,6 +4409,8 @@ INSERT
 	IF_FEATURE_TFTP_BLOCKSIZE( \
      "\n	-b SIZE	Transfer blocks of SIZE octets" \
 	)
+#endif
+// brcm end
 
 #define tftpd_trivial_usage \
        "[-cr] [-u USER] [DIR]"
@@ -4382,7 +4445,15 @@ INSERT
 #define top_full_usage "\n\n" \
        "Provide a view of process activity in real time.\n" \
        "Read the status of all processes from /proc each SECONDS\n" \
-       "and display a screenful of them." \
+       "and display a screenful of them.\n" \
+       "BCM options:\n" \
+       "  -a enable alt display mode\n" \
+       "  -c0|1 filter output by CPU\n" \
+       "  -lNUM set max lines for output (default is 24)\n" \
+       "While top is running:\n" \
+       "--press c to toggle between per-cpu and aggregate CPU modes.\n" \
+       "--press p to sort by cpu percentage.\n" \
+       "--press y to sort by priority (BCM). " \
 //TODO: add options and keyboard commands
 
 #define touch_trivial_usage \

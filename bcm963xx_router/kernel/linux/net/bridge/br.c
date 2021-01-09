@@ -21,15 +21,16 @@
 #include <net/stp.h>
 
 #include "br_private.h"
-#if defined(CONFIG_MIPS_BRCM) && ( defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP) )
+#if defined(CONFIG_MIPS_BRCM)
+#if defined(CONFIG_BR_IGMP_SNOOP)
 #include "br_igmp.h"
+#endif
+#if defined(CONFIG_BR_MLD_SNOOP)
 #include "br_mld.h"
 #endif
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-#include <linux/if_vlan.h>
-#include <linux/blog.h>
-#include <linux/blog_rule.h>
+#if defined(CONFIG_BLOG) && (defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP))
 #include "br_mcast.h"
+#endif
 #endif
 
 int (*br_should_route_hook)(struct sk_buff *skb);
@@ -79,15 +80,21 @@ static int __init br_init(void)
 	br_fdb_put_hook = br_fdb_put;
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
-	br_igmp_snooping_init();
+	err = br_igmp_snooping_init();
+    if(err)
+        goto err_out4;
 #endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
-	br_mld_snooping_init();
+	err = br_mld_snooping_init();
+    if(err)
+        goto err_out4;
 #endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+#if defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)
     blogRuleVlanNotifyHook = br_mcast_vlan_notify_for_blog_update;
+#endif
 #endif
 
 	return 0;
@@ -99,6 +106,12 @@ err_out2:
 	unregister_pernet_subsys(&br_net_ops);
 err_out1:
 	br_fdb_fini();
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
+    br_igmp_snooping_fini();
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+    br_mld_snooping_fini();
+#endif
 err_out:
 	stp_proto_unregister(&br_stp_proto);
 	return err;

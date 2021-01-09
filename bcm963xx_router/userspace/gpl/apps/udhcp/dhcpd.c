@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
 #if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_VDSL_DHCP_LEASE)
 				case CMS_MSG_DHCP_TIME_UPDATED:
 				{
-					for (cur_iface = iface_config; cur_iface; 
+					for (cur_iface = iface_config; cur_iface;
 					     cur_iface = cur_iface->next) {
 						write_leases(msg->wordData);
 						read_leases(server_config.lease_file);
@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
 #if defined(AEI_VDSL_DHCP_LEASE)
 				case CMS_MSG_DHCPD_RELOAD_LEASE_FILE:
                                 {
-					for (cur_iface = iface_config; cur_iface; 
+					for (cur_iface = iface_config; cur_iface;
 					     cur_iface = cur_iface->next) {
 						read_leases(server_config.lease_file);
 					}
@@ -475,10 +475,10 @@ int main(int argc, char *argv[])
 					}
 					break;
 #if !defined(AEI_VDSL_DHCP_LEASE)
-				case CMS_MSG_EVENT_SNTP_SYNC:               
-					if (msg->dataLength == sizeof(long)) 
+				case CMS_MSG_EVENT_SNTP_SYNC:
+					if (msg->dataLength == sizeof(long))
 					{
-						long *delta = (long *) (msg + 1); 
+						long *delta = (long *) (msg + 1);
 						adjust_lease_time(*delta);
 					}
 					else
@@ -499,8 +499,9 @@ int main(int argc, char *argv[])
 				}
 				cmsMem_free(msg);
 			} else if (ret == CMSRET_DISCONNECTED) {
-				LOG(LOG_ERR, "lost connection to smd, "
-					"exiting now.");
+				if (!cmsFil_isFilePresent(SMD_SHUTDOWN_IN_PROGRESS)) {
+					LOG(LOG_ERR, "lost connection to smd, exiting now.");
+				}
 				exit_server(0);
 			}
 			continue;
@@ -587,9 +588,9 @@ int main(int argc, char *argv[])
 				}
 //brcm begin
 				/* delete any obsoleted QoS rules because sendOffer() may have
-			 	 * cleaned up the lease data.
-			 	 */
-				bcmDelObsoleteRules(); 
+				 * cleaned up the lease data.
+				 */
+				bcmDelObsoleteRules();
 //brcm end
 			}
 			break;			
@@ -602,7 +603,7 @@ int main(int argc, char *argv[])
 			if (requested) memcpy(&requested_align, requested, 4);
 			if (server_id) memcpy(&server_id_align, server_id, 4);
 		
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)|| defined(AEI_VDSL_CUSTOMER_TELUS)
 			if (lease)
 				getClientIDOption(&packet,lease);
 #endif
@@ -649,11 +650,11 @@ int main(int argc, char *argv[])
 						lease->hostname[bytes] = '\0';
 
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
-						if (strstr(lease->hostname, "\(") || 
-						    strstr(lease->hostname, "\)") || 
-						    strstr(lease->hostname, ".") || 
-						    strstr(lease->hostname, ";") || 
-						    strstr(lease->hostname, "'") || 
+						if (strstr(lease->hostname, "\(") ||
+						    strstr(lease->hostname, "\)") ||
+						    strstr(lease->hostname, ".") ||
+						    strstr(lease->hostname, ";") ||
+						    strstr(lease->hostname, "'") ||
 						    strstr(lease->hostname, ",")) {
 							printf("host name has illegal characters!\n");
 							illegal_name = 1;
@@ -664,11 +665,7 @@ int main(int argc, char *argv[])
 							} else if (!strncmp(lease->hostname, "NP-", strlen("NP-"))) {
 								printf("RoKu device!\n");
 								iconflag = 4;   //type is set to "Set Top box"
-							} else if ((!strncmp(lease->hostname, "DIRECTV-HR20", strlen("DIRECTV-HR20")) || 
-								    !strncmp(lease->hostname, "DIRECTV-HR21", strlen("DIRECTV-HR21")) || 
-								    !strncmp(lease->hostname, "DIRECTV-HR22", strlen("DIRECTV-HR22")) || 
-								    !strncmp(lease->hostname, "DIRECTV-HR23", strlen("DIRECTV-HR23")) || 
-								    !strncmp(lease->hostname, "DIRECTV-HR24", strlen("DIRECTV-HR24")))) {
+							} else if (!strncmp(lease->hostname, "DIRECTV-HR", strlen("DIRECTV-HR"))) {
 								iconflag = 3;
 							} else {
 								//printf("Other device!\n");
@@ -681,7 +678,7 @@ int main(int argc, char *argv[])
 #endif
 					}  else
 						lease->hostname[0] = '\0';
-     
+
 #if defined (AEI_VDSL_CUSTOMER_NCS)
 					if (vendorid) {
 						int len = vendorid[-1];
@@ -700,6 +697,15 @@ int main(int argc, char *argv[])
 							strncpy(lease->hostname, "Qwest Video", sizeof(lease->hostname));
 #endif
 						}
+#endif
+
+#ifdef AEI_VDSL_CUSTOMER_TELUS
+                                                if (!strncmp(vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(vendorid, "SAIP", strlen("SAIP"))) {
+                                                        if (hostname == NULL) {
+                                                               strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
+                                                        }
+                                                }
+
 #endif
 					}
 #endif
@@ -731,7 +737,16 @@ int main(int argc, char *argv[])
 									snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#ifdef AEI_VDSL_CUSTOMER_TELUS
+                                                               if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
+                                                                      if (hostname == NULL) {
+                                                                             strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
+                                                                      }
+                                                               }
+
+#endif
+
+#if defined (AEI_VDSL_CUSTOMER_NCS)
 								if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 									strncpy(lease->hostname, hostname, bytes);
 									lease->hostname[bytes] = '\0';
@@ -742,10 +757,10 @@ int main(int argc, char *argv[])
 
 								//brcm begin
 								/* delete any obsoleted QoS rules because sendACK() may have
-							 	* cleaned up the lease data.
-							 	*/
-								bcmDelObsoleteRules(); 
-								bcmExecOptCmd(); 
+								* cleaned up the lease data.
+								*/
+								bcmDelObsoleteRules();
+								bcmExecOptCmd();
 								//brcm end
 
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
@@ -776,7 +791,16 @@ int main(int argc, char *argv[])
 										snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+                                                                       if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
+                                                                            if (hostname == NULL) {
+                                                                                  strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
+                                                                            }
+                                                                       }
+
+#endif
+
+#if defined (AEI_VDSL_CUSTOMER_NCS)
 									if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 										strncpy(lease->hostname, hostname, bytes);
 										lease->hostname[bytes] = '\0';
@@ -788,8 +812,8 @@ int main(int argc, char *argv[])
 									/* delete any obsoleted QoS rules because sendACK() may have
 									 * cleaned up the lease data.
 									 */
-									bcmDelObsoleteRules(); 
-									bcmExecOptCmd(); 
+									bcmDelObsoleteRules();
+									bcmExecOptCmd();
 //brcm end
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
 								}
@@ -820,7 +844,16 @@ int main(int argc, char *argv[])
 										snprintf(lease->hostname, sizeof(lease->hostname), "%s", "Xbox 360");
 #endif
 
-#if defined (AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+#ifdef AEI_VDSL_CUSTOMER_TELUS
+                                                                       if (!strncmp(lease->vendorid, "MSFT_IPTV", strlen("MSFT_IPTV")) || !strncmp(lease->vendorid, "SAIP", strlen("SAIP"))) {
+                                                                               if (hostname == NULL) {
+                                                                                       strncpy(lease->hostname, "OptikTV", sizeof(lease->hostname));
+                                                                               }
+                                                                       }
+
+#endif
+
+#if defined (AEI_VDSL_CUSTOMER_NCS)
 									if ((strcmp(lease->hostname, "") == 0) && (hostname != NULL)) {
 										strncpy(lease->hostname, hostname, bytes);
 										lease->hostname[bytes] = '\0';
@@ -832,8 +865,8 @@ int main(int argc, char *argv[])
 									/* delete any obsoleted QoS rules because sendACK() may have
 									 * cleaned up the lease data.
 									 */
-									bcmDelObsoleteRules(); 
-									bcmExecOptCmd(); 
+									bcmDelObsoleteRules();
+									bcmExecOptCmd();
 									//brcm end
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
 								}
@@ -911,6 +944,32 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 }
+
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK //add william 2012-4-25
+void sendDhcpVlanUpdatedMsg(char *ip,char *vlanId)
+{
+    CmsRet ret;
+	CmsMsgHeader *msg=NULL;
+	char msgBuf[sizeof(CmsMsgHeader) + sizeof(char)*32] = { 0 };
+	char *chTemp=NULL;
+
+	msg=(CmsMsgHeader *)msgBuf;
+    msg->src = EID_DHCPD;//cmsMsg_getHandleEid(msgHandle);
+    msg->dst = EID_SSK;
+	msg->type = CMS_MSG_DHCP_VLAN_VENDOR;
+    msg->flags_event = 1;
+    msg->dataLength = sizeof(char)*32;
+	chTemp = (char *) (msg+1);
+
+	memcpy(chTemp,ip,16);
+	memcpy(chTemp+16,vlanId,16);
+
+    if ((ret = cmsMsg_send(msgHandle, msg)) != CMSRET_SUCCESS)
+        cmsLog_error("william->Failed to send message CMS_MSG_DHCP_LEASES_UPDATED to ssk, ret = %d", ret);
+
+	return;
+}
+#endif
 
 #if defined(AEI_VDSL_DHCP_LEASE)
 void sendDhcpLeasesUpdatedMsg(void)

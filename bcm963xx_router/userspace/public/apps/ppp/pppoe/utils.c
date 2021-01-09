@@ -1019,7 +1019,7 @@ void AEI_set_clearinfo_txt()
     if (fp == NULL) {
 	return;
     }
-         
+
     fgets(line, sizeof(line), fp);
     fclose(fp);
 
@@ -1055,7 +1055,7 @@ void AEI_set_clearinfo_txt()
 
 
 /*
- * We save pppoe session info in to file "var/ppp/session_info" temporaryly  
+ * We save pppoe session info in to file "var/ppp/session_info" temporaryly
  */
 
 void AEI_save_session_info_temp(char *buf)
@@ -1068,14 +1068,14 @@ void AEI_save_session_info_temp(char *buf)
     sprintf(path, "%s", SESSION_INFO_PATH);
     f = fopen(path, "w");
     if (f == NULL) {
-    	error("Failed to create %s: %m", SESSION_INFO_PATH);
-    	return;
+	error("Failed to create %s: %m", SESSION_INFO_PATH);
+	return;
     }
     else
     {
         fprintf(f, "%s\n", buf);
         sysinfo(&info);
-        starttime = info.uptime ; 
+        starttime = info.uptime ;
         fprintf(f, "%ld\n", starttime);
     }
     fclose(f);
@@ -1102,7 +1102,7 @@ void save_session_info(unsigned char *remote_addr, int sid)
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
       AEI_set_clearinfo_txt();
 #endif
-#endif 
+#endif
    }
    
 }   

@@ -312,7 +312,7 @@ dhcp6_ctl_readcommand(read_fds)
 			ctx->input_filled += cc;
 			if (ctx->input_filled < ctx->input_len)
 				continue; /* we need more data */
-			else if (ctx->input_filled == sizeof(*ctlhead)) { 
+			else if (ctx->input_filled == sizeof(*ctlhead)) {
 				ctlhead = (struct dhcp6ctl *)ctx->inputbuf;
 				ctx->input_len += ntohs(ctlhead->len);
 			}

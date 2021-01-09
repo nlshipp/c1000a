@@ -69,19 +69,16 @@
 #define IFF_WAN_HDLC	0x200		/* WAN HDLC device		*/
 
 #if defined(CONFIG_MIPS_BRCM)
-#if defined(CONFIG_BCM96816) && defined(CONFIG_BCM_GPON_MODULE)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))  && defined(CONFIG_BCM_GPON_MODULE)
 #define IFF_HW_SWITCH  0x0000
-#else /* All platforms including 6819_BHR except 6816 w/ GPON */
+#else /* All platforms including 6819_BHR except 6816/6818G w/ GPON */
 #define IFF_HW_SWITCH  0x400
-
-#ifdef AEI_VDSL_CUSTOMER_NCS
 #define IFF_EXT_SWITCH 0x800             /* Indicates the interface is an external switch interface */
 #endif
 
-#endif
-#define IFF_XXX        0x800             /* Not used */
-#define IFF_YYY        0x1000             /* Not used */
-#define IFF_WANDEV     0x2000             /* avoid WAN bridge traffic leaking */
+#define IFF_EPON_IF 0x1000         /* Indicates SFU hardware switching.  */
+
+#define IFF_WANDEV     0x2000            /* avoid WAN bridge traffic leaking */
 #define IFF_BCM_VLAN   0x4000            /* Broadcom VLAN Interface */
 #define IFF_PPP        0x8000            /* PPP Interface */
 #endif

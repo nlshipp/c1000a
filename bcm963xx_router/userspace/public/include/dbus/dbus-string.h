@@ -1,11 +1,11 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-string.h String utility class (internal to D-Bus implementation)
- * 
+ *
  * Copyright (C) 2002, 2003 Red Hat, Inc.
  * Copyright (C) 2006 Ralf Habacker <ralf.habacker@freenet.de>
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -15,7 +15,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -274,7 +274,7 @@ dbus_bool_t   _dbus_string_pop_line              (DBusString        *source,
                                                   DBusString        *dest);
 void          _dbus_string_delete_first_word     (DBusString        *str);
 void          _dbus_string_delete_leading_blanks (DBusString        *str);
-void          _dbus_string_chop_white            (DBusString        *str); 
+void          _dbus_string_chop_white            (DBusString        *str);
 dbus_bool_t   _dbus_string_append_byte_as_hex    (DBusString        *str,
                                                   int                byte);
 dbus_bool_t   _dbus_string_hex_encode            (const DBusString  *source,

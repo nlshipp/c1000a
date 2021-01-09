@@ -10,7 +10,7 @@ print "$TC qdisc add $DEV parent 1:0 handle 2:0 cbq bandwidth ".
 #
 # EF class
 #
-print "$TC class add $DEV parent 2:0 classid 2:1 cbq bandwidth ". 
+print "$TC class add $DEV parent 2:0 classid 2:1 cbq bandwidth ".
 	"10Mbit rate 1500Kbit avpkt 1000 prio 1 bounded isolated ".
 	"allot 1514 weight 1 maxburst 10 \n";
 # packet fifo for EF?
@@ -21,7 +21,7 @@ print "$TC filter add $DEV parent 2:0 protocol ip prio 1 ".
 # BE class
 #
 print "#BE class(2:2) \n";
-print "$TC class add $DEV parent 2:0 classid 2:2 cbq bandwidth ". 
+print "$TC class add $DEV parent 2:0 classid 2:2 cbq bandwidth ".
 	"10Mbit rate 5Mbit avpkt 1000 prio 7 allot 1514 weight 1 ".
 	"maxburst 21 borrow split 2:0 defmap 0xffff \n";
 print "$TC qdisc add $DEV parent 2:2 red limit 60KB ".

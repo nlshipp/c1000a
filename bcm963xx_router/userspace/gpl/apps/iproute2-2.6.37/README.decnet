@@ -8,7 +8,7 @@ Here are a few quick points about DECnet support...
  o No name resolution is available as yet, all addresses must be
    entered numerically.
 
- o Remember to set the hardware address of the interface using: 
+ o Remember to set the hardware address of the interface using:
 
    ip link set ethX address xx:xx:xx:xx:xx:xx
       (where xx:xx:xx:xx:xx:xx is the MAC address for your DECnet node
@@ -30,4 +30,3 @@ Here are a few quick points about DECnet support...
    the libdnet library.
 
 Steve Whitehouse <steve@chygwyn.com>
-

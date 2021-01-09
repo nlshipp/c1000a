@@ -44,6 +44,10 @@
 #define PID_PATH_MAX 256
 static char pidfilename[PID_PATH_MAX];	/* name of pid file */
 
+#ifdef AEI_FRONTIER_V2200H
+extern FILE *g_file;
+#endif
+
 /*
 static int detached = 0;
    log_to_fd = -1;
@@ -501,6 +505,79 @@ format_tag (struct pppoe_tag *t,
       }
 }
 
+#ifdef AEI_FRONTIER_V2200H
+#include <time.h>
+#include <unistd.h>
+#define URL_COUNT 100
+#define IPQ_TIMEOUT 10000000
+#define LOG_TIMEOUT IPQ_TIMEOUT/1000000
+#define ENTRY_SIZE 512
+#define BUFSIZE 2048
+
+int url_count = -1;
+int log_count=0;
+char circularLog[URL_COUNT][ENTRY_SIZE];
+time_t before;
+int logNeedChange = 0;
+
+
+/* write the whole buffer into file /var/pppdebug */
+static void writeLog()
+{
+    int i = 0;
+
+    if (!logNeedChange || (url_count == -1))
+        return;
+
+    rewind(g_file);
+
+    if (!g_file)
+    {
+	 fprintf(stderr,"failed to write log, exiting value : %s\n",strerror(errno));
+         return;
+    }
+
+    for (i=0;i<log_count;i++)
+    {
+		/*
+		if ((url_count-i)>=0)
+            fputs(circularLog[url_count-i], g_file);
+        else
+            fputs(circularLog[URL_COUNT + (url_count-i)], g_file);*/
+
+		fputs(circularLog[i], g_file);
+    }
+    fflush(g_file);
+    logNeedChange=0;
+}
+
+/* add a new URL record to the buffer */
+static void web_log_buffer(char *buf)
+{
+	char currTime[64];
+	struct tm *tmp;
+	time_t now;
+
+	/* get current time */
+	now=time(NULL);
+	tmp=localtime(&now);
+	memset(currTime,0,sizeof(currTime));
+	strftime(currTime,sizeof(currTime),"%m/%d/%Y|%I:%M:%S%p|",tmp);
+
+	if (log_count < URL_COUNT)
+	     log_count++;
+
+	if (++url_count == URL_COUNT )
+	     url_count=0;
+
+	snprintf(circularLog[url_count],ENTRY_SIZE - 1,"%d.    %s\n", url_count + 1, buf);
+	logNeedChange=1;
+
+		writeLog();
+}
+#endif
+
+
 /*
  * poe_logit - does the hard work for poe_fatal et al.
  */
@@ -514,6 +591,11 @@ poe_logit (struct session *ses,int level, char *fmt, va_list args)
     return;
 
   n = vpoe_slprintf (buf, sizeof (buf), fmt, args);
+
+#ifdef AEI_FRONTIER_V2200H
+  web_log_buffer(buf);
+#endif
+
   if (!console) {
 #ifdef BRCM_CMS_BUILD
    if (level >= LOG_DEBUG) {

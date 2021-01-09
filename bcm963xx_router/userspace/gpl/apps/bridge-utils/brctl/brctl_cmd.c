@@ -361,6 +361,29 @@ static int br_cmd_mld_enableproxymode(int argc, char*const* argv)
 	return err != 0;
 }
 
+static int br_cmd_enableigmpratelimit(int argc, char*const* argv)
+{
+	int err;
+	int limit;
+
+	sscanf(argv[2], "%i", &limit);
+
+	if( limit > 500 )
+	{
+		fprintf(stderr, "bad value\n");
+		return 1;
+	}
+
+	err = br_igmp_enable_rate_limit(argv[1], limit);
+	if (err)
+	{
+		fprintf(stderr, "enable igmp rate limit failed: %s\n",
+			strerror(errno));
+	}
+
+	return err != 0;
+}
+
 static int br_cmd_addmacs(int argc, char *const* argv)
 {
 	const char *brName;
@@ -432,6 +455,61 @@ static int br_cmd_delmacs(int argc, char *const* argv)
 	}
 
 	return 0;
+}
+
+
+static int br_cmd_flows(int argc, char *const* argv)
+{
+	const char *brName;
+	const char *rxifName, *txifName;
+	int         err;
+
+	brName   = *++argv;
+	rxifName = *++argv;
+   txifName = *++argv;
+
+   err = br_set_flows(brName, rxifName, txifName);
+   if (err)
+   {
+		switch(err)
+      {
+		case ENODEV:
+			if (if_nametoindex(rxifName) == 0)
+				fprintf(stderr, "rx interface %s does not exist!\n", rxifName);
+			else if (if_nametoindex(txifName) == 0)
+				fprintf(stderr, "tx interface %s does not exist!\n", txifName);
+			else
+				fprintf(stderr, "bridge %s does not exist!\n", brName);
+			break;
+
+		default:
+			fprintf(stderr, "%s: can't set flows for path: bridge %s, rxif %s, txif %s\n",
+				     strerror(err), brName, rxifName, txifName);
+		}
+		return 1;
+	}
+
+	return 0;
+}
+
+static int br_cmd_uni_uni_ctrl(int argc, char*const* argv)
+{
+	int err;
+	int enable;
+
+    sscanf(argv[2], "%i", &enable);
+
+	if((enable < 0) || (enable > 2)) {
+		fprintf(stderr, "bad value\n");
+		return 1;
+        }
+
+	err = br_enable_uni_uni_ctrl(argv[1], enable);
+	if (err)
+		fprintf(stderr, "enable uni to uni ctrl failed: %s\n",
+			strerror(errno));
+
+	return err != 0;
 }
 
 // brcm end
@@ -596,6 +674,12 @@ static const struct command commands[] = {
 	  "<bridge> <value>\t0-disable 1-standard 2-blocking" },
 	{ 2, "mldenableproxymode", br_cmd_mld_enableproxymode,
 	  "<bridge> <value>\tTo enable 1 or disable 0" },
+	{ 3, "flows", br_cmd_flows,
+	  "<bridge> <rxif> <txif>\tTo setup layer 2 flows to the path (rxif->txif)" },
+	{ 2, "enableigmpratelimit", br_cmd_enableigmpratelimit,
+	  "<bridge> <value>\t0-disable, 1..500-packet rate" },
+	{ 2, "eponuniunictrl", br_cmd_uni_uni_ctrl,
+	  "<bridge> <value>\t0-disable 1-enable" },
 // brcm end
 };
 

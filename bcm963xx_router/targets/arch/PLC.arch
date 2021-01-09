@@ -1,0 +1,11 @@
+--- targets/963268GW/963268GW.orig	2011-11-02 18:23:28.000000000 -0700
++++ targets/963268GW/963268GW	2011-11-02 18:23:28.000000000 -0700
+@@ -301,7 +301,7 @@
+ # CMS_CONFIG_COMPAT is not set
+ # BUILD_IPPD is not set
+ # BUILD_DLNA is not set
+-# BUILD_PLC_BOOT is not set
++BUILD_PLC_BOOT=y
+ # BUILD_CERT is not set
+ BRCM_DEFAULTCFG=""
+ 

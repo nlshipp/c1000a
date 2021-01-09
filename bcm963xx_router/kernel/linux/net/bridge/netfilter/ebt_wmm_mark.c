@@ -8,6 +8,9 @@
 #include <linux/if_vlan.h>
 #include <linux/module.h>
 #include <linux/ip.h>
+#if defined(CONFIG_IPV6)
+#include <linux/ipv6.h>
+#endif
 #include <linux/skbuff.h>
 
 static unsigned int ebt_wmm_mark_tg(struct sk_buff *skb, const struct xt_target_param *par)      
@@ -48,12 +51,22 @@ static unsigned int ebt_wmm_mark_tg(struct sk_buff *skb, const struct xt_target_
 		if (skb->protocol == __constant_htons(ETH_P_8021Q))
         		iph = (struct iphdr *)(skb->network_header + VLAN_HLEN);
         	/* ip */
+		#if defined(CONFIG_IPV6)
+        	else if (skb->protocol == __constant_htons(ETH_P_IP)||skb->protocol == __constant_htons(ETH_P_IPV6))
+		#else
         	else if (skb->protocol == __constant_htons(ETH_P_IP))
+		#endif
 			iph = (struct iphdr *)(skb->network_header);
 		else
 		/* pass for others */
 			return EBT_CONTINUE;
 
+		#if defined(CONFIG_IPV6)
+		if(skb->protocol == __constant_htons(ETH_P_IPV6)) 
+			prio=((struct ipv6hdr *)iph)->priority>>1;			
+		else
+		#endif
+		
 		prio = iph->tos>>WMM_DSCP_MASK_SHIFT ;
 	}
 		
@@ -80,7 +93,11 @@ static bool ebt_wmm_mark_tg_check(const struct xt_tgchk_param *par)
 	
 	//printk("e->ethproto=0x%x, e->invflags=0x%x\n",e->ethproto, e->invflags);
 		
+	#if defined(CONFIG_IPV6)
+	if ((e->ethproto != __constant_htons(ETH_P_IPV6) && e->ethproto != __constant_htons(ETH_P_IP) && e->ethproto != __constant_htons(ETH_P_8021Q)) ||
+	#else
 	if ((e->ethproto != __constant_htons(ETH_P_IP) && e->ethproto != __constant_htons(ETH_P_8021Q)) ||
+	#endif
 	   e->invflags & EBT_IPROTO)
 		return false;
 				

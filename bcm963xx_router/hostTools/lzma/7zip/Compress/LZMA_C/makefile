@@ -8,7 +8,7 @@ O=O
 !ENDIF
 !ENDIF
 
-CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -GS- 
+CFLAGS = $(CFLAGS) -nologo -c -Fo$O/ -GS-
 CFLAGS_O1 = $(CFLAGS) -O1
 CFLAGS_O2 = $(CFLAGS) -O2
 
@@ -25,10 +25,10 @@ OBJS = \
   $O\LzmaTest.obj \
   $O\LzmaDecode.obj \
 
-all: $(PROGPATH) 
+all: $(PROGPATH)
 
 clean:
-	-del /Q $(PROGPATH) $O\*.exe $O\*.dll $O\*.obj $O\*.lib $O\*.exp $O\*.res $O\*.pch 
+	-del /Q $(PROGPATH) $O\*.exe $O\*.dll $O\*.obj $O\*.lib $O\*.exp $O\*.res $O\*.pch
 
 $O:
 	if not exist "$O" mkdir "$O"

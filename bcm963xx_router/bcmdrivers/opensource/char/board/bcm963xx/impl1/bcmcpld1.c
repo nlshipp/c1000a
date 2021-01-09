@@ -1,19 +1,23 @@
 /*
-<:copyright-gpl
- Copyright 2002 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2009:GPL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2009 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License, version 2, as published by
+the Free Software Foundation (the "GPL").
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+
+A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
+writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+Boston, MA 02111-1307, USA.
+
 :>
 */
 /***************************************************************************
@@ -25,6 +29,7 @@
 ***************************************************************************/
 
 #include <linux/interrupt.h>
+#include <linux/reboot.h>
 #include <linux/delay.h>
 #include <bcmtypes.h>
 #include <board.h>
@@ -67,7 +72,9 @@ typedef struct {
 } CPLD_CTRL, *PCPLD_CTRL;
 
 CPLD_CTRL g_CpldContext;
+static struct work_struct EnterStandbyWork;
 
+#if 0 // Unused for now
 /***************************************************************************
  * Function Name: BcmCpld1SpiRd
  * Description  : Reads CPLD registers over SPI.
@@ -89,6 +96,7 @@ static unsigned int BcmCpld1SpiRd(unsigned int addr, unsigned int length)
    }
    return retval;
 } /* BcmCpld1SpiRd */
+#endif
 
 /***************************************************************************
  * Function Name: BcmCpld1SpiWr
@@ -111,6 +119,26 @@ static void BcmCpld1SpiWr(unsigned int addr, unsigned int setval, unsigned int l
 } /* BcmCpld1SpiWr */
 
 /***************************************************************************
+ * Function Name: BcmCpld1EnterStandbyWork
+ * Description  : Work thread to enter standby mode
+ * Returns      : void
+ ***************************************************************************/
+static void BcmCpld1EnterStandbyWork(struct work_struct *work)
+{
+   // Temporarily Standby forever for now
+   // Will be replaced with code that sends message using netlink to userspace
+   // which then computes the amount of time to go into standby
+   BcmCpld1SpiWr(BCMCPLD1_TIMER_ADDR, 0xFFFF, 2);
+
+   // Go into standby
+   BcmCpld1SetShutdownMode();
+   //kerSysMipsSoftReset();
+
+   kernel_restart(NULL);
+   return;
+}
+
+/***************************************************************************
  * Function Name: BcmCpld1InterruptHandler
  * Description  : Handles Interrupts coming from CPLD
  * Returns      : void
@@ -120,14 +148,8 @@ static int BcmCpld1InterruptHandler(unsigned int addr, unsigned int setval, unsi
    // Acknowledge the interrupt in CPLD
    BcmCpld1SpiWr(BCMCPLD1_INT_STATUS_ADDR, 1, 1);
 
-   // Temporarily Standby forever for now
-   // Will be replaced with code that sends message using netlink to userspace
-   // which then computes the amount of time to go into standby
-   BcmCpld1SpiWr(BCMCPLD1_TIMER_ADDR, 0xFFFF, 2);
-
-   // Go into standby
-   BcmCpld1SetShutdownMode();
-   kerSysMipsSoftReset();
+   INIT_WORK(&EnterStandbyWork, BcmCpld1EnterStandbyWork);
+   schedule_work(&EnterStandbyWork);
 
    return IRQ_HANDLED;
 } /* BcmCpld1InterruptHandler */

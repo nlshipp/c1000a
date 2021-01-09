@@ -1,37 +1,37 @@
-/* dhcpc.h */
-#ifndef _DHCPC_H
-#define _DHCPC_H
+/* vi: set sw=4 ts=4: */
+/*
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
+ */
+#ifndef UDHCP_DHCPC_H
+#define UDHCP_DHCPC_H 1
 
-#define DEFAULT_SCRIPT  "/usr/share/udhcpc/default.script"
-
-/* allow libbb_udhcp.h to redefine DEFAULT_SCRIPT */
-#include "libbb_udhcp.h"
-
-#define INIT_SELECTING	0
-#define REQUESTING	1
-#define BOUND		2
-#define RENEWING	3
-#define REBINDING	4
-#define INIT_REBOOT	5
-#define RENEW_REQUESTED 6
-#define RELEASED	7
-
+PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
 
 struct client_config_t {
-	char foreground;		/* Do not fork */
-	char quit_after_lease;		/* Quit after obtaining lease */
-	char abort_if_no_lease;		/* Abort if no lease */
-	char background_if_no_lease;	/* Fork to background if no lease */
-	char *interface;		/* The name of the interface to use */
-	char *pidfile;			/* Optionally store the process ID */
-	char *script;			/* User script to run at dhcp events */
-	uint8_t *clientid;		/* Optional client id to use */
-	uint8_t *hostname;		/* Optional hostname to use */
-	int ifindex;			/* Index number of the interface to use */
-	uint8_t arp[6];			/* Our arp address */
-};
+	uint8_t client_mac[6];          /* Our mac address */
+	char no_default_options;        /* Do not include default options in request */
+	IF_FEATURE_UDHCP_PORT(uint16_t port;)
+	int ifindex;                    /* Index number of the interface to use */
+	uint8_t opt_mask[256 / 8];      /* Bitmask of options to send (-O option) */
+	const char *interface;          /* The name of the interface to use */
+	char *pidfile;                  /* Optionally store the process ID */
+	const char *script;             /* User script to run at dhcp events */
+	struct option_set *options;     /* list of DHCP options to send to server */
+	uint8_t *clientid;              /* Optional client id to use */
+	uint8_t *vendorclass;           /* Optional vendor class-id to use */
+	uint8_t *hostname;              /* Optional hostname to use */
+	uint8_t *fqdn;                  /* Optional fully qualified domain name to use */
+} FIX_ALIASING;
 
-extern struct client_config_t client_config;
+/* server_config sits in 1st half of bb_common_bufsiz1 */
+#define client_config (*(struct client_config_t*)(&bb_common_bufsiz1[COMMON_BUFSIZE / 2]))
 
+#if ENABLE_FEATURE_UDHCP_PORT
+#define CLIENT_PORT (client_config.port)
+#else
+#define CLIENT_PORT 68
+#endif
+
+POP_SAVED_FUNCTION_VISIBILITY
 
 #endif

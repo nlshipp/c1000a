@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -168,6 +170,8 @@ typedef enum
    CMSRET_OP_ABORTED_BY_USER = 9812,  /**< Operation was aborted/discontinued by the user */
    CMSRET_RECURSION_ERROR = 9817,     /**< too many levels of recursion */
    CMSRET_OPEN_FILE_ERROR = 9818,     /**< open file error */
+   CMSRET_EAGAIN_ERROR = 9820,        /**< socket write EAGAIN error */
+   CMSRET_SOCKET_ERROR = 9821,        /**< socket error */
    CMSRET_KEY_GENERATION_ERROR = 9830,     /** certificate key generation error */
    CMSRET_INVALID_CERT_REQ = 9831,     /** requested certificate does not match with issued certificate */
    CMSRET_INVALID_CERT_SUBJECT = 9832,     /** certificate has invalid subject information */
@@ -186,12 +190,25 @@ typedef enum
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
    CMSRET_CORRUPTED_IMAGE = 9859, /**< corrupted image was given for download*/
 #endif
-#endif 
+#endif
 
 } CmsRet;
 
 
 /** Check if the CmsRet code is either SUCCESS or SUCCESS_REBOOT_REQUIRED.
+ * CMSRET_SUCCESS_REBOOT is returned in two scenarios:
+ * 1. During a set, the RCL handler function has accepted the new value but
+ *    is unable to change the system configuration at run-time, so a reboot
+ *    is needed before the change can take effect.
+ * 2. During a AddObject or DeleteObject.  The MDM object tree has been
+ *    successfully updated, but the RCL handler function is unable to change
+ *    the system configuration at run-time, so a reboot is needed before the
+ *    change can take effect.
+ * Be very careful if you add any other return codes to this macro.
+ * Make sure you understand what you are doing.  Specifically,
+ * do not add CMSRET_SUCCESS_UNRECOGNIZED_DATA_IGNORED or
+ * CMSRET_SUCCESS_OBJECT_UNCHANGED to this macro.  These return codes are
+ * used in different contexts.
  */
 #define IS_CMSRET_A_SUCCESS_VARIANT(r) (((r) == CMSRET_SUCCESS) || \
                                         ((r) == CMSRET_SUCCESS_REBOOT_REQUIRED))
@@ -276,8 +293,10 @@ typedef enum
 #define CMS_MAX_ACS_URL_LENGTH   260   //!< max acs url from dhcp server, specified in TR-181 as max length 256
 #define CMS_MAX_ACS_PROVISIONING_CODE_LENGTH 68  //!< max acs provisioning code, TR-181 max length is 64
 
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
-#define CMS_IPADDR_LENGTH  44          //!< IP address length to hold IPv6 in CIDR notation
+#define CMS_AFTR_NAME_LENGTH   256     //!< max aftr name from dhcpv6 server
+
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)   /* aka SUPPORT_IPV6 */
+#define CMS_IPADDR_LENGTH  46          //!< IP address length to hold IPv6 in CIDR notation (match INET6_ADDRSTRLEN)
 #else
 #define CMS_IPADDR_LENGTH  BUFLEN_16   //!< IP address length to hold IPv4 in ASCII
 #endif /* DMP_X_BROADCOM_COM_IPV6_1 */
@@ -416,22 +435,32 @@ typedef enum
    
 }Layer2IfNameType;
 
+
+typedef enum
+{
+   ENBL_IPV4_ONLY=0,     /**< Wan Connection is IPv4 only  */               
+   ENBL_IPV4_IPV6=1,     /**< Wan Connection is dual stack */     
+   ENBL_IPV6_ONLY=2      /**< Wan Connection is IPv6 only  */
+}WanConnL3Type;
+
+
 /* RAM size defines */
 #define SZ_8MB          0x800000
 #define SZ_16MB         0x1000000
 
 
 #define MAX_PERSISTENT_WAN_PORT     39       /**< Max Ethernet ports can be configured as WAN ports */
+#define MAX_GMAC_ETH_PORT           5        /**< Max GMAC Ethernet ports in the system */
 
-#define WAN_DNS_SUBNET_FILE  "/var/wandns"   /**< This file holds the WAN interface, subnet (interface group) and dns list for this WAN */
-
-#define DNSPROXY_CONF        "/var/dnsproxy.conf" /**< This file is used by dnsproxy and has the following fields:
-                                                    * eg. atm1;172.0.0.1/32;10.7.2.8,20.1.2.5;tr69c    -- WAN service for TR69
-                                                    * 1). WAN interface name. eg. ppp0, atm0, etc.
-                                                    * 2)  subnet (bind to this WAN)
-                                                    * 3) dns list for this WAN
-                                                    * 4) process name list uses this WAN
-                                                    */
+#define DNSINFO_CONF  "/var/dnsinfo.conf"   /**< This file is created by cms when there is a WAN connection status change and is used
+                                               * by dnsproxy and can be used by other applications for the finding the WAN dns info. 
+                                               * and has the following fields,  WAN Interface; Subnet/Mask; dns1, dns2..; app1, app2.. :
+                                               * eg. atm1;172.0.0.1/32;10.7.2.8,20.1.2.5;tr69c    -- WAN service for TR69
+                                               * 1). WAN interface name. eg. ppp0, atm0, etc.
+                                               * 2)  subnet/mask in cidr format (bind to this WAN)
+                                               * 3) dns list for this WAN 
+                                               * 4) process name list uses this WAN
+                                               */
 
 /* include cms_params.h after we have defined all other constants. */
 #include "cms_params.h"
@@ -451,4 +480,14 @@ typedef enum
     OMCI_FLOW_DOWNSTREAM,
     OMCI_FLOW_BOTH,
 } OmciFLowDirection;
+
+
+typedef enum
+{
+   LOGIN_INVALID=0,     /**< This is for httpd login */
+   LOGIN_USER=1,        /**< user login */     
+   LOGIN_SUPPORT=2,     /**< support login  */
+   LOGIN_ADMIN=10,      /**< admin login  */       
+} HttpLoginType;
+
 #endif /* __CMS_H__ */

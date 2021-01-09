@@ -8,19 +8,25 @@
 
 <:label-BRCM:2011:DUAL/GPL:standard
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -41,7 +47,7 @@ Boston, MA 02111-1307, USA.
 #include "fap4ke_printer.h"
 #include "fap4ke_memory.h"
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 #define FAP4KE_MIPS_CLK_PERIOD_NSEC  5
 #define FAP4KE_MIPS_CLK_HZ           200000000
 #elif defined(CONFIG_BCM96362)
@@ -174,30 +180,30 @@ void __fap4ke_unlock(uint32 flags);
 
 #define FAP4KE_PMON_BEGIN(_pmonId)                    \
     do {                                              \
-        p4kePsmGbl->pmon.icachehit[(_pmonId)] =       \
+        p4kePmon->icachehit[(_pmonId)] =       \
             _4kePerfMeasReg->ICacheHit;               \
-        p4kePsmGbl->pmon.icachemiss[(_pmonId)] =      \
+        p4kePmon->icachemiss[(_pmonId)] =      \
             _4kePerfMeasReg->ICacheMiss;              \
-        p4kePsmGbl->pmon.instncomplete[(_pmonId)] =   \
+        p4kePmon->instncomplete[(_pmonId)] =   \
             _4kePerfMeasReg->InstnComplete;           \
-        p4kePsmGbl->pmon.halfCycles[(_pmonId)] =      \
+        p4kePmon->halfCycles[(_pmonId)] =      \
             fap4ke_readCp0CountReg();                 \
     } while(0)
 
 #define FAP4KE_PMON_END(_pmonId)                        \
     do {                                                \
-        p4kePsmGbl->pmon.halfCycles[(_pmonId)] =        \
+        p4kePmon->halfCycles[(_pmonId)] =        \
             fap4ke_readCp0CountReg() -                  \
-            p4kePsmGbl->pmon.halfCycles[(_pmonId)];     \
-        p4kePsmGbl->pmon.instncomplete[(_pmonId)] =     \
+            p4kePmon->halfCycles[(_pmonId)];     \
+        p4kePmon->instncomplete[(_pmonId)] =     \
             _4kePerfMeasReg->InstnComplete -            \
-            p4kePsmGbl->pmon.instncomplete[(_pmonId)];  \
-        p4kePsmGbl->pmon.icachemiss[(_pmonId)] =        \
+            p4kePmon->instncomplete[(_pmonId)];  \
+        p4kePmon->icachemiss[(_pmonId)] =        \
             _4kePerfMeasReg->ICacheMiss -               \
-            p4kePsmGbl->pmon.icachemiss[(_pmonId)];     \
-        p4kePsmGbl->pmon.icachehit[(_pmonId)] =         \
+            p4kePmon->icachemiss[(_pmonId)];     \
+        p4kePmon->icachehit[(_pmonId)] =         \
             _4kePerfMeasReg->ICacheHit -                \
-            p4kePsmGbl->pmon.icachehit[(_pmonId)];      \
+            p4kePmon->icachehit[(_pmonId)];      \
     } while(0)
 #else /* better accuracy and performance */
 #define FAP4KE_PMON_DECLARE() uint32 _pmonCycles, _pmonInst, _pmonIcacheHit, _pmonIcacheMiss, _pmonIrq
@@ -206,22 +212,22 @@ void __fap4ke_unlock(uint32 flags);
     do {                                                \
         _pmonIcacheHit = _4kePerfMeasReg->ICacheHit;    \
         _pmonIcacheMiss = _4kePerfMeasReg->ICacheMiss;  \
-        _pmonIrq = p4kePsmGbl->pmon.globalIrqs;         \
+        _pmonIrq = p4kePmon->globalIrqs;         \
         _pmonInst = _4kePerfMeasReg->InstnComplete;     \
         _pmonCycles = fap4ke_readCp0CountReg();         \
     } while(0)
 
 #define FAP4KE_PMON_END(_pmonId)                                \
     do {                                                        \
-        p4kePsmGbl->pmon.halfCycles[(_pmonId)] =                \
+        p4kePmon->halfCycles[(_pmonId)] =                \
             fap4ke_readCp0CountReg() - _pmonCycles;             \
-        p4kePsmGbl->pmon.instncomplete[(_pmonId)] =             \
+        p4kePmon->instncomplete[(_pmonId)] =             \
             _4kePerfMeasReg->InstnComplete - _pmonInst;         \
-        p4kePsmGbl->pmon.interrupts[(_pmonId)] =                \
-            p4kePsmGbl->pmon.globalIrqs - _pmonIrq;             \
-        p4kePsmGbl->pmon.icachemiss[(_pmonId)] =                \
+        p4kePmon->interrupts[(_pmonId)] =                \
+            p4kePmon->globalIrqs - _pmonIrq;             \
+        p4kePmon->icachemiss[(_pmonId)] =                \
             _4kePerfMeasReg->ICacheMiss - _pmonIcacheMiss;      \
-        p4kePsmGbl->pmon.icachehit[(_pmonId)] =                 \
+        p4kePmon->icachehit[(_pmonId)] =                 \
             _4kePerfMeasReg->ICacheHit - _pmonIcacheHit;        \
     } while(0)
 #endif
@@ -315,9 +321,13 @@ void dumpHeader(uint8 *packet_p);
 #if defined(CC_FAP4KE_TRACE)
 void fap4keTrace_record(fap4keTrace_id_t id, uint32_t arg, fap4keTrace_type_t type);
 void fap4keTrace_init(void);
+void fap4keTrace_dump(void);
 #else
 #define fap4keTrace_record(id, arg, type)
 #define fap4keTrace_init()
+#define fap4keTrace_dump()
 #endif
 
+#define DOFAPTRACE(val,traceval) p4keSdram->dbgVals[val]=funcBase+traceval;
+#define DOFAPTRACECNT(val) p4keSdram->dbgVals[val]=loopcnt++;
 #endif  /* defined(__FAP4KE_LOCAL_H_INCLUDED__) */

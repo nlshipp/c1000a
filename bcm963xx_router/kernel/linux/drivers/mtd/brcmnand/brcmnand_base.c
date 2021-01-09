@@ -1,6 +1,7 @@
 /*
  *  drivers/mtd/brcmnand/brcmnand_base.c
  *
+<:copyright-BRCM:2002:GPL/GPL:standard
     Copyright (c) 2005-2010 Broadcom Corporation                 
     
  This program is free software; you can redistribute it and/or modify
@@ -26,6 +27,7 @@ when	who what
 -----	---	----
 051011	tht	codings derived from onenand_base.c implementation.
 070528	tht	revised for 2.6.18 derived from nand_base.c implementation.
+:>
  */
 
 #include <linux/kernel.h>
@@ -42,6 +44,10 @@ when	who what
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/compiler.h>
+#ifdef AEI_NAND_IMG_CHECK
+#include <linux/crc32.h>
+#include <linux/jffs2.h>
+#endif
 
 #include <asm/io.h>
 #include <asm/bug.h>
@@ -789,6 +795,31 @@ static brcmnand_chip_Id brcmnand_chips[] = {
 		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_0, 
 	},
 
+#ifdef AEI_VDSL_CUSTOMER_NCS
+	{	/* 39 */
+		.chipId = ESMT_F59L1G81A,
+		.mafId = FLASHTYPE_ESMT,
+		.chipIdStr = "ESMT F59L1G81A",
+		.options = NAND_USE_FLASH_BBT,
+		.idOptions = 0,
+		.timing1 = 0, .timing2 = 0,
+		.nop=4,
+		.ctrlVersion = 0,
+	},
+    {   /* 40 */
+        .chipId = SAMSUNG_K9F1G08U0D,
+        .mafId = FLASHTYPE_SAMSUNG,
+        .chipIdStr = "Samsung K9F1G08U0D",
+        .options = NAND_USE_FLASH_BBT,      /* Use BBT on flash */
+        .idOptions = 0,
+                //| NAND_COMPLEX_OOB_WRITE	/* Write data together with OOB for write_oob */
+        .timing1 = 0, //00070000,
+        .timing2 = 0,
+        .nop=4,
+        .ctrlVersion = 0, /* THT Verified on data-sheet 7/10/08: Allows 4 on main and 4 on OOB */
+    },
+#endif
+
 #if 0
 /* New Chip ID scheme in place and working, but as of 2631-2.5 these do not work yet, for some unknown reason */
 
@@ -817,6 +848,8 @@ static brcmnand_chip_Id brcmnand_chips[] = {
 		.nop=4,
 		.ctrlVersion = CONFIG_MTD_BRCMNAND_VERS_3_3,  /* Require BCH-12 */
 	},
+
+
 #endif
 
 #if CONFIG_MTD_BRCMNAND_VERSION >= CONFIG_MTD_BRCMNAND_VERS_4_0
@@ -879,9 +912,20 @@ static uint32_t brcmnand_registerHoles[] = {
 #endif
 };
 
+#ifdef AEI_NAND_IMG_CHECK
+#define SPARE_MAX_SIZE			(27 * 16)
+#define ECC_MASK_BIT(ECCMSK, OFS)	(ECCMSK[OFS / 8] & (1 << (OFS % 8)))
+#define JFFS2_CLEANMARKER		{JFFS2_MAGIC_BITMASK, \
+					JFFS2_NODETYPE_CLEANMARKER, 0x0000, 0x0008}
+/* sync the spare data with what cfe is using for cleanmarker. */
+static uint8_t jffs2_cleanmark[SPARE_MAX_SIZE];
+#endif
+
 static int brcmnand_wait(struct mtd_info *mtd, int state, uint32_t* pStatus);
 
-
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+int bramnand_get_fact_prot_info(struct mtd_info *mtd, struct otp_info *buf, size_t len);
+#endif
 // Is there a register at the location
 static int inRegisterHoles(uint32_t reg)
 {
@@ -2234,7 +2278,7 @@ printk("%s: AUTO: oob=%p, chip->oob_poi=%p, ooboffs=%d, len=%d, bytes=%d, boffs=
 
 
 
-#define DEBUG_UNCERR
+#undef DEBUG_UNCERR
 #ifdef DEBUG_UNCERR
 static uint32_t uncErrOob[7];
 static u_char uncErrData[512];
@@ -4002,7 +4046,9 @@ static int brcmnand_ctrl_posted_write_cache(struct mtd_info *mtd,
 	uint32_t* p32;
 	int i, needBBT=0;
 	int ret;
-
+#ifdef AEI_NAND_IMG_CHECK
+	uint32_t page_crc = 0xffffffff; // for 16 bytes
+#endif
 	//char msg[20];
 
 
@@ -4021,6 +4067,15 @@ print_databuf(buffer, 32);}
 
 
 	if (buffer) {
+#ifdef AEI_NAND_IMG_CHECK
+		if (mtd->oobavail)
+		{
+		    if(mtd->oobavail == 9)
+			    page_crc = 0x12345678; //only for QA test
+			else
+			    page_crc = crc32(page_crc, buffer, ECCSIZE(mtd));
+		}
+#endif
 if (gdebug > 3 ) {print_databuf(buffer, 32);}
 		brcmnand_to_flash_memcpy32(chip, offset, buffer, ECCSIZE(mtd));
 	}
@@ -4035,9 +4090,21 @@ if (gdebug > 3 ) {print_databuf(buffer, 32);}
 //printk("30\n");
 	if (oobarea) {
 		p32 = (uint32_t*) oobarea;
+#ifdef AEI_NAND_IMG_CHECK
+		if (mtd->oobavail)
+			p32[3] = page_crc;
+#endif
 if (gdebug > 3) {printk("%s: oob=\n", __FUNCTION__); print_oobbuf(oobarea, 16);}
 	}
 	else {
+#ifdef AEI_NAND_IMG_CHECK
+		/* save crc32 if the data to be written is image */
+		if (mtd->oobavail) {
+			p32 = (uint32_t*)jffs2_cleanmark;
+			p32[3] = page_crc;
+		}
+		else
+#endif
 		// Fill with 0xFF if don't want to change OOB
 		p32 = (uint32_t*) &ffchars[0];
 	}
@@ -4062,8 +4129,8 @@ if (gdebug > 3) {printk("%s: oob=\n", __FUNCTION__); print_oobbuf(oobarea, 16);}
 			printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 //printk("80 block mark bad\n");
 			// SWLINUX-1495: Let UBI do it on returning -EIO
-			//ret = chip->block_markbad(mtd, offset);
-			ret = -EIO;
+			// ret = -EIO;
+			ret = chip->block_markbad(mtd, offset);
 			goto out;
 		}
 	}
@@ -4110,8 +4177,8 @@ brcmnand_edu_write_war(struct mtd_info *mtd,
 		printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 
 		// SWLINUX-1495: Let UBI do it on returning -EIO
-		//ret = chip->block_markbad(mtd, offset);
-		ret = -EIO;
+		// ret = -EIO;
+		ret = chip->block_markbad(mtd, offset);
 	}
 
 #if defined(EDU_DEBUG_5) // || defined( CONFIG_MTD_BRCMNAND_VERIFY_WRITE )
@@ -4172,8 +4239,8 @@ brcmnand_edu_write_completion(struct mtd_info *mtd,
 		{ // Need BBT
 			printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 			// SWLINUX-1495: Let UBI do it on returning -EIO
-			//ret = chip->block_markbad(mtd, offset);
-			ret = -EIO;
+			// ret = -EIO;
+			ret = chip->block_markbad(mtd, offset);
 			
 			goto out;
 		}
@@ -4185,8 +4252,8 @@ brcmnand_edu_write_completion(struct mtd_info *mtd,
 	if (needBBT) {
 		printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 		// SWLINUX-1495: Let UBI do it on returning -EIO
-		//ret = chip->block_markbad(mtd, offset);
-		ret = -EIO;
+		// ret = -EIO;
+		ret = chip->block_markbad(mtd, offset);
 			
 		goto out;
 	}		
@@ -4321,8 +4388,8 @@ printk("%s: brcmnand_EDU_write_is_complete timeout, intr_status=%08x\n", __FUNCT
 			printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 
 			// SWLINUX-1495: Let UBI do it on returning -EIO
-			//ret = chip->block_markbad(mtd, offset);
-			ret = -EIO;
+			// ret = -EIO;
+			ret = chip->block_markbad(mtd, offset);
 			goto out;
 		}
 	}
@@ -4334,8 +4401,8 @@ printk("%s: brcmnand_EDU_write_is_complete timeout, intr_status=%08x\n", __FUNCT
 		printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 
 		// SWLINUX-1495: Let UBI do it on returning -EIO
-		//ret = chip->block_markbad(mtd, offset);
-		ret = -EIO;
+		// ret = -EIO;
+		ret = chip->block_markbad(mtd, offset);
 		goto out;
 	}		
 	ret = -ETIMEDOUT;
@@ -4477,8 +4544,8 @@ print_oobbuf(oobarea, 16);
 		printk(KERN_WARNING "%s: Flash Status Error @%0llx\n", __FUNCTION__,  offset);
 
 		// SWLINUX-1495: Let UBI do it on returning -EIO
-		//ret = chip->block_markbad(mtd, offset);
-		ret = -EIO;
+		// ret = -EIO;
+		ret = chip->block_markbad(mtd, offset);
 		return (ret);
 	}
 
@@ -6368,7 +6435,10 @@ static int brcmnand_do_write_ops(struct mtd_info *mtd, loff_t to,
 #if defined(CONFIG_MIPS_BRCM)
 	uint8_t oobarea[512];
 	int read_oob = 0;
-	if( !oob && (chip->options & NAND_COMPLEX_OOB_WRITE) )
+	if( !oob &&
+        ((chip->options & NAND_COMPLEX_OOB_WRITE) != 0 || 
+	     (chip->ecclevel >= BRCMNAND_ECC_BCH_1 &&
+          chip->ecclevel <= BRCMNAND_ECC_BCH_12)) )
 	{
 		read_oob = 1;
 		oob = (uint8_t *) (((uint32_t) oobarea + 0x0f) & ~0x0f);
@@ -6701,9 +6771,6 @@ brcmnand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 {
 	//struct brcmnand_chip *chip = mtd->priv;
 	int ret = -ENOTSUPP;
-#if defined(CONFIG_MIPS_BRCM)
-    ops->len = ops->ooblen;
-#endif
 
 	DEBUG(MTD_DEBUG_LEVEL3, "%s: to=%0llx\n", __FUNCTION__, to);
 
@@ -6726,7 +6793,12 @@ printk("Attempt to write beyond end of device\n");
 
 
 	if (!ops->datbuf)
+    {
+#if defined(CONFIG_MIPS_BRCM)
+        ops->len = ops->ooblen;
+#endif
 		ret = brcmnand_do_write_oob(mtd, to, ops);
+    }
 	else
 		ret = brcmnand_do_write_ops(mtd, to, ops);
 
@@ -9242,6 +9314,7 @@ static int brcmnand_probe(struct mtd_info *mtd, unsigned int chipSelect)
 		}
 
 	/*------------- 3rd ID byte --------------------*/	
+#if !defined(CONFIG_MIPS_BRCM)
 		if (!skipIdLookup && FLASHTYPE_SPANSION == brcmnand_maf_id) {
 			unsigned char devId3rdByte =  (chip->device_id >> 8) & 0xff;
 
@@ -9257,7 +9330,6 @@ static int brcmnand_probe(struct mtd_info *mtd, unsigned int chipSelect)
 					chip->disableECC = 1;
 					break;
 			}
-
 			/* Correct erase Block Size to read 512K for all Spansion OrNand chips */
 			nand_config &= ~(0x3 << 28);
 			nand_config |= (0x3 << 28); // bit 29:28 = 3 ===> 512K erase block
@@ -9265,6 +9337,9 @@ static int brcmnand_probe(struct mtd_info *mtd, unsigned int chipSelect)
 		}
 		/* Else if NAND is found in suppported table */
 		else if (foundInIdTable) {
+#else
+		if (foundInIdTable) {
+#endif
 		
 
 #if CONFIG_MTD_BRCMNAND_VERSION == CONFIG_MTD_BRCMNAND_VERS_0_0
@@ -9403,6 +9478,7 @@ printk("%s: Ecc level set to %d, sectorSize=%d from ID table\n", __FUNCTION__, c
 
 		/* ID not in table, and no CONFIG REG was passed at command line */
 		else if (!skipIdLookup && !foundInIdTable) {
+#if CONFIG_MTD_BRCMNAND_VERSION > CONFIG_MTD_BRCMNAND_VERS_2_2
 			uint32_t acc;
 			
 			/* 
@@ -9414,7 +9490,6 @@ printk("%s: Ecc level set to %d, sectorSize=%d from ID table\n", __FUNCTION__, c
 			* Do nothing, we will decode the controller CONFIG register for
 			* for flash geometry
 			*/
-			nand_config = chip->ctrl_read(bchp_nand_config(chip->ctrl->CS[chip->csi]));  
 
 			/*
 			 * Also, we need to find out the size of the OOB from ACC_CONTROL reg
@@ -9425,7 +9500,8 @@ printk("%s: Ecc level set to %d, sectorSize=%d from ID table\n", __FUNCTION__, c
 					BCHP_NAND_ACC_CONTROL_SPARE_AREA_SIZE_SHIFT;
 
 			printk("Spare Area Size = %dB/512B\n", chip->eccOobSize);
-			
+#endif
+			nand_config = chip->ctrl_read(bchp_nand_config(chip->ctrl->CS[chip->csi]));  
 		}
 	}
 
@@ -10356,6 +10432,25 @@ static uint32_t check_n_disable_wr_preempt(uint32_t acc_control)
 }
 #endif
 
+#ifdef AEI_NAND_IMG_CHECK
+static void aei_nand_init_cleanmarker(struct brcmnand_chip* chip)
+{
+    unsigned short cleanmarker[] = JFFS2_CLEANMARKER;
+    unsigned char *pcm = (unsigned char *) cleanmarker;
+    unsigned char spare_mask[] = {0xe0, 0x01};
+    int i, j;
+
+    /* Skip spare area offsets reserved for ECC bytes. */
+    for( i = 0, j = 0; i < chip->eccOobSize; i++ )
+    {
+        if( ECC_MASK_BIT(spare_mask, i) == 0 && j < sizeof(cleanmarker))
+            jffs2_cleanmark[i] = pcm[j++];
+        else
+            jffs2_cleanmark[i] = 0xff;
+    }
+} /* aei_nand_init_cleanmarker */
+#endif
+
 /**
  * brcmnand_scan - [BrcmNAND Interface] Scan for the BrcmNAND device
  * @param mtd		MTD device structure
@@ -10882,7 +10977,9 @@ PRINTK("300 CS=%d, chip->ctrl->CS[%d]=%d\n", cs, chip->csi, chip->ctrl->CS[chip-
 	mtd->write = brcmnand_write;
 	mtd->read_oob = brcmnand_read_oob;
 	mtd->write_oob = brcmnand_write_oob;
-
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+        mtd->get_fact_prot_info=bramnand_get_fact_prot_info;
+#endif
 	// Not needed?
 	mtd->writev = brcmnand_writev;
 	
@@ -10972,6 +11069,10 @@ PRINTK("500 chip=%p, CS=%d, chip->ctrl->CS[%d]=%d\n", chip, cs, chip->csi, chip-
 	if(brcmnand_create_cet(mtd) < 0) {
 		printk(KERN_INFO "%s: CET not created\n", __FUNCTION__);
 	}
+#endif
+
+#ifdef AEI_NAND_IMG_CHECK
+	aei_nand_init_cleanmarker(chip);
 #endif
 
 PRINTK("%s 99\n", __FUNCTION__);
@@ -11209,6 +11310,12 @@ void brcmnand_release(struct mtd_info *mtd)
 #endif
 
 }
-
-
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+int bramnand_get_fact_prot_info(struct mtd_info *mtd, struct otp_info *buf, size_t len)
+{
+       unsigned long mafId=0;
+       brcmnand_read_id(mtd,0,&mafId);
+       return (int)((mafId>>24) & 0xff);
+}
+#endif
 

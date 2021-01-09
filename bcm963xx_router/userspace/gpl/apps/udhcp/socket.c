@@ -67,7 +67,12 @@ int listen_socket(unsigned int ip, int port, char *inf)
         return -1;
     }
 
+#if defined(AEI_COVERITY_FIX)
+    /*CID 10199:Buffer not null terminated*/
+    strlcpy(interface.ifr_ifrn.ifrn_name, inf, IFNAMSIZ);
+#else
     strncpy(interface.ifr_ifrn.ifrn_name, inf, IFNAMSIZ);
+#endif
     if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (char *)&interface, sizeof(interface)) < 0) {
         close(fd);
         return -1;

@@ -1,20 +1,29 @@
 /*
-<:copyright-gpl
  Copyright 2007-2010 Broadcom Corp. All Rights Reserved.
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+ <:label-BRCM:2011:DUAL/GPL:standard
+ 
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
+ 
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
+ 
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
+ 
+ :>
 */
 
 #include <linux/types.h>
@@ -26,7 +35,7 @@
 #include <linux/string.h>
 #include <board.h>
 #include "boardparms.h"
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include "bcm_intr.h"
 #include "bcmenet.h"
 #include "bcmmii.h"
@@ -37,6 +46,17 @@
 #include "bcmSpiRes.h"
 #include "bcmswaccess.h"
 #include "bcmswshared.h"
+#include "bcmPktDma.h"
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+#include "fap_packet.h"
+#endif
+
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+int uni_to_uni_enabled = 0;
+#endif
+#if defined(CONFIG_BCM_GMAC)
+#include "bcmgmac.h"
+#endif
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 void extsw_rreg(int page, int reg, uint8 *data, int len);
@@ -52,7 +72,7 @@ static int proc_get_mii_param(char *page, char **start, off_t off, int cnt, int 
 static int proc_set_mii_param(struct file *f, const char *buf, unsigned long cnt, void *data);
 
 extern struct net_device *vnet_dev[MAX_NUM_OF_VPORTS];
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 extern struct net_device *gponifid_to_dev[MAX_GEM_IDS];
 #endif
 #if defined(CONFIG_BCM96816)
@@ -60,6 +80,10 @@ extern struct net_device* bcm6829_to_dev[MAX_6829_IFS];
 #endif
 extern struct semaphore bcm_ethlock_switch_config;
 extern uint8_t port_in_loopback_mode[TOTAL_SWITCH_PORTS];
+extern atomic_t phy_write_ref_cnt;
+extern atomic_t phy_read_ref_cnt;
+void ethsw_phyport_rreg(int port, int reg, uint16 *data);
+void ethsw_phyport_wreg(int port, int reg, uint16 *data);
 
 // Software port index ---> real hardware param.
 int switch_port_index[TOTAL_SWITCH_PORTS];
@@ -164,7 +188,7 @@ int ethsw_phy_intr_ctrl(int port, int on)
 
     down(&bcm_ethlock_switch_config);
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96368) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96368) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96318)
     if (on != 0)
         v16 = MII_INTR_ENABLE | MII_INTR_FDX | MII_INTR_SPD | MII_INTR_LNK;
     else
@@ -173,9 +197,11 @@ int ethsw_phy_intr_ctrl(int port, int on)
     ethsw_phy_wreg(switch_pport_phyid[port], MII_INTERRUPT, &v16);
 #endif
 
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 #if defined(CONFIG_BCM963268)
     if (port == GPHY_PORT_ID)
+#elif defined(CONFIG_BCM96828)
+    if ((port == GPHY1_PORT_ID) || (port == GPHY2_PORT_ID))
 #endif
     {
         if (on != 0)
@@ -215,7 +241,7 @@ void ethsw_set_mac_link_down(void)
                 }
             }
         }
-    } 
+    }
 }
 
 PHY_STAT ethsw_phy_stat(int port)
@@ -223,6 +249,10 @@ PHY_STAT ethsw_phy_stat(int port)
     PHY_STAT ps;
     uint16 v16;
     uint16 ctrl;
+    uint16 mii_esr = 0;
+    uint16 mii_stat = 0, mii_adv = 0, mii_lpa = 0;
+    uint16 mii_gb_ctrl = 0, mii_gb_stat = 0;
+
     int phyId;
 #if defined(CONFIG_BCM96816)
     int is6829 = 0;
@@ -278,6 +308,8 @@ PHY_STAT ethsw_phy_stat(int port)
 
     ethsw_phy_rreg(phyId, MII_INTERRUPT, &v16);
     ethsw_phy_rreg(phyId, MII_ASR, &v16);
+    BCM_ENET_DEBUG("%s mii_asr (reg 25) 0x%x\n", __FUNCTION__, v16);
+
 
     if (!MII_ASR_LINK(v16)) {
         up(&bcm_ethlock_switch_config);
@@ -286,13 +318,13 @@ PHY_STAT ethsw_phy_stat(int port)
 
     ps.lnk = 1;
 
+    ethsw_phy_rreg(phyId, MII_BMCR, &ctrl);
+
     if (!MII_ASR_DONE(v16)) {
-        ethsw_phy_rreg(phyId, MII_BMCR, &ctrl);
         if (ctrl & BMCR_ANENABLE) {
             up(&bcm_ethlock_switch_config);
             return ps;
         }
-        // auto-negotiation disabled
         ps.fdx = (ctrl & BMCR_FULLDPLX) ? 1 : 0;
         if((ctrl & BMCR_SPEED100) && !(ctrl & BMCR_SPEED1000))
             ps.spd100 = 1;
@@ -315,20 +347,55 @@ PHY_STAT ethsw_phy_stat(int port)
         return ps;
     }
 #endif
-    up(&bcm_ethlock_switch_config);
 
-    if (MII_ASR_FDX(v16))
-        ps.fdx = 1;
+    //Auto neg enabled (this end) cases
+    ethsw_phy_rreg(phyId, MII_ADVERTISE, &mii_adv);
+    ethsw_phy_rreg(phyId, MII_LPA, &mii_lpa);
+    ethsw_phy_rreg(phyId, MII_BMSR, &mii_stat);
 
-    if (MII_ASR_1000(v16))
+    BCM_ENET_DEBUG("%s mii_adv 0x%x mii_lpa 0x%x mii_stat 0x%x mii_ctrl 0x%x \n", __FUNCTION__,
+           mii_adv, mii_lpa, mii_stat, v16);
+    // read 1000mb Phy  registers if supported
+    if (mii_stat & BMSR_ESTATEN) { 
+
+        ethsw_phy_rreg(phyId, MII_ESTATUS, &mii_esr);
+        if (mii_esr & (1 << 15 | 1 << 14 |
+                       ESTATUS_1000_TFULL | ESTATUS_1000_THALF))
+            ethsw_phy_rreg(phyId, MII_CTRL1000, &mii_gb_ctrl);
+            ethsw_phy_rreg(phyId, MII_STAT1000, &mii_gb_stat);
+    }
+    
+    mii_adv &= mii_lpa;
+
+    if ((mii_gb_ctrl & ADVERTISE_1000FULL) &&  // 1000mb Adv
+            (mii_gb_stat & LPA_1000FULL))
+    {
         ps.spd1000 = 1;
-    else if (MII_ASR_100(v16))
+        ps.fdx = 1;
+    } else if ((mii_gb_ctrl & ADVERTISE_1000HALF) && 
+            (mii_gb_stat & LPA_1000HALF))
+    {
+        ps.spd1000 = 1;
+        ps.fdx = 0;
+    } else if (mii_adv & ADVERTISE_100FULL) {  // 100mb adv
         ps.spd100 = 1;
+        ps.fdx = 1;
+    } else if (mii_adv & ADVERTISE_100BASE4) {
+        ps.spd100 = 1;
+        ps.fdx = 0;
+    } else if (mii_adv & ADVERTISE_100HALF) {
+        ps.spd100 = 1;
+        ps.fdx = 0;
+    } else if (mii_adv & ADVERTISE_10FULL) {
+        ps.fdx = 1;
+    }
+
+    up(&bcm_ethlock_switch_config);
 
     return ps;
 }
 
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 void ethsw_phy_advertise_all(uint32 phy_id)
 {
    uint16 v16;
@@ -344,11 +411,94 @@ void ethsw_phy_advertise_all(uint32 phy_id)
 }
 #endif
 
-#ifdef CONFIG_BCM96816
+/* apply phy init board parameters for internal switch*/
+void ethsw_phy_apply_init_bp(void)
+{
+    BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
+    unsigned int portmap, i, phy_id;
+    bp_mdio_init_t* phyinit;
+    uint16 data;
+
+    portmap = pVnetDev0->EnetInfo[0].sw.port_map;
+    for (i = 0; i < (TOTAL_SWITCH_PORTS - 1); i++) {
+        if ((portmap & (1U<<i)) != 0) {
+            phy_id = pVnetDev0->EnetInfo[0].sw.phy_id[i];
+            phyinit = pVnetDev0->EnetInfo[0].sw.phyinit[i];
+            if( phyinit == 0 )
+                continue;
+
+            while(phyinit->u.op.op != BP_MDIO_INIT_OP_NULL)
+            {
+                if(phyinit->u.op.op == BP_MDIO_INIT_OP_WRITE)
+                    ethsw_phy_wreg(phy_id, phyinit->u.write.reg, (uint16*)(&phyinit->u.write.data));
+                else if(phyinit->u.op.op == BP_MDIO_INIT_OP_UPDATE)
+                {
+                    ethsw_phy_rreg(phy_id, phyinit->u.update.reg, &data);
+                    data &= ~phyinit->u.update.mask;
+                    data |= phyinit->u.update.data;
+                    ethsw_phy_wreg(phy_id, phyinit->u.update.reg, &data);
+                }
+                phyinit++;
+            }
+        }
+    }
+
+}
+
+void ethsw_phy_advertise_caps(void)
+{
+    BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
+    unsigned int portmap, i, phy_id;
+
+    /* In some chips, the GPhys do not advertise all capabilities. So, fix it first */ 
+#if defined(CONFIG_BCM963268)
+    ethsw_phy_advertise_all(GPHY_PORT_PHY_ID);
+#endif
+
+#if defined(CONFIG_BCM96828)
+    ethsw_phy_advertise_all(GPHY1_PORT_PHY_ID);
+    ethsw_phy_advertise_all(GPHY2_PORT_PHY_ID);
+#endif
+
+    /* Now control advertising if boardparms says so */
+    portmap = pVnetDev0->EnetInfo[0].sw.port_map;
+    for (i = 0; i < (TOTAL_SWITCH_PORTS - 1); i++) {
+        if ((portmap & (1U<<i)) != 0) {
+            phy_id = pVnetDev0->EnetInfo[0].sw.phy_id[i];
+            if(IsPhyConnected(phy_id) && IsPhyAdvCapConfigValid(phy_id))
+            {
+                uint16 cap_mask = 0;
+
+                ethsw_phy_rreg(phy_id, MII_ADVERTISE, &cap_mask);
+                    cap_mask &= (~ADVERTISE_ALL);
+                if (phy_id & ADVERTISE_10HD)
+                    cap_mask |= ADVERTISE_10HALF;
+                if (phy_id & ADVERTISE_10FD)
+                    cap_mask |= ADVERTISE_10FULL;
+                if (phy_id & ADVERTISE_100HD)
+                    cap_mask |= ADVERTISE_100HALF;
+                if (phy_id & ADVERTISE_100FD)
+                    cap_mask |= ADVERTISE_100FULL;
+printk("For port %d; changing the MII adv to 0x%x \n", (unsigned int)i, cap_mask);
+
+                ethsw_phy_wreg(phy_id, MII_ADVERTISE, &cap_mask);
+
+                ethsw_phy_rreg(phy_id, MII_CTRL1000, &cap_mask);
+                cap_mask &= (~(ADVERTISE_1000HALF | ADVERTISE_1000FULL));
+                if (phy_id & ADVERTISE_1000HD)
+                    cap_mask |= ADVERTISE_1000HALF;
+                if (phy_id & ADVERTISE_1000FD)
+                    cap_mask |= ADVERTISE_1000FULL;
+printk("changing the GMII adv to 0x%x \n", cap_mask);
+                ethsw_phy_wreg(phy_id, MII_CTRL1000, &cap_mask);
+            }
+        }
+    }
+
+}
+
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 /* Setup the PHY with initial PHY config */
-/* The internal Phys do not seem to advertise 10HD, 10FD, and 100HD.
-   Fixing this for now. */
-/* TBD: Maintain the PHY config state for each PHY */
 int ethsw_setup_phys(void)
 {
     BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
@@ -421,17 +571,54 @@ int ethsw_setup_phys(void)
     }
     return 0;
 }
+#elif defined(CONFIG_BCM96828)
+int ethsw_setup_phys(void)
+{
+    BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
+    unsigned int phy_id, portmap;
+    uint16 v16;
+
+
+    /* Get the portmap */
+    portmap = pVnetDev0->EnetInfo[0].sw.port_map;
+
+    /* Reset the RC calibration of the internal G-Phys to improve the return loss in 10BT.
+       The calibration for both the internal G-Phys is shared and configurable through the first Phy.
+       The reset is recommended by HW Team : JIRA#SWBCACPE-10270 */
+    if ((portmap & (1U<<GPHY1_PORT_ID)) != 0) {
+        phy_id = pVnetDev0->EnetInfo[0].sw.phy_id[GPHY1_PORT_ID];
+        v16 = 0x0FB0; /* Expansion register 0xB0 */
+        ethsw_phy_wreg(phy_id, MII_DSP_COEFF_ADDR, &v16);
+        /* Read the current value */
+        ethsw_phy_rreg(phy_id, MII_DSP_COEFF_RW_PORT, &v16);
+        v16 |= 0x04; /* Set Reset Bit[2] */
+        ethsw_phy_wreg(phy_id, MII_DSP_COEFF_RW_PORT, &v16);
+    }
+    return 0;
+}
+#else
+int ethsw_setup_phys(void)
+{
+    return 0;
+}
 #endif
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 #define NUM_INT_EPHYS 0
 #define NUM_INT_GPHYS 2
+#define DEFAULT_BASE_PHYID 0
 #elif defined(CONFIG_BCM963268)
 #define NUM_INT_EPHYS 3
 #define NUM_INT_GPHYS 1
+#define DEFAULT_BASE_PHYID 1
+#elif defined(CONFIG_BCM96828)
+#define NUM_INT_EPHYS 2
+#define NUM_INT_GPHYS 2
+#define DEFAULT_BASE_PHYID 1
 #else
 #define NUM_INT_EPHYS 4
 #define NUM_INT_GPHYS 0
+#define DEFAULT_BASE_PHYID 1
 #endif
 #define NUM_INT_PHYS (NUM_INT_EPHYS + NUM_INT_GPHYS)
 
@@ -452,23 +639,41 @@ void ethsw_setup_hw_apd(unsigned int enable)
             phy_id = pVnetDev0->EnetInfo[0].sw.phy_id[i];
             /* If a Phy is connected, and is external, set APD */
             if(IsPhyConnected(phy_id) && IsExtPhyId(phy_id)) {
-                /* Assume that the PHY is compatible to BCM54610... write 0xa821 */
-                v16 = MII_1C_WRITE_ENABLE | MII_1C_AUTO_POWER_DOWN_SV | MII_1C_WAKEUP_TIMER_SEL_84;
-                if (enable) {
-                    v16 |= MII_1C_AUTO_POWER_DOWN;
+                /* Read MII Phy Identifier, process the AC201 differently */
+                ethsw_phy_rreg(phy_id, MII_PHYSID2, &v16);
+                if ((v16 & BCM_PHYID_M) == (BCMAC201_PHYID2 & BCM_PHYID_M)) {
+                    v16 = 0x008B;
+                    ethsw_phy_wreg(phy_id, MII_BRCM_TEST, &v16);
+                    v16 = 0x7001;
+                    if (enable) {
+                        v16 |= MII_1C_AUTO_POWER_DOWN;
+                    }
+                    ethsw_phy_wreg(phy_id, 0x1b, &v16);
+                    v16 = 0x000B;
+                    ethsw_phy_wreg(phy_id, MII_BRCM_TEST, &v16);
+                } else if ((v16 & BCM_PHYID_M) != (BCM54610_PHYID2 & BCM_PHYID_M)) {
+                    /* Other PHYs */
+                    v16 = MII_1C_WRITE_ENABLE | MII_1C_AUTO_POWER_DOWN_SV |
+                      MII_1C_WAKEUP_TIMER_SEL_84 | MII_1C_APD_COMPATIBILITY;
+                    if (enable) {
+                        v16 |= MII_1C_AUTO_POWER_DOWN;
+                    }
+                    ethsw_phy_wreg(phy_id, MII_REGISTER_1C, &v16);
                 }
-                ethsw_phy_wreg(phy_id, MII_REGISTER_1C, &v16);
             }
         }
     }
 
-    /* For each configured internal PHY, enable/disable APD */
+    /* For each internal PHY (including those not in boardparms), enable/disable APD */
 #if NUM_INT_EPHYS > 0
     /* EPHYs */
-    for (i = 1; i <= NUM_INT_EPHYS; i++) {
+    for (i = DEFAULT_BASE_PHYID; i < NUM_INT_EPHYS+DEFAULT_BASE_PHYID; i++) {
         v16 = 0x008B;
         ethsw_phy_wreg(i, MII_BRCM_TEST, &v16);
-        v16 = 0x7021;
+        v16 = 0x7001;
+        if (enable) {
+            v16 |= MII_1C_AUTO_POWER_DOWN;
+        }
         ethsw_phy_wreg(i, 0x1b, &v16);
         v16 = 0x000B;
         ethsw_phy_wreg(i, MII_BRCM_TEST, &v16);
@@ -477,8 +682,9 @@ void ethsw_setup_hw_apd(unsigned int enable)
 
 #if NUM_INT_GPHYS > 0
     /* GPHYs */
-    for (i = 1+NUM_INT_EPHYS; i <= NUM_INT_GPHYS+NUM_INT_EPHYS; i++) {
-        v16 = MII_1C_WRITE_ENABLE | MII_1C_AUTO_POWER_DOWN_SV | MII_1C_WAKEUP_TIMER_SEL_84;
+    for (i = NUM_INT_EPHYS+DEFAULT_BASE_PHYID; i < NUM_INT_GPHYS+NUM_INT_EPHYS+DEFAULT_BASE_PHYID; i++) {
+        v16 = MII_1C_WRITE_ENABLE | MII_1C_AUTO_POWER_DOWN_SV |
+              MII_1C_WAKEUP_TIMER_SEL_84 | MII_1C_APD_COMPATIBILITY;
         if (enable) {
             v16 |= MII_1C_AUTO_POWER_DOWN;
         }
@@ -583,6 +789,12 @@ void AEI_ethsw_set_pws_mode(enum PowerSaveMode mode, UBOOL8 enable)
 
 static uint32 ephy_forced_pwr_down_status = 0;
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
+unsigned int  eth_pwr_savings_enabled = 1;
+#else
+unsigned int  eth_pwr_savings_enabled = 0;
+#endif
+
+#if defined(CONFIG_BCM_ETH_PWRSAVE)
 /* Delay in miliseconds after enabling the EPHY PLL before reading the different EPHY status      */
 /* The PLL requires 400 uSec to stabilize, but Energy detection on the ports requires more time. */
 /* Normally, Energy detection works when PLL is down, but a long delay (minutes) is present     */
@@ -590,17 +802,19 @@ static uint32 ephy_forced_pwr_down_status = 0;
 /* that allows EPHY to send two link pulses (or series of pulses) at 16 mSec interval                  */
 #define PHY_PLL_ENABLE_DELAY 1
 #define PHY_PORT_ENABLE_DELAY 40
-#define GPHY_PORT_ENABLE_DELAY 300 // GPHY need much more time to link when connecting one to the other
 
 /* Describe internal PHYs */
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96318)
 static uint64 ephy_energy_det[NUM_INT_PHYS] = {1<<(INTERRUPT_ID_EPHY_ENERGY_0-INTERNAL_ISR_TABLE_OFFSET),
                                                1<<(INTERRUPT_ID_EPHY_ENERGY_1-INTERNAL_ISR_TABLE_OFFSET),
                                                1<<(INTERRUPT_ID_EPHY_ENERGY_2-INTERNAL_ISR_TABLE_OFFSET),
                                                1<<(INTERRUPT_ID_EPHY_ENERGY_3-INTERNAL_ISR_TABLE_OFFSET)};
+											   
+#if !defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
 static uint32 mdix_manual_swap = 0;
+#endif
 
-#elif defined(CONFIG_BCM96816)
+#elif (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 static uint64 ephy_energy_det[NUM_INT_PHYS] = {((uint64)1)<<(INTERRUPT_ID_EPHY_ENERGY_0-INTERNAL_ISR_TABLE_OFFSET),
                                                ((uint64)1)<<(INTERRUPT_ID_EPHY_ENERGY_1-INTERNAL_ISR_TABLE_OFFSET)};
 static uint32 gphy_pwr_dwn[NUM_INT_GPHYS] =   {GPHY_PWR_DOWN_0, GPHY_PWR_DOWN_1};
@@ -616,27 +830,38 @@ static uint64 ephy_energy_det[NUM_INT_PHYS] = {1<<(INTERRUPT_ID_EPHY_ENERGY_0-IN
 static uint32 gphy_pwr_dwn[NUM_INT_GPHYS] =   {GPHY_LOW_PWR};
 #define ROBOSWGPHYCTRL RoboswGphyCtrl
 
+#elif defined(CONFIG_BCM96828)
+static uint64 ephy_energy_det[NUM_INT_PHYS] = {1<<(INTERRUPT_ID_EPHY_ENERGY_0-INTERNAL_ISR_TABLE_OFFSET),
+                                               1<<(INTERRUPT_ID_EPHY_ENERGY_1-INTERNAL_ISR_TABLE_OFFSET),
+                                               1<<(INTERRUPT_ID_GPHY_ENERGY_0-INTERNAL_ISR_TABLE_OFFSET),
+                                               1<<(INTERRUPT_ID_GPHY_ENERGY_1-INTERNAL_ISR_TABLE_OFFSET)};
+static uint32 gphy_pwr_dwn[NUM_INT_GPHYS] =   {GPHY1_LOW_PWR, GPHY2_LOW_PWR};
+#define ROBOSWGPHYCTRL RoboswGphyCtrl
 #else
 #error /* Add definitions for new chips */
 #endif
 
+#if !defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
 static uint32 ephy_pwr_down_status = 0;
-unsigned int  ephy_auto_pwr_down_enabled = 1;
+#endif
 extern int vport_cnt;  /* number of vports: bitcount of Enetinfo.sw.port_map */
+static void ethsw_eee_all_enable(int enable);
 
 void BcmPwrMngtSetEthAutoPwrDwn(unsigned int enable)
 {
-   ephy_auto_pwr_down_enabled = enable;
+   eth_pwr_savings_enabled = enable;
 #if defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
    ethsw_setup_hw_apd(enable);
 #endif
+   ethsw_eee_all_enable(enable);
+
    printk("Ethernet pwrsaving is %s\n", enable?"enabled":"disabled");
 }
 EXPORT_SYMBOL(BcmPwrMngtSetEthAutoPwrDwn);
 
 int BcmPwrMngtGetEthAutoPwrDwn(void)
 {
-   return (ephy_auto_pwr_down_enabled);
+   return (eth_pwr_savings_enabled);
 }
 EXPORT_SYMBOL(BcmPwrMngtGetEthAutoPwrDwn);
 
@@ -674,11 +899,15 @@ int ethsw_phy_pll_up(int ephy_and_gphy)
         GPIO->RoboswEphyCtrl &= ~EPHY_PWR_DOWN_DLL;
         ephy_status_changed = 1;
     }
-#elif defined(CONFIG_BCM963268)
-    if (!(PERF->blkEnables & RS_PLL250_CLK_EN))
+#elif defined(ROBOSW250_CLK_EN)
+    if (!(PERF->blkEnables & ROBOSW250_CLK_EN))
     {
         /* Enable robosw clock */
-        PERF->blkEnables |= RS_PLL250_CLK_EN;
+#if defined(ROBOSW025_CLK_EN)
+        PERF->blkEnables |= ROBOSW250_CLK_EN | ROBOSW025_CLK_EN;
+#else
+        PERF->blkEnables |= ROBOSW250_CLK_EN;
+#endif
         ephy_status_changed = 1;
     }
 #endif
@@ -696,6 +925,7 @@ int ethsw_phy_pll_up(int ephy_and_gphy)
 
 uint32 ethsw_ephy_auto_power_down_wakeup(void)
 {
+#if !defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
     int phy_id;
     int ephy_sleep_delay = 0;
     int ephy_status_changed = 0;
@@ -705,6 +935,12 @@ uint32 ethsw_ephy_auto_power_down_wakeup(void)
 
     /* Ensure that only this thread accesses PHY registers in this interval */
     down(&bcm_ethlock_switch_config);
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+   /* Prevent acceses to EPHY registers while in shadow mode */
+    atomic_inc(&phy_write_ref_cnt);
+    atomic_inc(&phy_read_ref_cnt);
+    BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
+#endif
 
     /* Make sure EPHY PLL is up */
     ephy_sleep_delay = ethsw_phy_pll_up(1);
@@ -783,6 +1019,11 @@ uint32 ethsw_ephy_auto_power_down_wakeup(void)
         }
     }
 
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+    atomic_dec(&phy_write_ref_cnt);
+    atomic_dec(&phy_read_ref_cnt);
+    BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
+#endif
     up(&bcm_ethlock_switch_config);
 
     if (ephy_status_changed)
@@ -793,9 +1034,12 @@ uint32 ethsw_ephy_auto_power_down_wakeup(void)
     }
 
     return ephy_sleep_delay;
+#else
+    return ethsw_phy_pll_up(1);
+#endif
 }
 
-uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
+uint32 ethsw_ephy_auto_power_down_sleep(void)
 {
     int i;
     int ephy_sleep_delay = 0;
@@ -806,13 +1050,19 @@ uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
     int phy_id;
     uint16 v16;
 
-    if (!ephy_auto_pwr_down_enabled)
+    if (!eth_pwr_savings_enabled)
     {
         return ephy_sleep_delay;
     }
 
     /* Ensure that only this thread accesses PHY registers in this interval */
     down(&bcm_ethlock_switch_config);
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+   /* Prevent acceses to EPHY registers while in shadow mode */
+    atomic_inc(&phy_write_ref_cnt);
+    atomic_inc(&phy_read_ref_cnt);
+    BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
+#endif
 
     /* Turn off EPHY Ports that have no energy */
     for (i = 0; i < NUM_INT_PHYS; i++)
@@ -824,7 +1074,7 @@ uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
             ethsw_phy_rreg(phy_id, 0x1, &v16);
             if (!(irqStatus & ephy_energy_det[i]) || (!(v16&0x4) && (ephy_forced_pwr_down_status & (1<<(i)))))
             {
-#if NUM_INT_GPHYS > 0
+#if !defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE) && NUM_INT_GPHYS > 0
                 if (i >= NUM_INT_EPHYS)
                 {
                     /* This GPHY port has no energy, bring it down */
@@ -854,7 +1104,9 @@ uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
 #endif
                     v16 = 0x000B;
                     ethsw_phy_wreg(phy_id, MII_BRCM_TEST, &v16);
+#if !defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
                     ephy_pwr_down_status |= (1<<i);
+#endif
                     ephy_sleep_delay += 3;
                 }
 #endif
@@ -866,22 +1118,27 @@ uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
         }
     }
 
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268)
-#if !(defined(CONFIG_EPON_SDK) && (defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)))
+#if !defined(CONFIG_BCM96816)
     if (priv->extSwitch->brcm_tag_type != BRCM_TYPE2) {
-        /* If no energy was found on any PHY, bring down PLL to save power */
-        if (!ephy_has_energy && !ext_ephy_energy)
+        /* If no energy was found on any PHY and no other switch port is linked, bring down PLL to save power */
+        if (!ephy_has_energy && !priv->linkState)
         {
 #if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
             GPIO->RoboswEphyCtrl |= EPHY_PWR_DOWN_DLL;
-#elif defined(CONFIG_BCM963268)
-            PERF->blkEnables &= ~RS_PLL250_CLK_EN;
+#elif defined(ROBOSW025_CLK_EN)
+            PERF->blkEnables &= ~(ROBOSW250_CLK_EN | ROBOSW025_CLK_EN);
+#elif defined(ROBOSW250_CLK_EN)
+            PERF->blkEnables &= ~ROBOSW250_CLK_EN;
 #endif
         }
     }
 #endif
-#endif
 
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+    atomic_dec(&phy_write_ref_cnt);
+    atomic_dec(&phy_read_ref_cnt);
+    BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
+#endif
     up(&bcm_ethlock_switch_config);
 
     return ephy_sleep_delay;
@@ -890,6 +1147,9 @@ uint32 ethsw_ephy_auto_power_down_sleep(int ext_ephy_energy)
 
 void ethsw_switch_power_off(void *context)
 {
+#ifdef DYING_GASP_API
+    enet_send_dying_gasp_pkt();
+#endif
 }
 
 void ethsw_init_config(void)
@@ -907,7 +1167,7 @@ void ethsw_init_config(void)
     ethsw_rreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&dis_learning, 2);
     ethsw_rreg(PAGE_CONTROL, REG_PORT_FORWARD, (uint8 *)&port_fwd_ctrl, 1);
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     {
         /* Disable tags for internal switch ports */
         uint32 tmp;
@@ -916,6 +1176,7 @@ void ethsw_init_config(void)
         ethsw_wreg(PAGE_CONTROL, REG_IUDMA_CTRL, (uint8_t *)&tmp, 4); 
     }
 #endif
+
 
 #if defined(AEI_VDSL_HPNA)
     if (hpna_support)
@@ -938,6 +1199,24 @@ void ethsw_init_config(void)
         extsw_wreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8 *)&v32, sizeof(v32));
     }
 #endif
+// Agile QA-Bug #192716 CenturyLink Reported: Fail on the CDRouter DOS Attack 
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    {
+        uint8 v8;
+        uint32 v32;
+
+        extsw_rreg(0x36, 0x10, (uint8_t *)&v8, 1);
+        v8 |= 0x1;
+        extsw_wreg(0x36, 0x10, (uint8_t *)&v8, 1);
+
+        extsw_rreg(0x36, 0x0, (uint8_t *)&v32, 4);
+        v32 = swab32(v32);
+        v32 |= 0x2;
+        v32 = swab32(v32);
+        extsw_wreg(0x36, 0x0, (uint8_t *)&v32, 4);
+    }
+#endif
+
 }
 
 int ethsw_setup_led(void)
@@ -973,17 +1252,23 @@ int ethsw_setup_led(void)
 #if defined(CONFIG_BCM96368)
                 v16 = 1 << 2;
                 ethsw_phy_wreg(phy_id, MII_TPISTATUS, &v16);
-#elif defined(CONFIG_BCM96816)
+#elif (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 v16 = 0xa410;
                 ethsw_phy_wreg(phy_id, 0x1c, &v16);
-#elif defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#elif defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96318)
                 v16 = 0xa410;
                 // Enable Shadow register 2
                 ethsw_phy_rreg(phy_id, MII_BRCM_TEST, &v16);
                 v16 |= MII_BRCM_TEST_SHADOW2_ENABLE;
                 ethsw_phy_wreg(phy_id, MII_BRCM_TEST, &v16);
+
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 #if defined(CONFIG_BCM963268)
-                if (i != GPHY_PORT_ID) {
+                if (i != GPHY_PORT_ID) 
+#else
+                if ((i != GPHY1_PORT_ID) && (i != GPHY2_PORT_ID))
+#endif
+                {
                     // Set LED1 to speed. Set LED0 to blinky link
                     v16 = 0x08;
                 }
@@ -1054,11 +1339,9 @@ int ethsw_reset_ports(struct net_device *dev)
 {
     BcmEnet_devctrl *pDevCtrl = netdev_priv(dev);
     int map, cnt, i;
-    uint16 v16;
+    uint16 v16, phy_identifier;
     int phyid;
-#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96816)
     uint8 v8;
-#endif
 
     ethsw_init_table(&pDevCtrl->EnetInfo[0].sw);
 
@@ -1107,26 +1390,42 @@ int ethsw_reset_ports(struct net_device *dev)
     for (i = 0; i < NUM_RGMII_PORTS; i++) {
 
         phyid = pDevCtrl->EnetInfo[0].sw.phy_id[RGMII_PORT_ID + i];
+        ethsw_phy_rreg(phyid, MII_PHYSID2, &phy_identifier);
 
-#if defined(CONFIG_BCM963268)
         ethsw_rreg(PAGE_CONTROL, REG_RGMII_CTRL_P4 + i, &v8, 1);
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         v8 |= REG_RGMII_CTRL_ENABLE_RGMII_OVERRIDE;
         v8 &= ~REG_RGMII_CTRL_MODE;
         if (IsRGMII(phyid)) {
             v8 |= REG_RGMII_CTRL_MODE_RGMII;
         } else if (IsRvMII(phyid)) {
             v8 |= REG_RGMII_CTRL_MODE_RvMII;
+        } else if (IsGMII(phyid)) {
+            v8 |= REG_RGMII_CTRL_MODE_GMII;
         } else {
             v8 |= REG_RGMII_CTRL_MODE_MII;
         }
+#endif
+
+#if defined(CONFIG_BCM963268)
         if ((pDevCtrl->chipRev == 0xA0) || (pDevCtrl->chipRev == 0xB0)) {
             /* RGMII timing workaround */
             v8 &= ~REG_RGMII_CTRL_TIMING_SEL;
-        } else {
+        } 
+        else 
+#endif    
+        {
+
             v8 |= REG_RGMII_CTRL_TIMING_SEL;
+        }
+        /* Enable Clock delay in RX */
+        if ((phy_identifier & BCM_PHYID_M) == (BCM54616_PHYID2 & BCM_PHYID_M)) {
+            v8 |= REG_RGMII_CTRL_DLL_RXC_BYPASS;
         }
 
         ethsw_wreg(PAGE_CONTROL, REG_RGMII_CTRL_P4 + i, &v8, 1);
+
+#if defined(CONFIG_BCM963268)
         if ((pDevCtrl->chipRev == 0xA0) || (pDevCtrl->chipRev == 0xB0)) {
             /* RGMII timing workaround */
             v8 = 0xAB;
@@ -1138,10 +1437,9 @@ int ethsw_reset_ports(struct net_device *dev)
               *   the phy id check to make it work even when customer does not set the RGMII flag in the phy_id
               *   in board params
               */
-        ethsw_phy_rreg(phyid, MII_PHYSID2, &v16);
         if ((IsRGMII(phyid) && IsPhyConnected(phyid)) ||
-            ((v16 & BCM_PHYID_M) == (BCM54610_PHYID2 & BCM_PHYID_M)) ||
-            ((v16 & BCM_PHYID_M) == (BCM50612_PHYID2 & BCM_PHYID_M))) {
+            ((phy_identifier & BCM_PHYID_M) == (BCM54610_PHYID2 & BCM_PHYID_M)) ||
+            ((phy_identifier & BCM_PHYID_M) == (BCM50612_PHYID2 & BCM_PHYID_M))) {
 
             v16 = MII_1C_SHADOW_CLK_ALIGN_CTRL << MII_1C_SHADOW_REG_SEL_S;
             ethsw_phy_wreg(phyid, MII_REGISTER_1C, &v16);
@@ -1157,8 +1455,22 @@ int ethsw_reset_ports(struct net_device *dev)
             v16 &= ~(MII_1C_SHADOW_REG_SEL_M << MII_1C_SHADOW_REG_SEL_S);
             v16 |= (MII_1C_SHADOW_CLK_ALIGN_CTRL << MII_1C_SHADOW_REG_SEL_S);
             ethsw_phy_wreg(phyid, MII_REGISTER_1C, &v16);
+            if ((phy_identifier & BCM_PHYID_M) == (BCM54616_PHYID2 & BCM_PHYID_M)) {
+                v16 = MII_REG_18_SEL(0x7);
+                ethsw_phy_wreg(phyid, MII_REGISTER_18, &v16);
+                ethsw_phy_rreg(phyid, MII_REGISTER_18, &v16);
+                /* Disable Skew */
+                v16 &= (~RGMII_RXD_TO_RXC_SKEW);
+                v16 = MII_REG_18_WR(0x7,v16);
+                ethsw_phy_wreg(phyid, MII_REGISTER_18, &v16);
+            }
         }
     }
+#if defined(CONFIG_BCM96828)
+    ethsw_rreg(PAGE_CONTROL, REG_RGMII_CTRL_P7, &v8, 1);
+    v8 |= REG_RGMII_CTRL_ENABLE_GMII;
+    ethsw_wreg(PAGE_CONTROL, REG_RGMII_CTRL_P7, &v8, 1);
+#endif
 
     /*Remaining port reset functionality is moved into ethsw_init_hw*/
 
@@ -1181,7 +1493,7 @@ void ethsw_configure_ports(int port_map, int *pphy_id)
                 GPIO->GPIOBaseMode |= (EN_GMII1);
             if (i == 5)
                 GPIO->GPIOBaseMode |= (EN_GMII2);
-#elif defined(CONFIG_BCM96816)
+#elif (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
             if (i == 2)
                 GPIO->GPIOBaseMode |= (EN_GMII1);
             if (i == 3)
@@ -1194,9 +1506,16 @@ void ethsw_configure_ports(int port_map, int *pphy_id)
 #elif defined(CONFIG_BCM96328)
             if (i == 4)
                 MISC->miscPadCtrlHigh |= (MISC_MII_SEL_2P5V << MISC_MII_SEL_SHIFT);
+#elif defined(CONFIG_BCM96318)
+            if (i==4)
+            {
+                MISC->miscSpecialPadControl &= ~RGMII_PAD_SEL_MASK;
+                MISC->miscSpecialPadControl |= (RGMII_PAD_SEL_2_5V << RGMII_PAD_SEL_SHIFT);
+            }
+
 #endif
         }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         else {
             phy_id = *(pphy_id + i);
             if (!IsExtPhyId(phy_id)) {
@@ -1343,9 +1662,9 @@ static int proc_get_sw_param(char *page, char **start, off_t off, int cnt, int *
         ethsw_rreg(reg_page, reg_addr, swdata + 3, reg_len);
         up(&bcm_ethlock_switch_config);
     }
-    
+
     r += sprintf(page + r, "%s switch:", (is_extsw) ? "External" : "Internal");
-#else 
+#else
     down(&bcm_ethlock_switch_config);
     ethsw_rreg(reg_page, reg_addr, swdata + 3, reg_len);
     up(&bcm_ethlock_switch_config);
@@ -1648,7 +1967,7 @@ int ethsw_enable_hw_switching(void)
              not to forward the bcast packets on hardware ports */
           vnet_dev[i++]->priv_flags |= IFF_HW_SWITCH;
       }
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
       for (i = 0; i < MAX_GEM_IDS; i++)
       {
           if (gponifid_to_dev[i]) {
@@ -1724,7 +2043,7 @@ int ethsw_disable_hw_switching(void)
            vnet_dev[i++]->priv_flags &= ~IFF_HW_SWITCH;
        }
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
        for (i = 0; i < MAX_GEM_IDS; i++)
        {
            if (gponifid_to_dev[i]) {
@@ -1759,14 +2078,50 @@ int ethsw_get_hw_switching_state(void)
 {
     return hw_switching_state;
 }
+/*
+ * This segment of code is abstracted out for re-use. 
+ * Semaphore 'bcm_ethlock_switch_config' is handled by caller.
+ */
+void ethsw_switch_manage_ext_phy_power_mode(int portnumber, int power_mode)
+{
+    uint16 reg = 0; /* MII reg 0x00 */
+    uint16 v16 = 0;
+    if(!power_mode) {
+        /* MII Power Down enable, forces link down */
+        ethsw_phyport_rreg(portnumber, reg, &v16);
+        v16 |= 0x0800;
+        ethsw_phyport_wreg(portnumber, reg, &v16);
+        ephy_forced_pwr_down_status |= (1<<portnumber);
+    }
+    else {
+        /* MII Power Down disable */
+        ethsw_phyport_rreg(portnumber, reg, &v16);
+        v16 &= ~0x0800;
+        ethsw_phyport_wreg(portnumber, reg, &v16);
+        ephy_forced_pwr_down_status &= ~(1<<portnumber);
+    }
+    return; 
+}
 
 #if defined(CONFIG_BCM96368)
 void ethsw_switch_manage_port_power_mode(int portnumber, int power_mode)
 {
    uint16 reg = 0;
-   int phy_id = switch_pport_phyid[portnumber];
+   int phy_id = enet_logport_to_phyid(portnumber);
 
    down(&bcm_ethlock_switch_config);
+   // External switch present? 
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       BCM_ENET_DEBUG("%s: handle the case of external switch present for 6368, port %d \n", __FUNCTION__,
+                             portnumber);
+       ethsw_switch_manage_ext_phy_power_mode(portnumber, power_mode);
+       up(&bcm_ethlock_switch_config);
+       return;
+   }
+   /* Prevent acceses to EPHY registers while in shadow mode */
+   atomic_inc(&phy_write_ref_cnt);
+   atomic_inc(&phy_read_ref_cnt);
+   BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
 
    if(!power_mode) {
       // To power down an EPHY channel, the following sequence should be used
@@ -1793,41 +2148,42 @@ void ethsw_switch_manage_port_power_mode(int portnumber, int power_mode)
       ephy_forced_pwr_down_status &= ~(1<<portnumber);
    }
 
+   atomic_dec(&phy_write_ref_cnt);
+   atomic_dec(&phy_read_ref_cnt);
+   BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
    up(&bcm_ethlock_switch_config);
 }
 #else
 void ethsw_switch_manage_port_power_mode(int portnumber, int power_mode)
 {
-   uint16 reg = 0; /* MII reg 0x00 */
-   uint16 v16 = 0;
-   int phy_id = switch_pport_phyid[portnumber];
+   int phy_id = enet_logport_to_phyid(portnumber);
+#if NUM_INT_GPHYS > 0
+   int phys_port = LOGICAL_PORT_TO_PHYSICAL_PORT(portnumber);
+#endif
 
    down(&bcm_ethlock_switch_config);
 
-   /* GPHYs and external PHYs */
-   if (
+   /* external ports, GPHYs and external PHYs */
+   if (IsExternalSwitchPort(portnumber) ||
 #if NUM_INT_GPHYS > 0
-       ((portnumber >= NUM_INT_EPHYS) && (portnumber < NUM_INT_PHYS)) ||
+       ((phys_port >= NUM_INT_EPHYS) && (phys_port < NUM_INT_PHYS)) ||
 #endif
        (IsExtPhyId(phy_id)))
    {
-       if(!power_mode) {
-          /* MII Power Down enable, forces link down */
-          ethsw_phy_rreg(phy_id, reg, &v16);
-          v16 |= 0x0800;
-          ethsw_phy_wreg(phy_id, reg, &v16);
-          ephy_forced_pwr_down_status |= (1<<portnumber);
-       }
-       else {
-          /* MII Power Down disable */
-          ethsw_phy_rreg(phy_id, reg, &v16);
-          v16 &= ~0x0800;
-          ethsw_phy_wreg(phy_id, reg, &v16);
-          ephy_forced_pwr_down_status &= ~(1<<portnumber);
-       }
+       ethsw_switch_manage_ext_phy_power_mode(portnumber, power_mode);
    }
 #if NUM_INT_EPHYS > 0
    else if (portnumber < NUM_INT_EPHYS) {  /* EPHYs */
+       uint16 v16 = 0;
+       /* When the link is being brought up or down, the link status interrupt may occur
+          before this command is completed, where the PHY is configured in shadow mode.
+          We need to prevent this by disabling EPHY interrupts. The problem does not exist
+          for GPHY because the link status changes in a single command.
+       */
+       atomic_inc(&phy_write_ref_cnt);
+       atomic_inc(&phy_read_ref_cnt);
+       BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
+
        if(!power_mode) {
           /* Bring it down */
           v16 = 0x008B;
@@ -1857,6 +2213,10 @@ void ethsw_switch_manage_port_power_mode(int portnumber, int power_mode)
           ethsw_phy_wreg(phy_id, MII_CONTROL, &v16);
           ephy_forced_pwr_down_status &= ~(1<<portnumber);
        }
+
+       atomic_dec(&phy_write_ref_cnt);
+       atomic_dec(&phy_read_ref_cnt);
+       BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
    }
 #endif
 
@@ -1908,7 +2268,7 @@ void extsw_rreg(int page, int reg, uint8 *data, int len)
     switch (pVnetDev0_g->extSwitch->accessType)
     {
       case MBUS_MDIO:
-        bcmsw_pmdio_rreg(page, reg, data, len);
+          bcmsw_pmdio_rreg(page, reg, data, len);
         break;
 
       case MBUS_SPI:
@@ -1944,12 +2304,12 @@ void extsw_wreg(int page, int reg, uint8 *data, int len)
     }
 }
 
-static void extsw_fast_age_port(uint8 port, uint8 age_static) {
+void extsw_fast_age_port(uint8 port, uint8 age_static) {
     uint8 v8;
     uint8 timeout = 100;
 
     v8 = FAST_AGE_START_DONE | FAST_AGE_DYNAMIC | FAST_AGE_PORT;
-  if (age_static) {
+    if (age_static) {
         v8 |= FAST_AGE_STATIC;
     }
     extsw_wreg(PAGE_CONTROL, REG_FAST_AGING_PORT, &port, 1);
@@ -1964,6 +2324,9 @@ static void extsw_fast_age_port(uint8 port, uint8 age_static) {
             break;
         }
     }
+
+    v8 = 0;
+    extsw_wreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, &v8, 1);
 }
 
 void extsw_set_wanoe_portmap(uint16 wan_port_map)
@@ -1990,7 +2353,861 @@ void extsw_set_wanoe_portmap(uint16 wan_port_map)
     }
 }
 
+#if defined(CONFIG_BCM_EXT_SWITCH)
+void extsw_rreg_wrap(int page, int reg, uint8 *data, int len)
+{
+   uint8 val[4];
 
+   extsw_rreg(page, reg, val, len);
+   switch (len) {
+   case 1:
+      data[0] = val[0];
+      break;
+   case 2:
+      *((uint16 *)data) = __le16_to_cpu(*((uint16 *)val));
+      break;
+   case 4:
+      *((uint32 *)data) = __le32_to_cpu(*((uint32 *)val));
+      break;
+   default:
+      printk("Length %d not supported\n", len);
+      break;
+   }
+}
+
+void extsw_wreg_wrap(int page, int reg, uint8 *data, int len)
+{
+   uint8 val[4];
+
+   switch (len) {
+   case 1:
+      val[0] = data[0];
+      break;
+   case 2:
+      *((uint16 *)val) = __cpu_to_le16(*((uint16 *)data));
+      break;
+   case 4:
+      *((uint32 *)val) = __cpu_to_le32(*((uint32 *)data));
+      break;
+   default:
+      printk("Length %d not supported\n", len);
+      break;
+   }
+   extsw_wreg(page, reg, val, len);
+}
+
+int extsw_bus_contention(int operation, int retries)
+{
+   static int contention_req = 0;
+   uint8 val;
+   int i;
+
+   if (operation) {
+      if (!contention_req) {
+         val=2;
+         extsw_wreg_wrap(PAGE_CONTROL, 0xa0, &val , 1);
+         contention_req = 1;
+      }
+
+      for (i=0;i<retries;++i) {
+         extsw_rreg_wrap(PAGE_CONTROL, 0xa0, &val , 1);
+         if (val == 3) {
+            return 1;
+         }
+      }
+   } else {
+      contention_req = 0;
+      val=0;
+      extsw_wreg_wrap(PAGE_CONTROL, 0xa0, &val , 1);
+      return 1;
+   }
+
+   return 0;
+}
+#endif
+
+void ethsw_phyport_rreg(int port, int reg, uint16 *data)
+{
+   int phys_port = port;
+   int unit = 0;
+   int phy_id;
+
+#if defined(CONFIG_BCM_EXT_SWITCH)
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       phys_port = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+       unit = (IsExternalSwitchPort(port)?1:0);
+   }
+
+   if (unit == 1) {
+      if (pVnetDev0_g->extSwitch->accessType == MBUS_MDIO) {
+         phy_id = pVnetDev0_g->EnetInfo[unit].sw.phy_id[phys_port];
+         ethsw_phy_read_reg(phy_id, reg, data, unit);
+      } else {
+            extsw_rreg_wrap(PAGE_INTERNAL_PHY_MII+phys_port, reg*2, (uint8 *)data, 2);
+      }
+   } else
+#endif
+   {
+      phy_id = pVnetDev0_g->EnetInfo[unit].sw.phy_id[phys_port];
+      ethsw_phy_rreg(phy_id, reg, data);
+   }
+}
+
+void ethsw_phyport_wreg(int port, int reg, uint16 *data)
+{
+   int phys_port = port;
+   int unit = 0;
+   int phy_id;
+
+#if defined(CONFIG_BCM_EXT_SWITCH)
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       phys_port = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+       unit = (IsExternalSwitchPort(port)?1:0);
+   }
+
+   if (unit == 1) {
+      if (pVnetDev0_g->extSwitch->accessType == MBUS_MDIO) {
+         phy_id = pVnetDev0_g->EnetInfo[unit].sw.phy_id[phys_port];
+         ethsw_phy_write_reg(phy_id, reg, data, unit);
+      } else {
+         extsw_wreg_wrap(PAGE_INTERNAL_PHY_MII+phys_port, reg*2, (uint8 *)data, 2);
+      }
+   } else
+#endif
+   {
+      phy_id = pVnetDev0_g->EnetInfo[unit].sw.phy_id[phys_port];
+      ethsw_phy_wreg(phy_id, reg, data);
+   }
+}
+
+void ethsw_phyport_rreg2(int phy_id, int reg, uint16 *data, int flags)
+{
+#if defined(CONFIG_BCM_EXT_SWITCH)
+   int unit = 0;
+
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       unit = flags & ETHCTL_FLAG_ACCESS_EXTSW_PHY? 1: 0;
+   }
+
+   if (unit == 1) {
+         // whether MDIO or SPI
+         ethsw_phy_read_reg(phy_id, reg, data, unit);
+         BCM_ENET_DEBUG("%s phy id 0x%x accessed on %s intf reg %d data 0x%x \n", __FUNCTION__,
+                           phy_id, pVnetDev0_g->extSwitch->accessType == MBUS_MDIO?
+                           "MDIO": "SPI", reg, *data); 
+   } else
+#endif
+   {
+      ethsw_phy_read_reg(phy_id, reg, data, flags & ETHCTL_FLAG_ACCESS_EXT_PHY);
+   }
+}
+
+void ethsw_phyport_wreg2(int phy_id, int reg, uint16 *data, int flags)
+{
+#if defined(CONFIG_BCM_EXT_SWITCH)
+   int unit = 0;
+
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       unit = flags & ETHCTL_FLAG_ACCESS_EXTSW_PHY? 1: 0;
+   }
+
+   if (unit == 1) {
+         // whether MDIO or SPI
+         ethsw_phy_write_reg(phy_id, reg, data, unit);
+         BCM_ENET_DEBUG("%s phy id 0x%x accessed on %s intf reg %d data 0x%x \n", __FUNCTION__,
+                           phy_id, pVnetDev0_g->extSwitch->accessType == MBUS_MDIO?
+                           "MDIO": "SPI", reg, *data); 
+   } else
+#endif
+   {
+      ethsw_phy_write_reg(phy_id, reg, data, flags & ETHCTL_FLAG_ACCESS_EXT_PHY);
+   }
+}
+
+void ethsw_eee_compatibility_set(int port, int enable)
+{
+   uint16 v16, apdv16;
+   int apd_disabled;
+
+   /* Disable APD if it was set */
+   ethsw_phyport_rreg(port, MII_REGISTER_1C, &apdv16);
+   if (apdv16 & MII_1C_AUTO_POWER_DOWN) {
+      apdv16 &= ~MII_1C_AUTO_POWER_DOWN;
+      ethsw_phyport_wreg(port, MII_REGISTER_1C, &apdv16);
+      apd_disabled = 1;
+   }
+
+   /* Write a sequence specific for these GPHYs */
+   v16 = 0x0C00;
+   ethsw_phyport_wreg(port, 0x18, &v16);
+   v16 = 0x001A;
+   ethsw_phyport_wreg(port, 0x17, &v16);
+   if (enable) {
+      v16 = 0x0003;
+   } else {
+      v16 = 0x0007;
+   }
+   ethsw_phyport_wreg(port, 0x15, &v16);
+   v16 = 0x0400;
+   ethsw_phyport_wreg(port, 0x18, &v16);
+
+   /* Re-enable APD if it was disabled by this code */
+   if (apd_disabled) {
+      apdv16 |= MII_1C_AUTO_POWER_DOWN;
+      ethsw_phyport_wreg(port, MII_REGISTER_1C, &apdv16);
+   }
+}
+
+#if defined(CONFIG_BCM_EXT_SWITCH)
+void extsw_eee_init(void)
+{
+   uint32 v32;
+   int i;
+
+   down(&bcm_ethlock_switch_config);
+   /* EEE requires initialization on 53125 */
+   if (pVnetDev0_g->extSwitch->switch_id == 0x53125) {
+      extsw_bus_contention(1,5);
+
+      /* Change default settings */
+      for (i=0; i<6; ++i) {
+         /* Change the Giga EEE Sleep Timer default value from 4 uS to 400 uS */
+         v32 = 0x00000190;
+         extsw_wreg_wrap(PAGE_EEE, REG_EEE_SLEEP_TIMER_G+(i*4), (uint8 *)&v32, 4);
+         /* Change the 100 Mbps EEE Sleep Timer default value from 40 uS to 4000 uS */
+         v32 = 0x00000FA0;
+         extsw_wreg_wrap(PAGE_EEE, REG_EEE_SLEEP_TIMER_FE+(i*4), (uint8 *)&v32, 4);
+
+         /* Set the initial compatibility. This is also required in mdk, if mdk is used */
+         ethsw_eee_compatibility_set(i, 0);
+      }
+
+      extsw_bus_contention(0,0);
+   }
+   up(&bcm_ethlock_switch_config);
+}
+#endif
+
+#if defined(GPHY_EEE_1000BASE_T_DEF) || defined(CONFIG_BCM_EXT_SWITCH) || defined(CONFIG_BCM96318)
+/* Clause 45 register read for integrated switch */
+void ethsw_phyport_c45_rreg(int port, int regg, int regr, uint16 *pdata16) {
+   *pdata16 = regg;
+   ethsw_phyport_wreg(port, 0x0d, pdata16);
+   *pdata16 = regr;
+   ethsw_phyport_wreg(port, 0x0e, pdata16);
+   *pdata16 = 0x4000 | regg;
+   ethsw_phyport_wreg(port, 0x0d, pdata16);
+   ethsw_phyport_rreg(port, 0x0e, pdata16);
+}
+#endif
+
+#if defined(CONFIG_BCM96318)
+void ethsw_eee_phy_init(int phy_id, int enable)
+{
+   uint16 data16;
+
+   if (!IsExtPhyId(phy_id)) {
+      if (enable) {
+         data16 = 0x000f;
+         ethsw_phy_wreg(phy_id, 0x1f, &data16);
+         data16 = 0x0003;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x0002;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x0006;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x4404;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x000e;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x0050;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x000b;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x0003;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x000b;
+         ethsw_phy_wreg(phy_id, 0x1f, &data16);
+         data16 = 0x3200;
+         ethsw_phy_wreg(phy_id, 0x00, &data16);
+      } else {
+         data16 = 0x000f;
+         ethsw_phy_wreg(phy_id, 0x1f, &data16);
+         data16 = 0x0003;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x0000;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x000b;
+         ethsw_phy_wreg(phy_id, 0x0e, &data16);
+         data16 = 0x0000;
+         ethsw_phy_wreg(phy_id, 0x0f, &data16);
+         data16 = 0x000b;
+         ethsw_phy_wreg(phy_id, 0x1f, &data16);
+         data16 = 0x3200;
+         ethsw_phy_wreg(phy_id, 0x00, &data16);
+      }
+   }
+}
+#endif
+
+void ethsw_eee_port_enable(int port, int enable, int linkstate)
+{
+   int phys_port;
+   int unit;
+   int phy_id;
+   uint16 data16;
+
+   /* Disable EEE if Ethernet power savings are disabled */
+   if (!eth_pwr_savings_enabled) {
+      enable = 0;
+   }
+
+   if (pVnetDev0_g->extSwitch->present == 1) {
+       phys_port = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+       unit = (IsExternalSwitchPort(port)?1:0);
+   } else {
+       phys_port = port;
+       unit = 0;
+   }
+   phy_id = pVnetDev0_g->EnetInfo[unit].sw.phy_id[phys_port];
+
+   if ((unit == 0) && IsPhyConnected(phy_id) && IsExtPhyId(phy_id)) {
+      // Internal switch with an external PHY
+      // Only apply these settings to the 50612, rev 1 and 2.
+      ethsw_phy_rreg(phy_id, MII_PHYSID1, &data16);
+      if (data16 == 0x0362) {
+         ethsw_phy_rreg(phy_id, MII_PHYSID2, &data16);
+         if ((data16 == 0x5e61) || (data16 == 0x5e62) || (data16 == 0x5e6a) || (data16 == 0x5f6a) ||
+             (data16 == 0x5e6e) || (data16 == 0x5e66)) {
+            ethsw_eee_compatibility_set(port, enable);
+         }
+      }
+   }
+
+#if defined(GPHY_EEE_1000BASE_T_DEF)
+   if (unit == 0) {
+      /* Integrated switch */
+      /* Ensure that EEE was enabled in bootloader */
+      #define EEE_BITS (GPHY_LPI_FEATURE_EN_DEF_MASK | \
+         GPHY_EEE_1000BASE_T_DEF | GPHY_EEE_100BASE_TX_DEF | \
+         GPHY_EEE_PCS_1000BASE_T_DEF | GPHY_EEE_PCS_100BASE_TX_DEF)
+
+      if ( (GPIO->RoboswGphyCtrl & EEE_BITS) == EEE_BITS ) {
+         /* Only the GPHY port supports EEE on 63268 */
+         if ((phys_port >= NUM_INT_EPHYS) && (phys_port < NUM_INT_PHYS)) {
+            uint16 v16 = 0;
+
+            if (enable) {
+               /* Check if 100Base-T Bit[1] or 1000Base-T EEE Bit[2] was advertised by the partner reg 7.61 */
+               /* This step is not essential since the PHY does this already */
+               ethsw_phyport_c45_rreg(port, 7, 61, &data16);
+               if (data16 & 0x6) {
+                  v16 = REG_EEE_CTRL_ENABLE;
+               }
+            }
+#if defined(CONFIG_BCM_GMAC)
+            BCM_ENET_DEBUG("%s: Checking port %d req %d v16 %d d16 0x%x\n",
+                           __FUNCTION__,  phys_port, enable, v16, data16);
+            if ((phys_port == GMAC_PORT_ID) && gmac_info_pg->enabled &&
+                                  (gmac_info_pg->link_speed == 1000)) { 
+                volatile GmacEEE_t *gmacEEEp = GMAC_EEE;
+                gmacEEEp->eeeCtrl.enable = v16? 1: 0;
+            } else
+#endif
+            ethsw_wreg(PAGE_CONTROL, REG_EEE_CTRL + (phys_port << 1), (uint8_t *)&v16, 2);
+         }
+      }
+   } 
+#endif
+#if defined(CONFIG_BCM96318)
+   if (unit == 0) {
+      /* Integrated switch */
+      if (phys_port < NUM_INT_PHYS) {
+         uint16 v16 = 0;
+
+         if (enable) {
+            /* Check if AN EEE Resolution is set */
+            data16 = 0x000f;
+            ethsw_phy_wreg(phy_id, 0x1f, &data16);
+            data16 = 0x000b;
+            ethsw_phy_wreg(phy_id, 0x0e, &data16);
+            ethsw_phy_rreg(phy_id, 0x0f, &data16);
+            if (data16 & 0x100) {
+               v16 = REG_EEE_CTRL_ENABLE;
+            }
+            data16 = 0x000b;
+            ethsw_phy_wreg(phy_id, 0x1f, &data16);
+         }
+         ethsw_wreg(PAGE_CONTROL, REG_EEE_CTRL + (phys_port << 1), (uint8_t *)&v16, 2);
+      }
+   } 
+#endif
+#if defined(CONFIG_BCM_EXT_SWITCH)
+   if (unit == 1) {
+      /* External switch GPHYs */
+      if (pVnetDev0_g->extSwitch->switch_id == 0x53125) {
+         uint16 v16;
+         static int eee_strap = -1;
+
+         extsw_bus_contention(1,5);
+
+         /* Determine if eee strap is enabled (works when 8051 is disabled) */
+         /* 8051 overwrites the strap setting with 0 at boot time, and overwrites it with 0x1f */
+         /* the first time a link comes up, this is why we read the strap setting here */
+         extsw_rreg_wrap(PAGE_EEE, REG_EEE_EN_CTRL, (uint8 *)&v16, 2);
+
+         if ((eee_strap < 0) && linkstate) {
+            eee_strap = v16;
+            v16 = 0; /* Start with EEE disabled on all ports */
+            extsw_wreg_wrap(PAGE_EEE, REG_EEE_EN_CTRL, (uint8 *)&v16, 2);
+         }
+
+         if (enable) {
+            if (eee_strap > 0) {
+               /* Check if 100Base-T Bit[1] or 1000Base-T EEE Bit[2] was advertised by the partner reg 7.61 */
+               /* This step is not essential since the PHY does this already */
+               ethsw_phyport_c45_rreg(port, 7, 61, &data16);
+               if (data16 & 0x6) {
+                  v16 |= (1<<phys_port);
+               }
+            }
+         } else {
+            v16 &= ~(1<<phys_port);
+         }
+         extsw_wreg_wrap(PAGE_EEE, REG_EEE_EN_CTRL, (uint8 *)&v16, 2);
+         if (linkstate || eth_pwr_savings_enabled) {
+            ethsw_eee_compatibility_set(port, linkstate);
+         }
+
+         extsw_bus_contention(0,0);
+      }
+   }
+#endif
+}
+
+void ethsw_eee_init(void)
+{
+   int i, phy_id;
+
+   down(&bcm_ethlock_switch_config);
+   for (i=0;i<MAX_SWITCH_PORTS;i++) {
+      phy_id = pVnetDev0_g->EnetInfo[0].sw.phy_id[i];
+
+#if defined(CONFIG_BCM96318)
+      if (!IsExtPhyId(phy_id)) {
+         /* On 6318, need to enable EEE on the internal EPHY first */
+         ethsw_eee_phy_init(phy_id, 1);
+      }
+#endif
+
+      if (IsPhyConnected(phy_id) && IsExtPhyId(phy_id)) {
+         ethsw_eee_port_enable(i, 0, 0);
+      }
+   }
+   up(&bcm_ethlock_switch_config);
+}
+
+#ifdef CONFIG_BCM_ETH_PWRSAVE
+static void ethsw_eee_all_enable(int enable)
+{
+#if defined(GPHY_EEE_1000BASE_T_DEF) || defined(CONFIG_BCM_EXT_SWITCH) || defined(CONFIG_BCM96318)
+   struct net_device *dev = vnet_dev[0];
+   BcmEnet_devctrl *priv = (BcmEnet_devctrl *)netdev_priv(dev);
+   int i;
+
+   down(&bcm_ethlock_switch_config);
+   for (i=0;i<MAX_SWITCH_PORTS+MAX_EXT_SWITCH_PORTS;i++) {
+      /* Only enable/disable eee on links that are up */
+      if (priv->linkState & (1 << i)) {
+         ethsw_eee_port_enable(i, enable, 1);
+      }
+   }
+
+   /* Clear the global variable since we took care of enabling/disabling eee */
+   priv->eee_enable_request_flag[0] = 0;
+   priv->eee_enable_request_flag[1] = 0;
+   up(&bcm_ethlock_switch_config);
+#endif
+}
+#endif
+
+void ethsw_eee_process_delayed_enable_requests(void)
+{
+   struct net_device *dev = vnet_dev[0];
+   BcmEnet_devctrl *priv = (BcmEnet_devctrl *)netdev_priv(dev);
+   int i;
+
+   /* Process enable requests that have been here for more than 1 second */
+   if (priv->eee_enable_request_flag[1]) {
+     down(&bcm_ethlock_switch_config);
+      for (i=0;i<MAX_SWITCH_PORTS+MAX_EXT_SWITCH_PORTS;i++) {
+         if (priv->eee_enable_request_flag[1] & (1<<i)) {
+            ethsw_eee_port_enable(i, 1, priv->linkState & (1 << i));
+#if defined(CONFIG_BCM_GMAC)
+                // need to tell GMAC EEE controller of link up/down as well.
+                if ((i == GMAC_PORT_ID) && gmac_info_pg->enabled &&
+                                      (gmac_info_pg->link_speed == 1000))
+                {
+                    volatile GmacEEE_t *gmacEEEp = GMAC_EEE;
+                    gmacEEEp->eeeCtrl.linkUp = 1;
+                }
+#endif
+         }
+      }
+      up(&bcm_ethlock_switch_config);
+   }
+
+   /* Now delay recent requests by one polling interval (1 second) */
+   priv->eee_enable_request_flag[1] = priv->eee_enable_request_flag[0];
+   priv->eee_enable_request_flag[0] = 0;
+}
+
+#if (CONFIG_BCM_EXT_SWITCH_TYPE == 53115)
+/* This code keeps the APD compatibility bit set (register 1c, shadow 0xa, bit 8)
+   when the internal 8051 on the 53125 chip clears it. If the 8051 is disabled,
+   then this code does not need to run. */
+void extsw_apd_set_compatibility_mode(void)
+{
+   uint16 v16;
+   int i;
+   static int port = 0;
+   static int contention_req = 0;
+
+   if (pVnetDev0_g->extSwitch->switch_id != 0x53125)
+      return;
+
+   down(&bcm_ethlock_switch_config);
+   /* Only check ports that don't have a link */
+   if (!(pVnetDev0_g->linkState & (1 << port)) || contention_req) {
+
+      /* Bus contention with 8051 */
+      contention_req = 1;
+      if (!extsw_bus_contention(1, 3)) {
+         /* We'll get it next time around */
+         up(&bcm_ethlock_switch_config);
+         return;
+      }
+
+      /* Check if one of the ports needs to set APD compatibility */
+      v16 = MII_1C_AUTO_POWER_DOWN_SV;
+      ethsw_phyport_wreg(port, MII_REGISTER_1C, &v16);
+      ethsw_phyport_rreg(port, MII_REGISTER_1C, &v16);
+
+      /* If one of the ports needs to be set, process all the ports */
+      if (v16 == 0x2821) {
+         for (i=0;i<5;i++) {
+            /* Don't need to process ports that have a link */
+            if (pVnetDev0_g->linkState & (1 << i))
+               continue;
+
+            /* Only change the register if it is not correctly set */
+            v16 = MII_1C_AUTO_POWER_DOWN_SV;
+            ethsw_phyport_wreg(i, MII_REGISTER_1C, &v16);
+            ethsw_phyport_rreg(i, MII_REGISTER_1C, &v16);
+            if (v16 == 0x2821) {
+               /* Change it to 0xa921 */
+               v16 = MII_1C_WRITE_ENABLE | MII_1C_AUTO_POWER_DOWN_SV | MII_1C_WAKEUP_TIMER_SEL_84
+                   | MII_1C_AUTO_POWER_DOWN | MII_1C_APD_COMPATIBILITY;
+               ethsw_phyport_wreg(i, MII_REGISTER_1C, &v16);
+            }
+         }
+      }
+
+      /* Release bus to 8051 */
+      contention_req = 0;
+      extsw_bus_contention(0, 0);
+   }
+
+   if (++port > 4) {
+      port = 0;
+   }
+   up(&bcm_ethlock_switch_config);
+}
+#endif
+
+void ethsw_phy_config()
+{
+    ethsw_setup_led();
+#if defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
+    ethsw_setup_hw_apd(1);
+#endif
+
+    ethsw_setup_phys();
+
+    ethsw_phy_advertise_caps();
+
+    ethsw_phy_apply_init_bp();
+}
+
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+
+static uint8 g_rx_port_to_iudma_init_cfg[MAX_SWITCH_PORTS] =
+{
+    PKTDMA_ETH_US_IUDMA  /* alls ports default to the US iuDMA channel */
+};
+
+void saveEthPortToRxIudmaConfig(uint8 port, uint8 iudma)
+{
+    if((port < MAX_SWITCH_PORTS) && (iudma < ENET_RX_CHANNELS_MAX))
+    {
+        g_rx_port_to_iudma_init_cfg[port] = iudma;
+    }
+    else
+    {
+        printk("%s : Invalid Argument: port <%d>, channel <%d>\n",
+               __FUNCTION__, port, iudma);
+    }
+}
+
+int restoreEthPortToRxIudmaConfig(uint8 port)
+{
+#if defined(CONFIG_BCM_EXT_SWITCH)
+    if(port >= MAX_SWITCH_PORTS + MAX_EXT_SWITCH_PORTS) {
+        printk("%s : Invalid Argument: port <%d>\n", __FUNCTION__, port);
+        return PKTDMA_ETH_US_IUDMA;
+    }
+    if (IsExternalSwitchPort(port))
+    {
+        port = BpGetPortConnectedToExtSwitch();
+    } else {
+        port = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+    }
+#endif
+
+    if(port < MAX_SWITCH_PORTS)
+    {
+        return g_rx_port_to_iudma_init_cfg[port];
+    }
+    else
+    {
+        printk("%s : Invalid Argument: port <%d>\n", __FUNCTION__, port);
+
+        return PKTDMA_ETH_US_IUDMA;
+    }
+}
+
+
+void ethsw_set_port_to_fap_map(unsigned int portMap, int split_upstream)
+{
+    struct ethswctl_data e2;
+    int i, j, swap = 0;
+
+    for(i = 0; i < BP_MAX_SWITCH_PORTS; i++)
+    {
+        if (portMap & (1 << i)) {
+            for(j = 0; j <= MAX_PRIORITY_VALUE; j++)
+            {
+                e2.type = TYPE_SET;
+                e2.port = i;
+                e2.priority = j;
+
+                if (i == EPON_PORT_ID) {
+                    e2.queue = PKTDMA_ETH_DS_IUDMA;
+                }
+                else {
+                    if (split_upstream) {
+                        if (swap) {
+                            e2.queue = PKTDMA_ETH_DS_IUDMA;
+                        } else {
+                            e2.queue = PKTDMA_ETH_US_IUDMA;
+                        }
+                    } else {
+                        e2.queue = PKTDMA_ETH_US_IUDMA;
+                    }
+                }
+                saveEthPortToRxIudmaConfig(e2.port, e2.queue);
+                mapEthPortToRxIudma(e2.port, e2.queue);
+                enet_ioctl_ethsw_cosq_port_mapping(&e2);
+            }
+            if (swap) {
+                swap = 0;
+            } else {
+                swap = 1;
+            }
+        }
+    }
+}
+
+int epon_uni_to_uni_ctrl(unsigned int portMap, int val)
+{
+    int i = 0;
+    uint8_t v8;
+    uint16_t v16;
+
+    if (val) {
+        /* UNI to UNI communication is needed. So, DS also goes through FAP */
+        v16 = 0x1FF;
+        ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&v16, 2);
+
+        v16 = 0x100;
+        for (i=0; i < MAX_SWITCH_PORTS; i++) {
+            ethsw_wreg(PAGE_PORT_BASED_VLAN, (i * 2), (uint8*)&v16, 2);
+        }
+
+        v8 = (REG_PORT_FORWARD_MCST | REG_PORT_FORWARD_UCST | REG_PORT_FORWARD_IP_MCST);
+        ethsw_wreg(PAGE_CONTROL, REG_PORT_FORWARD, (uint8 *)&v8, sizeof(v8));
+        v16 = PBMAP_MIPS;
+        ethsw_wreg(PAGE_CONTROL, REG_UCST_LOOKUP_FAIL, (uint8 *)&v16, 2);
+        ethsw_wreg(PAGE_CONTROL, REG_IPMC_LOOKUP_FAIL, (uint8 *)&v16, 2);
+        ethsw_wreg(PAGE_CONTROL, REG_MCST_LOOKUP_FAIL, (uint8 *)&v16, 2);
+
+        ethsw_rreg(PAGE_CONTROL, REG_SWITCH_MODE, (uint8 *)&v8, 1);
+        v8 &= (~BROADCAST_TO_ONLY_MIPS);
+        ethsw_wreg(PAGE_CONTROL, REG_SWITCH_MODE, (uint8 *)&v8, 1);
+
+        ethsw_set_port_to_fap_map(portMap, 0);
+
+        ethsw_rreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_8021Q, (uint8 *)&v8, 1);
+        v8 &=  ~(1 << VLAN_EN_8021Q_S);
+        ethsw_wreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_8021Q, (uint8 *)&v8, 1);
+
+        fapL2flow_defaultVlanTagConfig(0);
+
+        for (i=0; i < MAX_SWITCH_PORTS; i++) {
+            if ((portMap & (1 << i)) && (i != EPON_PORT_ID))
+                fapPkt_setFloodingMask(i, PBMAP_UNIS & (~(1 << i)), 0);
+        }
+
+        fapPkt_hwArlConfig(0, 0);
+
+        uni_to_uni_enabled = 1;
+    } else {
+        /* UNI to UNI communication is NOT needed. So, resolved DS goes through hardware */
+        v16 = 0x1FF;
+        ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&v16, 2);
+
+        v16 = PBMAP_MIPS;
+        for (i=0; i < 7; i++) {
+            ethsw_wreg(PAGE_PORT_BASED_VLAN, (i * 2), (uint8*)&v16, 2);
+        }
+
+        v16 = PBMAP_ALL;
+        ethsw_wreg(PAGE_PORT_BASED_VLAN, (EPON_PORT_ID * 2), (uint8*)&v16, 2);
+
+        v8 = (REG_PORT_FORWARD_MCST | REG_PORT_FORWARD_UCST | REG_PORT_FORWARD_IP_MCST);
+        ethsw_wreg(PAGE_CONTROL, REG_PORT_FORWARD, (uint8 *)&v8, sizeof(v8));
+        v16 = PBMAP_MIPS;
+        ethsw_wreg(PAGE_CONTROL, REG_UCST_LOOKUP_FAIL, (uint8 *)&v16, 2);
+        ethsw_wreg(PAGE_CONTROL, REG_IPMC_LOOKUP_FAIL, (uint8 *)&v16, 2);
+        ethsw_wreg(PAGE_CONTROL, REG_MCST_LOOKUP_FAIL, (uint8 *)&v16, 2);
+
+        ethsw_rreg(PAGE_CONTROL, REG_SWITCH_MODE, (uint8 *)&v8, 1);
+        v8 |= BROADCAST_TO_ONLY_MIPS;
+        ethsw_wreg(PAGE_CONTROL, REG_SWITCH_MODE, (uint8 *)&v8, 1);
+
+        v8 = (1 << VID_FFF_ENABLE_S);
+        ethsw_wreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_CTRL5, (uint8 *)&v8, 1);
+
+        for (i = 0; i < MAX_SWITCH_PORTS; i++) {
+            ethsw_rreg(PAGE_8021Q_VLAN, REG_VLAN_DEFAULT_TAG, (uint8 *)&v16, 2);
+            v16 &= (~DEFAULT_TAG_VID_M);
+            v16 |= (0xFFF << DEFAULT_TAG_VID_S);
+            ethsw_wreg(PAGE_8021Q_VLAN, REG_VLAN_DEFAULT_TAG + (i*2), (uint8 *)&v16, 2);
+        }
+
+        ethsw_rreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_8021Q, (uint8 *)&v8, 1);
+        v8 |=  (1 << VLAN_EN_8021Q_S);
+        v8 |= (VLAN_IVL_SVL_M << VLAN_IVL_SVL_S);
+        ethsw_wreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_8021Q, (uint8 *)&v8, 1);
+
+        for (i = 0; i < 4095; i++) {
+            write_vlan_table(i, 0x1ff);
+        }
+        write_vlan_table(0xfff, 0x1ff | (0x1ff<<9));
+
+        fapL2flow_defaultVlanTagConfig(1);
+
+        for (i=0; i < MAX_SWITCH_PORTS; i++) {
+            if ((portMap & (1 << i)) && (i != EPON_PORT_ID))
+                fapPkt_setFloodingMask(i, PBMAP_EPON, 0);
+        }
+
+        ethsw_set_port_to_fap_map(portMap, 1);
+
+        fapPkt_hwArlConfig(1, PBMAP_UNIS);
+
+        uni_to_uni_enabled = 0;
+    }
+
+    fapPkt_mcastSetMissBehavior(1);
+
+    return BCM_E_NONE;
+}
+
+int enet_learning_ctrl(uint32_t portMask, uint8_t enable)
+{
+    uint16_t v16;
+
+    BCM_ENET_DEBUG("Given portMask: %02d \n ", portMask);
+    if (portMask > PBMAP_ALL) {
+        BCM_ENET_DEBUG("Invalid portMask: %02d \n ", portMask);
+        return -1;
+    }
+
+    ethsw_rreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&v16, 2);
+    if (enable) {
+        v16 &= ~(portMask);
+    } else {
+        v16 |= portMask;
+    }
+    ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&v16, 2);
+
+    return BCM_E_NONE;
+}
+
+int bcm_fun_enet_drv_handler(void *ptr)
+{
+    BCM_EnetHandle_t *pParam = (BCM_EnetHandle_t *)ptr;
+
+    switch (pParam->type) {
+        case BCM_ENET_FUN_TYPE_LEARN_CTRL:
+            enet_learning_ctrl(pParam->portMask, pParam->enable);
+            break;
+
+        case BCM_ENET_FUN_TYPE_ARL_WRITE:
+            enet_arl_write(pParam->arl_entry.mac, pParam->arl_entry.vid, pParam->arl_entry.val);
+            break;
+
+        case BCM_ENET_FUN_TYPE_AGE_PORT:
+            fast_age_port(pParam->port, 0);
+            break;
+
+        case BCM_ENET_FUN_TYPE_PORT_RX_CTRL:
+            {
+                struct ethswctl_data e;
+                e.type = TYPE_SET;
+                e.port = pParam->port;
+                e.val = (pParam->enable)?0:1;
+                enet_ioctl_ethsw_port_traffic_control(&e);
+            }
+            break;
+
+        case BCM_ENET_FUN_TYPE_UNI_UNI_CTRL:
+            {
+                epon_uni_to_uni_ctrl(pVnetDev0_g->EnetInfo[0].sw.port_map, pParam->enable);
+            }
+            break;
+
+        case BCM_ENET_FUN_TYPE_GET_VPORT_CNT:
+            pParam->uniport_cnt = vport_cnt - 1;
+            break;
+
+        case BCM_ENET_FUN_TYPE_GET_IF_NAME_OF_VPORT:
+            strcpy(pParam->name, vnet_dev[pParam->port]->name);
+            break;
+
+        case BCM_ENET_FUN_TYPE_GET_UNIPORT_MASK:
+            pParam->portMask  = pVnetDev0_g->EnetInfo[0].sw.port_map & (~(1 << EPON_PORT_ID));
+            break;
+
+        default:
+            BCM_ENET_DEBUG("%s: Invalid type \n", __FUNCTION__);
+            break;
+    }
+
+    return 0;
+}
+#endif
 #if defined(AEI_VDSL_HPNA)
 PHY_STAT AEI_ethsw_hpna_phy_stat(int port)
 {
@@ -1999,9 +3216,14 @@ PHY_STAT AEI_ethsw_hpna_phy_stat(int port)
 
     ps.lnk = 0;
 
-    if ((port >= 0) && (ext_switch_pport_phyid[port] == HPNA_PORT_ID))
+    if ((port >= 0) &&
+#if defined(AEI_63168_CHIP)
+        (switch_pport_phyid[port] == HPNA_PORT_ID))
+#else
+        (ext_switch_pport_phyid[port] == HPNA_PORT_ID))
+#endif
     {
-        ethsw_phy_rreg(ext_switch_pport_phyid[port], 0x10, &v16);
+        ethsw_phy_rreg(HPNA_PORT_ID, 0x10, &v16);
         ps.lnk = ((v16 & 0x8000) || (v16 & 0x0200)) ? 1:0;
     }
 

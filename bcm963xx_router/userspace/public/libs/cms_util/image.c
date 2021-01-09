@@ -3,27 +3,29 @@
  *  Copyright (c) 2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  *
  ************************************************************************/
 
@@ -65,8 +67,11 @@ UBOOL8 matchChipId(const char *strTagChipId, const char *signature2 __attribute_
     
     /* get the system's chip id */
     devCtl_getChipId(&chipId);
-
     if (tagChipId == chipId)
+    {
+        match = TRUE;
+    }
+    else if (tagChipId == BRCM_CHIP_HEX)
     {
         match = TRUE;
     }
@@ -168,6 +173,20 @@ CmsRet verifyBroadcomFileTag(FILE_TAG *pTag, int imageLen)
 }
 
 
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+CmsRet cmsImg_setPLCconfigState(const char *state)
+{
+  if (cmsFil_writeToProc("/data/plc/plc_pconfig_state", state) != CMSRET_SUCCESS)
+  {
+    cmsLog_error("[PLC] Can't write the paramconfig state\n");
+    return CMSRET_INTERNAL_ERROR;
+  }
+
+  return CMSRET_SUCCESS;
+}
+#endif
+
+
 // depending on the image type, do the brcm image or whole flash image
 CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
 {
@@ -175,8 +194,9 @@ CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
     int cfeSize, rootfsSize, kernelSize, noReboot;
     unsigned long cfeAddr, rootfsAddr, kernelAddr;
     CmsRet ret;
-    
-    
+ 
+    // Extract partition and reboot bits from the 'format' variable to
+    // a separate variable, 'noReboot'.
     if( (format & CMS_IMAGE_FORMAT_PART1) == CMS_IMAGE_FORMAT_PART1 )
     {
         noReboot = ((format & CMS_IMAGE_FORMAT_NO_REBOOT) == 0)
@@ -190,7 +210,8 @@ CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
     else
         noReboot = ((format & CMS_IMAGE_FORMAT_NO_REBOOT) == 0)
             ? FLASH_PARTDEFAULT_REBOOT : FLASH_PARTDEFAULT_NO_REBOOT;
- 
+
+    // Clear unneeded partition and reboot bits from 'format' variable
     format &= ~(CMS_IMAGE_FORMAT_NO_REBOOT | CMS_IMAGE_FORMAT_PART1 |
        CMS_IMAGE_FORMAT_PART2); 
 
@@ -200,6 +221,9 @@ CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
        return CMSRET_INVALID_IMAGE;
     }
 
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+    cmsImg_setPLCconfigState("2");
+#endif
 
     if (format == CMS_IMAGE_FORMAT_FLASH)  
     {
@@ -210,7 +234,7 @@ CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
                                 BCM_IMAGE_WHOLE,
                                 imagePtr,
                                 imageLen-TOKEN_LEN,
-                                0, 0);
+                                noReboot, 0);
         if (ret != CMSRET_SUCCESS)
         {
            cmsLog_error("Failed to flash whole image");
@@ -240,6 +264,7 @@ CmsRet flashImage(char *imagePtr, UINT32 imageLen, CmsImageFormat format)
     if (cfeAddr) 
     {
         printf("Flashing CFE...\n");
+
         ret = devCtl_boardIoctl(BOARD_IOCTL_FLASH_WRITE,
                                 BCM_IMAGE_CFE,
                                 imagePtr+TAG_LEN,
@@ -450,6 +475,12 @@ CmsRet cmsImg_writeValidatedImage(char *imagePtr, UINT32 imageLen, CmsImageForma
    case CMS_IMAGE_FORMAT_FLASH:
       // BcmNtwk_unInit(); mwang_todo: is it important to let Wireless do some
       // uninit before we write the flash image?
+#ifdef AEI_VER2_DUAL_IMAGE
+#ifndef DESKTOP_LINUX   
+        system("rm -f /data/boot_state_1 2> /dev/null");
+        system("rm -f /data/boot_state_0 2> /dev/null");
+#endif
+#endif
       ret = flashImage(imagePtr, imageLen, format);
       break;
       
@@ -464,7 +495,9 @@ CmsRet cmsImg_writeValidatedImage(char *imagePtr, UINT32 imageLen, CmsImageForma
           * to flash, thus wiping out what we just written.
           */
          cmsLog_debug("config file download written, request reboot");
+#if !defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
          cmsUtil_sendRequestRebootMsg(msgHandle);
+#endif
       }
       break;
       
@@ -509,37 +542,43 @@ CmsRet AEI_verifyImageTobeAEIFormat(const char *imagePtr, UINT32 imageLen, void 
 
    if ((buf = cmsMem_alloc(sizeof(CmsMsgHeader) + imageLen, ALLOC_ZEROIZE)) == NULL)
    {
-      cmsLog_error("failed to allocate %d bytes for msg CMS_MSG_VERIFY_AEI_IMAGE", 
+      cmsLog_error("failed to allocate %d bytes for msg CMS_MSG_VERIFY_AEI_IMAGE",
                    sizeof(CmsMsgHeader) + imageLen);
       return CMSRET_RESOURCE_EXCEEDED;
    }
-   
+
    msg = (CmsMsgHeader *) buf;
    body = (char *) (msg + 1);
-    
+
    msg->type = CMS_MSG_VERIFY_AEI_IMAGE;
    msg->wordData = format;
    msg->src = cmsMsg_getHandleEid(msgHandle);
    msg->dst = EID_SMD;
    msg->flags_request = 1;
    msg->dataLength = imageLen;
-   
+
    memcpy(body, imagePtr, imageLen);
 
    ret = cmsMsg_sendAndGetReply(msgHandle, msg);
-   
+
    cmsMem_free(buf);
    
    return ret;
 }
 
 #endif
-
+ 
 CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void *msgHandle)
 {
    CmsImageFormat result = CMS_IMAGE_FORMAT_INVALID;
    CmsRet ret;
    
+   unsigned long offset=0;
+#if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+    WFI_TAG wt = {0};
+    char *end_string = NULL;
+#endif
+
    if (imageBuf == NULL)
    {
       return CMS_IMAGE_FORMAT_INVALID;
@@ -555,6 +594,10 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
          cmsLog_debug("CMS XML config format verified.");
          return CMS_IMAGE_FORMAT_XML_CFG;
       }
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+      else
+         result = CMS_IMAGE_FORMAT_CORRUPTED;
+#endif
    } 
    
    cmsLog_debug("not a config file");
@@ -567,6 +610,24 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
    }
 
    cmsLog_debug("not a modular sw pkg");
+#endif
+
+#if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+       end_string = (char*)(imageBuf + imageLen-sizeof(wt));
+       memcpy(&wt, end_string, sizeof(wt));
+
+       devCtl_boardIoctl(BOARD_IOCTL_GET_FS_OFFSET, 0, NULL, 0, 0, (void *)&offset);
+       int blksize = offset / 1024;
+
+       if( (wt.wfiVersion & WFI_ANY_VERS_MASK) == WFI_ANY_VERS &&
+           ((blksize == 16 && wt.wfiFlashType != WFI_NAND16_FLASH) ||
+            (blksize == 128 && wt.wfiFlashType != WFI_NAND128_FLASH)) )
+       {
+           cmsLog_error("\nERROR: NAND flash block size %dKB does not work with an "
+               "image built with %dKB block size\n\n", blksize,
+               (wt.wfiFlashType == WFI_NAND16_FLASH) ? 16 : 128);
+           return CMS_IMAGE_FORMAT_INVALID;
+       }
 #endif
 
    if ((imageLen > sizeof(FILE_TAG)) 
@@ -588,6 +649,11 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
    }
    else
    {
+#if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+#define JFFS2_MAGIC_BITMASK 0x1985
+        if(imageLen > offset+2 && (((*(unsigned short *)imageBuf == JFFS2_MAGIC_BITMASK && *(unsigned short *)(imageBuf+2) == AEI_MAGIC_BITMASK)) || ((*(unsigned short *)(imageBuf+offset) == JFFS2_MAGIC_BITMASK && *(unsigned short *)(imageBuf+offset+2) == AEI_MAGIC_BITMASK))))
+        {
+#endif
       /* if It is not a Broadcom flash format file.  Now check if it is a
        * flash image format file.  A flash image format file must have a
        * CRC at the end of the image.
@@ -637,16 +703,28 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
 #endif
          }
       }
+
+#if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+    }
+#endif
    }
 #if defined(AEI_SIGNED_FIRMWARE)
    if (result == CMS_IMAGE_FORMAT_FLASH)
    {
-
-      unsigned long offset=0;
+#if defined(AEI_CONFIG_JFFS) && defined(AEI_63168_CHIP)
+      if(imageLen > offset+sizeof(unsigned short)
+        && ((*(unsigned short *)(imageBuf) == JFFS2_MAGIC_BITMASK
+        && *(unsigned short *)(imageBuf+sizeof(unsigned short))
+        == AEI_MAGIC_BITMASK)))
+      {
+          offset=0;
+      }
+#else
       ret = devCtl_boardIoctl(BOARD_IOCTL_GET_FS_OFFSET, 0, NULL, 0, 0, (void *)&offset);
+#endif
      // cmsLog_error("#####fs_offset(%x)\n",offset);
       ret = AEI_verifyImageTobeAEIFormat(imageBuf+offset, 256, msgHandle, result);
-	  if (ret == CMSRET_SUCCESS)
+      if (ret == CMSRET_SUCCESS)
       {
           result=CMS_IMAGE_FORMAT_FLASH;
       }
@@ -657,13 +735,13 @@ CmsImageFormat cmsImg_validateImage(const char *imageBuf, UINT32 imageLen, void 
    if (result == CMS_IMAGE_FORMAT_BROADCOM)
    {
       ret = AEI_verifyImageTobeAEIFormat(imageBuf, 256, msgHandle, result);
-	  if (ret == CMSRET_SUCCESS)
+      if (ret == CMSRET_SUCCESS)
       {
           result=CMS_IMAGE_FORMAT_BROADCOM;
       }
       else
           result=CMS_IMAGE_FORMAT_INVALID;
-   } 
+   }
 #endif
 
    cmsLog_debug("returning image format %d", result);

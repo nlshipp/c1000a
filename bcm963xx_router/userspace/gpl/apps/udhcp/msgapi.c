@@ -305,7 +305,7 @@ int bcmHandleDeleteRule(char *classname, char *cmd)
         }
 
     }
-    //printf("sucess delte rule %s\r\n", classname);    
+    //printf("sucess delte rule %s\r\n", classname);
     return 1;
 }
 

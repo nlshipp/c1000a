@@ -66,8 +66,10 @@ u64 notrace trace_clock(void)
  * Used by plugins that need globally coherent timestamps.
  */
 
-#ifdef CONFIG_MIPS_BRCM
-#include <linux/clocksource.h>
+#if defined(CONFIG_MIPS_BRCM) && defined(BCM_KF_TRACE_CUSTOM)
+#include <linux/bcm_tstamp.h>
+static u64 bcm_tstamp_rollover_base[NR_CPUS];
+static u32 bcm_tstamp_last[NR_CPUS];
 #else
 static u64 prev_trace_clock_time;
 
@@ -78,37 +80,27 @@ static raw_spinlock_t trace_clock_lock ____cacheline_aligned_in_smp =
 
 u64 notrace trace_clock_global(void)
 {
-#ifdef CONFIG_MIPS_BRCM
+#if defined(CONFIG_MIPS_BRCM) && defined(BCM_KF_TRACE_CUSTOM)
+	u64 ns;
+	u32 tstamp = bcm_tstamp_read();
+	int cpuid = smp_processor_id();
+
+	if (tstamp < bcm_tstamp_last[cpuid]) {
+		// 32 bit counter has wrapped, add to our 64bit base
+		bcm_tstamp_rollover_base[cpuid] += bcm_tstamp2ns(0xffffffff);
+	}
+	bcm_tstamp_last[cpuid] = tstamp;
+
 	/*
-	 * For BRCM BCA tracing, use a hacked up version of getrawmonotonic,
-	 * the hack is no locking.  (with locking, the system locks up.)
-	 * We might occasionally get a bad reading if the time is being updated
-	 * while we are getting a timestamp.  Try to re-introduce the lock after
-	 * we upgrade ftrace code to 2.6.34.
+	 * The base value is updated independently on each CPU, but we want
+	 * to report a consistent base from any CPU, so take the larger base.
+	 * The trace buffers seem to require increasing timestamps (no rollover),
+	 * so unfortunately I have to add all this extra code.
 	 */
-//	unsigned long seq;
-	u64 now;
-	s64 nsecs;
-    cycle_t cycle_now, cycle_delta;
-    struct timespec ts;
-
- //   do {
- //   	seq = read_seqbegin(&xtime_lock);
-    	cycle_now = clocksource_read(clock);
-    	cycle_delta = (cycle_now - clock->cycle_last) & clock->mask;
-
-    	/* convert to nanoseconds: */
-    	nsecs = ((s64)cycle_delta * clock->mult_orig) >> clock->shift;
-
-    	ts = clock->raw_time;
-
-  //  } while (read_seqretry(&xtime_lock, seq));
-
-	timespec_add_ns(&ts, nsecs);
-
-	/* truncate the seconds fields to 4 digits */
-    now = ((u64)(ts.tv_sec % 10000)) * NSEC_PER_SEC + ts.tv_nsec;
-
+	ns = (bcm_tstamp_rollover_base[0] > bcm_tstamp_rollover_base[1]) ?
+	      bcm_tstamp_rollover_base[0] : bcm_tstamp_rollover_base[1];
+	ns += bcm_tstamp2ns(tstamp);
+	return ns;
 #else
 	unsigned long flags;
 	int this_cpu;
@@ -142,7 +134,6 @@ u64 notrace trace_clock_global(void)
  out:
 	raw_local_irq_restore(flags);
 
-#endif /* CONFIG_MIPS_BRCM */
-
 	return now;
+#endif /* CONFIG_MIPS_BRCM && BCM_KF_TRACE_CUSTOM */
 }

@@ -58,4 +58,3 @@ extern struct list_head *ip_conntrack_hash;
 extern struct list_head ip_conntrack_expect_list;
 extern rwlock_t ip_conntrack_lock;
 #endif /* _IP_CONNTRACK_CORE_H */
-

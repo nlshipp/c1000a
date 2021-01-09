@@ -606,6 +606,12 @@ config CGROUP_MEM_RES_CTLR_SWAP
 	  Now, memory usage of swap_cgroup is 2 bytes per entry. If swap page
 	  size is 4096bytes, 512k per 1Gbytes of swap.
 
+config CGROUP_BCM
+	bool "Broadcom modifications to standard cgroup behavior"
+	depends on CGROUPS
+	help
+	  Adds per cpu allocations and the ability to steal from idle groups
+
 endif # CGROUPS
 
 config MM_OWNER

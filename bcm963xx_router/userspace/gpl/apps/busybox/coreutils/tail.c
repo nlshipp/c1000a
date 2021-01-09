@@ -4,20 +4,7 @@
  *
  * Copyright (C) 2001 by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* BB_AUDIT SUSv3 compliant (need fancy for -c) */
@@ -37,294 +24,328 @@
  * 7) lseek attempted when count==0 even if arg was +0 (from top)
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include "busybox.h"
+#include "libbb.h"
 
 static const struct suffix_mult tail_suffixes[] = {
 	{ "b", 512 },
 	{ "k", 1024 },
-	{ "m", 1048576 },
-	{ NULL, 0 }
+	{ "m", 1024*1024 },
+	{ "", 0 }
 };
 
-static int status
-#if EXIT_SUCCESS != 0
-	= EXIT_SUCCESS	/* If it is 0 (paranoid check), let bss initialize it. */
-#endif
-	;
+struct globals {
+	bool status;
+} FIX_ALIASING;
+#define G (*(struct globals*)&bb_common_bufsiz1)
 
 static void tail_xprint_header(const char *fmt, const char *filename)
 {
-	/* If we get an output error, there is really no sense in continuing. */
-	if (dprintf(STDOUT_FILENO, fmt, filename) < 0) {
+	if (fdprintf(STDOUT_FILENO, fmt, filename) < 0)
 		bb_perror_nomsg_and_die();
-	}
-}
-
-/* len should probably be size_t */
-static void tail_xbb_full_write(const char *buf, size_t len)
-{
-	/* If we get a write error, there is really no sense in continuing. */
-	if (bb_full_write(STDOUT_FILENO, buf, len) < 0) {
-		bb_perror_nomsg_and_die();
-	}
 }
 
 static ssize_t tail_read(int fd, char *buf, size_t count)
 {
 	ssize_t r;
+	off_t current;
+	struct stat sbuf;
 
-	if ((r = safe_read(fd, buf, count)) < 0) {
-		bb_perror_msg("read");
-		status = EXIT_FAILURE;
+	/* /proc files report zero st_size, don't lseek them. */
+	if (fstat(fd, &sbuf) == 0 && sbuf.st_size > 0) {
+		current = lseek(fd, 0, SEEK_CUR);
+		if (sbuf.st_size < current)
+			xlseek(fd, 0, SEEK_SET);
+	}
+
+	r = full_read(fd, buf, count);
+	if (r < 0) {
+		bb_perror_msg(bb_msg_read_error);
+		G.status = EXIT_FAILURE;
 	}
 
 	return r;
 }
 
-static const char tail_opts[] =
-	"fn:c:"
-#ifdef CONFIG_FEATURE_FANCY_TAIL
-	"qs:v"
-#endif
-	;
+#define header_fmt_str "\n==> %s <==\n"
 
-static const char header_fmt[] = "\n==> %s <==\n";
+static unsigned eat_num(const char *p)
+{
+	if (*p == '-')
+		p++;
+	else if (*p == '+') {
+		p++;
+		G.status = 1; /* mark that we saw "+" */
+	}
+	return xatou_sfx(p, tail_suffixes);
+}
 
+int tail_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int tail_main(int argc, char **argv)
 {
-	long count = 10;
-	unsigned int sleep_period = 1;
-	int from_top = 0;
-	int follow = 0;
-	int header_threshhold = 1;
-	int count_bytes = 0;
+	unsigned count = 10;
+	unsigned sleep_period = 1;
+	bool from_top;
+	const char *str_c, *str_n;
 
 	char *tailbuf;
 	size_t tailbufsize;
-	int taillen = 0;
-	int newline = 0;
+	unsigned header_threshhold = 1;
+	unsigned nfiles;
+	int i, opt;
 
-	int *fds, nfiles, nread, nwrite, seen, i, opt;
-	char *s, *buf;
+	int *fds;
 	const char *fmt;
 
+#if ENABLE_INCLUDE_SUSv2 || ENABLE_FEATURE_FANCY_TAIL
 	/* Allow legacy syntax of an initial numeric option without -n. */
-	if (argc >=2 && ((argv[1][0] == '+') || ((argv[1][0] == '-')
-			/* && (isdigit)(argv[1][1]) */
-			&& (((unsigned int)(argv[1][1] - '0')) <= 9))))
-	{
-		optind = 2;
-		optarg = argv[1];
-		goto GET_COUNT;
+	if (argv[1] && (argv[1][0] == '+' || argv[1][0] == '-')
+	 && isdigit(argv[1][1])
+	) {
+		count = eat_num(argv[1]);
+		argv++;
+		argc--;
 	}
-
-	while ((opt = getopt(argc, argv, tail_opts)) > 0) {
-		switch (opt) {
-			case 'f':
-				follow = 1;
-				break;
-			case 'c':
-				count_bytes = 1;
-				/* FALLS THROUGH */
-			case 'n':
-			GET_COUNT:
-				count = bb_xgetlarg10_sfx(optarg, tail_suffixes);
-				/* Note: Leading whitespace is an error trapped above. */
-				if (*optarg == '+') {
-					from_top = 1;
-				} else {
-					from_top = 0;
-				}
-				if (count < 0) {
-					count = -count;
-				}
-				break;
-#ifdef CONFIG_FEATURE_FANCY_TAIL
-			case 'q':
-				header_threshhold = INT_MAX;
-				break;
-			case 's':
-				sleep_period =bb_xgetularg10_bnd(optarg, 0, UINT_MAX);
-				break;
-			case 'v':
-				header_threshhold = 0;
-				break;
 #endif
-			default:
-				bb_show_usage();
-		}
-	}
+
+	/* -s NUM, -F imlies -f */
+	IF_FEATURE_FANCY_TAIL(opt_complementary = "s+:Ff";)
+	opt = getopt32(argv, "fc:n:" IF_FEATURE_FANCY_TAIL("qs:vF"),
+			&str_c, &str_n IF_FEATURE_FANCY_TAIL(,&sleep_period));
+#define FOLLOW (opt & 0x1)
+#define COUNT_BYTES (opt & 0x2)
+	//if (opt & 0x1) // -f
+	if (opt & 0x2) count = eat_num(str_c); // -c
+	if (opt & 0x4) count = eat_num(str_n); // -n
+#if ENABLE_FEATURE_FANCY_TAIL
+	/* q: make it impossible for nfiles to be > header_threshhold */
+	if (opt & 0x8) header_threshhold = UINT_MAX; // -q
+	//if (opt & 0x10) // -s
+	if (opt & 0x20) header_threshhold = 0; // -v
+# define FOLLOW_RETRY (opt & 0x40)
+#else
+# define FOLLOW_RETRY 0
+#endif
+	argc -= optind;
+	argv += optind;
+	from_top = G.status; /* 1 if there was "-c +N" or "-n +N" */
+	G.status = EXIT_SUCCESS;
 
 	/* open all the files */
-	fds = (int *)xmalloc(sizeof(int) * (argc - optind + 1));
-
-	argv += optind;
-	nfiles = i = 0;
-
-	if ((argc -= optind) == 0) {
+	fds = xmalloc(sizeof(fds[0]) * (argc + 1));
+	if (!argv[0]) {
 		struct stat statbuf;
 
-		if (!fstat(STDIN_FILENO, &statbuf) && S_ISFIFO(statbuf.st_mode)) {
-			follow = 0;
+		if (fstat(STDIN_FILENO, &statbuf) == 0
+		 && S_ISFIFO(statbuf.st_mode)
+		) {
+			opt &= ~1; /* clear FOLLOW */
 		}
-		/* --argv; */
-		*argv = (char *) bb_msg_standard_input;
-		goto DO_STDIN;
+		argv[0] = (char *) bb_msg_standard_input;
 	}
-
+	nfiles = i = 0;
 	do {
-		if ((argv[i][0] == '-') && !argv[i][1]) {
-		DO_STDIN:
-			fds[nfiles] = STDIN_FILENO;
-		} else if ((fds[nfiles] = open(argv[i], O_RDONLY)) < 0) {
-			bb_perror_msg("%s", argv[i]);
-			status = EXIT_FAILURE;
+		int fd = open_or_warn_stdin(argv[i]);
+		if (fd < 0 && !FOLLOW_RETRY) {
+			G.status = EXIT_FAILURE;
 			continue;
 		}
-		argv[nfiles] = argv[i];
-		++nfiles;
+		fds[nfiles] = fd;
+		argv[nfiles++] = argv[i];
 	} while (++i < argc);
 
-	if (!nfiles) {
+	if (!nfiles)
 		bb_error_msg_and_die("no files");
-	}
 
+	/* prepare the buffer */
 	tailbufsize = BUFSIZ;
-
-	/* tail the files */
-	if (from_top < count_bytes) {	/* Each is 0 or 1, so true iff 0 < 1. */
-		/* Hence, !from_top && count_bytes */
-		if (tailbufsize < count) {
+	if (!from_top && COUNT_BYTES) {
+		if (tailbufsize < count + BUFSIZ) {
 			tailbufsize = count + BUFSIZ;
 		}
 	}
+	tailbuf = xmalloc(tailbufsize);
 
-	buf = tailbuf = xmalloc(tailbufsize);
-
-	fmt = header_fmt + 1;	/* Skip header leading newline on first output. */
+	/* tail the files */
+	fmt = header_fmt_str + 1; /* skip header leading newline on first output */
 	i = 0;
 	do {
-		/* Be careful.  It would be possible to optimize the count-bytes
-		 * case if the file is seekable.  If you do though, remember that
-		 * starting file position may not be the beginning of the file.
-		 * Beware of backing up too far.  See example in wc.c.
-		 */
-		if ((!(count|from_top)) && (lseek(fds[i], 0, SEEK_END) >= 0)) {
-			continue;
-		}
+		char *buf;
+		int taillen;
+		int newlines_seen;
+		unsigned seen;
+		int nread;
+		int fd = fds[i];
+
+		if (ENABLE_FEATURE_FANCY_TAIL && fd < 0)
+			continue; /* may happen with -E */
 
 		if (nfiles > header_threshhold) {
 			tail_xprint_header(fmt, argv[i]);
-			fmt = header_fmt;
+			fmt = header_fmt_str;
+		}
+
+		if (!from_top) {
+			off_t current = lseek(fd, 0, SEEK_END);
+			if (current > 0) {
+				unsigned off;
+				if (COUNT_BYTES) {
+				/* Optimizing count-bytes case if the file is seekable.
+				 * Beware of backing up too far.
+				 * Also we exclude files with size 0 (because of /proc/xxx) */
+					if (count == 0)
+						continue; /* showing zero bytes is easy :) */
+					current -= count;
+					if (current < 0)
+						current = 0;
+					xlseek(fd, current, SEEK_SET);
+					bb_copyfd_size(fd, STDOUT_FILENO, count);
+					continue;
+				}
+#if 1 /* This is technically incorrect for *LONG* strings, but very useful */
+				/* Optimizing count-lines case if the file is seekable.
+				 * We assume the lines are <64k.
+				 * (Users complain that tail takes too long
+				 * on multi-gigabyte files) */
+				off = (count | 0xf); /* for small counts, be more paranoid */
+				if (off > (INT_MAX / (64*1024)))
+					off = (INT_MAX / (64*1024));
+				current -= off * (64*1024);
+				if (current < 0)
+					current = 0;
+				xlseek(fd, current, SEEK_SET);
+#endif
+			}
 		}
 
 		buf = tailbuf;
 		taillen = 0;
+		/* "We saw 1st line/byte".
+		 * Used only by +N code ("start from Nth", 1-based): */
 		seen = 1;
-		newline = 0;
-
-		while ((nread = tail_read(fds[i], buf, tailbufsize-taillen)) > 0) {
+		newlines_seen = 0;
+		while ((nread = tail_read(fd, buf, tailbufsize-taillen)) > 0) {
 			if (from_top) {
-				nwrite = nread;
+				int nwrite = nread;
 				if (seen < count) {
-					if (count_bytes) {
+					/* We need to skip a few more bytes/lines */
+					if (COUNT_BYTES) {
 						nwrite -= (count - seen);
 						seen = count;
 					} else {
-						s = buf;
+						char *s = buf;
 						do {
 							--nwrite;
-							if ((*s++ == '\n') && (++seen == count)) {
+							if (*s++ == '\n' && ++seen == count) {
 								break;
 							}
 						} while (nwrite);
 					}
 				}
-				tail_xbb_full_write(buf + nread - nwrite, nwrite);
+				if (nwrite > 0)
+					xwrite(STDOUT_FILENO, buf + nread - nwrite, nwrite);
 			} else if (count) {
-				if (count_bytes) {
+				if (COUNT_BYTES) {
 					taillen += nread;
-					if (taillen > count) {
+					if (taillen > (int)count) {
 						memmove(tailbuf, tailbuf + taillen - count, count);
 						taillen = count;
 					}
 				} else {
 					int k = nread;
-					int nbuf = 0;
+					int newlines_in_buf = 0;
 
-					while (k) {
-						--k;
+					do { /* count '\n' in last read */
+						k--;
 						if (buf[k] == '\n') {
-							++nbuf;
+							newlines_in_buf++;
 						}
-					}
+					} while (k);
 
-					if (newline + nbuf < count) {
-						newline += nbuf;
+					if (newlines_seen + newlines_in_buf < (int)count) {
+						newlines_seen += newlines_in_buf;
 						taillen += nread;
-
 					} else {
-						int extra = 0;
-						if (buf[nread-1] != '\n') {
-							extra = 1;
-						}
+						int extra = (buf[nread-1] != '\n');
+						char *s;
 
-						k = newline + nbuf + extra - count;
+						k = newlines_seen + newlines_in_buf + extra - count;
 						s = tailbuf;
 						while (k) {
 							if (*s == '\n') {
-								--k;
+								k--;
 							}
-							++s;
+							s++;
 						}
-
 						taillen += nread - (s - tailbuf);
 						memmove(tailbuf, s, taillen);
-						newline = count - extra;
+						newlines_seen = count - extra;
 					}
-					if (tailbufsize < taillen + BUFSIZ) {
+					if (tailbufsize < (size_t)taillen + BUFSIZ) {
 						tailbufsize = taillen + BUFSIZ;
 						tailbuf = xrealloc(tailbuf, tailbufsize);
 					}
 				}
 				buf = tailbuf + taillen;
 			}
-		}
-
+		} /* while (tail_read() > 0) */
 		if (!from_top) {
-			tail_xbb_full_write(tailbuf, taillen);
+			xwrite(STDOUT_FILENO, tailbuf, taillen);
 		}
-
-		taillen = 0;
 	} while (++i < nfiles);
 
-	buf = xrealloc(tailbuf, BUFSIZ);
+	tailbuf = xrealloc(tailbuf, BUFSIZ);
 
 	fmt = NULL;
 
-	while (follow) {
+	if (FOLLOW) while (1) {
 		sleep(sleep_period);
+
 		i = 0;
 		do {
-			if (nfiles > header_threshhold) {
-				fmt = header_fmt;
+			int nread;
+			const char *filename = argv[i];
+			int fd = fds[i];
+
+			if (FOLLOW_RETRY) {
+				struct stat sbuf, fsbuf;
+
+				if (fd < 0
+				 || fstat(fd, &fsbuf) < 0
+				 || stat(filename, &sbuf) < 0
+				 || fsbuf.st_dev != sbuf.st_dev
+				 || fsbuf.st_ino != sbuf.st_ino
+				) {
+					int new_fd;
+
+					if (fd >= 0)
+						close(fd);
+					new_fd = open(filename, O_RDONLY);
+					if (new_fd >= 0) {
+						bb_error_msg("%s has %s; following end of new file",
+							filename, (fd < 0) ? "appeared" : "been replaced"
+						);
+					} else if (fd >= 0) {
+						bb_perror_msg("%s has become inaccessible", filename);
+					}
+					fds[i] = fd = new_fd;
+				}
 			}
-			while ((nread = tail_read(fds[i], buf, sizeof(buf))) > 0) {
+			if (ENABLE_FEATURE_FANCY_TAIL && fd < 0)
+				continue;
+			if (nfiles > header_threshhold) {
+				fmt = header_fmt_str;
+			}
+			while ((nread = tail_read(fd, tailbuf, BUFSIZ)) > 0) {
 				if (fmt) {
-					tail_xprint_header(fmt, argv[i]);
+					tail_xprint_header(fmt, filename);
 					fmt = NULL;
 				}
-				tail_xbb_full_write(buf, nread);
+				xwrite(STDOUT_FILENO, tailbuf, nread);
 			}
 		} while (++i < nfiles);
 	}
-
-	return status;
+	if (ENABLE_FEATURE_CLEAN_UP) {
+		free(fds);
+	}
+	return G.status;
 }

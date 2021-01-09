@@ -171,14 +171,14 @@ int conf_string(struct menu *menu)
 static int conf_sym(struct menu *menu)
 {
 	struct symbol *sym = menu->sym;
-//	int type;
+	// int type;  backported future linux patch to 2.6.30 to fix gcc4.6 compiler warning
 	tristate oldval, newval;
 
 	while (1) {
 		printf("%*s%s ", indent - 1, "", _(menu->prompt->text));
 		if (sym->name)
 			printf("(%s) ", sym->name);
-//		type = sym_get_type(sym);
+		// type = sym_get_type(sym); see backport comment above
 		putchar('[');
 		oldval = sym_get_tristate_value(sym);
 		switch (oldval) {
@@ -243,11 +243,11 @@ static int conf_choice(struct menu *menu)
 {
 	struct symbol *sym, *def_sym;
 	struct menu *child;
-//	int type;
+	// int type; backported future linux patch to 2.6.30 to fix gcc4.6 compiler warning
 	bool is_new;
 
 	sym = menu->sym;
-//	type = sym_get_type(sym);
+	// type = sym_get_type(sym); see backported comment above
 	is_new = !sym_has_value(sym);
 	if (sym_is_changable(sym)) {
 		conf_sym(menu);

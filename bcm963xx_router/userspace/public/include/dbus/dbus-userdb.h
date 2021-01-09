@@ -1,10 +1,10 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-userdb.h User database abstraction
- * 
+ *
  * Copyright (C) 2003  Red Hat, Inc.
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -14,7 +14,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -105,7 +105,7 @@ dbus_bool_t _dbus_groups_from_uid		(dbus_uid_t            uid,
 dbus_bool_t _dbus_is_console_user               (dbus_uid_t         uid,
                                                  DBusError         *error);
 
-dbus_bool_t _dbus_is_a_number                   (const DBusString *str, 
+dbus_bool_t _dbus_is_a_number                   (const DBusString *str,
                                                  unsigned long    *num);
 
 dbus_bool_t _dbus_username_from_current_process (const DBusString **username);

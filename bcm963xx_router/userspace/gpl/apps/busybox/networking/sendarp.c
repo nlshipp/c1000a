@@ -32,6 +32,7 @@ static void sendArp(char *srcDev, char *destDev);
 static void mkArpMsg(int opcode, u_long tInaddr, u_char *tHaddr, u_long sInaddr, u_char *sHaddr, struct arpMsg *msg);
 static int getDevInfo (char *devname, int infotype, char *data);
 
+int sendarp_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int sendarp_main(int argc, char **argv)
 {
 	char *srcdev = NULL;
@@ -41,10 +42,10 @@ int sendarp_main(int argc, char **argv)
 	while ((opt = getopt(argc, argv, "s:d:")) != -1) {
 		switch (opt) {
 		case 's': 
-			srcdev = bb_xstrdup(optarg);
+			srcdev = xstrdup(optarg);
 			break;
 		case 'd':
-			dstdev = bb_xstrdup(optarg);
+			dstdev = xstrdup(optarg);
 			break;
 		}
 	}
@@ -71,9 +72,11 @@ static void mkArpMsg(int opcode, u_long tInaddr, u_char *tHaddr,
 	msg->hlen = 6;							/* hardware address length */
 	msg->plen = 4;							/* protocol address length */
 	msg->operation = htons(opcode);			/* ARP op code */
-	*((u_int *)msg->sInaddr) = sInaddr;		/* source IP address */
+//brcm start
+   bcopy((u_char *)&sInaddr, &msg->sInaddr[0], 4);  /* source IP address */
 	bcopy(sHaddr, msg->sHaddr, 6);			/* source hardware address */
-	*((u_int *)msg->tInaddr) = tInaddr;		/* target IP address */
+   bcopy((u_char *)&tInaddr, &msg->tInaddr[0], 4);  /* target IP address */
+//brcm end
 	if ( opcode == ARPOP_REPLY )
 		bcopy(tHaddr, msg->tHaddr, 6);		/* target hardware address */
 }

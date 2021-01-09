@@ -160,6 +160,17 @@ static int part_write(struct mtd_info *mtd, loff_t to, size_t len,
 		len = 0;
 	else if (to + len > mtd->size)
 		len = mtd->size - to;
+#ifdef AEI_NAND_IMG_CHECK
+	if (!strncmp(mtd->name, "rootfs", 6))
+	{
+	    if(mtd->oobavail == 9)
+		    part->master->oobavail = 9;
+		else
+		    part->master->oobavail = 1;
+	}
+	else
+		part->master->oobavail = 0;
+#endif
 	return part->master->write(part->master, to + part->offset,
 				    len, retlen, buf);
 }

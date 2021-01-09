@@ -10,13 +10,14 @@
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <syslog.h>
 //#include "filter.h"
-#include "aei_url_util.h"
 
-#if defined (DMP_CAPTIVEPORTAL_1)
+#if defined (AEI_VDSL_CUSTOMER_NCS)
 #include "cms.h"
 #include "cms_util.h"
 #include "cms_msg.h"
 #endif
+
+#include "aei_url_util.h"
 
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
@@ -26,7 +27,7 @@ extern char brname[16];
 #endif
 
 #if defined (DMP_CAPTIVEPORTAL_1)
-extern void *msgHandle;  
+extern void *msgHandle;
 extern char captiveAllowList[10001];
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 extern char captiveAllowDomain[10001];
@@ -35,7 +36,7 @@ extern char captiveAllowDomain[10001];
 void AEI_getCaptiveAllowList()
 {
 	FILE *fp = NULL;
-	
+
 	if ((fp = fopen(capAllowListFile, "r")) != NULL)
 	{
 		fgets (captiveAllowList, sizeof(captiveAllowList)-1, fp);
@@ -44,7 +45,7 @@ void AEI_getCaptiveAllowList()
 			captiveAllowList[0] = '\0';
 		}
 		printf("captiveAllowList %s\n", captiveAllowList);
-		fclose(fp);	
+		fclose(fp);
 	}
 }
 
@@ -52,7 +53,7 @@ void AEI_getCaptiveAllowList()
 void AEI_getCaptiveAllowDomain()
 {
 	FILE *fp = NULL;
-	
+
 	if ((fp = fopen(capAllowDomainFile, "r")) != NULL)
 	{
 		fgets (captiveAllowDomain, sizeof(captiveAllowDomain)-1, fp);
@@ -61,7 +62,7 @@ void AEI_getCaptiveAllowDomain()
 			captiveAllowDomain[0] = '\0';
 		}
 		printf("captiveAllowDomain %s\n", captiveAllowDomain);
-		fclose(fp);	
+		fclose(fp);
 	}
 }
 #endif
@@ -89,7 +90,7 @@ CmsRet AEI_send_msg_to_set_oneTimeRedirectURLFlag()
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 int AEI_checkCaptiveAllowDomain(char *allowDomain, char* host)
 {
-        char *p, *pLast, *pTemp;
+        char *p, *pLast;
         char allowbuf[10001] = {0};
 
         if (strlen(allowDomain) == 0)
@@ -121,7 +122,7 @@ char *AEI_getdomain(char *data, char *url)
 	{
 		int nHostLen = (pHostEnd - pHost) - 6;
 		if((nHostLen <= 0 ) || (nHostLen > 1024))  return NULL;
-		
+
 		strncpy(url,pHost+6,nHostLen);
 		return url;
 	}
@@ -140,7 +141,7 @@ int AEI_checkCaptiveAllowList(char *allowList, __be32 ip)
 	struct in_addr allowIP;
 	__be32 mask;
 	__be32 ipNet;
-	
+
 	if (strlen(allowList) == 0)
 	{
 		return 0;
@@ -155,19 +156,19 @@ int AEI_checkCaptiveAllowList(char *allowList, __be32 ip)
 		if ((pTemp = strchr(allowIpAddr, '/')) != NULL)
 		{
 			*pTemp = ' ';
-			sscanf(allowIpAddr, "%s %d", buf, &maskNum);	
-			inet_aton(allowIpAddr, &allowIP);	
+			sscanf(allowIpAddr, "%s %d", buf, &maskNum);
+			inet_aton(allowIpAddr, &allowIP);
 			ipNet = htonl(ip);
 			mask = mask<<(32-maskNum);
 			if ((__be32)(allowIP.s_addr&mask) == (__be32)(ipNet&mask))
 			{
 				printf("find mask\n");
 				return 1;
-			}	
+			}
 		}
 		else
 		{
-			inet_aton(allowIpAddr, &allowIP);			
+			inet_aton(allowIpAddr, &allowIP);
 			if (allowIP.s_addr == ip)
 			{
 				printf("find ip\n");
@@ -189,32 +190,32 @@ static unsigned short AEI_in_cksum (unsigned short *ptr, int nbytes)
 	* we add sequential 16-bit words to it, and at the end, fold back
 	* all the carry bits from the top 16 bits into the lower 16 bits.
 	*/
-	
+
 	sum = 0;
-	while (nbytes > 1) 
+	while (nbytes > 1)
 	{
 		sum += *ptr++;
 		nbytes -= 2;
 	}
-	/* mop up an odd byte, if necessary */ 
-	if (nbytes == 1) 
+	/* mop up an odd byte, if necessary */
+	if (nbytes == 1)
 	{
 		oddbyte = 0;		/* make sure top half is zero */
 		*((u_char *) & oddbyte) = *(u_char *) ptr;	/* one byte only */
 		sum += oddbyte;
 	}
-	
+
 	/*
 	* Add back carry outs from top 16 bits to low 16 bits.
 	*/
-	
+
 	sum = (sum >> 16) + (sum & 0xffff);	/* add high-16 to low-16 */
 	sum += (sum >> 16);		/* add carry */
 	answer = ~sum;		/* ones-complement, then truncate to 16 bits */
 	return (answer);
 }
 
-struct psuedohdr  
+struct psuedohdr
 {
   struct in_addr source_address;
   struct in_addr dest_address;
@@ -235,7 +236,7 @@ unsigned short AEI_trans_check(unsigned char proto,char *packet,int length,struc
   psuedohdr.source_address = source_address;
   psuedohdr.dest_address = dest_address;
 
-  if((psuedo_packet = malloc(sizeof(psuedohdr) + length)) == NULL)  
+  if((psuedo_packet = malloc(sizeof(psuedohdr) + length)) == NULL)
   {
     perror("malloc");
     exit(1);
@@ -252,7 +253,6 @@ unsigned short AEI_trans_check(unsigned char proto,char *packet,int length,struc
 int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payload, char *capurl)
 {
 	struct iphdr *iph =  NULL;
-	struct udphdr *udp = NULL;
 	struct tcphdr *tcp = NULL;
 	char *data = NULL;
 	char *p_indata = NULL;
@@ -272,7 +272,7 @@ int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payloa
 	char loc[20]= {0};
 
 	memset (buf_redirect, 0, sizeof (buf_redirect));
-	
+
 	data_len = nfq_get_payload(payload, &p_indata);
 	if( data_len == -1 )
 	{
@@ -281,29 +281,29 @@ int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payloa
 	}
 
 //	printf("data_len=%d, id=%d\n ", data_len, id);
-	
+
 	hw = nfq_get_packet_hw(payload);
-	
+
 	for (i = 0; i < 6; i++)
 	{
 		dmac[i] = hw->hw_addr[i];
-	}	
-	
+	}
+
 	iph = (struct iphdr *)p_indata;
 	tcp = (struct tcphdr *)(p_indata + (iph->ihl<<2));
 	data = (char *)(p_indata + iph->ihl * 4 + tcp->doff * 4 );
 	org_len = data_len - iph->ihl * 4 - tcp->doff * 4;
 
 //printf("******payload = %s\n\n", data);
-	
+
 	//if (!schedule_access(hw_addr))
-	{	
+	{
 		if(strstr(capurl,"http://") || strstr(capurl,"https://"))
 			memcpy(loc,"Location: ", sizeof("Location: "));
 		else
 			memcpy(loc,"Location: http://", sizeof("Location: http://"));
 
-		sprintf (buf_redirect, 
+		sprintf (buf_redirect,
 		"HTTP/1.1 302 Moved Temporarily\r\n%s\r\n%s\r\n%s\r\n%s%s%s\r\n\r\n",
 		"Content-Length: 0",
 		"Pragma: no-cache",
@@ -311,81 +311,85 @@ int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payloa
 		loc,
 		capurl,
 		"");
-		
-		redirect_flag = 1; 
+
+		redirect_flag = 1;
 	}
-	
+
 	if (redirect_flag)
 	{
 		p_outdata = p_indata;
 		memset (p_outdata + iph->ihl * 4 + tcp->doff * 4, 0, org_len);
-		
+
 		tcp->doff = 5;
-		tcp_doff = tcp->doff; 
+		tcp_doff = tcp->doff;
 		memcpy (p_outdata + iph->ihl * 4 + tcp->doff * 4, buf_redirect, strlen (buf_redirect));
-		
+
 		data_len = strlen (buf_redirect) + iph->ihl * 4 + tcp->doff * 4;
-		
+
 		iph = (struct iphdr *)p_outdata;
 		tcp = (struct tcphdr *)(p_outdata + (iph->ihl<<2));
 		data = (char *)(p_outdata + iph->ihl * 4 + tcp->doff * 4);
-		
+
 		saddr.s_addr = iph->saddr;
 		daddr.s_addr = iph->daddr;
 		iph->saddr = daddr.s_addr;
 		iph->daddr = saddr.s_addr;
-		
+
 		//change ip header check sum
 		iph->tot_len = htons (data_len);
 		iph->check = 0;
-		iph->check = AEI_in_cksum((unsigned short *)iph, iph->ihl * 4); 
-		
+		iph->check = AEI_in_cksum((unsigned short *)iph, iph->ihl * 4);
+
 		//change tcp checksum
-		
+
 		memset ((char *)tcp+12, 0, 2);
 		tcp->res1 = 0;
 		tcp->doff = tcp_doff; //set the header len(options may set it other than 5)
-		tcp->psh = 1; 
+		tcp->psh = 1;
 		tcp->ack = 1;
 		tcp->fin = 1;
-		
+
 		old_seq = tcp->seq;
 		tcp->seq= ntohl (htonl (tcp->ack_seq));
 		tcp->ack_seq = ntohl (htonl (old_seq) + org_len );
-		
+
 		old_port = tcp->dest;
 		tcp->dest = tcp->source;
 		tcp->source = old_port;
-		
+
 		tcp->check = 0;
 		tcp->check = AEI_trans_check(IPPROTO_TCP, (char *)tcp, data_len - sizeof(struct iphdr), daddr, saddr);
 
-#if defined(AEI_WLAN_URL_REDIRECT)                
+#if defined(AEI_WLAN_URL_REDIRECT)
                 AEI_SendPacketWithDestMac(p_outdata, data_len, dmac,brname);
-#else  
+#else
 		AEI_SendPacketWithDestMac(p_outdata, data_len, dmac);
 #endif
 		//printf("******p_outdata: %s\n", p_outdata + iph->ihl * 4 + tcp->doff * 4 );
-		status = nfq_set_verdict(qh, id, NF_DROP, data_len, p_outdata);
-		
+		status = nfq_set_verdict(qh, id, NF_DROP, data_len, (unsigned char *)p_outdata);
+
 		if (status < 0)
 			printf("send redirect error\n");
-		
+
 		return status;
-	}       
-	
+	}
+
+#ifndef AEI_COVERITY_FIX
 	//printf("******p_indata: %s\n", p_indata + iph->ihl * 4 + tcp->doff * 4 );
 	status = nfq_set_verdict(qh, id, NF_ACCEPT, data_len, p_indata);
 	if (status < 0)
 		printf("send redirect error\n");
-	
+
 	return status;
+#else
+	return -1;
+#endif
 }
 
 #if defined (AEI_WLAN_URL_REDIRECT)
 void AEI_urltrim(char *url_redirect)
-{       
-    int size = 0; 
+{
+    int size = 0;
 
     if (!url_redirect)
         return;
@@ -410,19 +414,30 @@ void AEI_get_lan_ip(char *addr)
 {
 	int fd;
 	struct ifreq intf;
-	
+	struct sockaddr* addr_tmp;
+
+
 	if((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
 	{
 		printf("socket error!\n");
 		return;
 	}
 
+	addr_tmp = malloc(sizeof(struct sockaddr));
+	if(addr_tmp == NULL)
+	{
+		close(fd);
+		return;
+	}
+
 	strcpy(intf.ifr_name, "br0");
 	if(ioctl(fd, SIOCGIFADDR, &intf) != -1)
 	{
-		strcpy(addr, inet_ntoa(((struct sockaddr_in *)&intf.ifr_addr)->sin_addr));
+		memcpy(addr_tmp,&(intf.ifr_addr),sizeof(struct sockaddr));
+		strcpy(addr, inet_ntoa(((struct sockaddr_in *)addr_tmp)->sin_addr));
 	}
 	close(fd);
+	free(addr_tmp);
 	return;
 }
 
@@ -431,22 +446,30 @@ void AEI_getCaptiveURLandIPAddr(char *fileName, char *url, char *ipAddr, int *fl
 	FILE *fp = NULL;
 	char buf[2032] = {0};
 	char *pTemp = NULL;
-	
+
 	if ((fp=fopen(fileName, "r")) != NULL)
 	{
+#ifdef AEI_COVERITY_FIX
+		int ret = fscanf(fp, "%s", buf);
+		if(ret > 0)
+#else
 		fscanf(fp, "%s", buf);
-		printf("fileName %s buf %s\n", fileName, buf);
-		if (strcmp(buf, "None") != 0)
+#endif
 		{
-			pTemp = strchr(buf, '_');
-			*pTemp = ' ';
-			*flag = 1;
-			sscanf(buf, "%s %s", url, ipAddr);
-			printf("url %s ip %s\n", url, ipAddr);
+			printf("fileName %s buf %s\n", fileName, buf);
+			if (strcmp(buf, "None") != 0)
+			{
+				pTemp = strchr(buf, '_');
+				*pTemp = ' ';
+				*flag = 1;
+				sscanf(buf, "%s %s", url, ipAddr);
+				printf("url %s ip %s\n", url, ipAddr);
+			}
 		}
 		fclose(fp);
 	}
 }
+
 
 static int AEI_initSocketAddress(struct sockaddr_ll* socket_address, char *ifName, int sockfd, unsigned char *src_mac, unsigned char *dest_mac)
 {
@@ -458,7 +481,11 @@ static int AEI_initSocketAddress(struct sockaddr_ll* socket_address, char *ifNam
     socket_address->sll_protocol = 0; /* BIND */ /* FIXME: htons(ETH_P_ALL) ??? */
 
 	memset(&ifr, 0x00, sizeof(ifr));
+#ifdef AEI_COVERITY_FIX
+    cmsUtl_strncpy(ifr.ifr_name, ifName, sizeof(ifr.ifr_name));
+#else
     strncpy(ifr.ifr_name, ifName, sizeof(ifr.ifr_name));
+#endif
     if(ioctl(sockfd, SIOCGIFINDEX, &ifr) < 0)
     {
         printf("Fail to get ifindex\n");
@@ -481,7 +508,12 @@ static int AEI_initSocketAddress(struct sockaddr_ll* socket_address, char *ifNam
 
     /* Get source MAC of the Interface we want to bind to */
     memset(&ifr, 0x00, sizeof(ifr));
+#ifdef AEI_COVERITY_FIX
+    strlcpy(ifr.ifr_name, ifName, sizeof(ifr.ifr_name));
+#else
     strncpy(ifr.ifr_name, ifName, sizeof(ifr.ifr_name));
+#endif
+
     if(ioctl(sockfd, SIOCGIFHWADDR, &ifr) < 0)
     {
         printf("Fail to get hw addr\n");
@@ -507,9 +539,8 @@ static int AEI_initSocketAddress(struct sockaddr_ll* socket_address, char *ifNam
 
     return 0;
 }
-
 #if defined(AEI_WLAN_URL_REDIRECT)
-int AEI_SendPacketWithDestMac(char *data, int len, unsigned int *dmac,char *brname)
+int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac,char *brname)
 #else
 int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac)
 #endif
@@ -527,16 +558,16 @@ int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac)
 
     int sockfd = -1;
     unsigned char src_mac[ETH_ALEN] = {'\0'};
-    unsigned char dest_mac[ETH_ALEN] = {'\0'};	
+    unsigned char dest_mac[ETH_ALEN] = {'\0'};
 
 	struct sockaddr_ll socket_address;
-	
+
     memcpy(dest_mac, dmac, sizeof(dest_mac));
 	//printf("\n finished reading mac address from arp table \n");
 	//printf("\n the mac address is : %02x:%02x:%02x:%02x:%02x:%02x\n", dest_mac[0],dest_mac[1],dest_mac[2],dest_mac[3],dest_mac[4],dest_mac[5]);
 	struct ethhdr raw_eth_hdr;
 	char tx_buf[1512];
-	
+
 	if((sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) == -1)
 	{
 		printf("ERROR: Could not open Raw Socket");

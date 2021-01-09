@@ -3,10 +3,10 @@
  * (C) 2000 by Matthew G. Marsh <mgm@paktronix.com>
  *
  * This software is distributed under GNU GPL v2, 1991
- * 
+ *
  * ipt_FTOS.c borrowed heavily from ipt_TOS.c  11/09/2000
- * 
- * Updated 3/4/02 - added in Rusty's skb_clone fix 
+ *
+ * Updated 3/4/02 - added in Rusty's skb_clone fix
  *                - added MODULE Political License
  *                - redid checksum routine somewhat
 */

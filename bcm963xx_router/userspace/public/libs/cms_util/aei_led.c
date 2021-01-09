@@ -2,10 +2,10 @@
  *
  *  Copyright (c) 2011  Actiontec Electronics Inc.
  *  All Rights Reserved
- *  
+ *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
- *  are missing from led.c file will locate in this file. 
+ *  in addition to routines provided by Broadcom. All additional routines that
+ *  are missing from led.c file will locate in this file.
  *
  ************************************************************************/
 
@@ -25,7 +25,7 @@ int AEI_boardIoctl(int boardFd, int board_ioctl, BOARD_IOCTL_ACTION action,
                    char *string, int strLen, int offset)
 {
     BOARD_IOCTL_PARMS IoctlParms;
-    
+
     IoctlParms.string = string;
     IoctlParms.strLen = strLen;
     IoctlParms.offset = offset;
@@ -37,7 +37,7 @@ int AEI_boardIoctl(int boardFd, int board_ioctl, BOARD_IOCTL_ACTION action,
 }
 
 void AEI_sysGPIOCtrl(int gpio, GPIO_STATE_t state)
-{  
+{
     int boardFd;
 
     if ((boardFd = open("/dev/brcmboard", O_RDWR)) != -1)
@@ -68,11 +68,15 @@ void AEI_cmsLed_setWanAmber(void)
 
 void AEI_cmsLed_setEthWanConnected(void)
 {
-   devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedSecAdsl, kLedStateOn, NULL);
+#if defined(AEI_63168_CHIP)
+   devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedEnetWan, kLedStateOn, NULL);
+#endif
 }
 void AEI_cmsLed_setEthWanDisconnected(void)
 {
-   devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedSecAdsl, kLedStateOff, NULL);
+#if defined(AEI_63168_CHIP)
+   devCtl_boardIoctl(BOARD_IOCTL_LED_CTRL, 0, NULL, kLedEnetWan, kLedStateOff, NULL);
+#endif
 }
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 void AEI_cmsLed_setWanDetect(void)
@@ -143,4 +147,3 @@ UBOOL8 convertOptToLedCase(InetLedControlBody *pLedCtlBody, InetLedCase *pLedCtl
 #endif
 
 #endif /* AEI_VDSL_CUSTOMER_NCS */
-

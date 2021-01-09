@@ -1,12 +1,12 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-sysdeps.c Wrappers around system/libc features (internal to D-BUS implementation)
- * 
+ *
  * Copyright (C) 2002, 2003  Red Hat, Inc.
  * Copyright (C) 2003 CodeFactory AB
  * Copyright (C) 2005 Novell, Inc.
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,7 +16,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -45,7 +45,7 @@ const char* _dbus_win_error_from_last_error (void);
 void _dbus_win_startup_winsock (void);
 void _dbus_win_warn_win_error  (const char *message,
                                 int         code);
-                                
+
 char * _dbus_win_error_string (int error_number);
 void _dbus_win_free_error_string (char *string);
 
@@ -80,7 +80,7 @@ _dbus_win_sid_to_name_and_domain (dbus_uid_t uid,
 
 dbus_bool_t _dbus_file_exists (const char *filename);
 
-dbus_bool_t _dbus_get_config_file_name(DBusString *config_file, 
+dbus_bool_t _dbus_get_config_file_name(DBusString *config_file,
                                        char *s);
 
 #endif

@@ -210,19 +210,19 @@ dynamic:
 .SUFFIXES:
 am--refresh:
 	@:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
-	@for dep in $?; do \
-	  case '$(am__configure_deps)' in \
-	    *$$dep*) \
-	      echo ' cd $(srcdir) && $(AUTOMAKE) --foreign '; \
-	      cd $(srcdir) && $(AUTOMAKE) --foreign  \
-		&& exit 0; \
-	      exit 1;; \
-	  esac; \
-	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  Makefile'; \
-	cd $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign  Makefile
+#$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+#	@for dep in $?; do \
+#	  case '$(am__configure_deps)' in \
+#	    *$$dep*) \
+#	      echo ' cd $(srcdir) && $(AUTOMAKE) --foreign '; \
+#	      cd $(srcdir) && $(AUTOMAKE) --foreign  \
+#		&& exit 0; \
+#	      exit 1;; \
+#	  esac; \
+#	done; \
+#	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  Makefile'; \
+#	cd $(top_srcdir) && \
+#	  $(AUTOMAKE) --foreign  Makefile
 .PRECIOUS: Makefile
 #Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 #	@case '$?' in \
@@ -239,8 +239,8 @@ $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENC
 
 $(top_srcdir)/configure:  $(am__configure_deps)
 	cd $(srcdir) && $(AUTOCONF)
-$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
-	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
+#$(ACLOCAL_M4):  $(am__aclocal_m4_deps)
+#	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 
 config.h: stamp-h1
 	@if test ! -f $@; then \
@@ -248,13 +248,14 @@ config.h: stamp-h1
 	  $(MAKE) stamp-h1; \
 	else :; fi
 
-stamp-h1: $(srcdir)/config.h.in $(top_builddir)/config.status
+#stamp-h1: $(srcdir)/config.h.in $(top_builddir)/config.status
+stamp-h1: 
 	@rm -f stamp-h1
 	cd $(top_builddir) && $(SHELL) ./config.status config.h
-$(srcdir)/config.h.in:  $(am__configure_deps) 
-	cd $(top_srcdir) && $(AUTOHEADER)
-	rm -f stamp-h1
-	touch $@
+#$(srcdir)/config.h.in:  $(am__configure_deps) 
+#	cd $(top_srcdir) && $(AUTOHEADER)
+#	rm -f stamp-h1
+#	touch $@
 
 distclean-hdr:
 	-rm -f config.h stamp-h1

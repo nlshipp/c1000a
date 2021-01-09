@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #if defined(AEI_WLAN_URL_REDIRECT)
 #define WLANURL       "/var/ssid%d_redirect_setting"
@@ -23,16 +24,16 @@ int getOneTimesRedirect(int ssid,char *mac)
     char OnetimeRedirectfile[256]={0};
     char onetimes[64]={0};
     sprintf(OnetimeRedirectfile,DEFAULT_URL_FLAG,ssid);
-    if ((fp = fopen(OnetimeRedirectfile, "r")) != NULL)        
+    if ((fp = fopen(OnetimeRedirectfile, "r")) != NULL)
     {
-    	while ( fgets(onetimes, sizeof(onetimes)-1, fp)!=NULL )    		
-    	{
-    	    if (strncmp(mac,onetimes,strlen(mac))==0){
+	while ( fgets(onetimes, sizeof(onetimes)-1, fp)!=NULL )
+	{
+	    if (strncmp(mac,onetimes,strlen(mac))==0){
                 fclose(fp);
-    	        return 1;
+	        return 1;
             }
-    	}		
-    	fclose(fp);
+	}
+	fclose(fp);
     }
     return 0;
 }
@@ -41,31 +42,30 @@ int getOneTimesRedirect(int ssid,char *mac)
 int getSSIDSetting(const char *mac,int index,int *enable,char *onetimesurl,char *lockurl)
 {
     FILE *fp = NULL;
-    int i=0;
     char ssid_url[1024]={0};
     char *p=ssid_url;
     char ssidindex[8]={0};
     char file[64]={0};
-    
+
     sprintf(ssidindex,"ssid%d",index);
     sprintf(file,WLANURL,index);
-    if ((fp = fopen(file, "r")) != NULL)        
+    if ((fp = fopen(file, "r")) != NULL)
     {
-    	while(fgets(ssid_url, sizeof(ssid_url)-1, fp)!=NULL )
-    	{
-    	    if(!strncmp(ssid_url,ssidindex,5)){
-    	    	//...
-    	    	*enable = ssid_url[6]-48;
-    	    	char *one=strstr(p+8,"|");
-    	    	if (one!=NULL){
-    	            strncpy(onetimesurl,p+8,one-p-8);   
-    	            char *lock = strstr(one+1,"|");
-    	            strncpy(lockurl,one+1,lock-one-1);
-    	    	}
-    	    	break;
-    	    }
-    	}
-    	fclose(fp);
+	while(fgets(ssid_url, sizeof(ssid_url)-1, fp)!=NULL )
+	{
+	    if(!strncmp(ssid_url,ssidindex,5)){
+		//...
+		*enable = ssid_url[6]-48;
+		char *one=strstr(p+8,"|");
+		if (one!=NULL){
+	            strncpy(onetimesurl,p+8,one-p-8);
+	            char *lock = strstr(one+1,"|");
+	            strncpy(lockurl,one+1,lock-one-1);
+		}
+		break;
+	    }
+	}
+	fclose(fp);
     }
     return index;
 }
@@ -83,7 +83,7 @@ void writeUrlRedirect(int index,int type,char *url_default,char *url_lock)
     }
     sprintf(line,"ssid%d:%d|%s|%s|\n",index,type,url_default,url_lock);
     fputs(line, File);
-    
+
     fclose(File);
 
 }
@@ -93,39 +93,44 @@ void addmaclist(int ssid,char *mac,char *filename)
     char file[64]={0};
     char mac_tmp[128]={0};
     sprintf(file,filename,ssid);
-    fp = fopen(file, "r+w");
+    fp = fopen(file, "w");
     if (!fp){
         printf("file open error,create it now\n");
         fp = fopen(file,"w");
-        fputs(mac,fp);
-        fputs("\n",fp);
-        fclose(fp);
+#ifdef AEI_COVERITY_FIX
+	if(fp != NULL)
+#endif
+	{
+		fputs(mac,fp);
+		fputs("\n",fp);
+		fclose(fp);
+	}
         return;
     }
     while(fgets(mac_tmp, sizeof(mac_tmp)-1, fp)!=NULL )
     {
-    	if(!strncmp(mac,mac_tmp,strlen(mac))){
-    	    fclose(fp);
-      	    printf("mac %s existed\n",mac);
-    	    return;
-    	}
+	if(!strncmp(mac,mac_tmp,strlen(mac))){
+	    fclose(fp);
+	    printf("mac %s existed\n",mac);
+	    return;
+	}
     }
     fputs(mac,fp);
     fputs("\n",fp);
     printf("mac %s add ok\n",mac);
     fclose(fp);
 }
-int toupperStr(char *src,char *dst) 
-{  
-    int   length,   i;  
-    
-    length   =   strlen(src);  
+int toupperStr(char *src,char *dst)
+{
+    int   length,   i;
+
+    length   =   strlen(src);
     for   (i=0;   i <length;   i++)   {
-            dst[i]   =   toupper(src[i]);  
-    }  
-    
-    return   0;  
-}   
+            dst[i]   =   toupper(src[i]);
+    }
+
+    return   0;
+}
 
 int scanFileForMAC(char *fname, char *mac) {
    char buf[32+60];
@@ -168,7 +173,7 @@ void getDevice(const char *mac,int *ssidindex,char *ifname)
 {
 	int i=0;
 	char cmd[80]={0};
-	char wl_assocfile[80]; 
+	char wl_assocfile[80];
 	char *brctl_file="/var/brctl_show";
 	char wlifname[16]={0};
 	char brname[16]={0};
@@ -177,10 +182,10 @@ void getDevice(const char *mac,int *ssidindex,char *ifname)
 //		system(cmd);
 		memset(wl_assocfile,0x00,sizeof(wl_assocfile));
 	        sprintf(wl_assocfile, "/var/wl%d_assoc", i);
-	        if(scanFileForMAC(wl_assocfile,mac)){
-	    	    sprintf(wlifname,"wl0.%d",i);
-	    	    *ssidindex = i+1;
-	    	    break;
+	        if(scanFileForMAC(wl_assocfile,(char*)mac)){
+		    sprintf(wlifname,"wl0.%d",i);
+		    *ssidindex = i+1;
+		    break;
 	        }
 	}
 	memset(cmd,0x00,sizeof(cmd));
@@ -191,12 +196,13 @@ void getDevice(const char *mac,int *ssidindex,char *ifname)
             strcpy(ifname,brname);
 	}
 }
-void AEI_processSSID234UrlRedirect(char *mac,char *url,int size,char *ifname)
-{       
+void AEI_processSSID234UrlRedirect(char *mac,char *url,int size,char *ifname,char *match)
+{
         int enable;
         char onetimesurl[256]={0};
         char lockurl[256]={0};
         int  ssidindex=0;
+        char onetimeredirectmac[256]={0};
 
         getDevice(mac,&ssidindex,ifname);
         if (!ssidindex ){
@@ -215,15 +221,15 @@ void AEI_processSSID234UrlRedirect(char *mac,char *url,int size,char *ifname)
                 if(enable==2){
                         strncpy(url,lockurl,size);
                 }
-                else if(enable==1)
+                else if(enable==1 && (strstr(match,"GET / HTTP/")||strstr(match,"get HTTP/")))
                 {
                         if(getOneTimesRedirect(ssidindex,mac)==0){
                                 strncpy(url,onetimesurl,size);
-                                addmaclist(ssidindex,mac,DEFAULT_URL_FLAG);
+                                sprintf(onetimeredirectmac,DEFAULT_URL_FLAG,ssidindex);
+                                addmaclist(ssidindex,mac,onetimeredirectmac);
                         }else
                                 strcpy(url,"");
-                }     
-        } 
+                }
+        }
 }
 #endif
-

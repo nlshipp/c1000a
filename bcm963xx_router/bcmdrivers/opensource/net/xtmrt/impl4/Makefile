@@ -12,6 +12,10 @@ EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/opensource/net/xtmrt/impl$(CONFIG_BCM_XTMRT
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/broadcom/char/fap/impl$(CONFIG_BCM_FAP_IMPL)
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/broadcom/char/fap/impl$(CONFIG_BCM_FAP_IMPL)/4ke
 EXTRA_CFLAGS += -Werror -Wfatal-errors
+ifeq "$(BRCM_PHY_LOOPBACK)" "y"
+EXTRA_CFLAGS += -DPHY_LOOPBACK
+endif
+
 
 clean:
 	rm -f core *.o *.a *.s

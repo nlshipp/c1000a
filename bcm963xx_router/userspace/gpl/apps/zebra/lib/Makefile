@@ -459,8 +459,8 @@ uninstall-am: uninstall-info-am
 
 
 version.c: Makefile
-	echo '' >version.c
-	echo 'char *host_name = "$(host_triplet)";' >>version.c
+#	echo '' >version.c
+#	echo 'char *host_name = "$(host_triplet)";' >>version.c
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

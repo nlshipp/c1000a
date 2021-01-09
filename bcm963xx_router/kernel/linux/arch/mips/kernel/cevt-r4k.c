@@ -14,7 +14,7 @@
 #include <asm/time.h>
 #include <asm/cevt-r4k.h>
 
-#ifdef CONFIG_BCM_HOSTMIPS_PWRSAVE
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) || defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 extern void BcmPwrMngtCheckWaitCount(void);
 #endif
 
@@ -79,7 +79,7 @@ irqreturn_t c0_compare_interrupt(int irq, void *dev_id)
 	}
 
 out:
-#ifdef CONFIG_BCM_HOSTMIPS_PWRSAVE
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) || defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 		BcmPwrMngtCheckWaitCount();
 #endif
 	return IRQ_HANDLED;

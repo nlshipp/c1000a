@@ -2,247 +2,327 @@
 /*
  * Mini tr implementation for busybox
  *
+ ** Copyright (c) 1987,1997, Prentice Hall   All rights reserved.
+ *
+ * The name of Prentice Hall may not be used to endorse or promote
+ * products derived from this software without specific prior
+ * written permission.
+ *
  * Copyright (c) Michiel Huisjes
  *
  * This version of tr is adapted from Minix tr and was modified
  * by Erik Andersen <andersen@codepoet.org> to be used in busybox.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- * Original copyright notice is retained at the end of this file.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ */
+/* http://www.opengroup.org/onlinepubs/009695399/utilities/tr.html
+ * TODO: graph, print
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include "busybox.h"
+//kbuild:lib-$(CONFIG_TR) += tr.o
 
-/* This must be a #define, since when CONFIG_DEBUG and BUFFERS_GO_IN_BSS are
- * enabled, we otherwise get a "storage size isn't constant error. */
-#define ASCII 0377
+//config:config TR
+//config:	bool "tr"
+//config:	default y
+//config:	help
+//config:	  tr is used to squeeze, and/or delete characters from standard
+//config:	  input, writing to standard output.
+//config:
+//config:config FEATURE_TR_CLASSES
+//config:	bool "Enable character classes (such as [:upper:])"
+//config:	default y
+//config:	depends on TR
+//config:	help
+//config:	  Enable character classes, enabling commands such as:
+//config:	  tr [:upper:] [:lower:] to convert input into lowercase.
+//config:
+//config:config FEATURE_TR_EQUIV
+//config:	bool "Enable equivalence classes"
+//config:	default y
+//config:	depends on TR
+//config:	help
+//config:	  Enable equivalence classes, which essentially add the enclosed
+//config:	  character to the current set. For instance, tr [=a=] xyz would
+//config:	  replace all instances of 'a' with 'xyz'. This option is mainly
+//config:	  useful for cases when no other way of expressing a character
+//config:	  is possible.
 
-/* some "globals" shared across this file */
-static char com_fl, del_fl, sq_fl;
-static short in_index, out_index;
-/* these last are pointers to static buffers declared in tr_main */
-static unsigned char *poutput, *pinput;
-static unsigned char *pvector;
-static char *pinvec, *poutvec;
+#include "libbb.h"
 
+enum {
+	ASCII = 256,
+	/* string buffer needs to be at least as big as the whole "alphabet".
+	 * BUFSIZ == ASCII is ok, but we will realloc in expand
+	 * even for smallest patterns, let's avoid that by using *2:
+	 */
+	TR_BUFSIZ = (BUFSIZ > ASCII*2) ? BUFSIZ : ASCII*2,
+};
 
-static void convert(void)
+static void map(char *pvector,
+		char *string1, unsigned string1_len,
+		char *string2, unsigned string2_len)
 {
-	short read_chars = 0;
-	short c, coded;
-	short last = -1;
-
-	for (;;) {
-		if (in_index == read_chars) {
-			if ((read_chars = read(0, (char *) pinput, BUFSIZ)) <= 0) {
-				if (write(1, (char *) poutput, out_index) != out_index)
-					bb_error_msg(bb_msg_write_error);
-				exit(0);
-			}
-			in_index = 0;
-		}
-		c = pinput[in_index++];
-		coded = pvector[c];
-		if (del_fl && pinvec[c])
-			continue;
-		if (sq_fl && last == coded && (pinvec[c] || poutvec[coded]))
-			continue;
-		poutput[out_index++] = last = coded;
-		if (out_index == BUFSIZ) {
-			if (write(1, (char *) poutput, out_index) != out_index)
-				bb_error_msg_and_die(bb_msg_write_error);
-			out_index = 0;
-		}
-	}
-
-	/* NOTREACHED */
-}
-
-static void map(register unsigned char *string1, unsigned int string1_len,
-		register unsigned char *string2, unsigned int string2_len)
-{
-	unsigned char last = '0';
-	unsigned int i, j;
+	char last = '0';
+	unsigned i, j;
 
 	for (j = 0, i = 0; i < string1_len; i++) {
 		if (string2_len <= j)
-			pvector[string1[i]] = last;
+			pvector[(unsigned char)(string1[i])] = last;
 		else
-			pvector[string1[i]] = last = string2[j++];
+			pvector[(unsigned char)(string1[i])] = last = string2[j++];
 	}
 }
 
 /* supported constructs:
- *   Ranges,  e.g.,  [0-9]  ==>  0123456789
- *   Escapes, e.g.,  \a     ==>  Control-G
+ *   Ranges,  e.g.,  0-9   ==>  0123456789
+ *   Escapes, e.g.,  \a    ==>  Control-G
+ *   Character classes, e.g. [:upper:] ==> A...Z
+ *   Equiv classess, e.g. [=A=] ==> A   (hmmmmmmm?)
+ * not supported:
+ *   \ooo-\ooo - octal ranges
+ *   [x*N] - repeat char x N times
+ *   [x*] - repeat char x until it fills STRING2:
+ * # echo qwe123 | /usr/bin/tr 123456789 '[d]'
+ * qwe[d]
+ * # echo qwe123 | /usr/bin/tr 123456789 '[d*]'
+ * qweddd
  */
-static unsigned int expand(const char *arg, register unsigned char *buffer)
+static unsigned expand(const char *arg, char **buffer_p)
 {
-	unsigned char *buffer_start = buffer;
-	int i, ac;
+	char *buffer = *buffer_p;
+	unsigned pos = 0;
+	unsigned size = TR_BUFSIZ;
+	unsigned i; /* can't be unsigned char: must be able to hold 256 */
+	unsigned char ac;
 
 	while (*arg) {
+		if (pos + ASCII > size) {
+			size += ASCII;
+			*buffer_p = buffer = xrealloc(buffer, size);
+		}
 		if (*arg == '\\') {
 			arg++;
-			*buffer++ = bb_process_escape_sequence(&arg);
-		} else if (*(arg+1) == '-') {
-			ac = *(arg+2);
-			if(ac == 0) {
-				*buffer++ = *arg++;
-				continue;
+			buffer[pos++] = bb_process_escape_sequence(&arg);
+			continue;
+		}
+		if (arg[1] == '-') { /* "0-9..." */
+			ac = arg[2];
+			if (ac == '\0') { /* "0-": copy verbatim */
+				buffer[pos++] = *arg++; /* copy '0' */
+				continue; /* next iter will copy '-' and stop */
 			}
-			i = *arg;
-			while (i <= ac)
-				*buffer++ = i++;
-			arg += 3; /* Skip the assumed a-z */
-		} else if (*arg == '[') {
+			i = (unsigned char) *arg;
+			while (i <= ac) /* ok: i is unsigned _int_ */
+				buffer[pos++] = i++;
+			arg += 3; /* skip 0-9 */
+			continue;
+		}
+		if ((ENABLE_FEATURE_TR_CLASSES || ENABLE_FEATURE_TR_EQUIV)
+		 && *arg == '['
+		) {
 			arg++;
-			i = *arg++;
-			if (*arg++ != '-') {
-				*buffer++ = '[';
-				arg -= 2;
+			i = (unsigned char) *arg++;
+			/* "[xyz...". i=x, arg points to y */
+			if (ENABLE_FEATURE_TR_CLASSES && i == ':') { /* [:class:] */
+#define CLO ":]\0"
+				static const char classes[] ALIGN1 =
+					"alpha"CLO "alnum"CLO "digit"CLO
+					"lower"CLO "upper"CLO "space"CLO
+					"blank"CLO "punct"CLO "cntrl"CLO
+					"xdigit"CLO;
+				enum {
+					CLASS_invalid = 0, /* we increment the retval */
+					CLASS_alpha = 1,
+					CLASS_alnum = 2,
+					CLASS_digit = 3,
+					CLASS_lower = 4,
+					CLASS_upper = 5,
+					CLASS_space = 6,
+					CLASS_blank = 7,
+					CLASS_punct = 8,
+					CLASS_cntrl = 9,
+					CLASS_xdigit = 10,
+					//CLASS_graph = 11,
+					//CLASS_print = 12,
+				};
+				smalluint j;
+				char *tmp;
+
+				/* xdigit needs 8, not 7 */
+				i = 7 + (arg[0] == 'x');
+				tmp = xstrndup(arg, i);
+				j = index_in_strings(classes, tmp) + 1;
+				free(tmp);
+
+				if (j == CLASS_invalid)
+					goto skip_bracket;
+
+				arg += i;
+				if (j == CLASS_alnum || j == CLASS_digit || j == CLASS_xdigit) {
+					for (i = '0'; i <= '9'; i++)
+						buffer[pos++] = i;
+				}
+				if (j == CLASS_alpha || j == CLASS_alnum || j == CLASS_upper) {
+					for (i = 'A'; i <= 'Z'; i++)
+						buffer[pos++] = i;
+				}
+				if (j == CLASS_alpha || j == CLASS_alnum || j == CLASS_lower) {
+					for (i = 'a'; i <= 'z'; i++)
+						buffer[pos++] = i;
+				}
+				if (j == CLASS_space || j == CLASS_blank) {
+					buffer[pos++] = '\t';
+					if (j == CLASS_space) {
+						buffer[pos++] = '\n';
+						buffer[pos++] = '\v';
+						buffer[pos++] = '\f';
+						buffer[pos++] = '\r';
+					}
+					buffer[pos++] = ' ';
+				}
+				if (j == CLASS_punct || j == CLASS_cntrl) {
+					for (i = '\0'; i < ASCII; i++) {
+						if ((j == CLASS_punct && isprint_asciionly(i) && !isalnum(i) && !isspace(i))
+						 || (j == CLASS_cntrl && iscntrl(i))
+						) {
+							buffer[pos++] = i;
+						}
+					}
+				}
+				if (j == CLASS_xdigit) {
+					for (i = 'A'; i <= 'F'; i++) {
+						buffer[pos + 6] = i | 0x20;
+						buffer[pos++] = i;
+					}
+					pos += 6;
+				}
 				continue;
 			}
-			ac = *arg++;
-			while (i <= ac)
-				*buffer++ = i++;
-			arg++;				/* Skip the assumed ']' */
-		} else
-			*buffer++ = *arg++;
-	}
-
-	return (buffer - buffer_start);
-}
-
-static int complement(unsigned char *buffer, int buffer_len)
-{
-	register short i, j, ix;
-	char conv[ASCII + 2];
-
-	ix = 0;
-	for (i = 0; i <= ASCII; i++) {
-		for (j = 0; j < buffer_len; j++)
-			if (buffer[j] == i)
-				break;
-		if (j == buffer_len)
-			conv[ix++] = i & ASCII;
-	}
-	memcpy(buffer, conv, ix);
-	return ix;
-}
-
-extern int tr_main(int argc, char **argv)
-{
-	register unsigned char *ptr;
-	int output_length=0, input_length;
-	int idx = 1;
-	int i;
-	RESERVE_CONFIG_BUFFER(output, BUFSIZ);
-	RESERVE_CONFIG_BUFFER(input,  BUFSIZ);
-	RESERVE_CONFIG_UBUFFER(vector, ASCII+1);
-	RESERVE_CONFIG_BUFFER(invec,  ASCII+1);
-	RESERVE_CONFIG_BUFFER(outvec, ASCII+1);
-
-	/* ... but make them available globally */
-	poutput = output;
-	pinput  = input;
-	pvector = vector;
-	pinvec  = invec;
-	poutvec = outvec;
-
-	if (argc > 1 && argv[idx][0] == '-') {
-		for (ptr = (unsigned char *) &argv[idx][1]; *ptr; ptr++) {
-			switch (*ptr) {
-			case 'c':
-				com_fl = TRUE;
-				break;
-			case 'd':
-				del_fl = TRUE;
-				break;
-			case 's':
-				sq_fl = TRUE;
-				break;
-			default:
-				bb_show_usage();
+			/* "[xyz...", i=x, arg points to y */
+			if (ENABLE_FEATURE_TR_EQUIV && i == '=') { /* [=CHAR=] */
+				buffer[pos++] = *arg; /* copy CHAR */
+				if (!arg[0] || arg[1] != '=' || arg[2] != ']')
+					bb_show_usage();
+				arg += 3;	/* skip CHAR=] */
+				continue;
 			}
+			/* The rest of "[xyz..." cases is treated as normal
+			 * string, "[" has no special meaning here:
+			 * tr "[a-z]" "[A-Z]" can be written as tr "a-z" "A-Z",
+			 * also try tr "[a-z]" "_A-Z+" and you'll see that
+			 * [] is not special here.
+			 */
+ skip_bracket:
+			arg -= 2; /* points to "[" in "[xyz..." */
 		}
-		idx++;
+		buffer[pos++] = *arg++;
 	}
-	for (i = 0; i <= ASCII; i++) {
-		vector[i] = i;
-		invec[i] = outvec[i] = FALSE;
-	}
-
-	if (argv[idx] != NULL) {
-		input_length = expand(argv[idx++], input);
-		if (com_fl)
-			input_length = complement(input, input_length);
-		if (argv[idx] != NULL) {
-			if (*argv[idx] == '\0')
-				bb_error_msg_and_die("STRING2 cannot be empty");
-			output_length = expand(argv[idx], output);
-			map(input, input_length, output, output_length);
-		}
-		for (i = 0; i < input_length; i++)
-			invec[(unsigned char)input[i]] = TRUE;
-		for (i = 0; i < output_length; i++)
-			outvec[(unsigned char)output[i]] = TRUE;
-	}
-	convert();
-	return (0);
+	return pos;
 }
 
-/*
- * Copyright (c) 1987,1997, Prentice Hall
- * All rights reserved.
- *
- * Redistribution and use of the MINIX operating system in source and
- * binary forms, with or without modification, are permitted provided
- * that the following conditions are met:
- *
- * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following
- * disclaimer in the documentation and/or other materials provided
- * with the distribution.
- *
- * Neither the name of Prentice Hall nor the names of the software
- * authors or contributors may be used to endorse or promote
- * products derived from this software without specific prior
- * written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS, AUTHORS, AND
- * CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL PRENTICE HALL OR ANY AUTHORS OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
+/* NB: buffer is guaranteed to be at least TR_BUFSIZE
+ * (which is >= ASCII) big.
  */
+static int complement(char *buffer, int buffer_len)
+{
+	int len;
+	char conv[ASCII];
+	unsigned char ch;
 
+	len = 0;
+	ch = '\0';
+	while (1) {
+		if (memchr(buffer, ch, buffer_len) == NULL)
+			conv[len++] = ch;
+		if (++ch == '\0')
+			break;
+	}
+	memcpy(buffer, conv, len);
+	return len;
+}
+
+int tr_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int tr_main(int argc UNUSED_PARAM, char **argv)
+{
+	int i;
+	smalluint opts;
+	ssize_t read_chars;
+	size_t in_index, out_index;
+	unsigned last = UCHAR_MAX + 1; /* not equal to any char */
+	unsigned char coded, c;
+	char *str1 = xmalloc(TR_BUFSIZ);
+	char *str2 = xmalloc(TR_BUFSIZ);
+	int str2_length;
+	int str1_length;
+	char *vector = xzalloc(ASCII * 3);
+	char *invec  = vector + ASCII;
+	char *outvec = vector + ASCII * 2;
+
+#define TR_OPT_complement	(3 << 0)
+#define TR_OPT_delete		(1 << 2)
+#define TR_OPT_squeeze_reps	(1 << 3)
+
+	for (i = 0; i < ASCII; i++) {
+		vector[i] = i;
+		/*invec[i] = outvec[i] = FALSE; - done by xzalloc */
+	}
+
+	/* -C/-c difference is that -C complements "characters",
+	 * and -c complements "values" (binary bytes I guess).
+	 * In POSIX locale, these are the same.
+	 */
+
+	opt_complementary = "-1";
+	opts = getopt32(argv, "+Ccds"); /* '+': stop at first non-option */
+	argv += optind;
+
+	str1_length = expand(*argv++, &str1);
+	str2_length = 0;
+	if (opts & TR_OPT_complement)
+		str1_length = complement(str1, str1_length);
+	if (*argv) {
+		if (argv[0][0] == '\0')
+			bb_error_msg_and_die("STRING2 cannot be empty");
+		str2_length = expand(*argv, &str2);
+		map(vector, str1, str1_length,
+				str2, str2_length);
+	}
+	for (i = 0; i < str1_length; i++)
+		invec[(unsigned char)(str1[i])] = TRUE;
+	for (i = 0; i < str2_length; i++)
+		outvec[(unsigned char)(str2[i])] = TRUE;
+
+	goto start_from;
+
+	/* In this loop, str1 space is reused as input buffer,
+	 * str2 - as output one. */
+	for (;;) {
+		/* If we're out of input, flush output and read more input. */
+		if ((ssize_t)in_index == read_chars) {
+			if (out_index) {
+				xwrite(STDOUT_FILENO, str2, out_index);
+ start_from:
+				out_index = 0;
+			}
+			read_chars = safe_read(STDIN_FILENO, str1, TR_BUFSIZ);
+			if (read_chars <= 0) {
+				if (read_chars < 0)
+					bb_perror_msg_and_die(bb_msg_read_error);
+				break;
+			}
+			in_index = 0;
+		}
+		c = str1[in_index++];
+		if ((opts & TR_OPT_delete) && invec[c])
+			continue;
+		coded = vector[c];
+		if ((opts & TR_OPT_squeeze_reps) && last == coded
+		 && (invec[c] || outvec[coded])
+		) {
+			continue;
+		}
+		str2[out_index++] = last = coded;
+	}
+
+	return EXIT_SUCCESS;
+}

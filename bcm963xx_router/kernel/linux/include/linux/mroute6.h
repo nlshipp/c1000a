@@ -235,10 +235,12 @@ void mfc6_net_set(struct mfc6_cache *mfc, struct net *net)
 #define MFC6_LINES		64
 
 #if defined(CONFIG_MIPS_BRCM)
-#define MFC6_HASH(a, g,c) ((((__force u32)(a)->s6_addr32[0] ^ \
-			  (__force u32)(a)->s6_addr32[1] ^ \
-			  (__force u32)(a)->s6_addr32[2] ^ \
-			  (__force u32)(a)->s6_addr32[3])+c) % MFC6_LINES)
+#define MFC6_HASH(a, g) ((\
+           ((__force u32)((a)->s6_addr16[0] ^ (a)->s6_addr16[2] ^ \
+                          (a)->s6_addr16[4] ^ (a)->s6_addr16[6]) << 16) | \
+           ((__force u32)((a)->s6_addr16[1] ^ (a)->s6_addr16[3] ^ \
+                          (a)->s6_addr16[5] ^ (a)->s6_addr16[7]) <<  0)) \
+                          % MFC6_LINES)
 #else
 #define MFC6_HASH(a, g) (((__force u32)(a)->s6_addr32[0] ^ \
 			  (__force u32)(a)->s6_addr32[1] ^ \

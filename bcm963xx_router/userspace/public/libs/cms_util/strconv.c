@@ -3,27 +3,29 @@
  *  Copyright (c) 2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:> 
  * 
  ************************************************************************/
 #include <stdio.h>
@@ -63,7 +65,11 @@ CmsRet cmsUtl_atmVpiVciStrToNum(const char *vpiVciStr, SINT32 *vpi, SINT32 *vci)
       return CMSRET_INVALID_ARGUMENTS;
    }      
 
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(vpiStr, vpiVciStr, sizeof(vpiStr));
+#else
    strncpy(vpiStr, vpiVciStr, sizeof(vpiStr));
+#endif
 
    if (strstr(vpiStr, DSL_LINK_DESTINATION_PREFIX_SVC))
    {
@@ -94,7 +100,11 @@ CmsRet cmsUtl_atmVpiVciStrToNum(const char *vpiVciStr, SINT32 *vpi, SINT32 *vci)
       cmsLog_error("vpiVciStr %s is invalid", vpiVciStr);
       return CMSRET_INVALID_ARGUMENTS;
    }
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(vciStr, (pSlash + 1), sizeof(vciStr));
+#else
    strncpy(vciStr, (pSlash + 1), sizeof(vciStr));
+#endif
    *pSlash = '\0';       
    *vpi = atoi(prefix);
    *vci = atoi(vciStr);
@@ -158,10 +168,24 @@ CmsRet cmsUtl_macStrToNum(const char *macStr, UINT8 *macNum)
     * xx:xx:xx:xx:xx:xx where x is hex number 
     */
    pToken = strtok_r(buf, ":", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   if (pToken == NULL) {
+       cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
+       cmsMem_free(buf);
+       return CMSRET_INVALID_PARAM_VALUE;
+   }
+#endif
    macNum[0] = (UINT8) strtol(pToken, (char **)NULL, 16);
    for (i = 1; i < MAC_ADDR_LEN; i++) 
    {
       pToken = strtok_r(NULL, ":", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+      if (pToken == NULL) {
+          cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
+          cmsMem_free(buf);
+          return CMSRET_INVALID_PARAM_VALUE;
+      }
+#endif
       macNum[i] = (UINT8) strtol(pToken, (char **)NULL, 16);
    }
 
@@ -710,38 +734,7 @@ char * cmsUtl_numToSyslogLevelString(SINT32 level)
 
    return levelString;
 }
-#ifdef AEI_VDSL_CUSTOMER_NCS
-SINT32 cmsUtl_syslogSizeToNum(const char *sizeStr)
-{
-    SINT32 size=1;
-   /*
-    * These values are hard coded in httpd/html/logconfig.html.
-    * Any changes to these values must also be reflected in that file.
-    */
-   if (!strcmp(sizeStr, MDMVS_10K))
-   {
-      size = 1;
-   }
-   else if (!strcmp(sizeStr, MDMVS_20K))
-   {
-      size = 2;
-   }
-   else if (!strcmp(sizeStr, MDMVS_30K))
-   {
-      size = 3;
-   }
-   else 
-   {
-      cmsLog_error("unsupported size string %s, default to size=%d", sizeStr, size);
-   }
 
-   /*
-    * The data model also specifies LOCAL_FILE and LOCAL_FILE_AND_REMOTE,
-    * but its not clear if syslogd actually supports local file size.
-    */
-   return size;
-}
-#endif
 
 UBOOL8 cmsUtl_isValidSyslogLevel(const char *levelStr)
 {
@@ -844,6 +837,12 @@ CmsLogLevel cmsUtl_logLevelStringToEnum(const char *logLevel)
    {
       return LOG_LEVEL_ERR;
    }
+#ifdef AEI_CMS_LOG_DEBUG
+   else if (!strcmp(logLevel, MDMVS_AEIDEBUG))
+   {
+      return LOG_LEVEL_AEIDEBUG;
+   }
+#endif
    else if (!strcmp(logLevel, MDMVS_NOTICE))
    {
       return LOG_LEVEL_NOTICE;
@@ -939,6 +938,12 @@ UBOOL8 cmsUtl_isValidIpv4Address(const char* input)
    /* IP address has the following format
       xxx.xxx.xxx.xxx where x is decimal number */
    pToken = strtok_r(buf, ".", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   if (pToken == NULL) {
+       cmsLog_error("[%s:%d] not IP address format", __FILE__, __LINE__);
+       return FALSE;
+   }
+#endif
    if ((cmsUtl_strtoul(pToken, NULL, 10, &num) != CMSRET_SUCCESS) ||
        (num > 255))
    {
@@ -949,7 +954,13 @@ UBOOL8 cmsUtl_isValidIpv4Address(const char* input)
       for ( i = 0; i < 3; i++ )
       {
          pToken = strtok_r(NULL, ".", &pLast);
-
+#ifdef AEI_COVERITY_FIX
+         if(pToken == NULL)
+	 {
+		 ret = FALSE;
+		 break;
+	 }
+#endif
          if ((cmsUtl_strtoul(pToken, NULL, 10, &num) != CMSRET_SUCCESS) ||
              (num > 255))
          {
@@ -983,6 +994,12 @@ UBOOL8 cmsUtl_isValidMacAddress(const char* input)
    /* Mac address has the following format
        xx:xx:xx:xx:xx:xx where x is hex number */
    pToken = strtok_r(buf, ":", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   if (pToken == NULL) {
+       cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
+       return FALSE;
+   }
+#endif
    if ((strlen(pToken) != 2) ||
        (cmsUtl_strtoul(pToken, NULL, 16, &num) != CMSRET_SUCCESS))
    {
@@ -993,6 +1010,12 @@ UBOOL8 cmsUtl_isValidMacAddress(const char* input)
       for ( i = 0; i < 5; i++ )
       {
          pToken = strtok_r(NULL, ":", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+         if (pToken == NULL) {
+             cmsLog_error("[%s:%d] not MAC address format", __FILE__, __LINE__);
+             return FALSE;
+         }
+#endif
          if ((strlen(pToken) != 2) ||
              (cmsUtl_strtoul(pToken, NULL, 16, &num) != CMSRET_SUCCESS))
          {
@@ -1119,11 +1142,10 @@ char *cmsUtl_strncpy(char *dest, const char *src, SINT32 dlen)
    if((src == NULL) || (dest == NULL))
    {
       cmsLog_error("null pointer reference src =%u ,dest =%u", src, dest);
-      //Jean, 2011.3.1
-      return NULL;
-   }	
+      return dest;
+   }
 
-   if( strlen(src)+1 > dlen )
+   if( strlen(src)+1 > (UINT32) dlen )
    {
       cmsLog_notice("truncating:src string length > dest buffer");
       strncpy(dest,src,dlen-1);
@@ -1138,12 +1160,12 @@ char *cmsUtl_strncpy(char *dest, const char *src, SINT32 dlen)
 
 SINT32 cmsUtl_strlen(const char *src)
 {
-   char emptyStr = '\0';
+   char emptyStr[1] = {0};
    char *str = (char *)src;
    
    if(src == NULL)
    {
-      str = &emptyStr;
+      str = emptyStr;
    }	
 
    return strlen(str);
@@ -1400,45 +1422,6 @@ UBOOL8 cmsUtl_isGUAorULA(const char *address)
 
 }  /* End of cmsUtl_isGUAorULA() */
 
-CmsRet cmsUtl_getAddrPrefix(const char *address, UINT32 plen, char *prefix)
-{
-   struct in6_addr   in6Addr;
-   UINT16 i, k, mask;
-
-   if (plen > 128)
-   {
-      cmsLog_error("Invalid plen=%d", plen);
-      return CMSRET_INVALID_ARGUMENTS;
-   }
-   if (inet_pton(AF_INET6, address, &in6Addr) <= 0)
-   {
-      cmsLog_error("Invalid address=%s", address);
-      return CMSRET_INVALID_ARGUMENTS;
-   }
-
-   k = plen / 16;
-   mask = 0;
-   if (plen % 16)
-   {
-      mask = ~(UINT16)(((1 << (16 - (plen % 16))) - 1) & 0xFFFF);
-   }
-
-   in6Addr.s6_addr16[k] &= mask;
-   
-   for (i = k+1; i < 8; i++)
-   {
-      in6Addr.s6_addr16[i] = 0;
-   } 
-   
-   if (inet_ntop(AF_INET6, &in6Addr, prefix, BUFLEN_40) == NULL)
-   {
-      cmsLog_error("inet_ntop returns NULL");
-      return CMSRET_INTERNAL_ERROR;
-   }
-
-   return CMSRET_SUCCESS; 
-   
-}  /* End of cmsUtl_getAddrPrefix() */
 
 CmsRet cmsUtl_replaceEui64(const char *address1, char *address2)
 {
@@ -1467,6 +1450,57 @@ CmsRet cmsUtl_replaceEui64(const char *address1, char *address2)
    return CMSRET_SUCCESS;
       
 }  /* End of cmsUtl_replaceEui64() */
+
+
+#endif
+
+CmsRet cmsUtl_getAddrPrefix(const char *address, UINT32 plen, char *prefix)
+{
+   struct in6_addr   in6Addr;
+   UINT16 i, k, mask;
+
+   if (plen > 128)
+   {
+      cmsLog_error("Invalid plen=%d", plen);
+      return CMSRET_INVALID_ARGUMENTS;
+   }
+   else if (plen == 128)
+   {
+
+      cmsUtl_strncpy(prefix, address, INET6_ADDRSTRLEN);
+      return CMSRET_SUCCESS; 
+   }
+
+   if (inet_pton(AF_INET6, address, &in6Addr) <= 0)
+   {
+      cmsLog_error("Invalid address=%s", address);
+      return CMSRET_INVALID_ARGUMENTS;
+   }
+
+   k = plen / 16;
+   mask = 0;
+   if (plen % 16)
+   {
+      mask = ~(UINT16)(((1 << (16 - (plen % 16))) - 1) & 0xFFFF);
+   }
+
+   in6Addr.s6_addr16[k] &= mask;
+   
+   for (i = k+1; i < 8; i++)
+   {
+      in6Addr.s6_addr16[i] = 0;
+   } 
+   
+   if (inet_ntop(AF_INET6, &in6Addr, prefix, INET6_ADDRSTRLEN) == NULL)
+   {
+      cmsLog_error("inet_ntop returns NULL");
+      return CMSRET_INTERNAL_ERROR;
+   }
+
+   return CMSRET_SUCCESS; 
+   
+}  /* End of cmsUtl_getAddrPrefix() */
+
 
 CmsRet cmsUtl_parsePrefixAddress(const char *prefixAddr, char *address, UINT32 *plen)
 {
@@ -1527,8 +1561,6 @@ CmsRet cmsUtl_parsePrefixAddress(const char *prefixAddr, char *address, UINT32 *
    
 }  /* End of cmsUtl_parsePrefixAddress() */
 
-#endif
-
 
 UBOOL8 cmsUtl_ipStrToOctets(const char *input, char *output)
 {
@@ -1549,6 +1581,12 @@ UBOOL8 cmsUtl_ipStrToOctets(const char *input, char *output)
    /* IP address has the following format
       xxx.xxx.xxx.xxx where x is decimal number */
    pToken = strtok_r(buf, ".", &pLast);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   if (pToken == NULL) {
+       cmsLog_error("[%s:%d] not IP address format", __FILE__, __LINE__);
+       return FALSE;
+   }
+#endif
    if ((cmsUtl_strtoul(pToken, NULL, 10, &num) != CMSRET_SUCCESS) ||
        (num > 255))
    {
@@ -1562,6 +1600,13 @@ UBOOL8 cmsUtl_ipStrToOctets(const char *input, char *output)
       {
          pToken = strtok_r(NULL, ".", &pLast);
 
+#ifdef AEI_COVERITY_FIX
+	if(pToken == NULL)
+	{
+		ret = FALSE;
+		break;
+	}
+#endif
          if ((cmsUtl_strtoul(pToken, NULL, 10, &num) != CMSRET_SUCCESS) ||
              (num > 255))
          {
@@ -1670,7 +1715,11 @@ try_again:
         last = tv;
     }
   
+#ifdef AEI_COVERITY_FIX
+    clock_reg = (unsigned long long)(tv.tv_usec*10 + adjustment);
+#else
     clock_reg = tv.tv_usec*10 + adjustment;
+#endif
     clock_reg += ((unsigned long long) tv.tv_sec)*10000000;
     clock_reg += (((unsigned long long) 0x01B21DD2) << 32) + 0x13814000;
 

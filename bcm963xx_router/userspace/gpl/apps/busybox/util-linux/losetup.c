@@ -1,59 +1,88 @@
+/* vi: set sw=4 ts=4: */
 /*
  * Mini losetup implementation for busybox
  *
  * Copyright (C) 2002  Matt Kraai.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <getopt.h>
-#include <stdlib.h>
+#include "libbb.h"
 
-#include "busybox.h"
-
-int
-losetup_main (int argc, char **argv)
+int losetup_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int losetup_main(int argc UNUSED_PARAM, char **argv)
 {
-  int delete = 0;
-  int offset = 0;
-  int opt;
+	unsigned opt;
+	int n;
+	char *opt_o;
+	unsigned long long offset = 0;
+	enum {
+		OPT_d = (1 << 0),
+		OPT_o = (1 << 1),
+		OPT_f = (1 << 2),
+	};
 
-  while ((opt = getopt (argc, argv, "do:")) != -1)
-    switch (opt)
-      {
-      case 'd':
-	delete = 1;
-	break;
+	/* max 2 args, all opts are mutually exclusive */
+	opt_complementary = "?2:d--of:o--df:f--do";
+	opt = getopt32(argv, "do:f", &opt_o);
+	argv += optind;
 
-      case 'o':
-	offset = bb_xparse_number (optarg, NULL);
-	break;
+	if (opt == OPT_o)
+		offset = xatoull(opt_o);
 
-      default:
-	bb_show_usage();
-      }
+	if (opt == OPT_d) {
+		/* -d BLOCKDEV */
+		if (!argv[0] || argv[1])
+			bb_show_usage();
+		if (del_loop(argv[0]))
+			bb_simple_perror_msg_and_die(argv[0]);
+		return EXIT_SUCCESS;
+	}
 
-  if ((delete && (offset || optind + 1 != argc))
-      || (!delete && optind + 2 != argc))
-    bb_show_usage();
+	if (argv[0]) {
+		char *s;
 
-  opt = 0;
-  if (delete)
-    return del_loop (argv[optind]) ? EXIT_SUCCESS : EXIT_FAILURE;
-  else
-    return set_loop (argv[optind], argv[optind + 1], offset, &opt)
-      ? EXIT_FAILURE : EXIT_SUCCESS;
+		if (opt == OPT_f) /* -f should not have arguments */
+			bb_show_usage();
+
+		if (argv[1]) {
+			/* [-o OFS] BLOCKDEV FILE */
+			if (set_loop(&argv[0], argv[1], offset) < 0)
+				bb_simple_perror_msg_and_die(argv[0]);
+			return EXIT_SUCCESS;
+		}
+		/* [-o OFS] BLOCKDEV */
+		s = query_loop(argv[0]);
+		if (!s)
+			bb_simple_perror_msg_and_die(argv[0]);
+		printf("%s: %s\n", argv[0], s);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			free(s);
+		return EXIT_SUCCESS;
+	}
+
+	/* [-o OFS|-f] with no params */
+	n = 0;
+	while (1) {
+		char *s;
+		char dev[LOOP_NAMESIZE];
+
+		sprintf(dev, LOOP_FORMAT, n);
+		s = query_loop(dev);
+		n++;
+		if (!s) {
+			if (n > 9 && errno && errno != ENXIO)
+				return EXIT_SUCCESS;
+			if (opt == OPT_f) {
+				puts(dev);
+				return EXIT_SUCCESS;
+			}
+		} else {
+			if (opt != OPT_f)
+				printf("%s: %s\n", dev, s);
+			if (ENABLE_FEATURE_CLEAN_UP)
+				free(s);
+		}
+	}
+	return EXIT_SUCCESS;
 }

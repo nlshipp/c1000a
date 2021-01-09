@@ -14,10 +14,16 @@ endif
 # No more BUILD_LIBCREDUCTION.  The decision about whether to run
 # libcreduction or not is controlled by LIBOPT
 LIBOPT := y
+
+# If you disable LIBCREDUCTION for a feature, check extralibs.mk for any
+# extra libraries your feature might need.
 ifneq ($(strip $(BUILD_OPROFILE)),)
 LIBOPT := n
 endif
 ifneq ($(strip $(BUILD_GDBSERVER)),)
+LIBOPT := n
+endif
+ifneq ($(strip $(ENABLE_APP_COREDUMPS)),)
 LIBOPT := n
 endif
 ifneq ($(strip $(BUILD_DLNA)),)
@@ -53,18 +59,8 @@ ifneq ($(LIBOPT),y)
 
 # In this block, we are not doing optimization, so we don't get a generated
 # list of libraries we depend on, so we have to know exactly which libraries
-# are needed by our apps and add them to TARGETS (see also extralibs.mk)
+# are needed by our apps and add them to TARGETS (see extralibs.mk)
 
-TARGETS := $(LIBDIR)/$(LIBC) $(LIBDIR)/$(LINKER)
-
-TARGETS += $(LIBDIR)/libresolv.so.0
-TARGETS += $(EXTRALIBDIR)/libgcc_s.so.1
-
-ifneq ($(strip $(BUILD_GDBSERVER)),)
-	TARGETS += $(LIBDIR)/libthread_db.so.1
-endif
-
-# Additional libraries to install
 include extralibs.mak
 
 libopt:

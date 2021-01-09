@@ -23,7 +23,7 @@
 # traversal into each directory because we need to build all libraries
 # before building any of the apps.  See the "all" target.
 #
-USERSPACE_DIRS = public gpl
+USERSPACE_DIRS = public private gpl
 
 
 
@@ -35,10 +35,25 @@ USERSPACE_DIRS = public gpl
 #
 .PHONY : $(USERSPACE_DIRS)
 
-all: $(USERSPACE_DIRS)
+ifneq ($(strip $(AEI_CONTROL_LAYER)),)
+
+all: ctl_layer private-apps
+
+ctl_layer: private-libs public-libs
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_BELLALIANT)),)
+else
+endif
+
+else
+
+all: private-apps
+
+endif
 
 public-include:
 	$(MAKE) -C public/include
+
+private-libs: public-include
 
 public-libs: public-include
 	$(MAKE) -j $(ACTUAL_MAX_JOBS) -C public/libs
@@ -46,11 +61,13 @@ public-libs: public-include
 gpl-libs: public-include
 	$(MAKE) -j $(ACTUAL_MAX_JOBS) -C gpl/libs
 
-gpl-apps: public-libs gpl-libs
+gpl-apps: private-libs public-libs gpl-libs
 	$(MAKE) -j $(ACTUAL_MAX_JOBS) -C gpl/apps
 
-public-apps: public-libs gpl-libs
+public-apps: private-libs public-libs gpl-libs
 	$(MAKE) -j $(ACTUAL_MAX_JOBS) -C public/apps
+
+private-apps: gpl-apps public-apps
 
 
 #

@@ -20,7 +20,7 @@
  *  more parameters may be added later.
  */
 
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /*added by libby 2012-04-25*/
 char *name_server_ipv6;
 #endif
 

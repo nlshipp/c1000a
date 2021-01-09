@@ -856,4 +856,8 @@ extern void sendPppEventMessage(const SINT32 state, const char *ip, const char *
 #ifdef AEI_CONTROL_LAYER
 extern void sendCtlPppEventMessage(const SINT32 state, const char *ip, const char *mask, const char *gateway, const char *nameserver, const char *lastconnectionerror);
 #endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+void setbackoff();
+void unsetbackoff();
+#endif
 #endif /* __PPP_H__ */

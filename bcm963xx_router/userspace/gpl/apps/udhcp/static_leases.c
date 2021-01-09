@@ -35,7 +35,7 @@ int addStaticLease(struct static_lease **lease_struct, uint8_t * mac, uint32_t *
 	new_static_lease->subnet = subnet;
 	new_static_lease->dns1 = dns1;
 	new_static_lease->dns2 = dns2;
-#endif    
+#endif
     new_static_lease->next = NULL;
 
     /* If it's the first node to be added... */

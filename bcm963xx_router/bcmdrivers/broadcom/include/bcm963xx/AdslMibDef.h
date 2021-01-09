@@ -4,19 +4,25 @@
    Copyright (c) 2004 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -141,11 +147,23 @@ Boston, MA 02111-1307, USA.
 extern "C" {
 #endif
 
+#define  ADSLMIBDEF_H_VER  2
+
 //#define SAVE_CRATESRA_MSG
+//#define CO_G994_NSIF
+//#define SUPPORT_24HR_CNT_STAT
 
-/* #define CO_G994_NSIF */
+#ifndef CONFIG_VDSL_SUPPORTED
+#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268) || defined(DMP_VDSL2WAN_1)
+#define CONFIG_VDSL_SUPPORTED
+#endif
+#endif
 
-/* 
+#if defined(CONFIG_VDSL_SUPPORTED)
+#define SUPPORT_VECTORING
+#endif
+
+/*
 **
 **      ADSL configuration parameters 
 **
@@ -375,6 +393,11 @@ typedef struct _adslPhyCfg {
 #define kAdslTypeAnnexB                     2
 #define kAdslTypeAnnexC                     3
 #define kAdslTypeSADSL                      4
+#define kAdslTypeAnnexM                     5
+#define kAdslTypeAnnexJ                     6
+#define kAdslTypeAnnexI                     7
+#define kAdslTypeAnnexAB                    8
+#define kAdslTypeAnnexL                     9
 
 typedef struct _adslVersionInfo {
     unsigned short  phyType;
@@ -414,10 +437,16 @@ typedef struct _adslVersionInfo {
 #define kOidAtm                             37
 #define kOidAdslPrivate                     255
 #define kOidAdslPrivatePartial              254
+#define kOidAdslPrivateSysCtl               253
+#define kOidAdslPrivateSysMediaCfg    0
 
 #define kAdslMibAnnexAToneNum               256
 #define kAdslMibToneNum                     kAdslMibAnnexAToneNum
+#ifdef G992_ANNEXC
 #define kAdslMibMaxToneNum                  kAdslMibAnnexAToneNum*2*2
+#else
+#define kAdslMibMaxToneNum                  kAdslMibAnnexAToneNum*2
+#endif
 
 #define kVdslMibToneNum                     4096
 #define kVdslMibMaxToneNum                  4096
@@ -443,6 +472,8 @@ typedef struct _adslVersionInfo {
 #define kOidAdslExtraPLNDataUpdate						6
 #define kOidAdslPrivPLNDurationBins         8
 #define kOidAdslPrivPLNIntrArvlBins         9
+#define kOidAdslPrivINMConfigFormat         10
+#define kOidAdslPrivINMControlParams        11
 #define kOidAdslPrivPLNDurationHist         12
 #define kOidAdslPrivPLNIntrArvlHist         13
 #ifdef ADSL_MIBOBJ_PLN
@@ -473,18 +504,32 @@ typedef struct _adslVersionInfo {
 #define kOidAdslPrivSNRMdsperband      34
 #define kOidAdslPrivSNRMusperband      35
 #define kOidAdslPrivSetFlagActualGFactor      36
-#define kOIdAdslPrivGetVectErrorSamples    37
-#define kOIdAdslPrivViewVectErrorSamples   38
+#define kOIdAdslPrivGetVectState    37
+#define kOIdAdslPrivGetVectSM        38
 #define kOIdAdslPrivGetVceMacAddress   39
-#define kOIdAdslPrivIncrementErrorSamplesReadPtr 40
-
-
+#define kOIdAdslPrivGetVectPhyData   40
+#define kOidAdslPrivTxPwrusperband   41
+#define kOidAdslPrivTxPwrdsperband   42
+#define kOidAdslPrivGetNtrCnt        43
+#define kOidAdslPrivLATNperband        1
+#define kOidAdslPrivSATNperband        2
+#define kOidAdslPrivSNRMperband        3
+#define kOidAdslPrivTxPwrperband       4
 
 #define kPlnNumberOfDurationBins       32
 #define kPlnNumberOfInterArrivalBins   16
 
 #define kOidAdslPrivExtraInfo               255
 #define kOidAdslExtraNLInfo                  10
+#define kOidAdslPrivBandPlanUSNegPresentation       24
+#define kOidAdslPrivBandPlanUSPhyPresentation       25
+#define kOidAdslPrivBandPlanDSNegPresentation       26
+#define kOidAdslPrivBandPlanDSPhyPresentation       27
+#define kOidAdslPrivBandPlanUSNegDiscoveryPresentation	28
+#define kOidAdslPrivBandPlanUSPhyDiscoveryPresentation	29
+#define kOidAdslPrivBandPlanDSNegDiscoveryPresentation	30
+#define kOidAdslPrivBandPlanDSPhyDiscoveryPresentation	31
+#define kOidAdslPrivINMConfigParameters	32
 
 #define kOidAdslLine                        1
 #define kOidAdslMibObjects                  1
@@ -690,7 +735,7 @@ typedef struct _adslPhysEntry {
     unsigned short	UPBOkle;
 } adslPhysEntry;
 
-#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
+#if defined(CONFIG_VDSL_SUPPORTED)
 typedef struct _xdslPhysEntry {
     long        adslCurrSnrMgn;
     long        adslCurrAtn;
@@ -709,6 +754,9 @@ typedef struct _xdslPhysEntry {
     long        actualCE;
     unsigned short      UPBOkle;
     long        perBandCurrOutputPwr[MAX_NUM_BANDS];
+    unsigned char  attnDrMethod;
+    unsigned char  attnDrInp;
+    unsigned char  attnDrDelay;
 } xdslPhysEntry;
 #endif
 
@@ -731,12 +779,12 @@ typedef struct _adslFullPhysEntry {
     long        HLOGMT;
     long        SNRMT;
 #ifdef CO_G994_NSIF
-	long		nsifLen;
-	char        adslNsif[64];
+    long        nsifLen;
+    char        adslNsif[64];
 #endif
 } adslFullPhysEntry;
 
-#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
+#if defined(CONFIG_VDSL_SUPPORTED)
 typedef struct _xdslFullPhysEntry {
     char        adslSerialNumber[kAdslPhysSerialNumLen];
     char        adslVendorID[kAdslPhysVendorIdLen];
@@ -756,10 +804,13 @@ typedef struct _xdslFullPhysEntry {
     long        HLOGMT;
     long        SNRMT;
 #ifdef CO_G994_NSIF
-	long		nsifLen;
-	char        adslNsif[64];
+    long        nsifLen;
+    char        adslNsif[64];
 #endif
     long        perBandCurrOutputPwr[MAX_NUM_BANDS];
+    unsigned char  attnDrMethod;
+    unsigned char  attnDrInp;
+    unsigned char  attnDrDelay;
 } xdslFullPhysEntry;
 #endif
 
@@ -816,12 +867,14 @@ typedef struct _adslPerfDataEntry {
     unsigned long               adslAturPerfPrev1DayMoniSecs;
     adslFailureCounters failTotal;
     adslFailureCounters failSinceShowTime;
+    adslFailureCounters failSinceLastShowTime;
     adslFailureCounters failCurDay;
     adslFailureCounters failPrevDay;
     adslFailureCounters failCur15Min;
     long                    lastRetrainReason;
     long                    lastShowtimeDropReason;
     unsigned long       adslSinceLinkTimeElapsed;
+    unsigned long       adslSincePrevLinkTimeElapsed;
 } adslPerfDataEntry;
 
 #define kAdslMibPerfIntervals       4
@@ -870,7 +923,15 @@ typedef struct _adslPLNDataEntry {
     unsigned long PLNBBCounter;
     char  PLNUpdateData;
 } adslPLNDataEntry;
-
+	
+typedef struct _adslINMConfiguration {
+    unsigned short              INMCC;
+    unsigned short              INM_INPEQ_MODE;
+    unsigned short        INMIATS;
+    unsigned short        INMIATO;
+    unsigned char         INMDF;
+    unsigned short       INM_INPEQ_FORMAT;
+}adslINMConfiguration;
 
 #define kAdslMibChanPerfIntervals   4
 
@@ -985,6 +1046,11 @@ typedef struct _adsl2DataConnectionInfo {
 #define kXdslModeAnnexShift                     8
 #define kXdslModeAnnexMask                      (0xF << kXdslModeAnnexShift)
 
+/* TPS-TC options */
+
+#define kXdslTpsTcPtmPreemption				0x01
+#define kXdslTpsTcPtmShortPackets			0x02
+
 typedef struct UDenomNum16 UDenomNum16;
 struct UDenomNum16
 {
@@ -1025,6 +1091,7 @@ typedef struct _xdslFramingInfo {
     unsigned char           A;            /* is the integer number of ATM cells or PTM codwords per DTU */
     long                        dataRate;
     long                        etrRate;
+	unsigned char           tpsTcOptions;
 } xdslFramingInfo;
 
 // ADSL.K = B[0] + B[1] + 1
@@ -1169,16 +1236,17 @@ typedef struct _adslDiagModeData {
     unsigned short    ldLastStateUS;    /* US LD last state transmitted */
 } adslDiagModeData;
 
-#ifdef NTR_SUPPORT
+//#ifdef NTR_SUPPORT
+#if 1    /* Prevent inconsistent structure size b/w modules when BRCM_NTR_SUPPORT is enabled (i.e XTM does not define NTR_SUPPORT) */
 #define kNtrOperMode6368            (0)
 #define kNtrOperModeInt                (1)
 #define kNtrOperModeExtDriver    (2)
 
 typedef struct dslNtrCfg {
-   ulong   intModeDivRatio;     /* NTR output freq = 17.664e6/intModeDivRatio */
-   ulong   extModePhaseScale;   /* scale factor used to convert external clock ticks to 17.664 MHz clock ticks */
+   unsigned long   intModeDivRatio;     /* NTR output freq = 17.664e6/intModeDivRatio */
+   unsigned long   extModePhaseScale;   /* scale factor used to convert external clock ticks to 17.664 MHz clock ticks */
                                 /* extModePhaseScale = 17.664/(external clock freq), 16.16 format */
-   ulong   updatePeriod;        /* PLL update period in ms */
+   unsigned long   updatePeriod;        /* PLL update period in ms */
    long    b0;                  /* loop filter, b0       */
    long    b1;                  /* loop filter, b1       */
    unsigned char   operMode;
@@ -1187,20 +1255,21 @@ typedef struct dslNtrCfg {
 } dslNtrCfg;
 
 typedef struct dslNtrData {
-    ulong   mipsCntAtDmt;
-    ulong   mipsCntAtNtr;
-    ulong   lcoCntAtDmt;
-    ulong   lcoCntAtNtr;
-    ulong   ncoCntAtDmt;
-    ulong   ncoCntAtNtr;
+    unsigned long   mipsCntAtDmt;
+    unsigned long   mipsCntAtNtr;
+    unsigned long   lcoCntAtDmt;
+    unsigned long   lcoCntAtNtr;
+    unsigned long   ncoCntAtDmt;
+    unsigned long   ncoCntAtNtr;
     /* 6362/6328 */
 #if defined(CONFIG_BCM96362) || defined(CHIP_6362) || defined(CONFIG_BCM96328) || defined(CHIP_6328) ||\
-    defined(CONFIG_BCM963268) || defined(CHIP_63268)
+    defined(CONFIG_BCM963268) || defined(CHIP_63268) || defined(CONFIG_BCM96318) || defined(CHIP_6318)
     long    phaseError;       /* 32.0 format */
     long    VCOAdjInfo;
 #endif
 } dslNtrData;
 #endif
+
 #ifndef VDSLTONEGROUP
 #define VDSLTONEGROUP
 typedef struct _VdslToneGroup {
@@ -1235,50 +1304,7 @@ typedef struct _vdslperbandPMDdata {
 } vdslperbandPMDdata;
 #endif
 
-#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
-#if 0
-typedef struct _xdslPhysEntry {
-    long        adslCurrSnrMgn;
-    long        adslCurrAtn;
-    long        adslCurrStatus;
-    long        adslCurrOutputPwr;
-    long        adslCurrAttainableRate;
-    long        adslSignalAttn;
-    long        adslHlinScaleFactor;
-    long        adslLDCompleted;
-    char        adslVendorID[kAdslPhysVendorIdLen];
-    long        perBandCurrOutputPwr[MAX_NUM_BANDS];
-    long        actualPSD;
-    long        SNRmode;
-    long        QLNMT;
-    long        HLOGMT;
-    long        SNRMT;
-    long        actualCE;
-    unsigned short      UPBOkle;
-} xdslPhysEntry;
-
-typedef struct _xdslFullPhysEntry {
-    char        adslSerialNumber[kAdslPhysSerialNumLen];
-    char        adslVendorID[kAdslPhysVendorIdLen];
-    char        adslVersionNumber[kAdslPhysVersionNumLen];
-    long        adslCurrSnrMgn;
-    long        adslCurrAtn;
-    long        adslCurrStatus;
-    long        adslCurrOutputPwr;
-    long        adslCurrAttainableRate;
-    long        adslSignalAttn;
-    long        adslHlinScaleFactor;
-    char        adslSysVendorID[kAdslPhysVendorIdLen];
-    char        adslSysVersionNumber[kAdslPhysVersionNumLen];
-    long        perBandCurrOutputPwr[MAX_NUM_BANDS];
-    long        actualPSD;
-    long        SNRmode;
-    long        QLNMT;
-    long        HLOGMT;
-    long        SNRMT;
-} xdslFullPhysEntry;
-#endif
-
+#if defined(CONFIG_VDSL_SUPPORTED)
 
 typedef struct {
     unsigned short                  N;
@@ -1311,38 +1337,30 @@ typedef struct _vdsl2ConnectionInfo {
 } vdsl2ConnectionInfo;
 
 
+#if defined(SUPPORT_VECTORING)
 
+#define MIB_LOG_PILOT_SEQUENCE_LEN 10
+#define MIB_PILOT_SEQUENCE_LEN     (1<<MIB_LOG_PILOT_SEQUENCE_LEN)
 
-#ifdef SUPPORT_VECTORINGD
-#ifndef VECTDATAPHY
-#define VECTDATAPHY
-#define LOG_PILOT_SEQUENCE_LEN 10
-#define PILOT_SEQUENCE_LEN     (1<<LOG_PILOT_SEQUENCE_LEN)
-typedef struct _PilotSequence {
-  unsigned short firstSync;                          /* Position in the sequence of
-                                               first sync symbol in showtime
-                                               (Unused at the CO side) */
-  unsigned char bitsPattern[PILOT_SEQUENCE_LEN>>3]; /* One sign bit per modulation */
-} PilotSequence;
+typedef struct _MibPilotSequence {
+    unsigned short firstSync;                          /* Position in the sequence of
+                                                 first sync symbol in showtime
+                                                 (Unused at the CO side) */
+    unsigned char bitsPattern[MIB_PILOT_SEQUENCE_LEN>>3]; /* One sign bit per modulation */
+    unsigned short pilotSeqLengthInBytes;
+} MibPilotSequence;
 
 typedef struct _FourBandsDescriptor{
   unsigned char  noOfToneGroups;
   unsigned char  noCheck; /* bypass validation logic (should only be used in lineTest and loopback modes) */
   VdslToneGroup toneGroups[4];
-} FourBandsDescriptor;
+} MibFourBandsDescriptor;
 
 typedef struct _VectDataPhy {
-	PilotSequence pilotSequence;
-	FourBandsDescriptor vectoringBandPlan;
-	unsigned short syncOffset;
-} VectDataPhy;
-#endif
-
-typedef struct _VceMacAddress { 
-  unsigned char  macAddress[6];
-  unsigned char  addressType;   /* 0: MAC address */
-                        /* 1: IP address  */
-} VceMacAddress;
+    MibPilotSequence pilotSequence;
+    MibFourBandsDescriptor vectoringBandPlan;
+    unsigned short syncOffset;
+} MibVectDataPhy;
 
 #ifndef VECTORING_STRUCT_H
 #define VECTORING_STRUCT_H
@@ -1378,7 +1396,6 @@ typedef struct _ConversionInfoBand {
   unsigned short nSkipped;
   unsigned short nTonesInBand;
   unsigned short nSamples;
-
 } ConversionInfoBand;
 
 typedef struct ConversionInfo ConversionInfo;
@@ -1397,8 +1414,6 @@ typedef struct _VectorErrorSample
   unsigned char  errorMsg[MAX_VECT_TONES*2+ERB_OVERHEAD];
 } VectorErrorSample;
 
-#define MAX_NUM_VECTOR_SYMB 32
-
 typedef struct StartVectorDump StartVectorDump;
 struct StartVectorDump
 {
@@ -1415,15 +1430,6 @@ struct StartVectorDump
   unsigned char  reservedB;
 };
 
-typedef struct ErrorSampleCtrl ErrorSampleCtrl;
-struct ErrorSampleCtrl
-{
-  unsigned short writeIdx;
-  unsigned short readIdx;
-  unsigned short nbSymb;
-  unsigned long  totalCount;
-};
-
 typedef struct VectorMode VectorMode;
 struct VectorMode
 {
@@ -1433,18 +1439,13 @@ struct VectorMode
   unsigned char reservedA;
 };
 
-typedef struct VectorErrorSampleArray VectorErrorSampleArray;
-struct VectorErrorSampleArray {
-  VectorErrorSample samples[MAX_NUM_VECTOR_SYMB];
-};
-
-
 /* States */
 #define VECT_WAIT_FOR_CONFIG  0
 #define VECT_FULL             1
 #define VECT_WAIT_FOR_TRIGGER 2
 #define VECT_RUNNING          3
 #define VECT_DISABLED         4
+#define VECT_UNCONFIGURED     5
 
 typedef struct _VectoringStateMachine {
   unsigned char       state;
@@ -1460,20 +1461,29 @@ typedef struct _VectoringStateMachine {
   unsigned char               log2M;
   unsigned short              lineId;
 } VectoringStateMachine;
-
 #endif /* VECTORING_STRUCT_H */
 
+typedef struct _VceMacAddress { 
+  unsigned char  macAddress[6];
+  unsigned char  addressType;   /* 0: MAC address */
+                        /* 1: IP address  */
+} VceMacAddress;
+
+typedef struct _VectStat {
+    unsigned long   cntESPktSend;	/* Number of packets sent to the WAN device */
+    unsigned long   cntESPktDrop;
+    unsigned long   cntESStatSend;	/* Number of error samples statuses sent */
+    unsigned long   cntESStatDrop;
+} VectStat;
+
 typedef struct _VectData {
-	VectorMode  vectorMode;
-	VectDataPhy phyData;
-	VceMacAddress macAddress;
-  ErrorSampleCtrl esCtrl;
+    VectorMode vectorMode;
+    VceMacAddress macAddress;
+    VectStat vectStat;
 } VectData;
 
-#endif
-#endif
-
-//#define SUPPORT_24HR_CNT_STAT
+#endif /* SUPPORT_VECTORING */
+#endif /* CONFIG_VDSL_SUPPORTED */
 
 #ifdef SUPPORT_24HR_CNT_STAT
 typedef struct _StatHistHrCounters {
@@ -1563,9 +1573,9 @@ typedef struct _adslMibInfo {
 	adslLineEntry			adslLine;
 	union{
 		adslPhysEntry			adslPhys;
-		#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
+#if defined(CONFIG_VDSL_SUPPORTED)
 		xdslPhysEntry			xdslPhys;
-		#endif
+#endif
 	};
 	union {
 		adslChanEntry		xDslChan[2];
@@ -1627,9 +1637,9 @@ typedef struct _adslMibInfo {
 
 	union{
 	adslFullPhysEntry		adslAtucPhys;
-	#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
+#if defined(CONFIG_VDSL_SUPPORTED)
 	xdslFullPhysEntry		xdslAtucPhys;
-	#endif
+#endif
 	};
 	unsigned char			adslRxNonStdFramingAdjustK;
 	unsigned char			adslFramingMode;
@@ -1640,7 +1650,7 @@ typedef struct _adslMibInfo {
 		adslDiagModeData		adslDiag;
 	};
 	union {
-#if defined(CONFIG_BCM96368) || defined(CHIP_6368) || defined(CONFIG_BCM963268) || defined(CHIP_63268)
+#if defined(CONFIG_VDSL_SUPPORTED)
 		vdsl2ConnectionInfo	vdslInfo[MAX_LP_NUM];
 #endif
 		adsl2ConnectionInfo	adsl2Info2lp[MAX_LP_NUM];
@@ -1674,15 +1684,15 @@ typedef struct _adslMibInfo {
 	bandPlanDescriptor			usPhyBandPlanDiscovery;
 	bandPlanDescriptor			dsPhyBandPlanDiscovery;
 	gFactorsEntry				gFactors;
-#ifdef SUPPORT_VECTORINGD
-	VectoringStateMachine		vectSM;
+#if defined(SUPPORT_VECTORING)
 	VectData				vectData;
 #endif
 #endif
 	unsigned char			lp2Active;
 	unsigned char			lp2TxActive;
 	adslPLNDataEntry			adslPLNData;
-#if defined(NTR_SUPPORT)
+//#if defined(NTR_SUPPORT)
+#if 1	/* Prevent inconsistent structure size b/w modules when BRCM_NTR_SUPPORT is enabled */
 	dslNtrData					ntrCnt;
 	dslNtrCfg					ntrCfg;
 #endif
@@ -1694,6 +1704,11 @@ typedef struct _adslMibInfo {
 #ifdef SAVE_CRATESRA_MSG
 	unsigned char		adslCRatesRAMsg[120];
 #endif
+	unsigned char IkanosCO4Detected;
+#ifdef SUPPORT_VECTORING
+	unsigned char reportVectoringCounter;
+#endif
+	unsigned long maxBondingDelay;
 } adslMibInfo;
 
 #if defined(__cplusplus)

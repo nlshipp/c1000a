@@ -47,7 +47,7 @@
 /*
  * To enable debugging, replace the line below with #define IP_NF_RTSP_DEBUG 1
  */
-#undef IP_NF_RTSP_DEBUG 
+#undef IP_NF_RTSP_DEBUG
 #define INFOP(args...) printk(KERN_INFO args)
 #ifdef IP_NF_RTSP_DEBUG
 #define DEBUGP(args...) printk(KERN_DEBUG "%s:%s ", __FILE__, __FUNCTION__); \
@@ -628,7 +628,7 @@ help_out(struct iphdr* iph, char* pdata, size_t datalen,
         memset(&exp, 0, sizeof(exp));
 
         off = 0;
-        
+
         while (nf_mime_nextline(pdata+hdrsoff, hdrslen, &off,
                                 &lineoff, &linelen))
         {

@@ -27,7 +27,7 @@
 #include <board.h>
 #include <bcmTag.h>
 #include "flash_api.h"
-#include "../../../../../../shared/opensource/include/bcm963xx/63268_map.h"  
+#include "../../../../../../userspace/public/include/63268_map.h"
 
 
 typedef struct CfeNandChip
@@ -243,9 +243,9 @@ SPARE_LAYOUT brcmnand_oob_bch12_27_8k =
 #define NC_PG_SIZE_4K           0x00200000
 #define NAC_FAST_PGM_RDIN       0x10000000
 #define NAC_PARTIAL_PAGE_EN     0x04000000
-#define NAC_ECC_LVL_0_SHIFT     20     
+#define NAC_ECC_LVL_0_SHIFT     20
 #define NAC_ECC_LVL_0_MASK      0x00f00000
-#define NAC_ECC_LVL_SHIFT       16     
+#define NAC_ECC_LVL_SHIFT       16
 #define NAC_ECC_LVL_MASK        0x000f0000
 #define NAC_SPARE_SZ_SHIFT      0
 #define NAC_SPARE_SZ_MASK       0x0000003f
@@ -276,7 +276,7 @@ SPARE_LAYOUT brcmnand_oob_bch12_27_8k =
 
 #define NAND_CI_CELLTYPE_MSK    0x00000f00
 #define NAND_IS_MLC(chip)       ((chip)->chip_device_id & NAND_CI_CELLTYPE_MSK)
-#define NAND_CHIPID(chip)       ((chip)->chip_device_id >> 16)             
+#define NAND_CHIPID(chip)       ((chip)->chip_device_id >> 16)
 
 /* Flash manufacturers. */
 #define FLASHTYPE_SAMSUNG       0xec
@@ -586,7 +586,7 @@ static int AEI_nandflash_write_spare_area(PCFE_NAND_CHIP pchip,
     {
         unsigned long acc = NAND->NandAccControl;
         unsigned long acc_save = acc;
-                        
+
         UINT32 steps = pchip->chip_spare_size / pchip->chip_spare_step_size;
         UINT32 i;
 
@@ -647,7 +647,7 @@ static int AEI_nandflash_write_spare_area(PCFE_NAND_CHIP pchip,
     }
     else
         ret = FLASH_API_ERROR;
- 
+
     return( ret );
 } /* nandflash_write_spare_area */
 
@@ -800,7 +800,7 @@ static int AEI_nandflash_read_page(PCFE_NAND_CHIP pchip, unsigned long start_add
                         }
                     }
                     else
-                    {   
+                    {
                         printk("##wait cache fail\n");
                         break;
                     }
@@ -1079,7 +1079,7 @@ static void AEI_nand_init_cleanmarker(PCFE_NAND_CHIP pchip)
 
 /***************************************************************************
  * Function Name: nand_initialize_spare_area
- * Description  : Initializes the spare area of the first page of each block 
+ * Description  : Initializes the spare area of the first page of each block
  *                to a cleanmarker.
  * Returns      : FLASH_API_OK or FLASH_API_ERROR
  ***************************************************************************/
@@ -1390,4 +1390,3 @@ int AEI_nand_flash_write_buf(unsigned short blk, int offset,
 } /* nand_flash_write_buf */
 
 #endif
-

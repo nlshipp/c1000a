@@ -7,19 +7,25 @@
    Copyright (c) 2007 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -33,6 +39,10 @@ Boston, MA 02111-1307, USA.
  *******************************************************************************
  */
 
+/* Please keep CC_FAP4KE_PKT_GSO enabled; 
+ * To disable th FAP GSO (to save memory),Please ruun "make menuconfig" and 
+ * disable FAP_GSO there 
+ */
 #define CC_FAP4KE_PKT_GSO		/* Enable GSO support by default - July 2010 */
 #define CC_FAP4KE_PKT_GSO_FRAG
 
@@ -90,6 +100,8 @@ typedef struct {
 typedef struct {
     uint32 packets;
     uint32 bytes;
+    uint32 outOfMem;
+    uint32 txDropped;
 } fap4keGso_stats_t;
 
 typedef struct {
@@ -102,6 +114,7 @@ typedef struct {
     uint8 logTable256[256];
     uint8 *buffer_p;
     uint32 freeBufferMap[FAP4KE_GSO_BUFFER_MAP_SIZE_32];
+    uint32 freeBuffers;
 } fap4keGso_bufferMgmt_t;
 
 typedef struct {
@@ -113,12 +126,10 @@ void fap4keGso_init(void);
 int fap4keGso_start(fap4kePkt_gso_pkt *pGsoPkt, fap4kePkt_gso_arg *pGsoArg);
 int freeTxBuffersGso(fap4kePkt_phy_t phy, uint8 *txAddr, uint32 key, int source, int rxChannel);
 
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 int fap4keGso_checksum(uint32 channel, uint8 *packet_p, int len, uint32 encapType, uint8 isExtSwitch);
 #else
 int fap4keGso_checksum(uint32 channel, uint8 *packet_p, int len, uint32 encapType);
 #endif
-
-void fap4keGso_freeBuffer(uint8 *gsoBuffer_p);
 
 #endif  /* defined(__FAP4KE_GSO_H_INCLUDED__) */

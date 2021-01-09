@@ -1,34 +1,39 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
+<:label-BRCM:2011:DUAL/GPL:standard
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module.
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+    :>
 */
 
-#ifndef __BCM6362_MAP_H
-#define __BCM6362_MAP_H
+#ifndef __BCM6362_MAP_PART_H
+#define __BCM6362_MAP_PART_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifndef __BCM6362_MAP_H
+#define __BCM6362_MAP_H
 
 #include "bcmtypes.h"
 
@@ -57,10 +62,29 @@ extern "C" {
 #define SWITCH_DMA_BASE      0xb000d800
 #define SWITCH_BASE          0xb0e00000
 #define PCIE_BASE            0xb0e40000
+#define IPSEC_DMA_BASE       0xb000d000
 
 #define FAP_PSM_BASE                  0xB1010000
 #define FAP_QSM_UBUS_BASE             0xB1004000
 #define FAP_QSM_SMI_BASE              0xB4004000
+
+/*
+** NAND Controller Registers
+*/
+typedef struct NandCtrlRegs {
+    uint32 NandRevision;            /* NAND Revision */
+    uint32 NandCmdStart;            /* Nand Flash Command Start */
+    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
+    uint32 NandCmdAddr;             /* Nand Flash Command Address */
+    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
+    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
+#define NBC_AUTO_DEV_ID_CFG 0x40000000
+    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
+} NandCtrlRegs;
+
+#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
+
+#endif
 
 typedef struct DDRPhyControl {
     uint32 REVISION;               /* 0x00 */
@@ -482,6 +506,8 @@ typedef struct GpioControl {
 #define EPHY_RST_3              (1<<2)
 #define EPHY_RST_2              (1<<1)
 #define EPHY_RST_1              (1<<0)
+#define EPHY_RST_SHIFT		0x0
+#define EPHY_RST_MASK		(0xf<<EPHY_RST_SHIFT)
     uint32      RoboswSwitchCtrl;           /* 40 */
 #define RSW_MII_2_IFC_EN        (1<<23)
 #define RSW_MII_2_AMP_EN        (1<<22)
@@ -570,6 +596,7 @@ typedef struct SpiControl {
 #define SPI_DEV_ID_1                    1
 #define SPI_DEV_ID_2                    2
 #define SPI_DEV_ID_3                    3
+#define ZSI_SPI_DEV_ID                  3
 
   byte          spiIntStatus;           /* (0x702): SPI interrupt status */
   byte          spiMaskIntStatus;       /* (0x703): SPI masked interrupt status */
@@ -694,7 +721,7 @@ typedef struct HsSpiControl {
 #define HS_SPI_INTR_CLEAR_ALL       (0xFF001F1F)
 
   uint32    hs_spiFlashCtrl;    // 0x0014
-#define HS_SPI_FCTRL_MB_ENABLE      (1 << 23)
+#define HS_SPI_FCTRL_MB_ENABLE      (23)
 #define HS_SPI_FCTRL_SS_NUM         (20)
 #define HS_SPI_FCTRL_SS_NUM_MASK    __mask(22, HS_SPI_FCTRL_SS_NUM)
 #define HS_SPI_FCTRL_PROFILE_NUM    (16)
@@ -873,6 +900,9 @@ typedef struct Misc {
     uint32  miscRtc_event;                  /* 0x5C */
     uint32  miscWakeup_mask;                /* 0x60 */
     uint32  miscWakeup_status;              /* 0x64 */
+    uint32  miscExtIRQ_Debounce_Control;    /* 0x68 */
+    uint32  miscSleep_CPU_Scratch;          /* 0x6C */
+    uint32  miscLed_inv;                    /* 0x70 */
 } Misc;
 
 #define MISC ((volatile Misc * const) MISC_BASE)
@@ -1166,6 +1196,22 @@ typedef struct EthSwQosIngressPortPriRegs{
 } EthSwQosIngressPortPriRegs;
 
 #define ETHSWQOSREG ((volatile EthSwQosIngressPortPriRegs * const) (SWITCH_BASE + 0x3050))
+
+
+/*
+** SAR Registers
+*/
+
+#define SAR_TX_CTL_REGS (SAR_BASE + 0x00000060) /* SAR Tx Control Registers */
+#define SAR_TX_CTL_REGS_SZ  0x00000020
+#define SAR_RX_CTL_REGS (SAR_BASE + 0x00000080) /* SAR Rx Control Registers */
+#define SAR_RX_CTL_REGS_SZ  0x00000030
+#define SAR_RX_VCAM_REGS (SAR_BASE + 0x00000140) /* SAR  Rx ATM VPI_VCI CAM Table Reg Registers */
+#define SAR_RX_VCAM_REGS_SZ  0x00000080
+#define SAR_RX_PBUF_REGS (SAR_BASE + 0x00000300) /* SAR Rx Packet Buffer Control Registers */
+#define SAR_RX_PBUF_REGS_SZ  0x00000060
+#define SAR_MIB_REGS (SAR_BASE + 0x00000600) /* SAR  Atm MIB Counters Registers */
+#define SAR_MIB_REGS_SZ  0x000000C0
 
 /* SAR registers controlling rx iuDMA channel */
 typedef struct SarRxMuxRegs{
@@ -1491,6 +1537,12 @@ typedef struct PcieBridgeRegs{
 #define PCIEH_BRIDGE_REGS             ((volatile PcieBridgeRegs * const)  \
                                         (PCIE_BASE+0x2818))
 
+#define PCIEH_MEM1_BASE               0x10f00000
+#define PCIEH_MEM1_SIZE               0x00100000
+
+#define PCIEH_MEM2_BASE               0xa0000000
+#define PCIEH_MEM2_SIZE               0x01000000
+
 typedef struct WlanShimRegs {
     uint32 ShimMisc;                            /* SHIM control registers */
 #define WLAN_SHIM_FORCE_CLOCKS_ON   (1 << 2)
@@ -1530,20 +1582,6 @@ typedef struct WlanShimRegs {
 }WlanShimRegs;
 
 #define WLAN_SHIM                   ((volatile WlanShimRegs * const)WLAN_SHIM_BASE)
-
-/*
-** NAND Controller Registers
-*/
-typedef struct NandCtrlRegs {
-    uint32 NandRevision;            /* NAND Revision */
-    uint32 NandCmdStart;            /* Nand Flash Command Start */
-    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
-    uint32 NandCmdAddr;             /* Nand Flash Command Address */
-    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
-    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
-#define NBC_AUTO_DEV_ID_CFG 0x40000000
-    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
-} NandCtrlRegs;
 
 
 /*
@@ -2121,8 +2159,6 @@ typedef struct ChipIrqStatusRegs_S   /* (0xB0000028) */
            #define IRQ_CHIP_PCIE_RC             (1 << 30)
            #define IRQ_CHIP_PCIE_EP             (1 << 31)
 } ChipIrqStatusRegs_S;
-
-#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
 
 #ifdef __cplusplus
 }

@@ -74,7 +74,7 @@ int tnl_get_ioctl(const char *basedev, void *p)
 	fd = socket(preferred_family, SOCK_DGRAM, 0);
 	err = ioctl(fd, SIOCGETTUNNEL, &ifr);
 	if (err)
-		fprintf(stderr, "get tunnel %s failed: %s\n", basedev, 
+		fprintf(stderr, "get tunnel %s failed: %s\n", basedev,
 			strerror(errno));
 
 	close(fd);
@@ -122,7 +122,7 @@ int tnl_del_ioctl(const char *basedev, const char *name, void *p)
 	return err;
 }
 
-static int tnl_gen_ioctl(int cmd, const char *name, 
+static int tnl_gen_ioctl(int cmd, const char *name,
 			 void *p, int skiperr)
 {
 	struct ifreq ifr;

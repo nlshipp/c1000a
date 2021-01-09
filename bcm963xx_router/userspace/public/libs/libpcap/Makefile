@@ -62,7 +62,7 @@ srcdir = .
 # CC = /opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/bin/mips-linux-uclibc-gcc
 CCOPT = -O2 -fpic
 INCLS = -I. 
-DEFS = -DHAVE_CONFIG_H  -D_U_="__attribute__((unused))"
+DEFS = -DHAVE_CONFIG_H  -DAEI_COVERITY_FIX -D_U_="__attribute__((unused))"
 ADDLOBJS = 
 ADDLARCHIVEOBJS = 
 LIBS = 
@@ -73,6 +73,7 @@ PROG=libpcap
 
 # Standard CFLAGS
 CFLAGS = $(CCOPT) $(INCLS) $(DEFS)
+CFLAGS += -Werror -Wfatal-errors
 
 INSTALL = /usr/bin/install -c
 INSTALL_PROGRAM = ${INSTALL}

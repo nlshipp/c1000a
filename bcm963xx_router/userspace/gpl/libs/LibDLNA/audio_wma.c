@@ -50,19 +50,19 @@ audio_profile_t
 audio_profile_guess_wma (AVCodecContext *ac)
 {
   audio_profile_t ap = AUDIO_PROFILE_INVALID;
-  
+
   if (!ac)
     return ap;
 
   /* check for WMA codec */
-  if ( (ac->codec_id != CODEC_ID_WMAV1) && 
-      (ac->codec_id != CODEC_ID_WMAV2) && 
+  if ( (ac->codec_id != CODEC_ID_WMAV1) &&
+      (ac->codec_id != CODEC_ID_WMAV2) &&
       (ac->codec_id != CODEC_ID_WMAPRO))
     return ap;
 
     if(ac->channels <= 2)
     {
-        if (ac->sample_rate <= 48000)    
+        if (ac->sample_rate <= 48000)
         {
             if (ac->bit_rate <= 193000)
                 /* WMA Baseline: stereo, up to 48 KHz, up to 192,999 bps */
@@ -72,10 +72,10 @@ audio_profile_guess_wma (AVCodecContext *ac)
                 return AUDIO_PROFILE_WMA_FULL;
         }
     }
-  
+
   if(ac->channels <= 8)
   {
-      if((ac->sample_rate <= 96000) && 
+      if((ac->sample_rate <= 96000) &&
           (ac->bit_rate <= 1500000))
       {
           /* WMA Professional: up to 7.1 channels, up to 1.5 Mbps and 96 KHz */
@@ -84,7 +84,7 @@ audio_profile_guess_wma (AVCodecContext *ac)
   }
 
 /* ======================================================
- * The following is the original code that we got 
+ * The following is the original code that we got
  * ======================================================
  */
  // if (ac->sample_rate <= 48000)
@@ -123,7 +123,7 @@ probe_wma (AVFormatContext *ctx dlna_unused,
   /* check for supported container */
   if (st != CT_ASF)
     return NULL;
-  
+
   switch (audio_profile_guess_wma (codecs->ac))
   {
   case AUDIO_PROFILE_WMA_BASELINE:

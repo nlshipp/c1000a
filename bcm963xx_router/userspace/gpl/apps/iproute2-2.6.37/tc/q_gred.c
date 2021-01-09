@@ -46,7 +46,7 @@ static void explain(void)
 	    "[grio]\n");
 }
 
-static int init_gred(struct qdisc_util *qu, int argc, char **argv, 
+static int init_gred(struct qdisc_util *qu, int argc, char **argv,
 		     struct nlmsghdr *n)
 {
 
@@ -77,7 +77,7 @@ static int init_gred(struct qdisc_util *qu, int argc, char **argv,
 				return -1;
 			}
 			if (def_dp < 0 || def_dp > dps) {
-				fprintf(stderr, 
+				fprintf(stderr,
 					"\"default DP\" must be less than %d\n",
 					opt.DPs);
 				return -1;

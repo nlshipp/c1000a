@@ -46,7 +46,7 @@ ip [ OPTIONS ] OBJECT [ COMMAND [ ARGUMENTS ]]
 \end{verbatim}
 where \verb|OPTIONS| is a set of optional modifiers affecting the
 general behaviour of the \verb|ip| utility or changing its output. All options
-begin with the character \verb|'-'| and may be used in either long or abbreviated 
+begin with the character \verb|'-'| and may be used in either long or abbreviated
 forms. Currently, the following options are available:
 
 \begin{itemize}
@@ -184,7 +184,7 @@ with \verb|perror(3)| prefixed with ``RTNETLINK answers:''.
 
 \end{itemize}
 
-All the operations are atomic, i.e.\ 
+All the operations are atomic, i.e.\
 if the \verb|ip| utility fails, it does not change anything
 in the system. One harmful exception is \verb|ip link| command
 (Sec.\ref{IP-LINK}, p.\pageref{IP-LINK}),
@@ -358,7 +358,7 @@ kuznet@alisa:~ $ ip link ls sit0
 kuznet@alisa:~ $ ip link ls dummy
 2: dummy: <BROADCAST,NOARP> mtu 1500 qdisc noop
     link/ether 00:00:00:00:00:00 brd ff:ff:ff:ff:ff:ff
-kuznet@alisa:~ $ 
+kuznet@alisa:~ $
 \end{verbatim}
 
 
@@ -372,7 +372,7 @@ the administrator may change the name of any device with
 \verb|ip| \verb|link| \verb|set| \verb|name|
 to make it more intelligible.
 
-The interface name may have another name or \verb|NONE| appended 
+The interface name may have another name or \verb|NONE| appended
 after the \verb|@| sign. This means that this device is bound to some other
 device,
 i.e.\ packets send through it are encapsulated and sent via the ``master''
@@ -486,10 +486,10 @@ prints interface statistics:
 kuznet@alisa:~ $ ip -s link ls eth0
 3: eth0: <BROADCAST,MULTICAST,UP> mtu 1500 qdisc cbq qlen 100
     link/ether 00:a0:cc:66:18:78 brd ff:ff:ff:ff:ff:ff
-    RX: bytes  packets  errors  dropped overrun mcast   
-    2449949362 2786187  0       0       0       0      
-    TX: bytes  packets  errors  dropped carrier collsns 
-    178558497  1783945  332     0       332     35172  
+    RX: bytes  packets  errors  dropped overrun mcast
+    2449949362 2786187  0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    178558497  1783945  332     0       332     35172
 kuznet@alisa:~ $
 \end{verbatim}
 \verb|RX:| and \verb|TX:| lines summarize receiver and transmitter
@@ -528,14 +528,14 @@ and transmitter errors.
 kuznet@alisa:~ $ ip -s -s link ls eth0
 3: eth0: <BROADCAST,MULTICAST,UP> mtu 1500 qdisc cbq qlen 100
     link/ether 00:a0:cc:66:18:78 brd ff:ff:ff:ff:ff:ff
-    RX: bytes  packets  errors  dropped overrun mcast   
-    2449949362 2786187  0       0       0       0      
+    RX: bytes  packets  errors  dropped overrun mcast
+    2449949362 2786187  0       0       0       0
     RX errors: length   crc     frame   fifo    missed
-               0        0       0       0       0      
-    TX: bytes  packets  errors  dropped carrier collsns 
-    178558497  1783945  332     0       332     35172  
+               0        0       0       0       0
+    TX: bytes  packets  errors  dropped carrier collsns
+    178558497  1783945  332     0       332     35172
     TX errors: aborted  fifo    window  heartbeat
-               0        0       0       332    
+               0        0       0       332
 kuznet@alisa:~ $
 \end{verbatim}
 These error names are pure Ethernetisms. Other devices
@@ -623,7 +623,7 @@ Predefined scope values are:
 	\item \verb|global| --- the address is globally valid.
 	\item \verb|site| --- (IPv6 only) the address is site local,
 	i.e.\ it is valid inside this site.
-	\item \verb|link| --- the address is link local, i.e.\ 
+	\item \verb|link| --- the address is link local, i.e.\
 	it is valid only on this device.
 	\item \verb|host| --- the address is valid only inside this host.
  \end{itemize}
@@ -729,10 +729,10 @@ kuznet@alisa:~ $ ip addr ls eth0
 3: eth0: <BROADCAST,MULTICAST,UP> mtu 1500 qdisc cbq qlen 100
     link/ether 00:a0:cc:66:18:78 brd ff:ff:ff:ff:ff:ff
     inet 193.233.7.90/24 brd 193.233.7.255 scope global eth0
-    inet6 3ffe:2400:0:1:2a0:ccff:fe66:1878/64 scope global dynamic 
+    inet6 3ffe:2400:0:1:2a0:ccff:fe66:1878/64 scope global dynamic
        valid_lft forever preferred_lft 604746sec
-    inet6 fe80::2a0:ccff:fe66:1878/10 scope link 
-kuznet@alisa:~ $ 
+    inet6 fe80::2a0:ccff:fe66:1878/10 scope link
+kuznet@alisa:~ $
 \end{verbatim}
 
 The first two lines coincide with the output of \verb|ip link ls|.
@@ -814,7 +814,7 @@ netadm@amber:~ # ip -s -s a f to 10/8
 
 *** Round 1, deleting 3 addresses ***
 *** Flush is complete after 1 round ***
-netadm@amber:~ # 
+netadm@amber:~ #
 \end{verbatim}
 Another instructive example is disabling IP on all the Ethernets:
 \begin{verbatim}
@@ -874,7 +874,7 @@ or update existing ones.
 \item \verb|lladdr LLADDRESS|
 
 --- the link layer address of the neighbour. \verb|LLADDRESS| can also be
-\verb|null|. 
+\verb|null|.
 
 \item \verb|nud NUD_STATE|
 
@@ -981,7 +981,7 @@ fe80::200:cff:fe76:3f85 dev eth0 lladdr 00:00:0c:76:3f:85 router \
 0.0.0.0 dev lo lladdr 00:00:00:00:00:00 nud noarp
 193.233.7.254 dev eth0 lladdr 00:00:0c:76:3f:85 nud reachable
 193.233.7.85 dev eth0 lladdr 00:e0:1e:63:39:00 nud stale
-kuznet@alisa:~ $ 
+kuznet@alisa:~ $
 \end{verbatim}
 
 The first word of each line is the protocol address of the neighbour.
@@ -1025,7 +1025,7 @@ statistics, f.e.\
 kuznet@alisa:~ $ ip -s n ls 193.233.7.254
 193.233.7.254 dev eth0 lladdr 00:00:0c:76:3f:85 ref 5 used 12/13/20 \
     nud reachable
-kuznet@alisa:~ $ 
+kuznet@alisa:~ $
 \end{verbatim}
 
 Here \verb|ref| is the number of users of this entry
@@ -1065,7 +1065,7 @@ netadm@alisa:~ # ip -s -s n f 193.233.7.254
 
 *** Round 1, deleting 1 entries ***
 *** Flush is complete after 1 round ***
-netadm@alisa:~ # 
+netadm@alisa:~ #
 \end{verbatim}
 
 
@@ -1083,7 +1083,7 @@ optionally, the TOS value. An IP packet matches the route if the highest
 bits of its destination address are equal to the route prefix at least
 up to the prefix length and if the TOS of the route is zero or equal to
 the TOS of the packet.
- 
+
 If several routes match the packet, the following pruning rules
 are used to select the best one (see~\cite{RFC1812}):
 \begin{enumerate}
@@ -1337,12 +1337,12 @@ peers are allowed to send to us.
     zero, meaning to use the values specified in~\cite{RFC2414}.
 
 +\item \verb|initrwnd NUMBER|
- 
-+--- [2.6.33+ only] Initial receive window size for connections to 
+
++--- [2.6.33+ only] Initial receive window size for connections to
 +    this destination. The actual window size is this value multiplied
 +    by the MSS (''Maximal Segment Size'') of the connection. The default
 +    value is zero, meaning to use Slow Start value.
- 
+
 \item \verb|nexthop NEXTHOP|
 
 --- the nexthop of a multipath route. \verb|NEXTHOP| is a complex value
@@ -1589,7 +1589,7 @@ so that it can be understood easily. F.e.\
 \begin{verbatim}
 kuznet@amber:~ $ ip ro ls 193.233.7/24
 193.233.7.0/24 dev eth0  proto gated/conn  scope link \
-    src 193.233.7.65 realms inr.ac 
+    src 193.233.7.65 realms inr.ac
 kuznet@amber:~ $
 \end{verbatim}
 
@@ -1599,9 +1599,9 @@ lifetime. An example of the output is:
 \begin{verbatim}
 kuznet@amber:~ $ ip ro ls 193.233.7.82 tab cache
 193.233.7.82 from 193.233.7.82 dev eth0  src 193.233.7.65 \
-  realms inr.ac/inr.ac 
+  realms inr.ac/inr.ac
     cache <src-direct,redirect>  mtu 1500 rtt 300 iif eth0
-193.233.7.82 dev eth0  src 193.233.7.65 realms inr.ac 
+193.233.7.82 dev eth0  src 193.233.7.65 realms inr.ac
     cache  mtu 1500 rtt 300
 kuznet@amber:~ $
 \end{verbatim}
@@ -1633,7 +1633,7 @@ interface.
 
 \item \verb|redirected| --- the route was created by an ICMP Redirect.
 
-\item \verb|redirect| --- packets going via this route will 
+\item \verb|redirect| --- packets going via this route will
 trigger an ICMP redirect.
 
 \item \verb|fastroute| --- the route is eligible to be used for fastroute.
@@ -1747,21 +1747,21 @@ The second example flushes all IPv6 cloned routes:
 \begin{verbatim}
 netadm@amber:~ # ip -6 -s -s ro flush cache
 3ffe:2400::220:afff:fef4:c5d1 via 3ffe:2400::220:afff:fef4:c5d1 \
-  dev eth0  metric 0 
+  dev eth0  metric 0
     cache  used 2 age 12sec mtu 1500 rtt 300
 3ffe:2400::280:adff:feb7:8034 via 3ffe:2400::280:adff:feb7:8034 \
-  dev eth0  metric 0 
+  dev eth0  metric 0
     cache  used 2 age 15sec mtu 1500 rtt 300
 3ffe:2400::280:c8ff:fe59:5bcc via 3ffe:2400::280:c8ff:fe59:5bcc \
-  dev eth0  metric 0 
+  dev eth0  metric 0
     cache  users 1 used 1 age 23sec mtu 1500 rtt 300
 3ffe:2400:0:1:2a0:ccff:fe66:1878 via 3ffe:2400:0:1:2a0:ccff:fe66:1878 \
-  dev eth1  metric 0 
+  dev eth1  metric 0
     cache  used 2 age 20sec mtu 1500 rtt 300
 3ffe:2400:0:1:a00:20ff:fe71:fb30 via 3ffe:2400:0:1:a00:20ff:fe71:fb30 \
-  dev eth1  metric 0 
+  dev eth1  metric 0
     cache  used 2 age 33sec mtu 1500 rtt 300
-ff02::1 via ff02::1 dev eth1  metric 0 
+ff02::1 via ff02::1 dev eth1  metric 0
     cache  users 1 used 1 age 45sec mtu 1500 rtt 300
 
 *** Round 1, deleting 6 entries ***
@@ -1795,7 +1795,7 @@ netadm@amber:~ #
 \paragraph{Description:} this command gets a single route to a destination
 and prints its contents exactly as the kernel sees it.
 
-\paragraph{Arguments:} 
+\paragraph{Arguments:}
 \begin{itemize}
 \item \verb|to ADDRESS| (default)
 
@@ -1840,7 +1840,7 @@ a path to forward the packet.
 \paragraph{Output format:} This command outputs routes in the same
 format as \verb|ip route ls|.
 
-\paragraph{Examples:} 
+\paragraph{Examples:}
 \begin{itemize}
 \item Find a route to output packets to 193.233.7.82:
 \begin{verbatim}
@@ -1855,7 +1855,7 @@ from 193.233.7.82 and destined for 193.233.7.82:
 \begin{verbatim}
 kuznet@amber:~ $ ip r g 193.233.7.82 from 193.233.7.82 iif eth0
 193.233.7.82 from 193.233.7.82 dev eth0  src 193.233.7.65 \
-  realms inr.ac/inr.ac 
+  realms inr.ac/inr.ac
     cache <src-direct,redirect>  mtu 1500 rtt 300 iif eth0
 kuznet@amber:~ $
 \end{verbatim}
@@ -1873,7 +1873,7 @@ In this case, it is \verb|pimd|)
 \begin{verbatim}
 kuznet@amber:~ $ ip r g 224.2.127.254 from 193.233.7.82 iif eth0
 multicast 224.2.127.254 from 193.233.7.82 dev lo  \
-  src 193.233.7.65 realms inr.ac/cosmos 
+  src 193.233.7.65 realms inr.ac/cosmos
     cache <mc> iif eth0 Oifs: eth1 pimreg
 kuznet@amber:~ $
 \end{verbatim}
@@ -1920,7 +1920,7 @@ We may retry \verb|ip route get| to see what we have in the routing
 tables now:
 \begin{verbatim}
 netadm@alisa:~ # ip route get 193.233.7.98
-193.233.7.98 dev eth0  src 193.233.7.90 
+193.233.7.98 dev eth0  src 193.233.7.90
     cache <redirected>  mtu 1500 rtt 3072
 netadm@alisa:~ #
 \end{verbatim}
@@ -2172,14 +2172,14 @@ ip ru del prio 32767
 
 \begin{verbatim}
 kuznet@amber:~ $ ip ru ls
-0:	from all lookup local 
+0:	from all lookup local
 200:	from 192.203.80.0/24 to 193.233.7.0/24 lookup main
 210:	from 192.203.80.0/24 to 192.203.80.0/24 lookup main
 220:	from 192.203.80.0/24 lookup inr.ruhep realms inr.ruhep/radio-msu
 300:	from 193.233.7.83 to 193.233.7.0/24 lookup main
 310:	from 193.233.7.83 to 192.203.80.0/24 lookup main
 320:	from 193.233.7.83 lookup inr.ruhep map-to 192.203.80.144
-32766:	from all lookup main 
+32766:	from all lookup main
 kuznet@amber:~ $
 \end{verbatim}
 
@@ -2232,7 +2232,7 @@ kuznet@alisa:~ $ ip maddr ls dummy
     link  01:00:5e:00:00:01
     inet  224.0.0.1 users 2
     inet6 ff02::1
-kuznet@alisa:~ $ 
+kuznet@alisa:~ $
 \end{verbatim}
 
 The first line of the output shows the interface index and its name.
@@ -2347,10 +2347,10 @@ in the future.
 
 \begin{verbatim}
 kuznet@amber:~ $ ip mroute ls
-(193.232.127.6, 224.0.1.39)      Iif: unresolved 
-(193.232.244.34, 224.0.1.40)     Iif: unresolved 
-(193.233.7.65, 224.66.66.66)     Iif: eth0       Oifs: pimreg 
-kuznet@amber:~ $ 
+(193.232.127.6, 224.0.1.39)      Iif: unresolved
+(193.232.244.34, 224.0.1.40)     Iif: unresolved
+(193.233.7.65, 224.66.66.66)     Iif: eth0       Oifs: pimreg
+kuznet@amber:~ $
 \end{verbatim}
 
 Each line shows one (S,G) entry in the multicast routing cache,
@@ -2369,7 +2369,7 @@ the number of packets that arrived on the wrong interface, if this number is not
 
 \begin{verbatim}
 kuznet@amber:~ $ ip -s mr ls 224.66/16
-(193.233.7.65, 224.66.66.66)     Iif: eth0       Oifs: pimreg 
+(193.233.7.65, 224.66.66.66)     Iif: eth0       Oifs: pimreg
   9383 packets, 300256 bytes
 kuznet@amber:~ $
 \end{verbatim}
@@ -2423,7 +2423,7 @@ It must be an address on another interface of this host.
 
 --- set a fixed TTL \verb|N| on tunneled packets.
 	\verb|N| is a number in the range 1--255. 0 is a special value
-	meaning that packets inherit the TTL value. 
+	meaning that packets inherit the TTL value.
 		The default value is: \verb|inherit|.
 
 \item \verb|tos T| or \verb|dsfield T|
@@ -2433,7 +2433,7 @@ It must be an address on another interface of this host.
 
 
 
-\item \verb|dev NAME| 
+\item \verb|dev NAME|
 
 --- bind the tunnel to the device \verb|NAME| so that
 	tunneled packets will only be routed via this device and will
@@ -2451,7 +2451,7 @@ It must be an address on another interface of this host.
 	either a number or an IP address-like dotted quad.
    The \verb|key| parameter sets the key to use in both directions.
    The \verb|ikey| and \verb|okey| parameters set different keys for input and output.
-   
+
 
 \item \verb|csum|, \verb|icsum|, \verb|ocsum|
 
@@ -2481,7 +2481,7 @@ It must be an address on another interface of this host.
 \paragraph{Example:} Create a pointopoint IPv6 tunnel with maximal TTL of 32.
 \begin{verbatim}
 netadm@amber:~ # ip tunl add Cisco mode sit remote 192.31.7.104 \
-    local 192.203.80.142 ttl 32 
+    local 192.203.80.142 ttl 32
 \end{verbatim}
 
 \subsection{{\tt ip tunnel show} --- list tunnels}
@@ -2494,8 +2494,8 @@ netadm@amber:~ # ip tunl add Cisco mode sit remote 192.31.7.104 \
 \paragraph{Output format:}
 \begin{verbatim}
 kuznet@amber:~ $ ip tunl ls Cisco
-Cisco: ipv6/ip  remote 192.31.7.104  local 192.203.80.142  ttl 32 
-kuznet@amber:~ $ 
+Cisco: ipv6/ip  remote 192.31.7.104  local 192.203.80.142  ttl 32
+kuznet@amber:~ $
 \end{verbatim}
 The line starts with the tunnel device name followed by a colon.
 Then the tunnel mode follows. The parameters of the tunnel are listed
@@ -2505,12 +2505,12 @@ with the same keywords that were used when creating the tunnel.
 
 \begin{verbatim}
 kuznet@amber:~ $ ip -s tunl ls Cisco
-Cisco: ipv6/ip  remote 192.31.7.104  local 192.203.80.142  ttl 32 
+Cisco: ipv6/ip  remote 192.31.7.104  local 192.203.80.142  ttl 32
 RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
-    12566      1707516      0      0        0        0       
+    12566      1707516      0      0        0        0
 TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
-    13445      1879677      0      0        0        0     
-kuznet@amber:~ $ 
+    13445      1879677      0      0        0        0
+kuznet@amber:~ $
 \end{verbatim}
 Essentially, these numbers are the same as the numbers
 printed with {\tt ip -s link show}
@@ -2645,8 +2645,8 @@ accounting by realms. The kernel gathers a packet statistics summary
 which can be viewed with the \verb|rtacct| utility.
 \begin{verbatim}
 kuznet@amber:~ $ rtacct russia
-Realm      BytesTo    PktsTo     BytesFrom  PktsFrom   
-russia     20576778   169176     47080168   153805     
+Realm      BytesTo    PktsTo     BytesFrom  PktsFrom
+russia     20576778   169176     47080168   153805
 kuznet@amber:~ $
 \end{verbatim}
 This shows that this router received 153805 packets from
@@ -2777,7 +2777,7 @@ is configured on loopback, it is always preferred.
 
 Routers may answer ARP/NDISC solicitations on behalf of other hosts.
 In Linux-2.2 proxy ARP on an interface may be enabled
-by setting the kernel \verb|sysctl| variable 
+by setting the kernel \verb|sysctl| variable
 \verb|/proc/sys/net/ipv4/conf/<dev>/proxy_arp| to 1. After this, the router
 starts to answer ARP requests on the interface \verb|<dev>|, provided
 the route to the requested destination does {\em not\/} go back via the same
@@ -2859,7 +2859,7 @@ This also, is not missing any functionality.
 
 To resume: if you need to compress address space or keep
 active FTP clients happy, your choice is not route NAT but masquerading,
-port forwarding, NAPT etc. 
+port forwarding, NAPT etc.
 \begin{NB}
 By the way, you may also want to look at
 http://www.suse.com/\~mha/HyperNews/get/linux-ip-nat.html
@@ -2886,7 +2886,7 @@ For all the world it looks like a host address inside our network.
 For neighbouring hosts and routers it looks like the local address
 of the translating router. The router answers ARP for it, advertises
 this address as routed via it, {\em et al\/}. When the router
-receives a packet destined for 192.203.80.144, it replaces 
+receives a packet destined for 192.203.80.144, it replaces
 this address with 193.233.7.83 which is the address of some real
 host and forwards the packet. If you need to remap
 blocks of addresses, you may use a command like:
@@ -3090,7 +3090,7 @@ noarp=$?
 \# 3. Add default multicast route.
 \end{flushleft}
 \begin{verbatim}
-ip route add unreachable 224.0.0.0/24 
+ip route add unreachable 224.0.0.0/24
 ip route add unreachable 255.255.255.255
 if [ `ip link ls $dev | grep -c MULTICAST` -ge 1 ]; then
   ip route add 224.0.0.0/4 dev $dev scope global
@@ -3330,7 +3330,7 @@ noarp=$?
 \# 3. Add default multicast route.
 \end{flushleft}
 \begin{verbatim}
-ip route add unreachable 224.0.0.0/24 >& /dev/null 
+ip route add unreachable 224.0.0.0/24 >& /dev/null
 ip route add unreachable 255.255.255.255 >& /dev/null
 if [ `ip link ls $dev | grep -c MULTICAST` -ge 1 ]; then
   ip route add 224.0.0.0/4 dev $dev scope global >& /dev/null

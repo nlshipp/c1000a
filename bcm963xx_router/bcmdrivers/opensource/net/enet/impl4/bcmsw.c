@@ -1,25 +1,36 @@
 /*
-<:copyright-gpl
- Copyright 2007-2010 Broadcom Corp. All Rights Reserved.
+    Copyright 2000-2010 Broadcom Corporation
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */
+
 
 #include "bcm_OS_Deps.h"
 #include "board.h"
-#include <bcm_map.h>
+#include "spidevices.h"
+#include <bcm_map_part.h>
 #include "bcm_intr.h"
 #include "bcmmii.h"
 #include "ethsw_phy.h"
@@ -32,6 +43,11 @@
 #include "pktCmf_public.h"
 #include "boardparms.h"
 #include "bcmenet.h"
+#include "bcmPktDma.h"
+
+#if defined(CONFIG_BCM_GMAC) 
+#include "bcmgmac.h"
+#endif
 
 #ifndef SINGLE_CHANNEL_TX
 /* for enet driver txdma channel selection logic */
@@ -41,9 +57,30 @@ extern int use_tx_dma_channel_for_priority;
 #endif /*SINGLE_CHANNEL_TX*/
 
 extern struct semaphore bcm_ethlock_switch_config;
-extern spinlock_t spl_lock;
-/* The switch physical port to phyid mapping */
 extern int switch_pport_phyid[TOTAL_SWITCH_PORTS];
+
+
+#if defined(CONFIG_BCM_GMAC)
+void gmac_hw_stats( int port,  struct net_device_stats *stats );
+int gmac_dump_mib(int port, int type);
+void gmac_reset_mib( void );
+#endif
+
+#define ALL_PORTS_MASK                     0x1FF
+#define ONE_TO_ONE_MAP                     0x00FAC688
+#define MOCA_QUEUE_MAP                     0x0091B492
+#define DEFAULT_FC_CTRL_VAL                0x1F
+#if defined(CONFIG_BCM96816)
+/* Tx: 0->2, 1->3, 2->4, 3->5. */
+#define DEFAULT_IUDMA_QUEUE_SEL            0xB1A
+#else
+/* Tx: 0->0, 1->1, 2->2, 3->3. */
+#define DEFAULT_IUDMA_QUEUE_SEL            0x688
+#endif
+
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+extern int uni_to_uni_enabled;
+#endif
 
 /* Forward declarations */
 void __ethsw_get_txrx_imp_port_pkts(void);
@@ -105,7 +142,7 @@ void ethsw_rreg_ext(int page, int reg, uint8 *data, int len, int is6829)
             *(uint32 *)(data + 0) = *(uint32 *)(base + 4);
         }
     }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     else
     {
         unsigned long spiData;
@@ -193,7 +230,15 @@ void ethsw_wreg_ext(int page, int reg, uint8 *data, int len, int is6829)
         {
             if ((reg % 4) == 0)
             {
-                *(uint32 *)(base + 0) = *(uint32 *)(data + 0);
+                if ( (int)data & 3 )
+                {
+                    *(uint32 *)(base + 0) = ((*(uint16 *)(data + 0) << 16) | 
+                                             (*(uint16 *)(data + 2) <<  0));
+                }
+                else
+                {
+                   *(uint32 *)(base + 0) = *(uint32 *)(data + 0);
+                }
             }
             else
             {
@@ -205,22 +250,48 @@ void ethsw_wreg_ext(int page, int reg, uint8 *data, int len, int is6829)
         {
             if (reg % 4 == 0)
             {
-                *(uint32 *)(base + 0) = *(uint32 *)(data + 2);
+                if ( (int)(data + 2) & 3 )
+                {
+                    *(uint32 *)(base + 0) = ((*(uint16 *)(data + 2) << 16) | 
+                                             (*(uint16 *)(data + 4) <<  0));
+                }
+                else
+                {
+                   *(uint32 *)(base + 0) = *(uint32 *)(data + 2);
+                }
                 *(uint16 *)(base + 4) = *(uint16 *)(data + 0);
             }
             else
             {
                 *(uint16 *)(base + 0) = *(uint16 *)(data + 4);
-                *(uint32 *)(base + 2) = *(uint32 *)(data + 0);
+                if ( (int)(data + 0) & 3 )
+                {
+                    *(uint32 *)(base + 2) = ((*(uint16 *)(data + 0) << 16) | 
+                                             (*(uint16 *)(data + 2) <<  0));
+                }
+                else
+                {
+                   *(uint32 *)(base + 2) = *(uint32 *)(data + 0);
+                }
             }
         }
         else if (len == 8)
         {
-            *(uint32 *)(base + 0) = *(uint32 *)(data + 4);
-            *(uint32 *)(base + 4) = *(uint32 *)(data + 0);
+            if ( (int)(data + 0) & 3 )
+            {
+                *(uint32 *)(base + 0) = ((*(uint16 *)(data + 4) << 16) | 
+                                         (*(uint16 *)(data + 6) <<  0));
+                *(uint32 *)(base + 4) = ((*(uint16 *)(data + 0) << 16) | 
+                                         (*(uint16 *)(data + 2) <<  0));
+            }
+            else
+            {
+                *(uint32 *)(base + 0) = *(uint32 *)(data + 4);
+                *(uint32 *)(base + 4) = *(uint32 *)(data + 0);
+            }
         }
     }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     else
     {
         unsigned long spiData;
@@ -298,6 +369,9 @@ static void fast_age_start_done(uint8_t ctrl) {
             break;
         }
     }
+
+    ctrl = 0;
+    ethsw_wreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, (uint8_t *)&ctrl, 1);
 }
 
 void fast_age_all(uint8_t age_static) {
@@ -311,11 +385,41 @@ void fast_age_all(uint8_t age_static) {
     fast_age_start_done(v8);
 }
 
-static void fast_age_port(uint8_t port, uint8_t age_static) {
+static void fast_age_start_done_ext(uint8_t ctrl) {
+    uint8_t timeout = 100;
+
+    extsw_wreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, (uint8_t *)&ctrl, 1);
+    extsw_rreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, (uint8_t *)&ctrl, 1);
+    while (ctrl & FAST_AGE_START_DONE) {
+        mdelay(1);
+        extsw_rreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, (uint8_t *)&ctrl, 1);
+        if (!timeout--) {
+            printk("Timeout of fast aging \n");
+            break;
+        }
+    }
+
+    ctrl = 0;
+    extsw_wreg(PAGE_CONTROL, REG_FAST_AGING_CTRL, (uint8_t *)&ctrl, 1);
+}
+
+void fast_age_all_ext(uint8_t age_static)
+{
+    uint8_t v8;
+
+    v8 = FAST_AGE_START_DONE | FAST_AGE_DYNAMIC;
+    if (age_static) {
+        v8 |= FAST_AGE_STATIC;
+    }
+
+    fast_age_start_done_ext(v8);
+}
+
+void fast_age_port(uint8_t port, uint8_t age_static) {
     uint8_t v8;
 
     v8 = FAST_AGE_START_DONE | FAST_AGE_DYNAMIC | FAST_AGE_PORT;
-  if (age_static) {
+    if (age_static) {
         v8 |= FAST_AGE_STATIC;
     }
 
@@ -346,7 +450,7 @@ static int read_vlan_table(bcm_vlan_t vid, uint32_t *val32)
     return BCM_E_ERROR;
 }
 
-static int write_vlan_table(bcm_vlan_t vid, uint32_t val32)
+int write_vlan_table(bcm_vlan_t vid, uint32_t val32)
 {
     uint8_t val8;
     int i, timeout = 200;
@@ -386,56 +490,74 @@ static void set_pause_capability(int port, int req_flow_ctrl)
 {
     uint16_t an_adv, v16, bmcr;
     uint32_t override_val;
-    int phyid = ETHSW_PHY_GET_PHYID(port);
+    int phyid;
+    int start_port, end_port;
 
+    if (port == SWITCH_PORTS_ALL_PHYS) {
+       start_port = 0;
+       end_port = EPHY_PORTS-1;
+    } else {
+       start_port = end_port = port;
+    }
     down(&bcm_ethlock_switch_config);
 
     BCM_ENET_DEBUG("given req_flow_ctrl = %4x", req_flow_ctrl);
     ethsw_rreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8_t *)&override_val, 4);
     BCM_ENET_DEBUG("override_val read = %4x", (unsigned int)override_val);
-    override_val &= (~((1 << port) | (1 << (port + TOTAL_SWITCH_PORTS))));
-    /* resolve pause mode and advertisement
-     * Please refer to Table 28B-3 of the 802.3ab-1999 spec */
-    switch (req_flow_ctrl) {
-        case PAUSE_FLOW_CTRL_AUTO:
-        case PAUSE_FLOW_CTRL_BOTH:
-            v16 = (ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
-            override_val |= ((1 << port) | (1 << (port +TOTAL_SWITCH_PORTS)));
-            break;
 
-        case PAUSE_FLOW_CTRL_TX:
-        v16 = ADVERTISE_PAUSE_ASYM;
-        override_val |= (1 << port);
-        break;
+    for (port = start_port; port <= end_port; port++) {
+        override_val &= (~((1 << port) | (1 << (port + TOTAL_SWITCH_PORTS))));
+        /* resolve pause mode and advertisement
+         * Please refer to Table 28B-3 of the 802.3ab-1999 spec */
+        switch (req_flow_ctrl) {
+            case PAUSE_FLOW_CTRL_AUTO:
+            case PAUSE_FLOW_CTRL_BOTH:
+            case PAUSE_FLOW_CTRL_BCMSWITCH_ON:
+                v16 = (ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
+                override_val |= ((1 << port) | (1 << (port +TOTAL_SWITCH_PORTS)));
+                break;
 
-      case PAUSE_FLOW_CTRL_RX:
-//          an_adv |= (ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
-        v16 = ADVERTISE_PAUSE_CAP;
-        override_val |= (1 << (port +TOTAL_SWITCH_PORTS));
-        break;
+            case PAUSE_FLOW_CTRL_TX:
+                v16 = ADVERTISE_PAUSE_ASYM;
+                override_val |= (1 << port);
+                break;
 
-      case PAUSE_FLOW_CTRL_NONE:
-      default:
-            v16 = 0;
-        break;
-  }
+            case PAUSE_FLOW_CTRL_RX:
+                v16 = ADVERTISE_PAUSE_CAP;
+                override_val |= (1 << (port +TOTAL_SWITCH_PORTS));
+                break;
 
-    if ((port < EPHY_PORTS) && (phyid != -1)) {
-        ethsw_phy_rreg(ETHSW_PHY_GET_PHYID(port), MII_BMCR, &bmcr);
-        if (bmcr & BMCR_ANENABLE) {
-            ethsw_phy_rreg(phyid, MII_ADVERTISE, &an_adv);
-            BCM_ENET_DEBUG("an_adv read from PHY = %4x", an_adv);
-        an_adv &= ~(ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
-            an_adv |= v16;
-            BCM_ENET_DEBUG("an_adv written to PHY = %4x", an_adv);
-            ethsw_phy_wreg(phyid, MII_ADVERTISE, &an_adv);
-            restart_autoneg(phyid);
-        } else {
-            override_val |= REG_PAUSE_CAPBILITY_OVERRIDE;
+            case PAUSE_FLOW_CTRL_BCMSWITCH_OFF:
+                override_val &= ~REG_PAUSE_CAPBILITY_OVERRIDE;
+                break;
+
+            case PAUSE_FLOW_CTRL_NONE:
+            default:
+                v16 = 0;
+                break;
         }
-    } else {
-        override_val |= REG_PAUSE_CAPBILITY_OVERRIDE;
+
+        if (req_flow_ctrl != PAUSE_FLOW_CTRL_BCMSWITCH_OFF) {
+            phyid = ETHSW_PHY_GET_PHYID(port);
+            if ((req_flow_ctrl != PAUSE_FLOW_CTRL_BCMSWITCH_ON) && (port < EPHY_PORTS) && (phyid != -1)) {
+                ethsw_phy_rreg(phyid, MII_BMCR, &bmcr);
+                if (bmcr & BMCR_ANENABLE) {
+                    ethsw_phy_rreg(phyid, MII_ADVERTISE, &an_adv);
+                    BCM_ENET_DEBUG("an_adv read from PHY = %4x", an_adv);
+                    an_adv &= ~(ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
+                    an_adv |= v16;
+                    BCM_ENET_DEBUG("an_adv written to PHY = %4x", an_adv);
+                    ethsw_phy_wreg(phyid, MII_ADVERTISE, &an_adv);
+                    restart_autoneg(phyid);
+                } else {
+                    override_val |= REG_PAUSE_CAPBILITY_OVERRIDE;
+                }
+            } else {
+                override_val |= REG_PAUSE_CAPBILITY_OVERRIDE;
+            }
+        }
     }
+
     BCM_ENET_DEBUG("val written to REG_PAUSE_CAPABILITY = %4x",
                    (unsigned int)override_val);
     ethsw_wreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8_t *)&override_val, 4);
@@ -540,7 +662,7 @@ void ethsw_port_based_vlan(int port_map, int wan_port_map, int softSwitchingMap)
     /* For 6368, we use mirroring to forward to cpu */
     ethsw_wreg(PAGE_MANAGEMENT, REG_MIRROR_INGRESS_CTRL, (uint8 *)&value, 2);
 #endif
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     value |= PBMAP_MIPS_N_GPON;
 #else
     value |= PBMAP_MIPS;
@@ -560,7 +682,7 @@ void ethsw_port_based_vlan(int port_map, int wan_port_map, int softSwitchingMap)
     up(&bcm_ethlock_switch_config);
 }
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96318)
 void ethsw_set_wanoe_portmap(uint16 wan_port_map)
 {
     int i;
@@ -573,9 +695,21 @@ void ethsw_set_wanoe_portmap(uint16 wan_port_map)
     map = wan_port_map | EN_MAN_TO_WAN;
     ethsw_wreg(PAGE_CONTROL, REG_WAN_PORT_MAP, (uint8 *)&map, 2);
 
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+    map = PBMAP_ALL;
+#else
     map = PBMAP_MIPS | wan_port_map;
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)    
+    fast_age_all(1);
+#endif
+
     /* Disable learning */
     ethsw_wreg(PAGE_CONTROL, REG_DISABLE_LEARNING, (uint8 *)&map, 2);
+/* Flush ARL table to solve DVR issue 82460 */
+#if defined(AEI_VDSL_CUSTOMER_NCS)    
+    fast_age_all(1);
+#endif
 
     for(i=0; i < TOTAL_SWITCH_PORTS; i++) {
        if((wan_port_map >> i) & 0x1) {
@@ -590,7 +724,7 @@ void ethsw_set_wanoe_portmap(uint16 wan_port_map)
 /************************/
 /* Ethernet Switch APIs */
 /************************/
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 int enet_ioctl_ethsw_port_tagreplace(struct ethswctl_data *e)
 {
     uint32_t val32;
@@ -829,13 +963,13 @@ int enet_ioctl_ethsw_port_tagstrip(struct ethswctl_data *e)
     up(&bcm_ethlock_switch_config);
     return 0;
 }
-#endif // #if 6816
+#endif // #if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 
 int enet_ioctl_ethsw_port_pause_capability(struct ethswctl_data *e)
 {
     int val = 0;
 
-    if (e->port >= TOTAL_SWITCH_PORTS) {
+    if (e->port >= TOTAL_SWITCH_PORTS && e->port != SWITCH_PORTS_ALL_PHYS) {
         printk("Invalid Switch Port \n");
         return BCM_E_ERROR;
     }
@@ -949,7 +1083,7 @@ int enet_ioctl_ethsw_prio_control(struct ethswctl_data *e)
         case bcmSwitchTxQHiDropThreshold:
             reg = REG_FC_PRIQ_DROP + (e->priority * 2);
             break;
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         case bcmSwitchTxQLowDropThreshold:
             reg = REG_FC_PRIQ_LO_DROP + (e->priority * 2);
             break;
@@ -1156,10 +1290,10 @@ int enet_ioctl_ethsw_port_irc_set(struct ethswctl_data *e)
         /* refresh count  (fixed type)*/
         if (e->limit <= 1792) { /* 64KB ~ 1.792MB */
             temp = ((e->limit-1) / 64) +1;
-        } else if (e->limit <= 102400){ /* 2MB ~ 100MB */
-            temp = (e->limit /1024 ) + 27;
-        } else if (e->limit <= 1024000){ /* 104MB ~ 1000MB */
-            temp = (e->limit /8192) + 115;
+        } else if (e->limit <= 100000){ /* 2MB ~ 100MB */
+            temp = (e->limit /1000 ) + 27;
+        } else if (e->limit <= 1000000){ /* 104MB ~ 1000MB */
+            temp = (e->limit /8000) + 115;
         } else {
             temp = 255;
         }
@@ -1277,9 +1411,9 @@ int enet_ioctl_ethsw_port_irc_get(struct ethswctl_data *e)
         if (temp <= 28) {
             e->limit = temp * 64;
         } else if (temp <= 127) {
-            e->limit = (temp -27) * 1024;
+            e->limit = (temp -27) * 1000;
         } else if (temp <=243) {
-            e->limit = (temp -115) * 1024 * 8;
+            e->limit = (temp -115) * 1000 * 8;
         } else {
             rv = BCM_E_INTERNAL;
         }
@@ -1358,10 +1492,10 @@ int enet_ioctl_ethsw_port_erc_set(struct ethswctl_data *e)
         /* refresh count  (fixed type)*/
         if (e->limit <= 1792) { /* 64KB ~ 1.792MB */
             temp = ((e->limit-1) / 64) +1;
-        } else if (e->limit <= 102400){ /* 2MB ~ 100MB */
-            temp = (e->limit /1024 ) + 27;
+        } else if (e->limit <= 100000){ /* 2MB ~ 100MB */
+            temp = (e->limit /1000 ) + 27;
         } else { /* 104MB ~ 1000MB */
-            temp = (e->limit /8192) + 115;
+            temp = (e->limit /8000) + 115;
         }
         rate_cfg_reg_value &= ~(ERC_RFSH_CNT_M << ERC_RFSH_CNT_S);
         rate_cfg_reg_value |= temp << ERC_RFSH_CNT_S;
@@ -1442,9 +1576,9 @@ int enet_ioctl_ethsw_port_erc_get(struct ethswctl_data *e)
         if (temp <= 28) {
             e->limit = temp * 64;
         } else if (temp <= 127) {
-            e->limit = (temp -27) * 1024;
+            e->limit = (temp -27) * 1000;
         } else if (temp <=243) {
-            e->limit = (temp -115) * 1024 * 8;
+            e->limit = (temp -115) * 1000 * 8;
         } else {
             return BCM_E_INTERNAL;
         }
@@ -1522,8 +1656,6 @@ int enet_ioctl_ethsw_cosq_sched(struct ethswctl_data *e)
             return -1;
         }
         hq_preempt = (val8 >> TXQ_CTRL_HQ_PREEMPT_S) & TXQ_CTRL_HQ_PREEMPT_M;
-        /* If HQP is set then the scheduling is either SP or COMBO.
-           Else it is WRR */
         if (hq_preempt) {
             if(txq_mode == 1) {
                 sched = BCM_COSQ_STRICT;
@@ -1562,6 +1694,8 @@ int enet_ioctl_ethsw_cosq_sched(struct ethswctl_data *e)
         BCM_ENET_DEBUG("Given sp_endq: %02d", e->queue);
         for (i=0; i < NUM_EGRESS_QUEUES; i++) {
             BCM_ENET_DEBUG("Given weight[%2d] = %02d ", i, e->weights[i]);
+            
+            // Is this a legal weight?
             if (e->weights[i] <= 0 || e->weights[i] > MAX_WRR_WEIGHT) {
                 BCM_ENET_DEBUG("Invalid weight");
                 up(&bcm_ethlock_switch_config);
@@ -1578,13 +1712,12 @@ int enet_ioctl_ethsw_cosq_sched(struct ethswctl_data *e)
         }
         /* Set the scheduling mode */
         if (e->scheduling == BCM_COSQ_WRR) {
-            /* Set HQP to 0 to enable WRR */
-            val8 &= (~(TXQ_CTRL_HQ_PREEMPT_M << TXQ_CTRL_HQ_PREEMPT_S));
+            // Set TXQ_MODE bits for 4 queue mode.  Leave high
+            // queue preeempt bit cleared so queue weighting will be used.
+            val8 = ((0x03 & TXQ_CTRL_TXQ_MODE_M) << TXQ_CTRL_TXQ_MODE_S);
         } else if ((e->scheduling == BCM_COSQ_STRICT) ||
                    (e->scheduling == BCM_COSQ_COMBO)){
-            /* Enable HQP for SP mode */
             val8 |= (TXQ_CTRL_HQ_PREEMPT_M << TXQ_CTRL_HQ_PREEMPT_S);
-            /* Set TXQ_MODE as 1 for SP across all egress queues */
             if (e->scheduling == BCM_COSQ_STRICT) {
                 txq_mode = 1;
             } else {
@@ -1619,7 +1752,7 @@ int enet_ioctl_ethsw_cosq_sched(struct ethswctl_data *e)
 int enet_ioctl_ethsw_cosq_port_mapping(struct ethswctl_data *e)
 {
     uint32_t val32;
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
     uint16_t val16;
 #endif
     int queue;
@@ -1639,7 +1772,7 @@ int enet_ioctl_ethsw_cosq_port_mapping(struct ethswctl_data *e)
     down(&bcm_ethlock_switch_config);
 
     if (e->type == TYPE_GET) {
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
         ethsw_rreg(PAGE_QOS, REG_QOS_PORT_PRIO_MAP_P0 + (e->port * 2),
                    (uint8_t *)&val16, 2);
         BCM_ENET_DEBUG("REG_QOS_PORT_PRIO_MAP_Px = 0x%04x", val16);
@@ -1657,7 +1790,7 @@ int enet_ioctl_ethsw_cosq_port_mapping(struct ethswctl_data *e)
         BCM_ENET_DEBUG("e->queue is = %4x", e->queue);
     } else {
         BCM_ENET_DEBUG("Given queue: 0x%02x \n ", e->queue);
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
         ethsw_rreg(PAGE_QOS, REG_QOS_PORT_PRIO_MAP_P0 + (e->port * 2),
                    (uint8_t *)&val16, 2);
         val32 = val16;
@@ -1671,7 +1804,7 @@ int enet_ioctl_ethsw_cosq_port_mapping(struct ethswctl_data *e)
                   (e->priority * REG_QOS_PRIO_TO_QID_SEL_BITS));
         BCM_ENET_DEBUG("Writing = 0x%08x to REG_QOS_PORT_PRIO_MAP_Px",
                        (unsigned int)val32);
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
         val16 = val32;
         ethsw_wreg(PAGE_QOS, REG_QOS_PORT_PRIO_MAP_P0 + (e->port * 2),
                    (uint8_t *)&val16, 2);
@@ -1848,6 +1981,36 @@ int enet_ioctl_ethsw_cosq_rxchannel_mapping(struct ethswctl_data *e)
     up(&bcm_ethlock_switch_config);
     return 0;
 }
+
+int enet_ioctl_debug_conf(struct ethswctl_data *e)
+{
+    int logLevel = e->val;
+
+    if (e->type == TYPE_GET) {
+        logLevel = bcmLog_getLogLevel(BCM_LOG_ID_ENET);
+        if (copy_to_user((void*)(&e->ret_val), (void*)&logLevel, sizeof(int))) {
+            up(&bcm_ethlock_switch_config);
+            return -EFAULT;
+        }
+
+    } else {
+        if(logLevel >= 0 && logLevel < BCM_LOG_LEVEL_MAX)
+        {
+            printk("Setting Enet Driver Log level");
+            bcmLog_setLogLevel(BCM_LOG_ID_ENET, logLevel);
+        }
+        else
+        {
+            BCM_ENET_ERROR("Invalid Log level %d (max %d)",
+                   logLevel, BCM_LOG_LEVEL_MAX);
+
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 
 int enet_ioctl_ethsw_cosq_txq_sel(struct ethswctl_data *e)
 {
@@ -2548,7 +2711,7 @@ int ethsw_counter_collect(uint32_t portmap, int discard)
             }
             up(&bcm_ethlock_switch_config);
 
-            BCM_ENET_DEBUG("port= %d; i = %d; The ctr_new = 0x%llx",
+            BCM_ENET_LINK_DEBUG("port= %d; i = %d; The ctr_new = 0x%llx",
                                 port, i, ctr_new);
 
             if (COMPILER_64_EQ(ctr_new, ctr_prev)) {
@@ -2605,7 +2768,7 @@ int ethsw_counter_collect(uint32_t portmap, int discard)
                 counter_delta[port][i] = ctr_diff;
                 counter_hw_val[port][i] = ctr_new;
             }
-            BCM_ENET_DEBUG("counter_sw_val = 0x%llx",
+            BCM_ENET_LINK_DEBUG("counter_sw_val = 0x%llx",
                                 counter_sw_val[port][i]);
         }
     }
@@ -2668,6 +2831,704 @@ int enet_ioctl_ethsw_clear_stats(uint32_t portmap)
 }
 
 /*
+*------------------------------------------------------------------------------
+* Function   : remove_arl_entry
+* Description: Removes/invalidates the matching MAC ARL entry in the switch.
+* Input      : Pointer to MAC address string
+* Design Note: Invoked by linux bridge during MAC station move.
+*------------------------------------------------------------------------------
+*/
+int remove_arl_entry(uint8_t *mac)
+{
+    uint16_t v16, mac_hi;
+    int timeout, first = 1;
+    uint32_t first_mac_lo = 0, first_vid_mac_hi = 0;
+    uint32_t cur_lo = 0, cur_hi = 0, mac_lo, v32=0;
+    uint16_t cur_data = 0;
+    uint8_t v8;
+
+    BCM_ENET_DEBUG("mac: %02x %02x %02x %02x %02x %02x\n", mac[0],
+                    mac[1], mac[2], mac[3], mac[4], (uint8_t)mac[5]);
+    /* Convert MAC string to hi and lo words */
+    mac_hi = ((mac[0] & 0xFF) << 8) | (mac[1] & 0xFF) ;
+    mac_lo = ((mac[2] & 0xFF) << 24) | 
+             ((mac[3] & 0xFF) << 16) | 
+             ((mac[4] & 0xFF) << 8) | 
+              (mac[5] & 0xFF);
+
+    BCM_ENET_DEBUG("mac_hi (16-bit) = 0x%04x \n", mac_hi);
+    BCM_ENET_DEBUG("mac_lo (32-bit) = 0x%08x \n", (unsigned int)mac_lo);
+
+    /* Setup ARL Search */
+    v16 = ARL_SRCH_CTRL_START_DONE;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
+    /* Read the complete ARL table */
+    while (v16 & ARL_SRCH_CTRL_START_DONE) {
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+        timeout = 1000;
+        while((v16 & ARL_SRCH_CTRL_SR_VALID) == 0) {
+            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+            if (v16 & ARL_SRCH_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0) {
+                    return 0;
+                }
+            } else {
+                return 0;
+            }
+        }
+        /* Grab the lo and hi MAC entry */
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY,
+                   (uint8_t *)&cur_lo, 4);
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_VID_MAC_HI_ENTRY,
+                   (uint8_t *)&cur_hi, 4);
+        /* Store the first MAC read */
+        if (first) {
+            first_mac_lo = cur_lo;
+            first_vid_mac_hi = cur_hi;
+            first = 0;
+        } else if ((first_mac_lo == cur_lo) &&
+                   (first_vid_mac_hi == cur_hi)) {
+            /* Bail out if all the entries read */
+            break;
+        }
+        /* Grab the data part of ARL entry */
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY,
+                   (uint8_t *)&cur_data, 2);
+
+        BCM_ENET_DEBUG("cur_lo = 0x%x cur_hi = 0x%x cur_data = 0x%x\n", cur_lo,cur_hi,cur_data);
+        /* Check if found the matching ARL entry */
+        if ((mac_hi == (cur_hi & 0xFFFF)) && (mac_lo == cur_lo))
+        { /* found the matching entry ; invalidate it */
+            v16 = cur_lo & 0xFFFF; /* Re-using v16 - no problem we go out of this function */
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
+            v32 = (cur_lo >> 16) | (cur_hi << 16);
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_HI, (uint8_t *)&v32, 4);
+            v16 = (cur_hi >> 16) & 0xFFFF;
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
+            v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            timeout = 10;
+            while(v8 & ARL_TBL_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0)  {
+                    break;
+                }
+                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            }
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY,
+                       (uint8_t *)&cur_lo, 4);
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VID_MAC_HI_ENTRY,
+                       (uint8_t *)&cur_hi, 4);
+            /* Invalidate the entry -> clear valid bit
+             * Actually valid bit is always NOT set on read - so this is redundant */
+            cur_data &= 0x7FFF; 
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY,
+                       (uint8_t *)&cur_data, 2);
+            v8 = ARL_TBL_CTRL_START_DONE;
+            ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            timeout = 10;
+            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            while(v8 & ARL_TBL_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0)  {
+                    break;
+                }
+                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            }
+            return 0;
+        }
+    }
+    
+	return 0; /* Actually this is error but no-one should care the return value */
+}
+
+void bcmsw_set_ext_switch_pbvlan(int port, uint16_t portMap)
+{
+    uint16_t v16 = swab16(portMap);
+
+    extsw_wreg(PAGE_PORT_BASED_VLAN, REG_VLAN_CTRL_P0 + (port * 2), (uint8_t *)&v16, sizeof(v16));
+}
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+void AEI_convert_mac_vid_v64_format(uint8_t *mac_vid_v64)
+{
+        uint8_t mac_tmp[8]={0};
+        memcpy(mac_tmp,mac_vid_v64,8);
+        ((uint32 *)mac_tmp)[0] = swab32(((uint32 *)mac_tmp)[0]);
+        ((uint32 *)mac_tmp)[1] = swab32(((uint32 *)mac_tmp)[1]);
+        //memset(mac_vid_v64,0,sizeof(mac_vid_v64));
+        memcpy(mac_vid_v64,&mac_tmp[2],6);
+        memcpy(&mac_vid_v64[6],&mac_tmp[0],2);
+        BCM_ENET_DEBUG("covert result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                       mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
+}
+#endif
+
+int remove_arl_entry_ext(uint8_t *mac)
+{
+    int timeout, count = 0;
+    uint32_t v32=0, cur_data_v32 = 0;
+    uint16_t cur_vid_v16;
+    uint8_t v8, mac_vid_v64[8];
+    unsigned int extSwId;
+
+    extSwId = bcm63xx_enet_extSwId();
+    if (extSwId != 0x53115 && extSwId != 0x53125)
+    {
+        /* Currently only these two switches are supported */
+        printk("Error - Ext-switch = 0x%x not supported\n", extSwId);
+        return BCM_E_NONE;
+    }
+
+    BCM_ENET_DEBUG("mac: %02x %02x %02x %02x %02x %02x\n", mac[0],
+                    mac[1], mac[2], mac[3], mac[4], (uint8_t)mac[5]);
+    /* Setup ARL Search */
+    v8 = ARL_SRCH_CTRL_START_DONE;
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    while (v8 & ARL_SRCH_CTRL_START_DONE) {
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        timeout = 1000;
+        /* Now read the Search Ctrl Reg Until :
+         * Found Valid ARL Entry --> ARL_SRCH_CTRL_SR_VALID, or
+         * ARL Search done --> ARL_SRCH_CTRL_START_DONE */
+        while((v8 & ARL_SRCH_CTRL_SR_VALID) == 0) {
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx,
+                       (uint8_t *)&v8, 1);
+            if (v8 & ARL_SRCH_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0) {
+                    printk("ARL Search Timeout for Valid to be 1 \n");
+                    return BCM_E_NONE;
+                }
+            } else {
+                BCM_ENET_DEBUG("ARL Search Done count %d\n", count);
+                return BCM_E_NONE;
+            }
+        }
+        /* Found a valid entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY_531xx,&mac_vid_v64[0], 8);
+        BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                       mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        AEI_convert_mac_vid_v64_format(mac_vid_v64);
+#endif
+        /* ARL Search results are read; Mark it done(by reading the reg)
+           so ARL will start searching the next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_RESULT_DONE_531xx,
+                   (uint8_t *)&v32, 4);
+        /* Check if found the matching ARL entry */
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        if ( mac_vid_v64[5] == mac[5] &&
+             mac_vid_v64[4] == mac[4] &&
+             mac_vid_v64[3] == mac[3] &&
+             mac_vid_v64[2] == mac[2] &&
+             mac_vid_v64[1] == mac[1] &&
+             mac_vid_v64[0] == mac[0])
+#else
+        if ( mac_vid_v64[0] == mac[5] && 
+             mac_vid_v64[1] == mac[4] &&
+             mac_vid_v64[2] == mac[3] &&
+             mac_vid_v64[3] == mac[2] &&
+             mac_vid_v64[4] == mac[1] &&
+             mac_vid_v64[5] == mac[0])
+#endif
+        { /* found the matching entry ; invalidate it */
+            BCM_ENET_DEBUG("Found matching ARL Entry\n");
+            /* Write the MAC Address */
+            extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&mac_vid_v64[0], 6);
+            /* Get the VID for this entry and write it */
+            cur_vid_v16 = mac_vid_v64[6] | ((mac_vid_v64[7]<<8) &0xF);;
+            extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&cur_vid_v16, 2);
+            /* Initiate a read transaction */
+            v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
+            extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            timeout = 10;
+            while(v8 & ARL_TBL_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0)  {
+                    printk("Error - can't read/find the ARL entry\n");
+                    return 0;
+                }
+                extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            }
+            /* Read transaction complete - get the MAC + VID */
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY,&mac_vid_v64[0], 8);
+            BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                           mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
+            /* Compare the MAC */
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+            AEI_convert_mac_vid_v64_format(mac_vid_v64);
+            if ( !(mac_vid_v64[5] == mac[5] &&
+                 mac_vid_v64[4] == mac[4] &&
+                 mac_vid_v64[3] == mac[3] &&
+                 mac_vid_v64[2] == mac[2] &&
+                 mac_vid_v64[1] == mac[1] &&
+                 mac_vid_v64[0] == mac[0]))
+#else
+            if (!(mac_vid_v64[0] == mac[5] && 
+                  mac_vid_v64[1] == mac[4] &&
+                  mac_vid_v64[2] == mac[3] &&
+                  mac_vid_v64[3] == mac[2] &&
+                  mac_vid_v64[4] == mac[1] &&
+                  mac_vid_v64[5] == mac[0]))
+#endif
+            {
+                printk("Error - can't find the requested ARL entry\n");
+                return 0;
+            }
+            /* Read the associated data entry */
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY,(uint8_t *)&cur_data_v32, 4);
+            BCM_ENET_DEBUG("ARL_SRCH_DATA = 0x%08x \n", cur_data_v32);
+            cur_data_v32 = swab32(cur_data_v32);
+            /* Invalidate the entry -> clear valid bit */
+            cur_data_v32 &= 0xFFFF; 
+            cur_data_v32 = swab32(cur_data_v32);
+            /* Modify the data entry for this ARL */
+            extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY,(uint8_t *)&cur_data_v32, 4);
+            /* Initiate a write transaction */
+            v8 = ARL_TBL_CTRL_START_DONE;
+            extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            timeout = 10;
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            while(v8 & ARL_TBL_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0)  {
+                    printk("Error - can't write/find the ARL entry\n");
+                    break;
+                }
+                extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+            }
+            return 0;
+        }
+        if ((count++) > NUM_ARL_ENTRIES) {
+            break;
+        }
+        /* Now read the ARL Search Ctrl reg. again for next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    }
+
+    return 0; /* Actually this is error but no-one should care the return value */
+}
+int remove_arl_entry_wrapper(void *ptr)
+{
+    int ret = 0;
+    ret = remove_arl_entry(ptr); /* remove entry from internal switch */
+    if (bcm63xx_enet_isExtSwPresent()) {
+        ret = remove_arl_entry_ext(ptr); /* remove entry from internal switch */
+    }
+    return ret;
+}
+int enet_arl_access_dump(void)
+{
+    int timeout, count = 0, first = 1;
+    uint32_t val32, first_mac_lo = 0, first_vid_mac_hi = 0, v32;
+    uint16_t v16;
+
+    v16 = ARL_SRCH_CTRL_START_DONE;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+    BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x530) = 0x%x ", v16);
+    while (v16 & ARL_SRCH_CTRL_START_DONE) {
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+        timeout = 1000;
+        while((v16 & ARL_SRCH_CTRL_SR_VALID) == 0) {
+            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
+                       (uint8_t *)&v16, 2);
+            if (v16 & ARL_SRCH_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0) {
+                    printk("ARL Search Timeout for Valid to be 1 \n");
+                    return BCM_E_NONE;
+                }
+            } else {
+                printk("ARL Search Done count %d\n", count);
+                return BCM_E_NONE;
+            }
+        }
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY,
+                   (uint8_t *)&val32, 4);
+        BCM_ENET_DEBUG("ARL_SRCH_MAC_LO (0x534) = 0x%x ",
+                      (unsigned int)val32);
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_VID_MAC_HI_ENTRY,
+                   (uint8_t *)&v32, 4);
+        BCM_ENET_DEBUG("ARL_SRCH_VID_MAC_HI (0x538) = 0x%x ",
+                      (unsigned int)v32);
+        if (first) {
+            first_mac_lo = val32;
+            first_vid_mac_hi = v32;
+            first = 0;
+        } else if ((first_mac_lo == val32) && (first_vid_mac_hi == v32)) {
+            printk("ARL Search Done. \n");
+            /* Complete the Search */
+            count = 0;
+            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
+                       (uint8_t *)&v16, 2);
+            while (v16 & ARL_SRCH_CTRL_START_DONE) {
+                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY,
+                           (uint8_t *)&v16, 2);
+                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
+                           (uint8_t *)&v16, 2);
+                if ((count++) > NUM_ARL_ENTRIES) {
+                    printk("Hmmm...Check why ARL serach isn'y yet done?\n");
+                    printk("ARL Search Done count %d\n", count);
+                    return BCM_E_NONE;
+                }
+            }
+            break;
+        }
+        if (count % 10 == 0) {
+            printk(" VLAN  MAC          DATA");
+            printk("(static-15,age-14,pri-13:11,pmap-9:1)");
+        }
+        printk("\n %04d", (int)(v32 >> 16) & 0xFFFF);
+        printk("  %04x", (unsigned int)(v32 & 0xFFFF));
+        printk("%08x", (unsigned int)val32);
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY,
+                   (uint8_t *)&v16, 2);
+        printk(" 0x%04x \n", v16);
+        BCM_ENET_DEBUG("ARL_SRCH_DATA (0x53c) = 0x%x ", v16);
+        if ((count++) > NUM_ARL_ENTRIES) {
+            printk("ARL Search Done \n");
+            break;
+        }
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+    }
+    printk("ARL Search Done count %d\n", (int)count);
+    return BCM_E_NONE;
+}
+
+int enet_arl_access_dump_ext(void)
+{
+    int timeout, count = 0;
+    uint32_t cur_mac_lo, cur_mac_hi, cur_vid, cur_data, v32;
+    uint8_t v8, mac_vid[8];
+    unsigned int extSwId;
+
+    extSwId = bcm63xx_enet_extSwId();
+    if (extSwId != 0x53115 && extSwId != 0x53125)
+    {
+        /* Currently only these two switches are supported */
+        printk("Error - Ext-switch = 0x%x not supported\n", extSwId);
+        return BCM_E_NONE;
+    }
+
+    v8 = ARL_SRCH_CTRL_START_DONE;
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    while (v8 & ARL_SRCH_CTRL_START_DONE) {
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        timeout = 1000;
+        /* Now read the Search Ctrl Reg Until :
+         * Found Valid ARL Entry --> ARL_SRCH_CTRL_SR_VALID, or
+         * ARL Search done --> ARL_SRCH_CTRL_START_DONE */
+        while((v8 & ARL_SRCH_CTRL_SR_VALID) == 0) {
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx,
+                       (uint8_t *)&v8, 1);
+            if (v8 & ARL_SRCH_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0) {
+                    printk("ARL Search Timeout for Valid to be 1 \n");
+                    return BCM_E_NONE;
+                }
+            } else {
+                printk("External Switch ARL Search Done count %d\n", count);
+                return BCM_E_NONE;
+            }
+        }
+        /* Found a valid entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY_531xx,&mac_vid[0], 8);
+        BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                       mac_vid[0],mac_vid[1],mac_vid[2],mac_vid[3],mac_vid[4],mac_vid[5],mac_vid[6],mac_vid[7]);
+        cur_mac_lo = mac_vid[0] | (mac_vid[1] << 8) | (mac_vid[2] << 16) | (mac_vid[3] << 24);
+        cur_mac_hi = mac_vid[4] | (mac_vid[5] << 8);
+        cur_vid = mac_vid[6] | ((mac_vid[7]&0xF)<<8);
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY_531xx,(uint8_t *)&cur_data, 4);
+        cur_data = swab32(cur_data);
+        BCM_ENET_DEBUG("ARL_SRCH_result (0x%02x%08x : %d) \n",cur_mac_hi,cur_mac_lo,cur_vid);
+        BCM_ENET_DEBUG("ARL_SRCH_DATA = 0x%08x \n", cur_data);
+
+        /* ARL Search results are read; Mark it done(by reading the reg)
+           so ARL will start searching the next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_RESULT_DONE_531xx,
+                   (uint8_t *)&v32, 4);
+        if (count % 10 == 0) {
+            printk(" VLAN  MAC          DATA <Switch : %x> ",extSwId);
+            printk("(static-15,age-14,pri-13:11,pmap-9:1)");
+        }
+        printk("\n %04d  %04x%08x 0x%04x", cur_vid,cur_mac_hi,cur_mac_lo, (cur_data&0xFE00)|((cur_data&0xFF)<<1));
+        if ((count++) > NUM_ARL_ENTRIES) {
+            printk("External Switch ARL Search Done \n");
+            break;
+        }
+        /* Now read the ARL Search Ctrl reg. again for next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    }
+    printk("\nExternal Switch ARL Search Done count %d\n", (int)count);
+    return BCM_E_NONE;
+}
+
+void enet_arl_write(uint8_t *mac, uint16_t vid, uint16_t val)
+{
+    int timeout = 100;
+    uint16_t v16;
+    uint8_t v8;
+    uint32_t v32;
+
+    v16 = mac[0] | (mac[1] << 8);
+    BCM_ENET_INFO("mac_lo (16-bit) = 0x%x -> 0x502", v16);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
+    v32 = mac[2] | (mac[3] << 8) |
+          (mac[4] << 16) | (mac[5] << 24);
+    BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x504", (unsigned int)v32);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_HI, (uint8_t *)&v32, 4);
+    v16 = vid;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
+    v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    while(v8 & ARL_TBL_CTRL_START_DONE) {
+        mdelay(1);
+        if (timeout-- <= 0)  {
+            printk("Timeout Waiting for ARL Read Access Done \n");
+            break;
+        }
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    }
+    v32 = mac[0] | (mac[1] << 8) |
+          (mac[2] << 16) | (mac[3] << 24);
+    BCM_ENET_INFO("mac_lo (32-bit) = 0x%x -> 0x510", (unsigned int)v32);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, (uint8_t *)&v32, 4);
+    v32 = mac[4] | (mac[5] << 8) | (vid << 16);
+    BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x514", (unsigned int)v32);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VID_MAC_HI_ENTRY, (uint8_t *)&v32, 4);
+    v16 = val;
+    BCM_ENET_INFO("data (16-bit) = 0x%x -> 0x518", v16);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY, (uint8_t *)&v16, 2);
+    v8 = ARL_TBL_CTRL_START_DONE;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    timeout = 100;
+    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    while(v8 & ARL_TBL_CTRL_START_DONE) {
+        mdelay(1);
+        if (timeout-- <= 0)  {
+            printk("Timeout Waiting for ARL Write Access Done \n");
+            break;
+        }
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    }
+}
+
+
+void enet_arl_write_ext( uint8_t *mac, uint16_t vid, uint32_t val )
+{
+    int timeout;
+    uint16_t v16;
+    uint32_t v32;
+    unsigned int extSwId;
+    uint8_t v8;
+    unsigned char mac_vid_v64[8];
+
+    extSwId = bcm63xx_enet_extSwId();
+    if (extSwId != 0x53115 && extSwId != 0x53125)
+    {
+        /* Currently only these two switches are supported */
+        printk("Error - Ext-switch = 0x%x not supported\n", extSwId);
+        return;
+    }
+
+    /* try to find the entry
+       write the MAC and VID */    
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&mac[0], 6);
+    v16 = swab16(vid);
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
+    /* Initiate a read transaction */
+    v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    timeout = 10;
+    while(v8 & ARL_TBL_CTRL_START_DONE) {
+        mdelay(1);
+        if (timeout-- <= 0)  {
+            printk("Error timeout - can't read/find the ARL entry\n");
+            return;
+        }
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    }
+
+    /* Read transaction complete - get the MAC + VID */
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, &mac_vid_v64[0], 8);
+    BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                   mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
+
+    mac_vid_v64[0] = mac[0];
+    mac_vid_v64[1] = mac[1];
+    mac_vid_v64[2] = mac[2];
+    mac_vid_v64[3] = mac[3];
+    mac_vid_v64[4] = mac[4];
+    mac_vid_v64[5] = mac[5];
+    mac_vid_v64[6] = vid & 0xFF;
+    mac_vid_v64[7] = (vid >> 8) & 0xF;
+  
+    /* write MAC and VID */
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, (uint8_t *)&mac_vid_v64, 8);
+
+    /* write data */
+    v32 = swab32(val);
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY,(uint8_t *)&v32, 4);
+
+    /* Initiate a write transaction */
+    v8 = ARL_TBL_CTRL_START_DONE;
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    timeout = 10;
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    while(v8 & ARL_TBL_CTRL_START_DONE) {
+        mdelay(1);
+        if (timeout-- <= 0)  {
+            printk("Error - can't write/find the ARL entry\n");
+            break;
+        }
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    }
+
+    return;
+}
+
+void enet_arl_read( uint8_t *mac, uint32_t *vid, uint32_t *val )
+{
+    int timeout = 100;
+    uint16_t v16;
+    uint8_t v8;
+    uint32_t v32;
+
+    v16 = mac[0] | (mac[1] << 8);
+    BCM_ENET_INFO("mac_lo (16-bit) = 0x%x -> 0x502", v16);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
+    v32 = mac[2] | (mac[3] << 8) | (mac[4] << 16) | (mac[5] << 24);
+    BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x504", (unsigned int)v32);
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_HI, (uint8_t *)&v32, 4);
+    v16 = *vid;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
+    v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
+    ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    while(v8 & ARL_TBL_CTRL_START_DONE) {
+       mdelay(1);
+       if (timeout-- <= 0)  {
+           printk("Timeout Waiting for ARL Read Access Done \n");
+           break;
+       }
+       ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+    }
+
+    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY, (uint8_t *)&v16, 2);
+    *val = v16;
+    if ( v16 & 0x8000 )
+    {
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, (uint8_t *)&v32, 4);
+        BCM_ENET_INFO("0x510 read value(32-bit) = 0x%x", (unsigned int)v32);
+        
+        mac[0] = v32 & 0xFF;
+        mac[1] = (v32 >> 8) & 0xFF;
+        mac[2] = (v32 >> 16) & 0xFF;
+        mac[3] = (v32 >> 24) & 0xFF;
+        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_VID_MAC_HI_ENTRY,
+                  (uint8_t *)&v32, 4);
+        BCM_ENET_INFO("0x514 read value(32-bit (VID:mac_hi)) = 0x%x",
+                     (unsigned int)v32);
+        mac[4] = v32 & 0xFF;
+        mac[5] = (v32 >> 8) & 0xFF;
+        *vid = v32 >> 16;
+    }
+
+}
+
+void enet_arl_read_ext( uint8_t *mac, uint32_t *vid, uint32_t *val )
+{
+    int timeout, count = 0;
+    uint32_t v32=0, cur_data_v32 = 0;
+    uint16_t cur_vid_v16;
+    uint8_t v8, mac_vid_v64[8];
+    unsigned int extSwId;
+
+    *val = 0;
+    extSwId = bcm63xx_enet_extSwId();
+    if (extSwId != 0x53115 && extSwId != 0x53125)
+    {
+        /* Currently only these two switches are supported */
+        printk("Error - Ext-switch = 0x%x not supported\n", extSwId);
+        return;
+    }
+
+    /* Setup ARL Search */
+    v8 = ARL_SRCH_CTRL_START_DONE;
+    extsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+    BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    while (v8 & ARL_SRCH_CTRL_START_DONE) {
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        timeout = 1000;
+        /* Now read the Search Ctrl Reg Until :
+         * Found Valid ARL Entry --> ARL_SRCH_CTRL_SR_VALID, or
+         * ARL Search done --> ARL_SRCH_CTRL_START_DONE */
+        while((v8 & ARL_SRCH_CTRL_SR_VALID) == 0) {
+            extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx,
+                       (uint8_t *)&v8, 1);
+            if (v8 & ARL_SRCH_CTRL_START_DONE) {
+                mdelay(1);
+                if (timeout-- <= 0) {
+                    printk("ARL Search Timeout for Valid to be 1 \n");
+                    return;
+                }
+            } else {
+                BCM_ENET_DEBUG("ARL Search Done count %d\n", count);
+                return;
+            }
+        }
+        /* Found a valid entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY_531xx,&mac_vid_v64[0], 8);
+        BCM_ENET_DEBUG("ARL_SRCH_result (%02x%02x%02x%02x%02x%02x%02x%02x) \n",
+                       mac_vid_v64[0],mac_vid_v64[1],mac_vid_v64[2],mac_vid_v64[3],mac_vid_v64[4],
+                       mac_vid_v64[5],mac_vid_v64[6],mac_vid_v64[7]);
+
+        cur_vid_v16 = mac_vid_v64[6] | ((mac_vid_v64[7]&0xF)<<8);
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY_531xx,(uint8_t *)&cur_data_v32, 4);
+        cur_data_v32 = swab32(cur_data_v32);
+        BCM_ENET_DEBUG("ARL_SRCH_result VID %d, DATA = 0x%08x \n", cur_vid_v16, cur_data_v32);
+        
+        /* ARL Search results are read; Mark it done(by reading the reg)
+           so ARL will start searching the next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_RESULT_DONE_531xx,
+                   (uint8_t *)&v32, 4);
+       
+        /* Check if found the matching ARL entry */
+        if ( 0 == memcmp(&mac[0], &mac_vid_v64[0], 6) ) {
+            /* found the matching entry, mac already set correctly, update VID and val */
+            BCM_ENET_DEBUG("Found matching ARL Entry\n");
+            *vid = swab16(cur_vid_v16);
+            *val = swab32(cur_data_v32);
+            return;
+        }
+        
+        if ((count++) > NUM_ARL_ENTRIES) {
+            break;
+        }
+        /* Now read the ARL Search Ctrl reg. again for next entry */
+        extsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, (uint8_t *)&v8, 1);
+        BCM_ENET_DEBUG("ARL_SRCH_CTRL (0x%02x%02x) = 0x%x \n",PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL_531xx, v8);
+    }
+    /* entry not found */
+}
+
+/*
  * Function:
  *      enet_ioctl_ethsw_arl_access
  * Purpose:
@@ -2677,172 +3538,43 @@ int enet_ioctl_ethsw_clear_stats(uint32_t portmap)
  */
 int enet_ioctl_ethsw_arl_access(struct ethswctl_data *e)
 {
-    int timeout = 100;
-    uint16_t v16;
-    uint8_t v8;
-    uint32_t v32;
-
     if (e->type == TYPE_GET) {
         BCM_ENET_DEBUG("e->mac: %02x %02x %02x %02x %02x %02x", e->mac[5],
-                   e->mac[4], e->mac[3], e->mac[2], e->mac[1], e->mac[0]);
+                  e->mac[4], e->mac[3], e->mac[2], e->mac[1], e->mac[0]);
         BCM_ENET_DEBUG("e->vid: %d", e->vid);
-        v16 = e->mac[0] | (e->mac[1] << 8);
-        BCM_ENET_INFO("mac_lo (16-bit) = 0x%x -> 0x502", v16);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
-        v32 = e->mac[2] | (e->mac[3] << 8) |
-              (e->mac[4] << 16) | (e->mac[5] << 24);
-        BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x504", (unsigned int)v32);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_HI, (uint8_t *)&v32, 4);
-        v16 = e->vid;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
-        v8 = 0x81;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        while(v8 & ARL_TBL_CTRL_START_DONE) {
-            mdelay(1);
-            if (timeout-- <= 0)  {
-                printk("Timeout Waiting for ARL Read Access Done \n");
-                break;
-            }
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+
+        /* search internal switch */
+        e->unit = 0;
+        enet_arl_read( e->mac, &e->vid, &e->val );
+        /* try external switch if entry is not found */
+        if (bcm63xx_enet_isExtSwPresent() && (0 == e->val)) {
+            e->unit = 1;
+            enet_arl_read_ext( e->mac, &e->vid, &e->val );
         }
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, (uint8_t *)&v32, 4);
-        BCM_ENET_INFO("0x510 read value(32-bit) = 0x%x", (unsigned int)v32);
-        e->mac[0] = v32 & 0xFF;
-        e->mac[1] = (v32 >> 8) & 0xFF;
-        e->mac[2] = (v32 >> 16) & 0xFF;
-        e->mac[3] = (v32 >> 24) & 0xFF;
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_VID_MAC_HI_ENTRY,
-                   (uint8_t *)&v32, 4);
-        BCM_ENET_INFO("0x514 read value(32-bit (VID:mac_hi)) = 0x%x",
-                      (unsigned int)v32);
-        e->mac[4] = v32 & 0xFF;
-        e->mac[5] = (v32 >> 8) & 0xFF;
-        e->vid = v32 >> 16;
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY, (uint8_t *)&v16, 2);
-        e->val = v16;
     } else if (e->type == TYPE_SET) {
         BCM_ENET_DEBUG("e->mac: %02x %02x %02x %02x %02x %02x", e->mac[5],
                    e->mac[4], e->mac[3], e->mac[2], e->mac[1], e->mac[0]);
         BCM_ENET_DEBUG("e->vid: %d", e->vid);
-        v16 = e->mac[0] | (e->mac[1] << 8);
-        BCM_ENET_INFO("mac_lo (16-bit) = 0x%x -> 0x502", v16);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_LO, (uint8_t *)&v16, 2);
-        v32 = e->mac[2] | (e->mac[3] << 8) |
-              (e->mac[4] << 16) | (e->mac[5] << 24);
-        BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x504", (unsigned int)v32);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_INDX_HI, (uint8_t *)&v32, 4);
-        v16 = e->vid;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
-        v8 = 0x81;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        while(v8 & ARL_TBL_CTRL_START_DONE) {
-            mdelay(1);
-            if (timeout-- <= 0)  {
-                printk("Timeout Waiting for ARL Read Access Done \n");
-                break;
-            }
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+
+        /* if an external switch is present, e->unit will determine the
+           access function */
+        if (bcm63xx_enet_isExtSwPresent() && (1 == e->unit)) {
+            enet_arl_write_ext(e->mac, e->vid, e->val);
         }
-        v32 = e->mac[0] | (e->mac[1] << 8) |
-              (e->mac[2] << 16) | (e->mac[3] << 24);
-        BCM_ENET_INFO("mac_lo (32-bit) = 0x%x -> 0x510", (unsigned int)v32);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_MAC_LO_ENTRY, (uint8_t *)&v32, 4);
-        v32 = e->mac[4] | (e->mac[5] << 8) | (e->vid << 16);
-        BCM_ENET_INFO("mac_hi (32-bit) = 0x%x -> 0x514", (unsigned int)v32);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VID_MAC_HI_ENTRY, (uint8_t *)&v32, 4);
-        v16 = e->val;
-        BCM_ENET_INFO("data (16-bit) = 0x%x -> 0x518", v16);
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY, (uint8_t *)&v16, 2);
-        v8 = 0x80;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        timeout = 100;
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
-        while(v8 & ARL_TBL_CTRL_START_DONE) {
-            mdelay(1);
-            if (timeout-- <= 0)  {
-                printk("Timeout Waiting for ARL Write Access Done \n");
-                break;
-            }
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
+        else {
+            enet_arl_write(e->mac, e->vid, e->val);
         }
     } else if (e->type == TYPE_DUMP) {
-        int timeout, count = 0, first = 1;
-        uint32_t val32, first_mac_lo = 0, first_vid_mac_hi = 0;
-        v16 = ARL_SRCH_CTRL_START_DONE;
-        ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
-        ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
-        BCM_ENET_INFO("ARL_SRCH_CTRL (0x530) = 0x%x ", v16);
-        while (v16 & ARL_SRCH_CTRL_START_DONE) {
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
-            timeout = 1000;
-            while((v16 & ARL_SRCH_CTRL_SR_VALID) == 0) {
-                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
-                           (uint8_t *)&v16, 2);
-                if (v16 & ARL_SRCH_CTRL_START_DONE) {
-                    mdelay(1);
-                    if (timeout-- <= 0) {
-                        printk("ARL Search Timeout for Valid to be 1 \n");
-                        return BCM_E_NONE;
-                    }
-                } else {
-                    printk("ARL Search Done count %d\n", count);
-                    return BCM_E_NONE;
-                }
-            }
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_MAC_LO_ENTRY,
-                       (uint8_t *)&val32, 4);
-            BCM_ENET_INFO("ARL_SRCH_MAC_LO (0x534) = 0x%x ",
-                          (unsigned int)val32);
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_VID_MAC_HI_ENTRY,
-                       (uint8_t *)&v32, 4);
-            BCM_ENET_INFO("ARL_SRCH_VID_MAC_HI (0x538) = 0x%x ",
-                          (unsigned int)v32);
-            if (first) {
-                first_mac_lo = val32;
-                first_vid_mac_hi = v32;
-                first = 0;
-            } else if ((first_mac_lo == val32) && (first_vid_mac_hi == v32)) {
-                printk("ARL Search Done. \n");
-                /* Complete the Search */
-                count = 0;
-                ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
-                           (uint8_t *)&v16, 2);
-                while (v16 & ARL_SRCH_CTRL_START_DONE) {
-                    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY,
-                               (uint8_t *)&v16, 2);
-                    ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL,
-                               (uint8_t *)&v16, 2);
-                    if ((count++) > NUM_ARL_ENTRIES) {
-                        printk("Hmmm...Check why ARL serach isn'y yet done?\n");
-                        printk("ARL Search Done count %d\n", count);
-                        return BCM_E_NONE;
-                    }
-                }
-                break;
-            }
-            if (count % 10 == 0) {
-                printk(" VLAN  MAC          DATA");
-                printk("(static-15,age-14,pri-13:11,pmap-9:1)");
-            }
-            printk("\n %04d", (int)(v32 >> 16) & 0xFFFF);
-            printk("  %04x", (unsigned int)(v32 & 0xFFFF));
-            printk("%08x", (unsigned int)val32);
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_DATA_ENTRY,
-                       (uint8_t *)&v16, 2);
-            printk(" 0x%04x \n", v16);
-            BCM_ENET_INFO("ARL_SRCH_DATA (0x53c) = 0x%x ", v16);
-            if ((count++) > NUM_ARL_ENTRIES) {
-                printk("ARL Search Done \n");
-                break;
-            }
-            ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_SRCH_CTRL, (uint8_t *)&v16, 2);
+        enet_arl_access_dump();
+        if (bcm63xx_enet_isExtSwPresent()) {
+            enet_arl_access_dump_ext();
         }
-        printk("ARL Search Done count %d\n", (int)count);
     } else if (e->type == TYPE_FLUSH) {
         /* Flush the ARL table */
         fast_age_all(1);
+        if (bcm63xx_enet_isExtSwPresent()) {
+            fast_age_all_ext(1);
+        }
     } else {
         return BCM_E_PARAM;
     }
@@ -2850,7 +3582,7 @@ int enet_ioctl_ethsw_arl_access(struct ethswctl_data *e)
     return BCM_E_NONE;
 }
 
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 int enet_ioctl_ethsw_pkt_padding(struct ethswctl_data *e)
 {
     uint32 val32;
@@ -2885,7 +3617,7 @@ int enet_ioctl_ethsw_pkt_padding(struct ethswctl_data *e)
 
     return BCM_E_NONE;
 }
-#endif /*CONFIG_BCM96816*/
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
 
 
 int enet_ioctl_ethsw_port_default_tag_config(struct ethswctl_data *e)
@@ -2982,6 +3714,10 @@ int reset_mib(int extswitch)
         extsw_wreg(PAGE_MANAGEMENT, REG_GLOBAL_CONFIG, &val8, 1);
     }
 
+#if defined(CONFIG_BCM_GMAC) 
+    gmac_reset_mib();
+#endif
+ 
     return BCM_E_NONE;
 }
 
@@ -3007,6 +3743,28 @@ int enet_ioctl_ethsw_port_traffic_control(struct ethswctl_data *e)
         v8 |= (e->val & REG_PORT_CTRL_DISABLE);
         BCM_ENET_DEBUG("Writing = 0x%x to REG_PORT_CTRL", v8);
         ethsw_wreg(PAGE_CONTROL, REG_PORT_CTRL + e->port, &v8, 1);
+        /* 
+         * Fix for 6816, link not coming up after removing REG_PORT_RX_DISABLE
+         * SWBCACPE-9012 - scenario:
+         * ethswctl -c portctrl -p <> -v 3 
+         * ethswctl -c test -t 3 // reset switch
+         * ethswctl -c portctrl -p <> -v 0 
+         * The fix is to: in port state override register mark link up if phy says so
+         * 
+         */
+        if (!(e->val & REG_PORT_CTRL_DISABLE))
+        {
+           /* update link status bit in port state override sw register */
+           uint8 port_ctrl;
+           uint16 v16;
+           int phy_id;
+           phy_id = ETHSW_PHY_GET_PHYID(e->port); // internal sw ports only
+           ethsw_phy_rreg(phy_id, MII_BMSR, &v16);
+           if (!(v16 & BMSR_LSTATUS)) return BCM_E_NONE;
+           ethsw_rreg_ext(PAGE_CONTROL, REG_PORT_STATE + e->port, &port_ctrl, 1, 0);
+           port_ctrl |= REG_PORT_STATE_LNK;
+           ethsw_wreg_ext(PAGE_CONTROL, REG_PORT_STATE + e->port, &port_ctrl, 1, 0);
+        }
     }
 
     return BCM_E_NONE;
@@ -3037,6 +3795,33 @@ int enet_ioctl_ethsw_port_loopback(struct ethswctl_data *e, int phy_id)
     } else {
         BCM_ENET_DEBUG("Given enable/disable control %02x \n ", e->val);
         if (e->port == USB_PORT_ID) {
+#if defined(CONFIG_BCM96818)
+            {
+                /* enable/disable FFE clock for USB port on 6818 */
+                bcmFun_t *ffeClkFunc;
+                BCM_CmfFfeClk_t ffeClkInfo;
+                /* First enable/disable the SWPKT_USB_CLK */
+                if (e->val) {
+                    PERF->blkEnables |= SWPKT_USB_CLK_EN;
+                }
+                else {
+                    PERF->blkEnables &= (~SWPKT_USB_CLK_EN);
+                }
+
+                ffeClkFunc =  bcmFun_get(BCM_FUN_ID_CMF_FFE_CLK);
+                ffeClkInfo.port = USB_PORT_ID;
+                ffeClkInfo.enable = (e->val ? 1 : 0);
+                if (!ffeClkFunc || ffeClkFunc(&ffeClkInfo))
+                {/* error */
+                    return -EFAULT;
+                }
+                /* enable/disable switch port */
+                ethsw_rreg(PAGE_CONTROL, REG_PORT_ENABLE, (uint8_t *)&v8, 1);
+                v8 &= (~(1<<USB_PORT_ID)); /* clear */
+                v8 |= ((e->val ? 1 : 0) << USB_PORT_ID); /* Set */
+                ethsw_wreg(PAGE_CONTROL, REG_PORT_ENABLE, (uint8_t *)&v8, 1);
+            }
+#endif
             if (e->val) {
                 port_in_loopback_mode[e->port] = 1;
                 ethsw_rreg(PAGE_CONTROL, REG_SWPKT_CTRL_USB, (uint8_t *)&swpkt_ctrl_usb, 4);
@@ -3049,7 +3834,6 @@ int enet_ioctl_ethsw_port_loopback(struct ethswctl_data *e, int phy_id)
                 v8 = LINKDOWN_OVERRIDE_VAL & ~(REG_PORT_STATE_LNK);
                 ethsw_wreg(PAGE_CONTROL, REG_PORT_STATE + e->port, &v8, 1);
                 if (swpkt_ctrl_usb_saved) {
-                    /* Disable USB loopback by restoring the REG_SWPKT_CTRL_USB */
                     ethsw_wreg(PAGE_CONTROL, REG_SWPKT_CTRL_USB, (uint8_t *)&swpkt_ctrl_usb, 4);
                 } else {
                     val32 = 0;
@@ -3147,7 +3931,7 @@ int enet_ioctl_ethsw_phy_mode(struct ethswctl_data *e, int phy_id)
     return BCM_E_NONE;
 }
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 #define ETHSW_PORTS_6816 8 /* No CMF on MIPS Port */
 uint8 portState[ETHSW_PORTS_6816];
 /*
@@ -3294,7 +4078,7 @@ static int restore_arl_table(void)
         v16 = (arl_hi_entries[i] >> 16) & 0xFFFF;
         BCM_ENET_DEBUG("VID = %x \n", (unsigned short)v16);
         ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_VLAN_INDX, (uint8_t *)&v16, 2);
-        v8 = 0x81;
+        v8 = ARL_TBL_CTRL_START_DONE | ARL_TBL_CTRL_READ;
         ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
         ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
         timeout = 10;
@@ -3311,7 +4095,7 @@ static int restore_arl_table(void)
                    (uint8_t *)&arl_hi_entries[i], 4);
         ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_DATA_ENTRY,
                    (uint8_t *)&arl_data_entries[i], 2);
-        v8 = 0x80;
+        v8 = ARL_TBL_CTRL_START_DONE;
         ethsw_wreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
         timeout = 10;
         ethsw_rreg(PAGE_AVTBL_ACCESS, REG_ARL_TBL_CTRL, &v8, 1);
@@ -3333,10 +4117,9 @@ static int save_switch_state(int is6829)
 
     swreg = &ethsw_cfg_regs[i];
     while (swreg->page != 0xFF) {
-        ethsw_rreg_ext(swreg->page, swreg->offset, swreg->val, swreg->len, is6829);
-        BCM_ENET_DEBUG("page=0x%x; offset=0x%x; val=0x%02x%02x%02x%02x",
-                       swreg->page, swreg->offset, swreg->val[3],
-                       swreg->val[2], swreg->val[1], swreg->val[0]);
+        ethsw_rreg_ext(swreg->page, swreg->offset, (uint8 *)&swreg->val, swreg->len, is6829);
+        BCM_ENET_DEBUG("page=0x%x; offset=0x%x; val=0x%08x",
+                       swreg->page, swreg->offset, swreg->val);
         swreg = &ethsw_cfg_regs[++i];
     }
 
@@ -3358,10 +4141,9 @@ static int restore_switch_state(int is6829)
 
     swreg = &ethsw_cfg_regs[i];
     while (swreg->page != 0xFF) {
-        ethsw_wreg_ext(swreg->page, swreg->offset, swreg->val, swreg->len, is6829);
-        BCM_ENET_DEBUG("page=0x%x; offset=0x%x; val=0x%02x%02x%02x%02x",
-                       swreg->page, swreg->offset, swreg->val[3],
-                       swreg->val[2], swreg->val[1], swreg->val[0]);
+        ethsw_wreg_ext(swreg->page, swreg->offset, (uint8 *)&swreg->val, swreg->len, is6829);
+        BCM_ENET_DEBUG("page=0x%x; offset=0x%x; val=0x%08x",
+                       swreg->page, swreg->offset, swreg->val);
 
         swreg = &ethsw_cfg_regs[++i];
     }
@@ -3454,7 +4236,7 @@ int reset_switch(int is6829)
     /* Before reset, need to enable Switch clock that may have been turned
        off in cfe. We can't turn them back off after the reset because figuring
        out whether to turn them off or not would make this code non portable */
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     if (is6829) {
         kerSysBcmSpiSlaveRead((unsigned long)(&(PERF->blkEnables)), (unsigned long *)&v32, sizeof(PERF->blkEnables));
         kerSysBcmSpiSlaveWrite((unsigned long)(&(PERF->blkEnables)),
@@ -3507,13 +4289,19 @@ int reset_switch(int is6829)
      * so clear out the ARL table before we restore it. */
     fast_age_all(1);
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     /* Turn these clocks off on the 6829 */
     if (is6829) {
         kerSysBcmSpiSlaveRead((unsigned long)(&(PERF->blkEnables)), (unsigned long *)&v32, sizeof(PERF->blkEnables));
         kerSysBcmSpiSlaveWrite((unsigned long)(&(PERF->blkEnables)),
             (v32 & ~SWPKT_GPON_CLK_EN & ~SWPKT_USB_CLK_EN), sizeof(PERF->blkEnables));
     }
+#if defined(CONFIG_BCM96818)
+    /* If USB Port is not in loopback; disable the clock */
+    if (!port_in_loopback_mode[USB_PORT_ID]) {
+        PERF->blkEnables &= (~SWPKT_USB_CLK_EN);
+    }
+#endif /* 6818 */
     mdelay(1);
 #endif
 
@@ -3604,7 +4392,7 @@ int ethsw_is_switch_locked(void *ptr)
     } else {
         last_peak = cur_peak;
         num_peak_unchanged = 0;
-  return 0;
+        return 0;
     }
     BCM_ENET_DEBUG("num times peak_unchanged = %d \n", num_peak_unchanged);
 
@@ -3645,10 +4433,71 @@ int ethsw_is_switch_locked(void *ptr)
 
         num_peak_unchanged = 0;
         num_pktcnt_unchanged = 0;
-        return 1;
+        return 2;
     }
 
     return 0;
+}
+int ethsw_get_port_buf_usage(void *ptr)
+{
+    uint16 val16 = GPON_PORT_ID;
+    uint16 val16_temp = 0; /* For debug */
+    uint16 curr_count, tot_count = 0;
+    uint16 try_count = 0, queueIdx;
+    uint32 max_wait_try_count = 0;
+    unsigned int queuesInUse = 0; /* For debug */
+    static int callCount = 0; /* For debug */
+    if (ptr)
+    { 
+        /* Passed uint32 value is bit[31:16] = max_wait and bit[3:0] = port*/
+        val16 = ((*(uint32*)ptr) & 0x0F);
+        max_wait_try_count = (((*(uint32*)ptr)>>16) & 0xFFFF);
+    }
+    /* set the GPON port in PORT_SEL */
+    ethsw_wreg_ext(PAGE_FLOW_CTRL, REG_FC_DIAG_PORT_SEL, 
+                   (uint8 *)&val16, 2, 0); /* ??? No 6829 */
+
+    for (queueIdx = 0; queueIdx < NUM_EGRESS_QUEUES;)
+    {
+        ethsw_rreg_ext(PAGE_FLOW_CTRL,
+                       REG_FC_Q_MON_CNT + (queueIdx * 2),
+                       (uint8 *)&curr_count, 2, 0);
+
+        /* For Debug - Start */
+        ethsw_rreg_ext(PAGE_FLOW_CTRL,REG_FC_DIAG_PORT_SEL ,
+                       (uint8 *)&val16_temp, 2, 0);
+        if (val16 != val16_temp)
+        {
+            printk("\n\nERROR : ethsw_get_port_buf_usage() : Port select changed during processing <%d:%d>\n\n",
+                   val16,val16_temp);
+            ethsw_wreg_ext(PAGE_FLOW_CTRL, REG_FC_DIAG_PORT_SEL, 
+                           (uint8 *)&val16, 2, 0); /* ??? No 6829 */
+        }
+        /* For Debug - End */
+
+        if (curr_count)
+        {
+            if (try_count < max_wait_try_count)
+            {
+                udelay(100); /* could this function be called from ISR ??? */
+                try_count++;
+                continue;
+            }
+            else
+            {
+                queuesInUse |= (1<<queueIdx); /* For Debug */
+                tot_count += curr_count;
+            }
+        }
+        ++queueIdx;
+    }
+    if (tot_count)
+    {
+        printk("\n\n ERROR : ethsw_get_port_buf_usage(%d) : tot_count=%d try_count=%d queues=0x%02x val16=%d val16_temp=%d\n\n",
+               callCount,tot_count, try_count, queuesInUse,val16,val16_temp);
+    }
+    callCount++;
+    return tot_count; /* Return the total buf in-use */
 }
 #endif
 
@@ -3726,7 +4575,7 @@ static void ethsw_dump_page0(int bExt6829) {
              ((int)&e->port_state_override[i]) & 0xFF, e->port_state_override[i],
              e->port_state_override[i]); /* 0x58 - 0x5f */
         }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->imp_rgmii_ctrl_p2) &
                0xFF, e->imp_rgmii_ctrl_p2, e->imp_rgmii_ctrl_p2); /* 0x64 */
         printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->imp_rgmii_ctrl_p3) &
@@ -3738,13 +4587,18 @@ static void ethsw_dump_page0(int bExt6829) {
 #else
        printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->imp_rgmii_ctrl_p4) &
               0xFF, e->imp_rgmii_ctrl_p4, e->imp_rgmii_ctrl_p4); /* 0x64 */
+#if !defined(CONFIG_BCM96318)
+       /* Only 1 rgmii port 4 on 6318 */
        printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->imp_rgmii_ctrl_p5) &
               0xFF, e->imp_rgmii_ctrl_p5, e->imp_rgmii_ctrl_p5); /* 0x65 */
+#endif
        printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->rgmii_timing_delay_p4) &
         0xFF, e->rgmii_timing_delay_p4, e->rgmii_timing_delay_p4); /* 0x6c */
+#if !defined(CONFIG_BCM96318)
        printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->gmii_timing_delay_p5) &
          0xFF, e->gmii_timing_delay_p5, e->gmii_timing_delay_p5); /* 0x6d */
-#endif /*CONFIG_BCM96816*/
+#endif
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
         printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->software_reset) & 0xFF,
          e->software_reset, e->software_reset); /* 0x79 */
         printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->pause_frame_detection) &
@@ -3755,26 +4609,26 @@ static void ethsw_dump_page0(int bExt6829) {
                e->fast_aging_port, e->fast_aging_port); /* 0x89 */
         printk("%02x %02x 0x%02x (%u) \n", page, ((int)&e->fast_aging_vid) & 0xFF,
                e->fast_aging_vid, e->fast_aging_vid); /* 0x8a */
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->swpkt_ctrl_usb) & 0xFF,
                e->swpkt_ctrl_usb, e->swpkt_ctrl_usb); /*0xa0 */
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->swpkt_ctrl_gpon) & 0xFF,
                e->swpkt_ctrl_gpon, e->swpkt_ctrl_gpon); /*0xa4 */
-#else
+#elif !defined(CONFIG_BCM96318)
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->swpkt_ctrl_sar) & 0xFF,
                e->swpkt_ctrl_sar, e->swpkt_ctrl_sar); /*0xa0 */
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->swpkt_ctrl_usb) & 0xFF,
                e->swpkt_ctrl_usb, e->swpkt_ctrl_usb); /*0xa4 */
-#endif /*CONFIG_BCM96816*/
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
         printk("%02x %02x 0x%04x (%u) \n", page, ((int)&e->iudma_ctrl) & 0xFF,
                e->iudma_ctrl, e->iudma_ctrl); /*0xa8 */
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->iudma_queue_ctrl) & 0xFF,
                e->iudma_queue_ctrl, e->iudma_queue_ctrl); /*0xac */
 #else
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->rxfilt_ctrl) & 0xFF,
                e->rxfilt_ctrl, e->rxfilt_ctrl); /*0xac */
-#endif /*CONFIG_BCM96816*/
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->mdio_ctrl) & 0xFF,
                e->mdio_ctrl, e->mdio_ctrl); /*0xb0 */
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->mdio_data) & 0xFF,
@@ -3782,7 +4636,7 @@ static void ethsw_dump_page0(int bExt6829) {
         printk("%02x %02x 0x%08x (%u) \n", page, ((int)&e->sw_mem_test) & 0xFF,
                e->sw_mem_test, e->sw_mem_test); /*0xe0 */
     }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     else
     {
         unsigned long spiData;
@@ -4200,6 +5054,124 @@ int ethsw_dump_mib(int port, int type)
     {
         e = (volatile EthSwMIBRegs *)base;
 
+#if defined(CONFIG_BCM_GMAC) 
+        if (gmac_info_pg->enabled && (port == GMAC_PORT_ID) )
+        {
+            volatile GmacMIBRegs *g = (volatile GmacMIBRegs *)GMAC_MIB;
+
+            /* Display Tx statistics */
+            printk("\n");
+            printk("TxUnicastPkts:          %10u \n",
+                e->TxUnicastPkts + g->TxUnicastPkts);
+            printk("TxMulticastPkts:        %10u \n",
+                e->TxMulticastPkts + g->TxMulticastPkts);
+            printk("TxBroadcastPkts:        %10u \n",
+                e->TxBroadcastPkts + g->TxBroadcastPkts);
+            printk("TxDropPkts:             %10u \n",
+                e->TxDropPkts + (g->TxPkts - g->TxGoodPkts));
+
+            if (type) {
+                printk("TxOctetsLo:             %10u \n",
+                    e->TxOctetsLo + g->TxOctetsLo);
+                printk("TxOctetsHi:             %10u \n",
+                    e->TxOctetsHi );
+                printk("TxQoSPkts:              %10u \n",
+                    e->TxQoSPkts + g->TxGoodPkts);
+                printk("TxCol:                  %10u \n",
+                    e->TxCol + g->TxCol);
+                printk("TxSingleCol:            %10u \n",
+                    e->TxSingleCol + g->TxSingleCol);
+                printk("TxMultipleCol:          %10u \n",
+                    e->TxMultipleCol + g->TxMultipleCol);
+                printk("TxDeferredTx:           %10u \n",
+                    e->TxDeferredTx + g->TxDeferredTx);
+                printk("TxLateCol:              %10u \n",
+                    e->TxLateCol + g->TxLateCol);
+                printk("TxExcessiveCol:         %10u \n",
+                    e->TxExcessiveCol + g->TxExcessiveCol);
+                printk("TxFrameInDisc:          %10u \n",
+                    e->TxFrameInDisc );
+                printk("TxPausePkts:            %10u \n",
+                    e->TxPausePkts + g->TxPausePkts);
+                printk("TxQoSOctetsLo:          %10u \n",
+                    e->TxQoSOctetsLo + g->TxOctetsLo);
+                printk("TxQoSOctetsHi:          %10u \n",
+                    e->TxQoSOctetsHi);
+            }
+
+            /* Display Rx statistics */
+            printk("\n");
+            printk("RxUnicastPkts:          %10u \n",
+                e->RxUnicastPkts + g->RxUnicastPkts);
+            printk("RxMulticastPkts:        %10u \n",
+                e->RxMulticastPkts + g->RxMulticastPkts);
+            printk("RxBroadcastPkts:        %10u \n",
+                e->RxBroadcastPkts + g->RxBroadcastPkts);
+            printk("RxDropPkts:             %10u \n",
+                e->RxDropPkts + (g->RxPkts - g->RxGoodPkts));
+
+            /* Display remaining rx stats only if requested */
+            if (type) {
+                printk("RxJabbers:              %10u \n",
+                    e->RxJabbers + g->RxJabbers);
+                printk("RxAlignErrs:            %10u \n",
+                    e->RxAlignErrs + g->RxAlignErrs);
+                printk("RxFCSErrs:              %10u \n",
+                    e->RxFCSErrs + g->RxFCSErrs);
+                printk("RxFragments:            %10u \n",
+                    e->RxFragments + g->RxFragments);
+                printk("RxOversizePkts:         %10u \n",
+                    e->RxOversizePkts + g->RxOversizePkts);
+                printk("RxExcessSizeDisc:       %10u \n",
+                    e->RxExcessSizeDisc + g->RxExcessSizeDisc);
+                printk("RxOctetsLo:             %10u \n",
+                    e->RxOctetsLo + g->RxOctetsLo);
+                printk("RxOctetsHi:             %10u \n",
+                    e->RxOctetsHi);
+                printk("RxUndersizePkts:        %10u \n",
+                    e->RxUndersizePkts + g->RxUndersizePkts);
+                printk("RxPausePkts:            %10u \n",
+                    e->RxPausePkts + g->RxPausePkts);
+                printk("RxGoodOctetsLo:         %10u \n",
+                    e->RxGoodOctetsLo + g->RxOctetsLo);
+                printk("RxGoodOctetsHi:         %10u \n",
+                    e->RxGoodOctetsHi);
+                printk("RxSAChanges:            %10u \n",
+                    e->RxSAChanges);
+                printk("RxSymbolError:          %10u \n",
+                    e->RxSymbolError + g->RxSymbolError);
+                printk("RxQoSPkts:              %10u \n",
+                    e->RxQoSPkts + g->RxGoodPkts);
+                printk("RxQoSOctetsLo:          %10u \n",
+                    e->RxQoSOctetsLo + g->RxOctetsLo);
+                printk("RxQoSOctetsHi:          %10u \n",
+                    e->RxQoSOctetsHi);
+                printk("RxPkts64Octets:         %10u \n",
+                    e->Pkts64Octets + g->Pkts64Octets);
+                printk("RxPkts65to127Octets:    %10u \n",
+                    e->Pkts65to127Octets + g->Pkts65to127Octets);
+                printk("RxPkts128to255Octets:   %10u \n",
+                    e->Pkts128to255Octets + g->Pkts128to255Octets);
+                printk("RxPkts256to511Octets:   %10u \n",
+                    e->Pkts256to511Octets + g->Pkts256to511Octets);
+                printk("RxPkts512to1023Octets:  %10u \n",
+                    e->Pkts512to1023Octets + g->Pkts512to1023Octets);
+                printk("RxPkts1024to1522Octets: %10u \n",
+                    e->Pkts1024to1522Octets + 
+                    (g->Pkts1024to1518Octets + g->Pkts1519to1522));
+                printk("RxPkts1523to2047:       %10u \n",
+                    e->Pkts1523to2047 + g->Pkts1523to2047);
+                printk("RxPkts2048to4095:       %10u \n",
+                    e->Pkts2048to4095 + g->Pkts2048to4095);
+                printk("RxPkts4096to8191:       %10u \n",
+                    e->Pkts4096to8191 + g->Pkts4096to8191);
+                printk("RxPkts8192to9728:       %10u \n",
+                    e->Pkts8192to9728);
+            }
+            return 0;
+        }
+#endif
+
         /* Display Tx statistics */
         printk("\n");
         printk("TxUnicastPkts:          %10u \n", e->TxUnicastPkts);
@@ -4262,7 +5234,7 @@ int ethsw_dump_mib(int port, int type)
             printk("RxPkts8192to9728:       %10u \n", e->Pkts8192to9728);
         }
     }
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     else
     {
         /* Display Tx statistics */
@@ -4366,6 +5338,7 @@ void ethsw_dump_page(int page) {
             AEI_extsw_dump_page0();
             break;
 #endif
+
         default:
             printk("Invalid page or not yet implemented \n");
             break;
@@ -4450,10 +5423,6 @@ int enet_ioctl_ethsw_port_jumbo_control(struct ethswctl_data *e)  // bill
           return -EFAULT;
       }
     } else {
-      // Setup JUMBO configuration frame size register.
-      val32 = MAX_JUMBO_FRAME_SIZE;
-      ethsw_wreg(PAGE_JUMBO, REG_JUMBO_FRAME_SIZE, (uint8 *)&val32, 4);
-
       // Read & log current JUMBO configuration control register.
       ethsw_rreg(PAGE_JUMBO, REG_JUMBO_PORT_MASK, (uint8 *)&val32, 4);
       BCM_ENET_DEBUG("Old JUMBO_PORT_MASK = 0x%08X", (unsigned int)val32);
@@ -4476,17 +5445,24 @@ int enet_ioctl_ethsw_port_jumbo_control(struct ethswctl_data *e)  // bill
 #ifdef NO_CFE
 void ethsw_reset(int is6829)
 {
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
+#if defined(EPHY_RST_MASK)
+#if defined(CONFIG_BCM96368)
     // Power up and reset EPHYs
     GPIO->RoboswEphyCtrl = 0;
+#else
+    // reset EPHYs without changing other bits
+    GPIO->RoboswEphyCtrl &= ~(EPHY_RST_MASK);
+#endif
     msleep(1);
 
-#if !defined(CONFIG_BCM96816)
     // Take EPHYs out of reset
-    GPIO->RoboswEphyCtrl = EPHY_RST_4 | EPHY_RST_3 | EPHY_RST_2 | EPHY_RST_1;
+    GPIO->RoboswEphyCtrl  |= (EPHY_RST_MASK);
     msleep(1);
 #endif
+#endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     // Take GPHY out of low pwer and disable IDDQ
     GPIO->RoboswGphyCtrl &= ~( GPHY_IDDQ_BIAS | GPHY_LOW_PWR );
     msleep(1);
@@ -4497,10 +5473,10 @@ void ethsw_reset(int is6829)
 #endif
 
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96318)
     GPIO->RoboswSwitchCtrl |= (RSW_MII_DUMB_FWDG_EN | RSW_HW_FWDG_EN);
 #endif
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96368) || (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     GPIO->RoboswEphyCtrl |= (RSW_MII_DUMB_FWDG_EN | RSW_HW_FWDG_EN);
 #endif
 
@@ -4509,7 +5485,7 @@ void ethsw_reset(int is6829)
 #if defined(CONFIG_BCM96368)
     PERF->blkEnables |= SWPKT_SAR_CLK_EN | SWPKT_USB_CLK_EN;
 #endif
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     PERF->blkEnables |= SWPKT_GPON_CLK_EN | SWPKT_USB_CLK_EN;
 #endif
     msleep(1);
@@ -4519,7 +5495,7 @@ void ethsw_reset(int is6829)
     PERF->softResetB |= SOFT_RST_SWITCH;
     msleep(1);
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     /* After reset, we can disable unused switch clocks
        Only disabling the Switch GPON CLK really saves power
        so no need to bother for the other clocks on other chips */
@@ -4536,29 +5512,20 @@ void ethsw_reset(int is6829)
 }
 #endif
 
-#define ALL_PORTS_MASK                     0x1FF
-#define ONE_TO_ONE_MAP                     0x00FAC688
-#define MOCA_QUEUE_MAP                     0x0091B492
-#define DEFAULT_FC_CTRL_VAL                0x1F
-#if defined(CONFIG_BCM96816)
-/* Tx: 0->2, 1->3, 2->4, 3->5. */
-#define DEFAULT_IUDMA_QUEUE_SEL            0xB1A
-#else
-/* Tx: 0->0, 1->1, 2->2, 3->3. */
-#define DEFAULT_IUDMA_QUEUE_SEL            0x688
-#endif
 void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
 {
-#if defined(CONFIG_BCM96816) || !defined(SUPPORT_SWMDK)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || !defined(SUPPORT_SWMDK)
   int i;
   uint8 v8;
-  uint32 v32;
   uint16 v16;
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
   uint8 wrr_queue_weights[NUM_EGRESS_QUEUES] = {0x1, 0x1, 0x1, 0x8, 0x20, 0x31, 0x31, 0x31};
 #else
   uint8 wrr_queue_weights[NUM_EGRESS_QUEUES] = {[0 ... (NUM_EGRESS_QUEUES-1)] = 0x1};
 #endif
+#endif
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || !defined(SUPPORT_SWMDK) || !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+  uint32 v32;
 #endif
 
 #if !defined(SUPPORT_SWMDK)
@@ -4585,7 +5552,7 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
     /* Enable ID mode */
     ethsw_rreg(PAGE_CONTROL, REG_RGMII_CTRL_P4 + i, &v8, 1);
     v8 |= REG_RGMII_CTRL_TIMING_SEL;
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     /* Force RGMII mode as these port support only RGMII */
     v8 |= REG_RGMII_CTRL_ENABLE_RGMII_OVERRIDE;
 #endif
@@ -4608,17 +5575,6 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
     // Management port configuration
     v8 = ENABLE_MII_PORT | RECEIVE_IGMP | RECEIVE_BPDU;
     ethsw_wreg(PAGE_MANAGEMENT, REG_GLOBAL_CONFIG, &v8, sizeof(v8));
-
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96328) 
-    /*Don't enable flow control on 6816 and FAP based systems as FAP does not burst into the switch like 
-          MIPS does (due to MIPS going out for snacks (like WLAN calibration) once in a while). 
-          For 6368/6328, the back-pressure is needed to pass the 100Mbps DS zero packet loss 
-          test as MIPS can burst into switch without flow control. If needed, the back pressure can be replaced with 
-          the mechanism of polling for availability of switch buffers before sending packets to switch 
-          (adds overhead to hard_xmit function and affects throughput performance but does not break QoS)*/
-    v32 = REG_PAUSE_CAPBILITY_OVERRIDE | REG_PAUSE_CAPBILITY_MIPS_TX;
-    ethsw_wreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8 *)&v32, sizeof(v32));
-#endif
 
     /* Configure the switch to use Desc priority */
     ethsw_rreg(PAGE_CONTROL, REG_IUDMA_CTRL, (uint8 *)&v32, 4);
@@ -4647,12 +5603,10 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
     ethsw_wreg(PAGE_8021Q_VLAN, REG_VLAN_GLOBAL_CTRL5, (uint8 *)&v8, 1);
 #endif
 
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96368) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
     /* Enable multiple queues and scheduling mode */
     v8 = (1 << TXQ_CTRL_TXQ_MODE_S) |
          (DEFAULT_HQ_PREEMPT_EN << TXQ_CTRL_HQ_PREEMPT_S);
     ethsw_wreg(PAGE_QOS, REG_QOS_TXQ_CTRL, &v8, 1);
-#endif
 
     /* Set the queue weights. */
     for (i = 0; i < NUM_EGRESS_QUEUES; i++) {
@@ -4667,6 +5621,27 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
     v16 = DEFAULT_FC_CTRL_VAL;
     ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_CTRL, (uint8 *)&v16, 2);
 
+    /*Set priority queue thresholds */
+    for (i = 0; i < NUM_EGRESS_QUEUES; i++) {
+       v16 = DEFAULT_TXQHI_HYSTERESIS_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_HYST + (2*i), (uint8 *)&v16, sizeof(v16));
+       v16 = DEFAULT_TXQHI_PAUSE_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_PAUSE + (2*i), (uint8 *)&v16, sizeof(v16));
+       v16 = DEFAULT_TXQHI_DROP_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_DROP + (2*i), (uint8 *)&v16, sizeof(v16));
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
+       v16 = DEFAULT_TXQLOW_DROP_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_LO_DROP + (2*i), (uint8 *)&v16, sizeof(v16));
+#endif /* 6816 or 6818 */
+       v16 = DEFAULT_TOTAL_HYSTERESIS_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_TOTAL_HYST + (2*i), (uint8 *)&v16, sizeof(v16));
+       v16 = DEFAULT_TOTAL_PAUSE_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_TOTAL_PAUSE + (2*i), (uint8 *)&v16, sizeof(v16));
+       v16 = DEFAULT_TOTAL_DROP_THRESHOLD;
+       ethsw_wreg(PAGE_FLOW_CTRL, REG_FC_PRIQ_TOTAL_DROP + (2*i), (uint8 *)&v16, sizeof(v16));
+    }
+
+
     // Forward lookup failure to use ULF/MLF/IPMC lookup fail registers */
     v8 = (REG_PORT_FORWARD_MCST | REG_PORT_FORWARD_UCST | REG_PORT_FORWARD_IP_MCST);
     ethsw_wreg(PAGE_CONTROL, REG_PORT_FORWARD, (uint8 *)&v8, sizeof(v8));
@@ -4677,7 +5652,7 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
     ethsw_wreg(PAGE_CONTROL, REG_MCST_LOOKUP_FAIL, (uint8 *)&v16, sizeof(v16));
     ethsw_wreg(PAGE_CONTROL, REG_IPMC_LOOKUP_FAIL, (uint8 *)&v16, sizeof(v16));
 
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     v16 = PBMAP_MIPS;
     ethsw_wreg(PAGE_PORT_BASED_VLAN, REG_VLAN_CTRL_P0 + (GPON_PORT_ID * 2),
                (uint8 *)&v16, 2);
@@ -4688,28 +5663,40 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
    ethsw_wreg(PAGE_MANAGEMENT, REG_MIRROR_CAPTURE_CTRL,(uint8 *)&v16, 2);
 #endif
 
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268)
+#if !defined(CONFIG_BCM96368)
     v32 = DEFAULT_IUDMA_QUEUE_SEL;
     ethsw_wreg(PAGE_CONTROL, REG_IUDMA_QUEUE_CTRL, (uint8 *)&v32, 4);
 #endif
+
 #endif // #if !defined(SUPPORT_SWMDK)
+
+#if !(defined(CONFIG_BCM96816) || defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    /* Don't enable flow control on 6816 and FAP based systems as FAP does not burst into the switch like 
+       MIPS does (due to MIPS going out for snacks (like WLAN calibration) once in a while). 
+       For 6368/6328, the back-pressure is needed to pass the 100Mbps DS zero packet loss 
+       test as MIPS can burst into switch without flow control. If needed, the back pressure can be replaced with 
+       the mechanism of polling for availability of switch buffers before sending packets to switch 
+       (adds overhead to hard_xmit function and affects throughput performance but does not break QoS)*/
+    v32 = REG_PAUSE_CAPBILITY_OVERRIDE | REG_PAUSE_CAPBILITY_MIPS_TX;
+    ethsw_wreg(PAGE_CONTROL, REG_PAUSE_CAPBILITY, (uint8 *)&v32, sizeof(v32));
+#endif
 
     if (unit == 1) {
         if (wanPortMap & 0xFF)
             extsw_set_wanoe_portmap(wanPortMap & 0xFF);
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         if (wanPortMap >> MAX_EXT_SWITCH_PORTS)
             ethsw_set_wanoe_portmap(wanPortMap >> MAX_EXT_SWITCH_PORTS);
 #endif
     } else {
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         ethsw_set_wanoe_portmap(wanPortMap);
 #else
         ethsw_port_based_vlan(portMap, wanPortMap, 0);
 #endif
     }
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     /* Enable the 802.1p based QoS by default */
     v8 = 0;
     ethsw_wreg(PAGE_QOS, REG_QOS_GLOBAL_CTRL, &v8, 1);
@@ -4722,10 +5709,12 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
                    (uint8 *)&v32, 4);
     }
 
+#if defined(CONFIG_BCM96816)
     /*Egress rate limit moca ports to 200 Mbps*/
     v16 = (1<<ERC_ERC_EN_S) | (0<<ERC_BKT_SIZE_S) | (0x8c<<ERC_RFSH_CNT_S);
     ethsw_wreg_ext(PAGE_BSS, REG_BSS_TX_RATE_CTRL_P0 + 2*MOCA_PORT_ID,
                    (uint8*)&v16, sizeof(v16), 0);
+#endif
 
     if (is6829)
     {
@@ -4736,10 +5725,12 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
       ethsw_wreg_ext(PAGE_CONTROL, REG_PORT_STATE + SERDES_PORT_ID,
                      &v8, sizeof(v8), 1 );
 
+#if defined(CONFIG_BCM96816)
       /*Egress rate limit moca ports to 200 Mbps*/
       v16 = (1<<ERC_ERC_EN_S) | (0<<ERC_BKT_SIZE_S) | (0x8c<<ERC_RFSH_CNT_S);
       ethsw_wreg_ext(PAGE_BSS, REG_BSS_TX_RATE_CTRL_P0 + 2*MOCA_PORT_ID,
                      (uint8*)&v16, sizeof(v16), 1);
+#endif
 
       /* Enable multiple queues and scheduling mode on 6829*/
       v8 = (1 << TXQ_CTRL_TXQ_MODE_S) |
@@ -4802,7 +5793,9 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
       v16 = 0xFFF;
       ethsw_wreg_ext(PAGE_8021Q_VLAN, REG_VLAN_DEFAULT_TAG + (2 * 0), (uint8 *)&v16, sizeof(v16), 1);
       ethsw_wreg_ext(PAGE_8021Q_VLAN, REG_VLAN_DEFAULT_TAG + (2 * SERDES_PORT_ID), (uint8 *)&v16, sizeof(v16), 1);
+#if defined(CONFIG_BCM96816)
       ethsw_wreg_ext(PAGE_8021Q_VLAN, REG_VLAN_DEFAULT_TAG + (2 * MOCA_PORT_ID), (uint8 *)&v16, sizeof(v16), 1);
+#endif
 
       /* configure rule for VID FFF - untag on egress */
       for ( i = 0; i < 1023; i++ )
@@ -4823,11 +5816,66 @@ void ethsw_init_hw(int unit, uint32_t portMap,  int wanPortMap, int is6829)
       ethsw_wreg_ext(PAGE_AVTBL_ACCESS, REG_VLAN_TBL_CTRL, (uint8 *)&v8, sizeof(v8), 1);
    }
 #endif
+
+#if defined(GPHY_EEE_1000BASE_T_DEF) || defined(CONFIG_BCM96318)
+   {
+      uint16 v16;
+      /* Configure EEE delays. In the bootloader, we already initialized EEE
+      on the GPHY before it was taken out of reset, on 6318, nothing is needed in bootloader */
+      v16 = 0x3F;
+      ethsw_wreg(PAGE_CONTROL, REG_EEE_TW_SYS_TX_100, (uint8_t *)&v16, 2);
+      v16 = 0x23;
+      ethsw_wreg(PAGE_CONTROL, REG_EEE_TW_SYS_TX_1000, (uint8_t *)&v16, 2);
+#if defined(CONFIG_BCM_GMAC)
+      if (gmac_is_gmac_supported())
+      {
+          volatile GmacEEE_t *gmacEEEp = GMAC_EEE;
+          // Reset EEE controller in GMAC
+          gmacEEEp->eeeCtrl.softReset = 1;
+          gmacEEEp->eeeCtrl.softReset = 0;
+          // following are the default values(upon reset). If need to change, this 
+          // is the place.
+          gmacEEEp->eeeTx100WakeTime = 0x3F;
+          gmacEEEp->eeeT1000WakeTime = 0x23;
+          gmacEEEp->eeeLPIWaitTime   = 0xf424;
+      }
+#endif
+   }
+#endif
+
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+    {
+        unsigned long ge_ports = 0, fe_ports = 0;
+
+        BpGetNumGePorts(&ge_ports);
+        BpGetNumFePorts(&fe_ports);
+
+        if (ge_ports + fe_ports > 1) {
+#if defined(CONFIG_EPON_UNI_UNI_ENABLED)
+            epon_uni_to_uni_ctrl(portMap, 1);
+#else
+            epon_uni_to_uni_ctrl(portMap, 0);
+#endif
+        }
+    }
+#endif
+
+#if defined(CONFIG_BCM96818)
+  /* RGMII port enables */
+   if (portMap & (1 << RGMII1_PORT_ID)) {
+      GPIO->GPIOBaseMode |= EN_GMII1 ;
+   }
+   if (portMap & (1 << RGMII2_PORT_ID)) {
+      GPIO->GPIOBaseMode |= EN_GMII2 ;
+   }
+   if (portMap & (1 << RGMII3_PORT_ID)) {
+      GPIO->GPIOBaseMode |= EN_GMII3 ;
+   }
+#endif
+
+
 }
 
-/* The multiport address overrides ARL entry. So set own MAC
-   in the multiport register so that packets will go to MIPS even if
-   our own MAC is learned in ARL table due to a malicious packet */
 int ethsw_set_multiport_address(uint8_t* addr)
 {
     uint8 v8;
@@ -4851,7 +5899,7 @@ int ethsw_set_multiport_address(uint8_t* addr)
 
 void ethsw_set_mac_hw(uint16_t sw_port, PHY_STAT ps, int is6829)
 {
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
   unsigned long flags = 0;
   uint8 val8, va8;
   uint16 val16, temp16;
@@ -4875,7 +5923,7 @@ void ethsw_set_mac_hw(uint16_t sw_port, PHY_STAT ps, int is6829)
 
   down(&bcm_ethlock_switch_config);
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
   local_irq_save(flags);
   ethsw_rreg_ext(PAGE_CONTROL, REG_SWITCH_MODE, &val8, sizeof(val8), is6829);
   if (val8 & REG_SWITCH_MODE_FLSH_GPON_EGRESS_Q) {
@@ -4909,11 +5957,14 @@ void ethsw_set_mac_hw(uint16_t sw_port, PHY_STAT ps, int is6829)
                      (uint8 *)&val16, 2, is6829);
           while (val16) {
              if ((timeout--) <= 0) {
+#if defined(CONFIG_BCM96816)
                  if (sw_port == MOCA_PORT_ID) {
                      printk("\nLink Down TIMEOUT: Port %d queues not"
                             " drained \n", sw_port);
                  }
-                 else {
+                 else
+#endif                      
+                 {
                      BCM_ENET_DEBUG("\nLink Down TIMEOUT: Port %d queues not"
                                     " drained \n", sw_port);
                  }
@@ -4938,95 +5989,165 @@ void ethsw_set_mac_hw(uint16_t sw_port, PHY_STAT ps, int is6829)
   up(&bcm_ethlock_switch_config);
 }
 
+#if defined(CONFIG_BCM_GMAC)
+#if defined(AEI_VDSL_STATS_DIAG)
+/* Reads the stats from GMAC Regs */
+void aei_gmac_hw_stats( int port,  struct enet_dev_stats *stats)
+{
+    BCM_ASSERT( port == GMAC_PORT_ID );
+    BCM_ASSERT( stats != NULL ) ;
+
+    if (gmac_info_pg->enabled && (port == GMAC_PORT_ID))
+    {
+        volatile GmacMIBRegs *e = (volatile GmacMIBRegs *)GMAC_MIB;
+
+        stats->rx_packets += e->RxPkts;
+        stats->rx_bytes += (unsigned long) e->RxOctetsLo;
+
+        stats->tx_packets += (unsigned long) e->TxPkts;
+        stats->tx_bytes += (unsigned long) e->TxOctetsLo;
+    }
+}
+#endif
+#endif
+
 #ifdef REPORT_HARDWARE_STATS
+#if defined(AEI_VDSL_STATS_DIAG)
+int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats, struct net_device * dev) {
+#else
 int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats) {
-    uint32 ctr32 = 0;
-    uint64 ctr64 = 0;
-#if !defined(CONFIG_BCM96816)
+#endif
+    uint32 ctr32 = 0;           // Running 32 bit counter
+    uint64 ctr64 = 0;           // Running 64 bit counter
+    uint64 tempctr64 = 0;       // Temp 64 bit counter
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
     uint8 data[8] = {0};
 #endif
 
+#if defined(AEI_VDSL_STATS_DIAG)
+	BcmEnet_devctrl *pDevCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
+#endif
 
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
     if (extswitch) {
-#if (CONFIG_BCM_EXT_SWITCH == 5398)
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXUPKTS, data, 4);
-        ctr64 = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXMPKTS, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXBPKTS, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
+    
+        // Track RX unicast, multicast, and broadcast packets
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXUPKTS 
+                              + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);  // Get RX unicast packet count
+        ctr64 = swab32(*(uint32 *)data);                                // Keep running count
+        
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXMPKTS 
+                              + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);  // Get RX multicast packet count
+        tempctr64 = swab32(*(uint32 *)data);
+        stats->multicast = tempctr64;                                   // Save away count
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_multicast_packets = tempctr64;
+#endif
+        ctr64 += tempctr64;                                             // Keep running count
+        
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXBPKTS 
+                              + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);  // Get RX broadcast packet count
+        tempctr64 = swab32(*(uint32 *)data);
+        stats->rx_broadcast_packets = tempctr64;                        // Save away count
+        ctr64 += tempctr64;                                             // Keep running count
         stats->rx_packets = (unsigned long)ctr64;
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXOCTETS, data, 8);
-        ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
-        ((uint32 *)data)[1] = swab32(((uint32 *)data)[1]);
-        stats->rx_bytes = *(unsigned long *)data;
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXDROPS, data, 4);
-        stats->rx_dropped = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXFCSERRORS, data, 4);
-        stats->rx_errors = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXSYMBOLERRORS, data, 4);
-        stats->rx_errors += swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXALIGNERRORS, data, 4);
-        stats->rx_errors += swab32(*(uint32 *)data);
-#else
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x94, data, 4);
-        ctr64 = swab32(*(uint32 *)data);
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_packets = (unsigned long)ctr64;
+#endif
+        
+        // Dump RX debug data if needed
         BCM_ENET_DEBUG("read data = %02x %02x %02x %02x \n",
             data[0], data[1], data[2], data[3]);
         BCM_ENET_DEBUG("ctr64 = %x \n", (unsigned int)ctr64);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x98, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x9C, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
-        stats->rx_packets = (unsigned long)ctr64;
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x50, data, 8);
-        BCM_ENET_DEBUG("read data = %02x %02x %02x %02x ",
-            data[0], data[1], data[2], data[3]);
-        BCM_ENET_DEBUG("%02x %02x %02x %02x \n",
-            data[4], data[5], data[6], data[7]);
+        
+        // Track RX byte count
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXOCTETS + REG_MIB_P0_EXTSWITCH_OFFSET, data, 8);
         ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
         ((uint32 *)data)[1] = swab32(((uint32 *)data)[1]);
         stats->rx_bytes = *(unsigned long *)data;
-        BCM_ENET_DEBUG("ctr64 = %lx \n", stats->rx_bytes);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x90, data, 4);
-        stats->rx_dropped = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x84, data, 4);
-        stats->rx_errors = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0xAC, data, 4);
-        stats->rx_errors += swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), 0x80, data, 4);
-        stats->rx_errors += swab32(*(uint32 *)data);
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_bytes = *(unsigned long long *)data;
 #endif
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXUPKTS, data, 4);
-        ctr64 = swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXMPKTS, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
-        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXBPKTS, data, 4);
-        ctr64 += swab32(*(uint32 *)data);
+        
+        // Track RX packet errors
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXDROPS + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);
+        stats->rx_dropped = swab32(*(uint32 *)data);
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXFCSERRORS + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);
+        stats->rx_errors = swab32(*(uint32 *)data);
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXSYMBOLERRORS + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);
+        stats->rx_errors += swab32(*(uint32 *)data);
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_RXALIGNERRORS + REG_MIB_P0_EXTSWITCH_OFFSET, data, 4);
+        stats->rx_errors += swab32(*(uint32 *)data);
+
+        // Track TX unicast, multicast, and broadcast packets
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXUPKTS, data, 4);  // Get TX unicast packet count
+        ctr64 = swab32(*(uint32 *)data);                                // Keep running count
+
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXMPKTS, data, 4);  // Get TX multicast packet count
+        tempctr64 = swab32(*(uint32 *)data);
+        stats->tx_multicast_packets = tempctr64;                        // Save away count
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_multicast_packets = tempctr64;
+#endif
+        ctr64 += tempctr64;                                             // Keep running count
+
+        extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXBPKTS, data, 4);  // Get TX broadcast packet count
+        tempctr64 = swab32(*(uint32 *)data);
+        stats->tx_broadcast_packets = tempctr64;                        // Save away count
+        ctr64 += tempctr64;                                             // Keep running count        
         stats->tx_packets = (unsigned long)ctr64;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_packets = (unsigned long)ctr64;
+#endif
+        
+        // Track TX byte count
         extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXOCTETS, data, 8);
         ((uint32 *)data)[0] = swab32(((uint32 *)data)[0]);
         ((uint32 *)data)[1] = swab32(((uint32 *)data)[1]);
         stats->tx_bytes = *(unsigned long *)data;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_bytes = *(unsigned long long *)data;
+#endif
+        
+        // Track TX packet errors
         extsw_rreg(PAGE_MIB_P0 + (port), REG_MIB_P0_TXDROPS, data, 4);
         stats->tx_dropped = swab32(*(uint32 *)data);
     } else
 #endif
     {
+        // Track RX unicast, multicast, and broadcast packets
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_RXUPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
-        ctr64 = (uint64)ctr32;
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get RX unicast packet count
+        ctr64 = (uint64)ctr32;                                          // Keep running count        
+
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_RXMPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
-        ctr64 += (uint64)ctr32;
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get RX multicast packet count
+        tempctr64 = (uint64)ctr32;
+        stats->multicast = tempctr64;                                   // Save away count
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_multicast_packets = tempctr64;
+#endif
+        ctr64 += tempctr64;                                             // Keep running count
+        
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_RXBPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
-        ctr64 += (uint64)ctr32;
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get RX broadcast packet count
+        tempctr64 = (uint64)ctr32;
+        stats->rx_broadcast_packets = tempctr64;                         // Save away count
+        ctr64 += tempctr64;                                              // Keep running count
         stats->rx_packets = (unsigned long)ctr64;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_packets = (unsigned long)ctr64;
+#endif
+        
+        // Track RX byte count
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_RXOCTETS,
                (uint8_t *)&ctr64, 8, extswitch);
         stats->rx_bytes = (unsigned long)ctr64;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.rx_bytes = (unsigned long long)ctr64;
+#endif
+        
+        // Track RX packet errors
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_RXDROPS,
                (uint8_t *)&ctr32, 4, extswitch);
         stats->rx_dropped = (unsigned long)ctr32;
@@ -5040,23 +6161,52 @@ int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats) 
                (uint8_t *)&ctr32, 4, extswitch);
         stats->rx_errors += (unsigned long)ctr32;
 
+        // Track TX unicast, multicast, and broadcast packets
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXUPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
-        ctr64 = (uint64)ctr32;
-        ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXMPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get TX unicast packet count
+        ctr64 = (uint64)ctr32;                                          // Keep running count        
 
-        ctr64 += (uint64)ctr32;
+        ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXMPKTS,
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get TX multicast packet count
+        tempctr64 = (uint64)ctr32;
+        stats->tx_multicast_packets = tempctr64;                        // Save away count
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_multicast_packets = tempctr64;
+#endif
+        ctr64 += tempctr64;                                             // Keep running count
+        
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXBPKTS,
-               (uint8_t *)&ctr32, 4, extswitch);
-        ctr64 += (uint64)ctr32;
+               (uint8_t *)&ctr32, 4, extswitch);                        // Get TX broadcast packet count
+        tempctr64 = (uint64)ctr32;
+        stats->tx_broadcast_packets = tempctr64;                         // Save away count
+        ctr64 += tempctr64;                                              // Keep running count
         stats->tx_packets = (unsigned long)ctr64;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_packets = (unsigned long)ctr64;
+#endif
+        
+        // Track TX byte count
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXOCTETS,
                (uint8_t *)&ctr64, 8, extswitch);
         stats->tx_bytes = (unsigned long)ctr64;
+#if defined(AEI_VDSL_STATS_DIAG)
+        pDevCtrl->dev_stats.tx_bytes = (unsigned long long)ctr64;
+#endif
+        
+        // Track TX packet errors
         ethsw_rreg_ext(PAGE_MIB_P0 + (port), REG_MIB_P0_TXDROPS,
                (uint8_t *)&ctr32, 4, extswitch);
-        stats->tx_dropped = (unsigned long)ctr32;
+       stats->tx_dropped = (unsigned long)ctr32;
+
+#if defined(CONFIG_BCM_GMAC)
+        if ( gmac_info_pg->enabled && (port == GMAC_PORT_ID) )
+            gmac_hw_stats( port, stats );
+
+#if defined(AEI_VDSL_STATS_DIAG)
+        if ( gmac_info_pg->enabled && (port == GMAC_PORT_ID) )
+            aei_gmac_hw_stats( port, &pDevCtrl->dev_stats);
+#endif
+#endif /* if defined(CONFIG_BCM_GMAC) */
     }
     return 0;
 }
@@ -5065,6 +6215,106 @@ int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats) 
 #if defined(CONFIG_BCM_ARL) || defined(CONFIG_BCM_ARL_MODULE)
 int enet_hook_for_arl_access(void *ethswctl)
 {
-    return enet_ioctl_ethsw_arl_access((struct ethswctl_data *)ethswctl);
+    struct ethswctl_data *pEthswctl = (struct ethswctl_data *)ethswctl;
+    int                   ret;
+
+    if ( TYPE_SET == pEthswctl->type ) {
+        /* if ifname is set caller needs the port, unit and val set based on
+           port information */
+        if (strlen(pEthswctl->ifname) > 0) {
+            ret    = bcm63xx_enet_getPortFromName(pEthswctl->ifname, &pEthswctl->unit, &pEthswctl->port);
+            if(ret < 0)
+            {
+                pEthswctl->val = 0;
+                return BCM_E_PARAM;
+            }
+            if ( pEthswctl->unit )
+            {
+                pEthswctl->val = ARL_DATA_ENTRY_VALID_531xx | 
+                                 ARL_DATA_ENTRY_STATIC_531xx |
+                                 (1<<pEthswctl->port);
+            }
+            else
+            {
+                pEthswctl->val = ARL_DATA_ENTRY_VALID | 
+                                 ARL_DATA_ENTRY_STATIC |
+                                 (1<<pEthswctl->port);
+            }
+        }
+    }
+   
+    return enet_ioctl_ethsw_arl_access(pEthswctl);
 }
 #endif
+
+#if defined(CONFIG_BCM_GMAC) 
+int enet_logport_to_phyid(int log_port);
+
+int enet_set_port_ctrl( int port, uint32_t val32 )
+{
+    uint8_t v8;
+
+    local_irq_disable();
+
+    BCM_ENET_DEBUG("Given port: %d control: %02x \n ", port, val32);
+    ethsw_rreg(PAGE_CONTROL, REG_PORT_CTRL + port, &v8, 1);
+    v8 &= (~REG_PORT_CTRL_DISABLE);
+    v8 |= (val32 & REG_PORT_CTRL_DISABLE);
+    BCM_ENET_DEBUG("Writing = 0x%x to REG_PORT_CTRL", v8);
+    ethsw_wreg(PAGE_CONTROL, REG_PORT_CTRL + port, &v8, 1);
+
+    local_irq_enable();
+
+    return BCM_E_NONE;
+}
+
+
+/* Restart Autonegotiation on the port */
+void enet_restart_autoneg(int log_port)
+{
+    uint16_t v16;
+    int phyid;
+
+    phyid = enet_logport_to_phyid(log_port);
+
+    local_irq_disable();
+
+    /* read control register */
+    ethsw_phy_rreg(phyid, MII_BMCR, &v16);
+    BCM_ENET_DEBUG("MII_BMCR Read Value = %4x", v16);
+
+    /* Write control register wth AN_EN and RESTART_AN bits set */
+    v16 |= (BMCR_ANENABLE | BMCR_ANRESTART);
+    BCM_ENET_DEBUG("MII_BMCR Written Value = %4x", v16);
+    ethsw_phy_wreg(phyid, MII_BMCR, &v16);
+
+    local_irq_enable();
+}
+#endif
+
+void ethsw_set_stp_mode(unsigned int unit, unsigned int port, unsigned char stpState)
+{
+   unsigned char portInfo;
+
+   if ( unit )
+   {
+      extsw_rreg(PAGE_CONTROL, REG_PORT_CTRL + (port), 
+                 &portInfo, sizeof(portInfo));
+      portInfo &= ~REG_PORT_STP_MASK;
+      portInfo |= stpState;
+      extsw_wreg(PAGE_CONTROL, REG_PORT_CTRL + (port), 
+                 &portInfo, sizeof(portInfo));
+   }
+   else
+   {
+      ethsw_rreg_ext(PAGE_CONTROL, REG_PORT_CTRL + (port), 
+                     &portInfo, sizeof(portInfo), 0);
+      portInfo &= ~REG_PORT_STP_MASK;
+      portInfo |= stpState;
+      ethsw_wreg_ext(PAGE_CONTROL, REG_PORT_CTRL + (port), 
+                     &portInfo, sizeof(portInfo), 0);
+   }
+}
+
+
+

@@ -1,22 +1,31 @@
 /*
-<:GPL/GPL:standard
-
- Copyright 2003 Broadcom Corp. All Rights Reserved.
-
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-
- :>
+* <:copyright-BRCM:2012:DUAL/GPL:standard
+* 
+*    Copyright (c) 2012 Broadcom Corporation
+*    All Rights Reserved
+* 
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
+* 
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
+* 
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
+* 
+* :>
+ 
 */
 
 /*
@@ -35,6 +44,7 @@
 #include <linux/nbuff.h>
 #include <linux/skbuff.h>
 #include <skb_defines.h>
+#include <linux/iqos.h>
 
 #if defined(CONFIG_BLOG)
 
@@ -57,11 +67,11 @@
 /*--- globals ---*/
 
 /* RFC4008 */
-uint32_t blog_nat_tcp_def_idle_timeout = 86400 *HZ;  /* 5 DAYS */
+uint32_t blog_nat_tcp_def_idle_timeout = BLOG_NAT_TCP_DEFAULT_IDLE_TIMEOUT; /* 1 DAY */
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 uint32_t blog_nat_udp_def_idle_timeout = 30 *HZ;    /* 30 seconds */
 #else
-uint32_t blog_nat_udp_def_idle_timeout = 300 *HZ;    /* 300 seconds */
+uint32_t blog_nat_udp_def_idle_timeout = BLOG_NAT_UDP_DEFAULT_IDLE_TIMEOUT; /* 300 seconds */
 #endif
 uint32_t blog_nat_generic_def_idle_timeout = 600 *HZ;/* 600 seconds */
 
@@ -145,6 +155,9 @@ void blog_support_ipv6(int config) { blog_support_ipv6_g = config; }
 blog_refresh_t blog_refresh_fn = (blog_refresh_t) NULL;
 struct sk_buff * nfskb_p = (struct sk_buff *) NULL;
 
+/* for WLAN PKTC use */
+ctf_brc_hot_t brc_hot[MAXBRCHOTIF * MAXBRCHOT];
+
 /*----- Constant string representation of enums for print -----*/
 const char * strBlogAction[BLOG_ACTION_MAX] =
 {
@@ -166,6 +179,7 @@ const char * strBlogNetEntity[BLOG_NET_ENTITY_MAX] =
     BLOG_DECL(BRIDGEFDB)
     BLOG_DECL(MCAST_FDB)
     BLOG_DECL(IF_DEVICE)
+    BLOG_DECL(IF_DEVICE_MCAST)
 };
 
 const char * strBlogNotify[BLOG_NOTIFY_MAX] =
@@ -297,8 +311,8 @@ const char * strIpctStatus[] =  /* in reference to enum ip_conntrack_status */
 static BlogDevHook_t blog_rx_hook_g = (BlogDevHook_t)NULL;
 static BlogDevHook_t blog_tx_hook_g = (BlogDevHook_t)NULL;
 static BlogNotifyHook_t blog_xx_hook_g = (BlogNotifyHook_t)NULL;
-static BlogScHook_t blog_sc_hook_g = (BlogScHook_t)NULL;
-static BlogSdHook_t blog_sd_hook_g = (BlogSdHook_t)NULL;
+static BlogScHook_t blog_sc_hook_g[BlogClient_MAX] = { (BlogScHook_t)NULL };
+static BlogSdHook_t blog_sd_hook_g[BlogClient_MAX] = { (BlogSdHook_t)NULL };
 
 /*
  *------------------------------------------------------------------------------
@@ -382,12 +396,15 @@ static inline void blog_clr( Blog_t * blog_p )
     blog_p->ct_p[BLOG_PARAM2_IPV4] = (void *)NULL;
     blog_p->ct_p[BLOG_PARAM2_IPV6] = (void *)NULL;
     blog_p->tx.dev_p = (void *)NULL;
+    blog_p->rx.dev_p = (void *)NULL;
     blog_p->fdb[0] = (void *)NULL;
     blog_p->fdb[1] = (void *)NULL;
     blog_p->minMtu = BLOG_ETH_MTU_LEN;
     blog_p->flags = 0;
     blog_p->vid = 0xFFFFFFFF;
     blog_p->vtag_num = 0;
+    blog_p->mark = 0;
+    blog_p->rx.dev_p = (void *)NULL;
     memset( (void*)blog_p->virt_dev_p, 0, sizeof(void*) * MAX_VIRT_DEV);
 
     blog_print( "blog<0x%08x>", (int)blog_p );
@@ -420,11 +437,12 @@ Blog_t * blog_get( void )
             blog_print( "WARNING: out of memory" );
         }
 #endif
-        blog_p = BLOG_NULL;
-
-        BLOG_POOL_UNLOCK(); /* May use blog_assertr() now onwards */
-
-        goto blog_get_return;
+        if (blog_list_gp == BLOG_NULL)
+        {
+            blog_p = BLOG_NULL;
+            BLOG_POOL_UNLOCK(); /* May use blog_assertr() now onwards */
+            goto blog_get_return;
+        }
     }
 
     BLOG_DBG(
@@ -659,6 +677,7 @@ void blog_clone( struct sk_buff * skb_p, const struct blog_t * prev_p )
     if ( likely(prev_p != BLOG_NULL) )
     {
         Blog_t * blog_p;
+        int      i;
 
         blog_assertv( (_IS_BPTR_(prev_p)) );
         
@@ -681,6 +700,16 @@ void blog_clone( struct sk_buff * skb_p, const struct blog_t * prev_p )
             CPY(vid);
             CPY(vtag_num);
             CPY(tupleV6);
+            for(i=0; i<MAX_VIRT_DEV; i++)
+            {
+               if( prev_p->virt_dev_p[i] )
+               {
+                  blog_p->virt_dev_p[i] = prev_p->virt_dev_p[i];
+                  blog_p->delta[i] = prev_p->delta[i];
+               }
+               else
+                  break;
+            }
             blog_p->tx.word = 0;
         }
     }
@@ -704,6 +733,30 @@ void blog_copy(struct blog_t * new_p, const struct blog_t * prev_p)
     {
        memcpy( new_p, prev_p, sizeof(Blog_t) );
     }
+}
+
+/*
+ *------------------------------------------------------------------------------
+ * Function     : blog_iq
+ * Description  : get the iq prio from blog
+ * Parameters   :
+ *  skb_p       : Pointer to a sk_buff
+ *------------------------------------------------------------------------------
+ */
+int blog_iq( const struct sk_buff * skb_p )
+{
+    Blog_t *blog_p;
+
+    blog_print( "skb<0x%08x> [<%08x>]",
+                (int)skb_p, (int)__builtin_return_address(0) );
+    blog_assertv( (skb_p != (struct sk_buff *)NULL) );
+
+    blog_p = skb_p->blog_p;
+
+    if (blog_p)
+        return blog_p->iq_prio;
+    else
+        return IQOS_PRIO_LOW;
 }
 
 /*
@@ -780,12 +833,13 @@ void blog_link( BlogNetEntity_t entity_type, Blog_t * blog_p,
         case MCAST_FDB:
         {
             BLOG_LOCK_BH();
-            blog_p->rx.mc_fdb = net_p; /* Pointer to mc_fdb */
+            blog_p->mc_fdb = net_p; /* Pointer to mc_fdb */
             BLOG_UNLOCK_BH();
             break;
         }
 
         case IF_DEVICE: /* link virtual interfaces traversed by flow */
+        case IF_DEVICE_MCAST:
         {
             int i;
 
@@ -801,7 +855,14 @@ void blog_link( BlogNetEntity_t entity_type, Blog_t * blog_p,
                 if ( blog_p->virt_dev_p[i] == NULL )
                 {
                     blog_p->virt_dev_p[i] = DEVP_APPEND_DIR(net_p, param1);
-                    blog_p->delta[i] = param2 - blog_p->tx.pktlen;
+                    if (IF_DEVICE_MCAST == entity_type )
+                    {
+                       blog_p->delta[i] = -(param2 & 0xFF);
+                    }
+                    else
+                    {
+                       blog_p->delta[i] = (param2 - blog_p->tx.pktlen) & 0xFF;
+                    }
                     break;
                 }
             }
@@ -844,6 +905,10 @@ void blog_notify( BlogNotify_t event, void * net_p,
                 param1, (int)param1, param2, (int)param2,
                 (int)__builtin_return_address(0) );
 
+    if (event == DESTROY_BRIDGEFDB) { /* for WLAN PKTC use */
+		blog_pktc(DELETE_BRC_HOT, NULL, (uint32_t)(((struct net_bridge_fdb_entry *)net_p)->addr.addr), 0);
+    }
+
     BLOG_LOCK();
 
     blog_xx_hook_g( event, net_p, param1, param2 );
@@ -872,7 +937,7 @@ extern int blog_rule_delete_action( void *rule_p );
 uint32_t blog_request( BlogRequest_t request, void * net_p,
                        uint32_t param1, uint32_t param2 )
 {
-    uint32_t ret;
+    uint32_t ret=0;
 
     blog_assertr( (request < BLOG_REQUEST_MAX), 0 );
     blog_assertr( (net_p != (void *)NULL), 0 );
@@ -949,7 +1014,21 @@ uint32_t blog_request( BlogRequest_t request, void * net_p,
                 if ( param2 == 0 )
                 {
                     if ( param1 == IPPROTO_TCP )
+                    {
+                        struct nf_conn *ct = (struct nf_conn *)net_p;
+                        if (ct->proto.tcp.state != TCP_CONNTRACK_ESTABLISHED)
+                        {
+                            /*
+                            Conntrack CLOSED TCP connection entries can have large timeout, when :
+                            1.	Accelerator overflows (i.e. full)
+                            2.	somehow  *only* one leg of connection is accelerated 
+                            3.	TCP-RST is received on non-accelerated flow (i.e. conntrack will mark the connection as CLOSED)
+                            4.	Accelerated leg of connection received some packets - triggering accelerator to refresh the connection in conntrack with large timeout.
+                             */
+                            return 0; /* Only set timeout in established state */
+                        }
                         jiffies = blog_nat_tcp_def_idle_timeout;
+                    }
                     else if ( param1 == IPPROTO_UDP )
                         jiffies = blog_nat_udp_def_idle_timeout;
                     else
@@ -1165,10 +1244,13 @@ BlogAction_t blog_finit_locked( struct fkbuff * fkb_p, void * dev_p,
 
     action = blog_rx_hook_g( fkb_p, (void *)dev_p, encap, blogHash.match );
 
-#if defined(CC_BLOG_SUPPORT_USER_FILTER)
     if ( action == PKT_BLOG )
+    {
+        fkb_p->blog_p->rx.dev_p = (void *)dev_p;           /* Log device info */
+#if defined(CC_BLOG_SUPPORT_USER_FILTER)
         action = blog_filter(fkb_p->blog_p);
 #endif
+    }
 
     if ( unlikely(action == PKT_NORM) )
         fkb_release( fkb_p );
@@ -1221,6 +1303,7 @@ BlogAction_t blog_sinit( struct sk_buff * skb_p, void * dev_p,
     {
          blog_assertr( (fkb_p->blog_p != BLOG_NULL), PKT_NORM );
          fkb_p->blog_p->skb_p = skb_p;
+         fkb_p->blog_p->rx.dev_p = (void *)dev_p;   /* Log device info */
     } 
     else
          fkb_p->blog_p = NULL;
@@ -1308,34 +1391,38 @@ bypass:
  * Parameters   :
  *  blog_p      : pointer to a blog with configuration information
  *  traffic     : type of the traffic
+ *  client      : configuration client
  *
  * Returns      :
  *  ActivateKey : If the configuration is successful, a key is returned.
  *                Otherwise, BLOG_KEY_INVALID is returned
  *------------------------------------------------------------------------------
  */
-uint32_t blog_activate( Blog_t * blog_p, BlogTraffic_t traffic )
+uint32_t blog_activate( Blog_t * blog_p, BlogTraffic_t traffic,
+                        BlogClient_t client )
 {
-    uint32_t key;
+    uint32_t     key;
 
     key = BLOG_KEY_INVALID;
-
-    if ( unlikely(blog_sc_hook_g == (BlogScHook_t)NULL) )
-        goto bypass;
-
-#if defined(CC_BLOG_SUPPORT_DEBUG)
-    blog_print( "traffic<%u> blog_p<0x%08x>", traffic, (int)blog_p );
-    blog_dump( blog_p );
-#endif
-
-    if ( (blog_p == BLOG_NULL) || (traffic >= BlogTraffic_MAX) )
+    
+    if ( blog_p == BLOG_NULL ||
+         traffic >= BlogTraffic_MAX ||
+         client >= BlogClient_MAX )
     {
         blog_assertr( ( blog_p != BLOG_NULL ), key );
         goto bypass;
     }
 
+    if ( unlikely(blog_sc_hook_g[client] == (BlogScHook_t)NULL) )
+        goto bypass;
+
+#if defined(CC_BLOG_SUPPORT_DEBUG)
+    blog_print( "blog_p<0x%08x> traffic<%u> client<%u>", (int)blog_p, traffic, client );
+    blog_dump( blog_p );
+#endif
+
     BLOG_LOCK_BH();
-    key = blog_sc_hook_g( blog_p, traffic );
+    key = blog_sc_hook_g[client]( blog_p, traffic );
     BLOG_UNLOCK_BH();
 
 bypass:
@@ -1350,29 +1437,33 @@ bypass:
  * Parameters   :
  *  key         : blog key information
  *  traffic     : type of traffic
+ *  client      : configuration client
  *
  * Returns      :
  *  blog_p      : If the deconfiguration is successful, the associated blog 
  *                pointer is returned to the caller
  *------------------------------------------------------------------------------
  */
-Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic )
+Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic,
+                          BlogClient_t client )
 {
     Blog_t * blog_p = NULL;
 
-    if ( unlikely(blog_sd_hook_g == (BlogSdHook_t)NULL) )
-        goto bypass;
-
-    blog_print( "key<%08x> traffic<%u>", key, traffic );
-
-    if ( key == BLOG_KEY_INVALID )
+    if ( key == BLOG_KEY_INVALID ||
+         traffic >= BlogTraffic_MAX ||
+         client >= BlogClient_MAX )
     {
         blog_assertr( (key != BLOG_KEY_INVALID), blog_p );
         goto bypass;
     }
 
+    if ( unlikely(blog_sd_hook_g[client] == (BlogSdHook_t)NULL) )
+        goto bypass;
+
+    blog_print( "key<%08x> traffic<%u> client<%u>", key, traffic, client );
+
     BLOG_LOCK_BH();
-    blog_p = blog_sd_hook_g( key, traffic );
+    blog_p = blog_sd_hook_g[client]( key, traffic );
     BLOG_UNLOCK_BH();
 
 #if defined(CC_BLOG_SUPPORT_DEBUG)
@@ -1382,7 +1473,6 @@ Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic )
 bypass:
     return blog_p;
 }
-
 
 /*
  * blog_iq_prio determines the Ingress QoS priority of the packet
@@ -1435,20 +1525,15 @@ bypass:
  *  blog_rx     : Function pointer to be invoked in blog_finit(), blog_sinit()
  *  blog_tx     : Function pointer to be invoked in blog_emit()
  *  blog_xx     : Function pointer to be invoked in blog_notify()
- *  blog_sc     : Function pointer to be invoked in blog_activate()
- *  blog_sd     : Function pointer to be invoked in blog_deactivate()
  *  info        : Mask of the function pointers for configuration
  *------------------------------------------------------------------------------
  */
 void blog_bind( BlogDevHook_t blog_rx, BlogDevHook_t blog_tx,
-                BlogNotifyHook_t blog_xx, BlogScHook_t blog_sc,
-                BlogSdHook_t blog_sd, 
-                BlogBind_t bind)
+                BlogNotifyHook_t blog_xx, BlogBind_t bind)
 {
-    blog_print( "Bind Rx[<%08x>] Tx[<%08x>] Notify[<%08x>]" 
-                "Sc[<%08x>] Sd[<%08x>] bind[<%u>]",
+    blog_print( "Bind Rx[<%08x>] Tx[<%08x>] Notify[<%08x>] bind[<%u>]",
                 (int)blog_rx, (int)blog_tx, (int)blog_xx,
-                (int)blog_sc, (int)blog_sd, (uint8_t)bind.hook_info );
+                (uint8_t)bind.hook_info );
 
     if ( bind.bmap.RX_HOOK )
         blog_rx_hook_g = blog_rx;   /* Receive  hook */
@@ -1456,10 +1541,29 @@ void blog_bind( BlogDevHook_t blog_rx, BlogDevHook_t blog_tx,
         blog_tx_hook_g = blog_tx;   /* Transmit hook */
     if ( bind.bmap.XX_HOOK )
         blog_xx_hook_g = blog_xx;   /* Notify hook */
+}
+
+/*
+ *------------------------------------------------------------------------------
+ * Function     : blog_bind_config
+ * Description  : Override default sc and sd hooks.
+ *  blog_sc     : Function pointer to be invoked in blog_activate()
+ *  blog_sd     : Function pointer to be invoked in blog_deactivate()
+ *  client      : configuration client
+ *  info        : Mask of the function pointers for configuration
+ *------------------------------------------------------------------------------
+ */
+void blog_bind_config( BlogScHook_t blog_sc, BlogSdHook_t blog_sd,
+                       BlogClient_t client, BlogBind_t bind)
+{
+    blog_print( "Bind Sc[<%08x>] Sd[<%08x>] Client[<%u>] bind[<%u>]",
+                (int)blog_sc, (int)blog_sd, client,
+                (uint8_t)bind.hook_info );
+
     if ( bind.bmap.SC_HOOK )
-        blog_sc_hook_g = blog_sc;   /* Static config hook */
+        blog_sc_hook_g[client] = blog_sc;   /* Static config hook */
     if ( bind.bmap.SD_HOOK )
-        blog_sd_hook_g = blog_sd;   /* Static deconf hook */
+        blog_sd_hook_g[client] = blog_sd;   /* Static deconf hook */
 }
 
 /*
@@ -1871,7 +1975,9 @@ uint16_t blog_getTxMtu(Blog_t * blog_p)
         if ( IS_RX_DIR(dir_dev_p) )
             continue;
         dev_p = (struct net_device *)DEVP_DETACH_DIR(dir_dev_p);
-        if (dev_p && dev_p->mtu < minMtu)
+		/* Exclude Bridge device - bridge always has the least MTU of all attached interfaces -
+		   irrespective of this specific flow path */
+        if (dev_p && !(dev_p->priv_flags&IFF_EBRIDGE) && dev_p->mtu < minMtu)
         {
             minMtu = dev_p->mtu;
         }
@@ -1880,6 +1986,67 @@ uint16_t blog_getTxMtu(Blog_t * blog_p)
     blog_print( "minMtu <%d>", (int)minMtu );
 
     return minMtu;
+}
+
+/* for WLAN packet chaining use */
+uint32_t blog_pktc( BlogPktc_t pktc_request, void * net_p, uint32_t param1, uint32_t param2 )
+{
+
+    switch ( pktc_request )
+    {
+        case BRC_HOT_GET:
+        {
+            if (param1 == 0)
+            	return (uint32_t)(&brc_hot[0]);
+            else
+                /* param1 is DA */
+                return (uint32_t)(CTF_BRC_HOT_LOOKUP(param1));
+        }
+        
+		case UPDATE_BRC_HOT:
+        {
+            struct net_bridge_fdb_entry *fdb;
+            blog_assertr( (net_p != (void *)NULL), 0 );
+
+            fdb = (struct net_bridge_fdb_entry *)net_p;
+            /* param1 is tx device */
+            CTF_BRC_HOT_UPDATE(fdb->addr.addr, (struct net_device *)param1);
+            return 0;
+        }
+		
+        case DELETE_BRC_HOT:
+        {
+            Blog_t *blog_p;
+            blog_assertr( (net_p != (void *)NULL), 0 );
+
+            blog_p = (Blog_t *)net_p;
+            if (blog_p != NULL) {
+               CTF_BRC_HOT_CLEAR(((struct net_bridge_fdb_entry *)blog_p->fdb[1])->addr.addr);
+            } else if (param1 != 0) {
+               CTF_BRC_HOT_CLEAR(param1);
+            }
+            return 0;
+        }
+
+        case DUMP_BRC_HOT:
+        {
+            int i;
+            printk("brc_hot dump: \n");
+            for (i=0; i<MAXBRCHOTIF*MAXBRCHOT; i++)
+                printk("[%02d] %x:%x:%x:%x:%x:%x, dev=%p (%s), hits=%d\n", i,
+                        brc_hot[i].ea.octet[0],
+                        brc_hot[i].ea.octet[1],
+                        brc_hot[i].ea.octet[2],
+                        brc_hot[i].ea.octet[3],
+                        brc_hot[i].ea.octet[4],
+                        brc_hot[i].ea.octet[5],
+                        brc_hot[i].tx_dev, (brc_hot[i].tx_dev == NULL) ? "NULL" : brc_hot[i].tx_dev->name, brc_hot[i].hits);
+            return 0;
+        }
+
+        default:
+            return 0;
+    }
 }
 
 
@@ -1950,6 +2117,8 @@ void     blog_clone( struct sk_buff * skb_p, const struct blog_t * prev_p )
 void     blog_copy(struct blog_t * new_p, const struct blog_t * prev_p)
          { return; }
 
+int blog_iq( const struct sk_buff * skb_p ) { return IQOS_PRIO_LOW; }
+
 void     blog_link( BlogNetEntity_t entity_type, Blog_t * blog_p,
                     void * net_p, uint32_t param1, uint32_t param2 ) { return; }
 
@@ -1983,8 +2152,10 @@ int blog_iq_prio( struct sk_buff * skb_p, void * dev_p,
          { return 1; }
 
 void blog_bind( BlogDevHook_t blog_rx, BlogDevHook_t blog_tx,
-                BlogNotifyHook_t blog_xx, BlogScHook_t blog_sc,
-                BlogSdHook_t blog_sd, BlogBind_t bind ) { return; }
+                BlogNotifyHook_t blog_xx, BlogBind_t bind ) { return; }
+
+void blog_bind_config( BlogScHook_t blog_sc, BlogSdHook_t blog_sd,
+                       BlogClient_t client, BlogBind_t bind ) { return; }
 
 void     blog( struct sk_buff * skb_p, BlogDir_t dir, BlogEncap_t encap,
                size_t len, void * data_p ) { return; }
@@ -1997,6 +2168,13 @@ void     blog_unlock_bh(void) {return; }
 
 uint16_t   blog_getTxMtu(Blog_t * blog_p) {return 0;}
 
+uint32_t blog_pktc(BlogPktc_t pktc_request, void * net_p, uint32_t param1, uint32_t param2) {return 0;}
+
+uint32_t blog_activate( Blog_t * blog_p, BlogTraffic_t traffic,
+                        BlogClient_t client ) { return 0; }
+
+Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic,
+                          BlogClient_t client ) { return BLOG_NULL; }
 
 EXPORT_SYMBOL(blog_emit);
 
@@ -2021,6 +2199,7 @@ EXPORT_SYMBOL(blog_skip);
 EXPORT_SYMBOL(blog_xfer);
 EXPORT_SYMBOL(blog_clone);
 EXPORT_SYMBOL(blog_copy);
+EXPORT_SYMBOL(blog_iq);
 EXPORT_SYMBOL(blog_link);
 EXPORT_SYMBOL(blog_notify);
 EXPORT_SYMBOL(blog_request);
@@ -2031,7 +2210,11 @@ EXPORT_SYMBOL(blog_finit_locked);
 EXPORT_SYMBOL(blog_lock_bh);
 EXPORT_SYMBOL(blog_unlock_bh);
 EXPORT_SYMBOL(blog_bind);
+EXPORT_SYMBOL(blog_bind_config);
 EXPORT_SYMBOL(blog_iq_prio);
 EXPORT_SYMBOL(blog_getTxMtu);
+EXPORT_SYMBOL(blog_pktc);
+EXPORT_SYMBOL(blog_activate);
+EXPORT_SYMBOL(blog_deactivate);
 
 EXPORT_SYMBOL(blog);

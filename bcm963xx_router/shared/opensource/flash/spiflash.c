@@ -1,25 +1,30 @@
 /*
-    Copyright 2000-2010 Broadcom Corporation
-
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
-
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+   <:copyright-BRCM:2012:DUAL/GPL:standard
+   
+      Copyright (c) 2012 Broadcom Corporation
+      All Rights Reserved
+   
+   Unless you and Broadcom execute a separate written software license
+   agreement governing use of this software, this software is licensed
+   to you under the terms of the GNU General Public License version 2
+   (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+   with the following added to such license:
+   
+      As a special exception, the copyright holders of this software give
+      you permission to link this software with independent modules, and
+      to copy and distribute the resulting executable under terms of your
+      choice, provided that you also meet, for each linked independent
+      module, the terms and conditions of the license of that module.
+      An independent module is a module which is not derived from this
+      software.  The special exception does not apply to any modifications
+      of the software.
+   
+   Not withstanding the above, under no circumstances may you combine
+   this software in any way with any other Broadcom software provided
+   under a license other than the GPL, without Broadcom's express prior
+   written consent.
+   
+   :> 
 */                       
 
 /** Includes. **/
@@ -27,7 +32,7 @@
 #include "lib_types.h"
 #include "lib_printf.h"
 #include "lib_string.h"
-#include "bcm_map.h"  
+#include "bcm_map_part.h"  
 #define printk  printf
 #else       // linux
 #include <linux/version.h>
@@ -82,6 +87,21 @@
 #define FLASH_BERASE        0xD8    /* erase one block in memory array */
 #define FLASH_RDID          0x9F    /* read manufacturer and product id */
 #define FLASH_EN4B          0xB7    /* Enable 4 byte address mode */
+#define FLASH_READ_DOR      0x3B    /* dual output read */
+#define FLASH_READ_DIOR     0xBB    /* dual i/o read */
+
+/* Spansion Extended Addressing opcodes for 4byte addresses */
+#define FLASH_4PROG         0x12    /* program data into memory array */
+#define FLASH_4READ         0x13    /* read data from memory array */
+#define FLASH_4READ_FAST    0x0C    /* read data from memory array */
+#define FLASH_4BERASE       0xDC    /* erase one block in memory array */
+#define FLASH_4READ_DOR     0x3C    /* dual output read */
+#define FLASH_4READ_DIOR    0xBC    /* dual i/o read */
+
+
+/* Spansion specific commands */  
+#define FLASH_RDCR          0x35    /* Read Configuration Register */
+
 
 /* RDSR return status bit definition */
 #define SR_WPEN             0x80
@@ -116,6 +136,8 @@
 #define ID_SPAN25FL032      0x15
 #define ID_SPAN25FL064      0x16
 #define ID_SPAN25FL128      0x18
+#define ID_SPAN25FL256      0x19
+
 
 /* EON manufacturer ID */
 #define EONPART             0x1C
@@ -146,6 +168,7 @@
      {SPI_MAKE_ID(SPANPART, ID_SPAN25FL032), "S25FL032"},   \
      {SPI_MAKE_ID(SPANPART, ID_SPAN25FL064), "S25FL064"},   \
      {SPI_MAKE_ID(SPANPART, ID_SPAN25FL128), "S25FL128"},   \
+     {SPI_MAKE_ID(SPANPART, ID_SPAN25FL256), "S25FL256"},   \
      {SPI_MAKE_ID(WBPART, ID_M25P16), "ID_W25X16"},         \
      {SPI_MAKE_ID(WBPART, ID_M25P32), "ID_W25X32"},         \
      {SPI_MAKE_ID(WBPART, ID_M25P64), "ID_W25X64"},         \
@@ -191,7 +214,7 @@ struct flash_name_from_id {
 
 
 /** Prototypes. **/
-static int my_spi_read( unsigned char *msg_buf, int prependcnt, int nbytes );
+static int my_spi_read( struct spi_transfer *xfer );
 static int my_spi_write( unsigned char *msg_buf, int nbytes );
 
 int spi_flash_init(flash_device_info_t **flash_info);
@@ -213,6 +236,7 @@ static unsigned short spi_flash_get_device_id(unsigned short sector);
 static int spi_flash_get_blk(int addr);
 static int spi_flash_get_total_size(void);
 static int spi_flash_en4b(void);
+static void spi_flash_multibit_en(void);
 
 /** Variables. **/
 static flash_device_info_t flash_spi_dev =
@@ -227,7 +251,13 @@ static flash_device_info_t flash_spi_dev =
         spi_flash_get_sector_size,
         spi_flash_get_memptr,
         spi_flash_get_blk,
+#ifdef AEI_NAND_IMG_CHECK
+        spi_flash_get_total_size,
+        NULL,
+        NULL
+#else
         spi_flash_get_total_size
+#endif
     };
 
 static struct flash_name_from_id fnfi[] = SPI_FLASH_DEVICES;
@@ -243,15 +273,21 @@ static struct flash_name_from_id fnfi[] = SPI_FLASH_DEVICES;
 #define SPI_FLASH_DEF_CLOCK       781000
 
 /* default to smallest transaction size - updated later */
-static int spi_max_op_len   = READ_BUF_LEN_MIN; 
-static int fastRead         = TRUE;
-static int flash_page_size  = FLASH_PAGE_256;
+static unsigned int spi_max_op_len = READ_BUF_LEN_MIN; 
+static int spi_read_cmd            = FLASH_READ_FAST;
+static int spi_dualOut_read_cmd    = FLASH_READ_DOR;
+static int spi_dualIO_read_cmd     = FLASH_READ_DIOR;
+static int spi_write_cmd           = FLASH_PROG;
+static int spi_erase_cmd           = FLASH_BERASE;
+static int spi_dummy_bytes         = 1;
+static int spi_multibit_en         = 0;
+static int flash_page_size         = FLASH_PAGE_256;
 
 /* default to legacy controller - updated later */
 static int spi_flash_clock  = SPI_FLASH_DEF_CLOCK;
 static int spi_flash_busnum = LEG_SPI_BUS_NUM;
 
-#ifndef _CFE_                                                
+#ifndef _CFE_
 static DECLARE_MUTEX(spi_flash_lock);
 static bool bSpiFlashSlaveRes = FALSE;
 #endif
@@ -259,28 +295,22 @@ static bool bSpiFlashSlaveRes = FALSE;
 static struct flashinfo meminfo; /* Flash information structure */
 static int totalSize = 0;
 static int addr32 = FALSE;
+static int flashManufacturer = SPANPART;
 
-static int my_spi_read(unsigned char *msg_buf, int prependcnt, int nbytes)
+static int my_spi_read(struct spi_transfer *xfer)
 {
-    int status; 
+    int status;
 
 #ifndef _CFE_
     if ( FALSE == bSpiFlashSlaveRes )
 #endif
     {
-        status = BcmSpi_Read(msg_buf, prependcnt, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
+        status = BcmSpi_MultibitRead(xfer, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID);
     }
 #ifndef _CFE_
     else
     {
-        /* the Linux SPI framework provides a non blocking mechanism for SPI transfers. While waiting for a spi
-           transaction to complete the kernel will look to see if another process can run. This scheduling 
-           can only occur if kernel preemption is active. The SPI flash interfaces can be run when kernel
-           preemption is enabled or disabled. When kernel preemption is disabled we cannot use the framework */
-        if ( in_atomic() )
-            status = BcmSpi_Read(msg_buf, prependcnt, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
-        else
-            status = BcmSpiSyncTrans(NULL, msg_buf, prependcnt, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID);
+        status = BcmSpiSyncMultTrans(xfer, 1, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID);
     }
 #endif
 
@@ -295,19 +325,14 @@ static int my_spi_write(unsigned char *msg_buf, int nbytes)
     if ( FALSE == bSpiFlashSlaveRes )
 #endif
     {
-        status = BcmSpi_Write(msg_buf, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
+        status = BcmSpi_Write(msg_buf, nbytes, spi_flash_busnum, 
+                              SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
     }
 #ifndef _CFE_
     else
     {
-        /* the Linux SPI framework provides a non blocking mechanism for SPI transfers. While waiting for a spi
-           transaction to complete the kernel will look to see if another process can run. This scheduling 
-           can only occur if kernel preemtion is active. The SPI flash interfaces can be run when kernel
-           preemption is enabled or disabled. When kernel preemption is disabled we cannot use the framework */
-        if ( in_atomic() )
-            status = BcmSpi_Write(msg_buf, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
-        else
-            status = BcmSpiSyncTrans(msg_buf, NULL, 0, nbytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID);
+        status = BcmSpiSyncTrans(msg_buf, NULL, 0, nbytes, spi_flash_busnum,
+                                 SPI_FLASH_SLAVE_DEV_ID);
     }
 #endif
     return status;
@@ -343,7 +368,7 @@ int spi_flash_init(flash_device_info_t **flash_info)
     int numsector = 0;
     int spiCtrlState;
 
-#if defined(_BCM96816_) || defined(CONFIG_BCM96816)
+#if defined(_BCM96816_) || defined(CONFIG_BCM96816) || defined(_BCM96818_) || defined(CONFIG_BCM96818)
     uint32 miscStrapBus = MISC->miscStrapBus;
 
     if ( miscStrapBus & MISC_STRAP_BUS_LS_SPIM_ENABLED )
@@ -380,7 +405,7 @@ int spi_flash_init(flash_device_info_t **flash_info)
     else
         spi_flash_clock = 16666667;
 #endif
-#if defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM963268_) || defined(CONFIG_BCM963268)
+#if defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM963268_) || defined(CONFIG_BCM963268) || defined(_BCM96828_) || defined(CONFIG_BCM96828)
     uint32 miscStrapBus = MISC->miscStrapBus;
 
     spi_flash_busnum = HS_SPI_BUS_NUM;
@@ -398,8 +423,15 @@ int spi_flash_init(flash_device_info_t **flash_info)
        spi_flash_clock = 781000;
 #endif
 
+#if defined(_BCM96318_) || defined(CONFIG_BCM96318)
+       spi_flash_busnum = HS_SPI_BUS_NUM;
+       spi_flash_clock = 62500000; 
+       //spi_flash_clock = 12500000; Default clock
+#endif
+
+
     /* retrieve the maximum read/write transaction length from the SPI controller */
-    spi_max_op_len = BcmSpi_GetMaxRWSize( spi_flash_busnum );
+    spi_max_op_len = BcmSpi_GetMaxRWSize( spi_flash_busnum, 1 );
 
     /* set the controller state, spi_mode_0 */
     spiCtrlState = SPI_CONTROLLER_STATE_DEFAULT;
@@ -425,6 +457,7 @@ int spi_flash_init(flash_device_info_t **flash_info)
 #endif
 
     flash_spi_dev.flash_device_id = device_id = spi_flash_get_device_id(0);
+    flashManufacturer = device_id >> 8;
 
     switch( device_id >> 8 ) {
         case SSTPART:
@@ -456,6 +489,10 @@ int spi_flash_init(flash_device_info_t **flash_info)
                     break;
                 case ID_SPAN25FL128:
                     numsector = 256;
+                    break;
+                case ID_SPAN25FL256:
+                    numsector = 512; 
+                    addr32 = TRUE;
                     break;
             }
             break;
@@ -533,10 +570,20 @@ int spi_flash_init(flash_device_info_t **flash_info)
         }
     }
 
-    if ( fastRead )
-        BcmSpi_SetFlashCtrl(FLASH_READ_FAST, 1, 1, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
-    else
-        BcmSpi_SetFlashCtrl(FLASH_READ, 1, 0, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock);
+    /* check to see if multibit mode is supported */
+    switch( device_id >> 8 ) {
+        case SPANPART:
+            if ( HS_SPI_BUS_NUM == spi_flash_busnum )
+            {
+               spi_flash_multibit_en();
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    BcmSpi_SetFlashCtrl(spi_read_cmd, 1, spi_dummy_bytes, spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock, spi_multibit_en);
 
     return (FLASH_API_OK);
 }
@@ -568,7 +615,7 @@ static int spi_flash_sector_erase_int(unsigned short sector)
     if (meminfo.sec[sector].size == SECTOR_SIZE_4K)
         buf[cmd_length++] = FLASH_SERASE;
     else
-        buf[cmd_length++] = FLASH_BERASE;
+        buf[cmd_length++] = spi_erase_cmd;
 
     if ( addr32 )
         buf[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
@@ -600,10 +647,42 @@ static int spi_flash_en4b(void)
 {
     unsigned char buf[4];
 
-    /* set device to write disabled */
-    buf[0] = FLASH_EN4B;
-    my_spi_write(buf, 1);
-    while (spi_flash_status() != STATUS_READY);
+    if (flashManufacturer == SPANPART)
+    {        
+        int latencyCode = 0;
+        struct spi_transfer xfer;
+
+        spi_read_cmd            = FLASH_4READ_FAST;
+        spi_dualOut_read_cmd    = FLASH_4READ_DOR;
+        spi_dualIO_read_cmd     = FLASH_4READ_DIOR;
+        spi_write_cmd           = FLASH_4PROG;
+        spi_erase_cmd           = FLASH_4BERASE;
+ 
+        memset(&xfer, 0, sizeof(struct spi_transfer));
+        buf[0]           = FLASH_RDCR;
+        xfer.tx_buf      = buf;
+        xfer.rx_buf      = buf;
+        xfer.len         = 1;
+        xfer.speed_hz    = spi_flash_clock;
+        xfer.prepend_cnt = 1;
+        my_spi_read(&xfer);
+        while (spi_flash_status() != STATUS_READY);
+
+        latencyCode = (buf[0] & 0xC0) >> 6;
+        if (latencyCode == 0x3)
+        {
+            spi_dummy_bytes = 0;  
+        }
+        
+    }
+    else
+    {
+        /* set device to write disabled */
+        buf[0] = FLASH_EN4B;
+        my_spi_write(buf, 1);
+        while (spi_flash_status() != STATUS_READY);
+    }
+
 
     return(FLASH_API_OK);
 }
@@ -619,7 +698,7 @@ static int spi_flash_reset(void)
     unsigned char buf[4];
 
     /* set device to write disabled */
-    buf[0] = FLASH_WRDI;
+    buf[0]        = FLASH_WRDI;
     my_spi_write(buf, 1);
     while (spi_flash_status() != STATUS_READY);
 
@@ -638,7 +717,10 @@ static int spi_flash_read_buf(unsigned short sector, int offset,
     unsigned int cmd_length;
     unsigned int addr;
     int maxread;
+    int multiOffset = 0;
+    struct spi_transfer xfer;
 
+    memset(&xfer, 0, sizeof(struct spi_transfer));
 #ifndef _CFE_
     down(&spi_flash_lock);
 #endif
@@ -650,25 +732,38 @@ static int spi_flash_read_buf(unsigned short sector, int offset,
         maxread = (nbytes < spi_max_op_len) ? nbytes : spi_max_op_len;
 
         cmd_length = 0;
-        if ( fastRead )
-            buf[cmd_length++] = FLASH_READ_FAST;
-        else
-            buf[cmd_length++] = FLASH_READ;
+        buf[cmd_length++] = spi_read_cmd;
         if ( addr32 )
             buf[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
         buf[cmd_length++] = (unsigned char)((addr & 0x00ff0000) >> 16);
         buf[cmd_length++] = (unsigned char)((addr & 0x0000ff00) >> 8);
         buf[cmd_length++] = (unsigned char)(addr & 0x000000ff);
-
-        /* Send dummy byte for Fast Read */
-        if ( fastRead ) 
+        if (spi_dummy_bytes)
             buf[cmd_length++] = (unsigned char)0xff;
 
-        my_spi_read(buf, cmd_length, maxread);
+        if (spi_multibit_en)
+        {
+            if ( spi_read_cmd == spi_dualOut_read_cmd )
+               multiOffset = cmd_length; /* only read data is multibit */
+            else
+               multiOffset = 1; /* addr and data is multibit */
+        }
+
+        xfer.tx_buf                 = buf;
+        xfer.rx_buf                 = buffer;
+        xfer.len                    = maxread;
+        xfer.speed_hz               = spi_flash_clock;
+        xfer.prepend_cnt            = cmd_length;
+        xfer.multi_bit_en           = spi_multibit_en;
+        xfer.multi_bit_start_offset = multiOffset;
+        xfer.addr_len               = (addr32 ? 4 : 3);
+        xfer.addr_offset            = 1;
+        xfer.hdr_len                = cmd_length;
+        xfer.unit_size              = 1;
+        my_spi_read(&xfer);
 
         while (spi_flash_status() != STATUS_READY);
 
-        memcpy(buffer, buf, maxread);
         buffer += maxread;
         nbytes -= maxread;
         addr += maxread;
@@ -691,10 +786,17 @@ static int spi_flash_read_buf(unsigned short sector, int offset,
 static int spi_flash_ub(unsigned short sector)
 {
     unsigned char buf[4];
+    struct spi_transfer xfer;
 
     do {
-        buf[0] = FLASH_RDSR;
-        if (my_spi_read(buf, 1, 1) == SPI_STATUS_OK) {
+        buf[0]           = FLASH_RDSR;
+        memset(&xfer, 0, sizeof(struct spi_transfer));
+        xfer.tx_buf      = buf;
+        xfer.rx_buf      = buf;
+        xfer.len         = 1;
+        xfer.speed_hz    = spi_flash_clock;
+        xfer.prepend_cnt = 1;
+        if (my_spi_read(&xfer) == SPI_STATUS_OK) {
             while (spi_flash_status() != STATUS_READY);
             if (buf[0] & (SR_BP3|SR_BP2|SR_BP1|SR_BP0)) {
                 /* Sector is write protected. Unprotect it */
@@ -722,8 +824,14 @@ static int spi_flash_ub(unsigned short sector)
     if (my_spi_write(buf, 1) == SPI_STATUS_OK) {
         while (spi_flash_status() != STATUS_READY);
         do {
-            buf[0] = FLASH_RDSR;
-            if (my_spi_read(buf, 1, 1) == SPI_STATUS_OK) {
+            buf[0]           = FLASH_RDSR;
+            memset(&xfer, 0, sizeof(struct spi_transfer));
+            xfer.tx_buf      = buf;
+            xfer.rx_buf      = buf;
+            xfer.len         = 1;
+            xfer.speed_hz    = spi_flash_clock;
+            xfer.prepend_cnt = 1;
+            if (my_spi_read(&xfer) == SPI_STATUS_OK) {
                 while (spi_flash_status() != STATUS_READY);
                 if (buf[0] & SR_WEN) {
                     break;
@@ -767,7 +875,7 @@ static int spi_flash_write(unsigned short sector, int offset,
         spi_flash_ub(sector); /* enable write */
 
         cmd_length = 0;
-        buf[cmd_length++] = FLASH_PROG;
+        buf[cmd_length++] = spi_write_cmd;
         if ( addr32 )
             buf[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
         buf[cmd_length++] = (unsigned char)((addr & 0x00ff0000) >> 16);
@@ -873,14 +981,14 @@ static int spi_flash_get_sector_size(unsigned short sector)
 static unsigned char *spi_get_flash_memptr(unsigned short sector)
 {
     unsigned char *memptr = (unsigned char*)
-        (FLASH_BASE + meminfo.sec[sector].base);
+        (meminfo.sec[sector].base);
 
     return (memptr);
 }
 
 static unsigned char *spi_flash_get_memptr(unsigned short sector)
 {
-    return( spi_get_flash_memptr(sector) );
+    return( FLASH_BASE + spi_get_flash_memptr(sector) );
 }
 
 /*********************************************************************/
@@ -891,11 +999,18 @@ static int spi_flash_status(void)
 {
     unsigned char buf[4];
     int retry = 10;
+    struct spi_transfer xfer;
 
     /* check device is ready */
+    memset(&xfer, 0, sizeof(struct spi_transfer));
     do {
-        buf[0] = FLASH_RDSR;
-        if (my_spi_read(buf, 1, 1) == SPI_STATUS_OK) {
+        buf[0]           = FLASH_RDSR;
+        xfer.tx_buf      = buf;
+        xfer.rx_buf      = buf;
+        xfer.len         = 1;
+        xfer.speed_hz    = spi_flash_clock;
+        xfer.prepend_cnt = 1;
+        if (my_spi_read(&xfer) == SPI_STATUS_OK) {
             if (!(buf[0] & SR_RDY)) {
                 return STATUS_READY;
             }
@@ -915,9 +1030,16 @@ static int spi_flash_status(void)
 static unsigned short spi_flash_get_device_id(unsigned short sector)
 {
     unsigned char buf[4];
+    struct spi_transfer xfer;
 
-    buf[0] = FLASH_RDID;
-    my_spi_read(buf, 1, 3);
+    memset(&xfer, 0, sizeof(struct spi_transfer));
+    buf[0]           = FLASH_RDID;
+    xfer.tx_buf      = buf;
+    xfer.rx_buf      = buf;
+    xfer.len         = 3;
+    xfer.speed_hz    = spi_flash_clock;
+    xfer.prepend_cnt = 1;
+    my_spi_read(&xfer);
     while (spi_flash_status() != STATUS_READY);
     buf[1] = buf[2];
 
@@ -961,6 +1083,136 @@ static int spi_flash_get_total_size(void)
     return totalSize;
 }
 
+static void spi_flash_multibit_en( void )
+{
+   unsigned char       buf[16];
+   unsigned char       bufCmp[16];
+   unsigned int        cmd_length;
+   unsigned int        addr;
+   struct spi_transfer xfer;
+   int                 i;
+
+   memset(&xfer, 0, sizeof(struct spi_transfer));
+
+#ifndef _CFE_
+   down(&spi_flash_lock);
+#endif
+
+   /* read 16 bytes of data form the first sector of flash
+      this will be used to compare to the data read using the DOR
+      and DIOR commands */
+   addr              = (unsigned int) spi_get_flash_memptr(NVRAM_SECTOR);
+   cmd_length        = 0;
+   buf[cmd_length++] = spi_read_cmd;
+   if ( addr32 )
+      buf[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
+   buf[cmd_length++] = (unsigned char)((addr & 0x00ff0000) >> 16);
+   buf[cmd_length++] = (unsigned char)((addr & 0x0000ff00) >> 8);
+   buf[cmd_length++] = (unsigned char)(addr & 0x000000ff);
+   if ( spi_dummy_bytes ) 
+      buf[cmd_length++] = (unsigned char)0xff;
+
+   xfer.tx_buf      = buf;
+   xfer.rx_buf      = buf;
+   xfer.len         = 16;
+   xfer.speed_hz    = spi_flash_clock;
+   xfer.prepend_cnt = cmd_length;
+   my_spi_read(&xfer);
+   while (spi_flash_status() != STATUS_READY);
+
+   /* if the data read above is all 1's then we cannot determine if multibit is
+      supported by the flash so just return */
+   for ( i = 0; i < 16; i++)
+   {
+      if ( buf[i] != 0xFF )
+      {
+         break;
+      }
+      if ( 15 == i )
+      {
+         return;
+      }
+   }
+
+   /* try the DIOR instruction
+      if the data matches the previously read data then it is supported */
+   addr              = (unsigned int) spi_get_flash_memptr(NVRAM_SECTOR);
+   cmd_length        = 0;
+   bufCmp[cmd_length++] = spi_dualIO_read_cmd;
+
+   if ( addr32 )
+      bufCmp[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
+   
+   bufCmp[cmd_length++] = (unsigned char)((addr & 0x00ff0000) >> 16);
+   bufCmp[cmd_length++] = (unsigned char)((addr & 0x0000ff00) >> 8);
+   bufCmp[cmd_length++] = (unsigned char)(addr & 0x000000ff);
+   if (spi_dummy_bytes)
+   {
+       bufCmp[cmd_length++] = (unsigned char)0xff;
+   }
+
+   xfer.tx_buf                 = bufCmp;
+   xfer.rx_buf                 = bufCmp;
+   xfer.len                    = 16;
+   xfer.speed_hz               = spi_flash_clock;
+   xfer.prepend_cnt            = cmd_length;
+   xfer.multi_bit_en           = 1;
+   xfer.multi_bit_start_offset = 1;
+   my_spi_read(&xfer);
+   while (spi_flash_status() != STATUS_READY);
+
+   if ( 0 == memcmp(buf, bufCmp, 16) )
+   {
+      /* DIOR command is supported */
+      spi_read_cmd    = spi_dualIO_read_cmd;
+      spi_multibit_en = 1;
+#ifndef _CFE_
+      up(&spi_flash_lock);
+#endif
+      return;
+   }
+
+   /* try the DOR command
+      if the data matches the previously read data then it is supported */
+   addr              = (unsigned int) spi_get_flash_memptr(NVRAM_SECTOR);
+   cmd_length        = 0;
+   bufCmp[cmd_length++] = spi_dualOut_read_cmd;
+   if ( addr32 )
+      bufCmp[cmd_length++] = (unsigned char)((addr & 0xff000000) >> 24);
+   bufCmp[cmd_length++] = (unsigned char)((addr & 0x00ff0000) >> 16);
+   bufCmp[cmd_length++] = (unsigned char)((addr & 0x0000ff00) >> 8);
+   bufCmp[cmd_length++] = (unsigned char)(addr & 0x000000ff);
+   if (spi_dummy_bytes)
+   {
+       bufCmp[cmd_length++] = (unsigned char)0xff;
+   }
+   
+   xfer.tx_buf                 = bufCmp;
+   xfer.rx_buf                 = bufCmp;
+   xfer.len                    = 16;
+   xfer.speed_hz               = spi_flash_clock;
+   xfer.prepend_cnt            = cmd_length;
+   xfer.multi_bit_en           = 1;
+   xfer.multi_bit_start_offset = cmd_length;
+   my_spi_read(&xfer);
+   while (spi_flash_status() != STATUS_READY);
+
+   if ( 0 == memcmp(buf, bufCmp, 16) )
+   {
+      /* DOR command is supported */
+      spi_read_cmd    = spi_dualOut_read_cmd;
+      spi_multibit_en = 1;
+#ifndef _CFE_
+      up(&spi_flash_lock);
+#endif
+      return;
+   }
+
+#ifndef _CFE_
+    up(&spi_flash_lock);
+#endif
+
+}
 
 #ifndef _CFE_
 static int __init BcmSpiflash_init(void)
@@ -980,6 +1232,7 @@ static int __init BcmSpiflash_init(void)
         BcmSpiReserveSlave2(spi_flash_busnum, SPI_FLASH_SLAVE_DEV_ID, spi_flash_clock, 
                             SPI_MODE_DEFAULT, spiCtrlState);
         bSpiFlashSlaveRes = TRUE;
+        spi_max_op_len    = BcmSpi_GetMaxRWSize( spi_flash_busnum, 1 );
     }
 
     return 0;

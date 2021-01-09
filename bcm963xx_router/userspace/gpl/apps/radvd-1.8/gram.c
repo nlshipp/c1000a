@@ -1,20 +1,21 @@
-/* A Bison parser, made by GNU Bison 2.4.3.  */
+
+/* A Bison parser, made by GNU Bison 2.4.1.  */
 
 /* Skeleton implementation for Bison's Yacc-like parsers in C
-   
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-   2009, 2010 Free Software Foundation, Inc.
-   
+
+      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
@@ -27,7 +28,7 @@
    special exception, which will cause the skeleton and the resulting
    Bison output files to be licensed under the GNU General Public
    License without this special exception.
-   
+
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
@@ -45,7 +46,7 @@
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "2.4.3"
+#define YYBISON_VERSION "2.4.1"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -117,7 +118,7 @@ static struct in6_addr get_prefix6(struct in6_addr const *addr, struct in6_addr 
 
 
 /* Line 189 of yacc.c  */
-#line 121 "gram.c"
+#line 122 "gram.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -278,7 +279,7 @@ typedef union YYSTYPE
 
 
 /* Line 214 of yacc.c  */
-#line 282 "gram.c"
+#line 283 "gram.c"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
@@ -290,7 +291,7 @@ typedef union YYSTYPE
 
 
 /* Line 264 of yacc.c  */
-#line 294 "gram.c"
+#line 295 "gram.c"
 
 #ifdef short
 # undef short
@@ -340,7 +341,7 @@ typedef short int yytype_int16;
 #define YYSIZE_MAXIMUM ((YYSIZE_T) -1)
 
 #ifndef YY_
-# if defined YYENABLE_NLS && YYENABLE_NLS
+# if YYENABLE_NLS
 #  if ENABLE_NLS
 #   include <libintl.h> /* INFRINGES ON USER NAME SPACE */
 #   define YY_(msgid) dgettext ("bison-runtime", msgid)
@@ -873,18 +874,9 @@ static const yytype_uint8 yystos[] =
 
 /* Like YYERROR except do call yyerror.  This remains here temporarily
    to ease the transition to the new meaning of YYERROR, for GCC.
-   Once GCC version 2 has supplanted version 1, this can go.  However,
-   YYFAIL appears to be in use.  Nevertheless, it is formally deprecated
-   in Bison 2.4.2's NEWS entry, where a plan to phase it out is
-   discussed.  */
+   Once GCC version 2 has supplanted version 1, this can go.  */
 
 #define YYFAIL		goto yyerrlab
-#if defined YYFAIL
-  /* This is here to suppress warnings from the GCC cpp's
-     -Wunused-macros.  Normally we don't worry about that warning, but
-     some users do, and we want to make it easy for users to remove
-     YYFAIL uses, which will produce warnings from Bison 2.5.  */
-#endif
 
 #define YYRECOVERING()  (!!yyerrstatus)
 
@@ -941,7 +933,7 @@ while (YYID (0))
    we won't break user code: when these are the locations we know.  */
 
 #ifndef YY_LOCATION_PRINT
-# if defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL
+# if YYLTYPE_IS_TRIVIAL
 #  define YY_LOCATION_PRINT(File, Loc)			\
      fprintf (File, "%d.%d-%d.%d",			\
 	      (Loc).first_line, (Loc).first_column,	\
@@ -1102,7 +1094,7 @@ yy_reduce_print (yyvsp, yyrule)
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
-		       		       );
+				       );
       YYFPRINTF (stderr, "\n");
     }
 }
@@ -1680,7 +1672,7 @@ yyreduce:
     {
         case 4:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 157 "gram.y"
     {
 			struct Interface *iface2;
@@ -1730,7 +1722,7 @@ yyreduce:
 
   case 5:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 203 "gram.y"
     {
 			iface = malloc(sizeof(struct Interface));
@@ -1748,7 +1740,7 @@ yyreduce:
 
   case 6:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 218 "gram.y"
     {
 			/* check vality */
@@ -1758,42 +1750,42 @@ yyreduce:
 
   case 10:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 230 "gram.y"
     { ADD_TO_LL(struct AdvPrefix, AdvPrefixList, (yyvsp[(1) - (1)].pinfo)); }
     break;
 
   case 11:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 231 "gram.y"
     { ADD_TO_LL(struct Clients, ClientList, (yyvsp[(1) - (1)].ainfo)); }
     break;
 
   case 12:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 232 "gram.y"
     { ADD_TO_LL(struct AdvRoute, AdvRouteList, (yyvsp[(1) - (1)].rinfo)); }
     break;
 
   case 13:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 233 "gram.y"
     { ADD_TO_LL(struct AdvRDNSS, AdvRDNSSList, (yyvsp[(1) - (1)].rdnssinfo)); }
     break;
 
   case 14:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 234 "gram.y"
     { ADD_TO_LL(struct AdvDNSSL, AdvDNSSLList, (yyvsp[(1) - (1)].dnsslinfo)); }
     break;
 
   case 15:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 238 "gram.y"
     {
 			iface->MinRtrAdvInterval = (yyvsp[(2) - (3)].num);
@@ -1802,7 +1794,7 @@ yyreduce:
 
   case 16:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 242 "gram.y"
     {
 			iface->MaxRtrAdvInterval = (yyvsp[(2) - (3)].num);
@@ -1811,7 +1803,7 @@ yyreduce:
 
   case 17:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 246 "gram.y"
     {
 			iface->MinDelayBetweenRAs = (yyvsp[(2) - (3)].num);
@@ -1820,7 +1812,7 @@ yyreduce:
 
   case 18:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 250 "gram.y"
     {
 			iface->MinRtrAdvInterval = (yyvsp[(2) - (3)].dec);
@@ -1829,7 +1821,7 @@ yyreduce:
 
   case 19:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 254 "gram.y"
     {
 			iface->MaxRtrAdvInterval = (yyvsp[(2) - (3)].dec);
@@ -1838,7 +1830,7 @@ yyreduce:
 
   case 20:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 258 "gram.y"
     {
 			iface->MinDelayBetweenRAs = (yyvsp[(2) - (3)].dec);
@@ -1847,7 +1839,7 @@ yyreduce:
 
   case 21:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 262 "gram.y"
     {
 			iface->IgnoreIfMissing = (yyvsp[(2) - (3)].num);
@@ -1856,7 +1848,7 @@ yyreduce:
 
   case 22:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 266 "gram.y"
     {
 			iface->AdvSendAdvert = (yyvsp[(2) - (3)].num);
@@ -1865,7 +1857,7 @@ yyreduce:
 
   case 23:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 270 "gram.y"
     {
 			iface->AdvManagedFlag = (yyvsp[(2) - (3)].num);
@@ -1874,7 +1866,7 @@ yyreduce:
 
   case 24:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 274 "gram.y"
     {
 			iface->AdvOtherConfigFlag = (yyvsp[(2) - (3)].num);
@@ -1883,7 +1875,7 @@ yyreduce:
 
   case 25:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 278 "gram.y"
     {
 			iface->AdvLinkMTU = (yyvsp[(2) - (3)].num);
@@ -1892,7 +1884,7 @@ yyreduce:
 
   case 26:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 282 "gram.y"
     {
 			iface->AdvReachableTime = (yyvsp[(2) - (3)].num);
@@ -1901,7 +1893,7 @@ yyreduce:
 
   case 27:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 286 "gram.y"
     {
 			iface->AdvRetransTimer = (yyvsp[(2) - (3)].num);
@@ -1910,7 +1902,7 @@ yyreduce:
 
   case 28:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 290 "gram.y"
     {
 			iface->AdvDefaultLifetime = (yyvsp[(2) - (3)].num);
@@ -1919,7 +1911,7 @@ yyreduce:
 
   case 29:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 294 "gram.y"
     {
 			iface->AdvDefaultPreference = (yyvsp[(2) - (3)].snum);
@@ -1928,7 +1920,7 @@ yyreduce:
 
   case 30:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 298 "gram.y"
     {
 			iface->AdvCurHopLimit = (yyvsp[(2) - (3)].num);
@@ -1937,7 +1929,7 @@ yyreduce:
 
   case 31:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 302 "gram.y"
     {
 			iface->AdvSourceLLAddress = (yyvsp[(2) - (3)].num);
@@ -1946,7 +1938,7 @@ yyreduce:
 
   case 32:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 306 "gram.y"
     {
 			iface->AdvIntervalOpt = (yyvsp[(2) - (3)].num);
@@ -1955,7 +1947,7 @@ yyreduce:
 
   case 33:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 310 "gram.y"
     {
 			iface->AdvHomeAgentInfo = (yyvsp[(2) - (3)].num);
@@ -1964,7 +1956,7 @@ yyreduce:
 
   case 34:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 314 "gram.y"
     {
 			iface->AdvHomeAgentFlag = (yyvsp[(2) - (3)].num);
@@ -1973,7 +1965,7 @@ yyreduce:
 
   case 35:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 318 "gram.y"
     {
 			iface->HomeAgentPreference = (yyvsp[(2) - (3)].num);
@@ -1982,7 +1974,7 @@ yyreduce:
 
   case 36:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 322 "gram.y"
     {
 			iface->HomeAgentLifetime = (yyvsp[(2) - (3)].num);
@@ -1991,7 +1983,7 @@ yyreduce:
 
   case 37:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 326 "gram.y"
     {
 			iface->UnicastOnly = (yyvsp[(2) - (3)].num);
@@ -2000,7 +1992,7 @@ yyreduce:
 
   case 38:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 330 "gram.y"
     {
 			iface->AdvMobRtrSupportFlag = (yyvsp[(2) - (3)].num);
@@ -2009,7 +2001,7 @@ yyreduce:
 
   case 39:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 336 "gram.y"
     {
 			(yyval.ainfo) = (yyvsp[(3) - (5)].ainfo);
@@ -2018,7 +2010,7 @@ yyreduce:
 
   case 40:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 342 "gram.y"
     {
 			struct Clients *new = calloc(1, sizeof(struct Clients));
@@ -2034,7 +2026,7 @@ yyreduce:
 
   case 41:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 353 "gram.y"
     {
 			struct Clients *new = calloc(1, sizeof(struct Clients));
@@ -2051,7 +2043,7 @@ yyreduce:
 
   case 42:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 368 "gram.y"
     {
 			if (prefix) {
@@ -2152,7 +2144,7 @@ yyreduce:
 
   case 43:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 466 "gram.y"
     {
 			struct in6_addr zeroaddr;
@@ -2252,7 +2244,7 @@ yyreduce:
 
   case 49:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 572 "gram.y"
     {
 			if (prefix) {
@@ -2271,7 +2263,7 @@ yyreduce:
 
   case 50:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 586 "gram.y"
     {
 			if (prefix) {
@@ -2290,7 +2282,7 @@ yyreduce:
 
   case 51:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 600 "gram.y"
     {
 			if (prefix) {
@@ -2304,7 +2296,7 @@ yyreduce:
 
   case 52:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 609 "gram.y"
     {
 			if (prefix) {
@@ -2325,7 +2317,7 @@ yyreduce:
 
   case 53:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 625 "gram.y"
     {
 			if (prefix) {
@@ -2346,7 +2338,7 @@ yyreduce:
 
   case 54:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 641 "gram.y"
     {
 			prefix->DeprecatePrefixFlag = (yyvsp[(2) - (3)].num);
@@ -2355,7 +2347,7 @@ yyreduce:
 
   case 55:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 645 "gram.y"
     {
 			prefix->DecrementLifetimesFlag = (yyvsp[(2) - (3)].num);
@@ -2364,7 +2356,7 @@ yyreduce:
 
   case 56:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 649 "gram.y"
     {
 			if (prefix) {
@@ -2381,7 +2373,7 @@ yyreduce:
 
   case 57:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 662 "gram.y"
     {
 			if (prefix) {
@@ -2398,7 +2390,7 @@ yyreduce:
 
   case 58:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 676 "gram.y"
     {
 			(yyval.rinfo) = route;
@@ -2408,7 +2400,7 @@ yyreduce:
 
   case 59:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 684 "gram.y"
     {
 			route = malloc(sizeof(struct AdvRoute));
@@ -2434,7 +2426,7 @@ yyreduce:
 
   case 64:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 717 "gram.y"
     {
 			route->AdvRoutePreference = (yyvsp[(2) - (3)].snum);
@@ -2443,7 +2435,7 @@ yyreduce:
 
   case 65:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 721 "gram.y"
     {
 			route->AdvRouteLifetime = (yyvsp[(2) - (3)].num);
@@ -2452,7 +2444,7 @@ yyreduce:
 
   case 66:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 725 "gram.y"
     {
 			route->RemoveRouteFlag = (yyvsp[(2) - (3)].num);
@@ -2461,7 +2453,7 @@ yyreduce:
 
   case 67:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 731 "gram.y"
     {
 			(yyval.rdnssinfo) = rdnss;
@@ -2471,7 +2463,7 @@ yyreduce:
 
   case 70:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 742 "gram.y"
     {
 			if (!rdnss) {
@@ -2509,7 +2501,7 @@ yyreduce:
 
   case 71:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 777 "gram.y"
     {
 			if (!rdnss) {
@@ -2521,7 +2513,7 @@ yyreduce:
 
   case 76:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 795 "gram.y"
     {
 			flog(LOG_WARNING, "Ignoring deprecated RDNSS preference.");
@@ -2530,7 +2522,7 @@ yyreduce:
 
   case 77:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 799 "gram.y"
     {
 			flog(LOG_WARNING, "Ignoring deprecated RDNSS open flag.");
@@ -2539,7 +2531,7 @@ yyreduce:
 
   case 78:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 803 "gram.y"
     {
 			if ((yyvsp[(2) - (3)].num) < iface->MaxRtrAdvInterval && (yyvsp[(2) - (3)].num) != 0) {
@@ -2555,7 +2547,7 @@ yyreduce:
 
   case 79:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 814 "gram.y"
     {
 			rdnss->FlushRDNSSFlag = (yyvsp[(2) - (3)].num);
@@ -2564,7 +2556,7 @@ yyreduce:
 
   case 80:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 820 "gram.y"
     {
 			(yyval.dnsslinfo) = dnssl;
@@ -2574,7 +2566,7 @@ yyreduce:
 
   case 83:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 831 "gram.y"
     {
 			char *ch;
@@ -2619,7 +2611,7 @@ yyreduce:
 
   case 84:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 873 "gram.y"
     {
 			if (!dnssl) {
@@ -2631,7 +2623,7 @@ yyreduce:
 
   case 89:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 891 "gram.y"
     {
 			if ((yyvsp[(2) - (3)].num) < iface->MaxRtrAdvInterval && (yyvsp[(2) - (3)].num) != 0) {
@@ -2647,7 +2639,7 @@ yyreduce:
 
   case 90:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 902 "gram.y"
     {
 			dnssl->FlushDNSSLFlag = (yyvsp[(2) - (3)].num);
@@ -2656,7 +2648,7 @@ yyreduce:
 
   case 91:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 908 "gram.y"
     {
 				(yyval.num) = (yyvsp[(1) - (1)].num);
@@ -2665,7 +2657,7 @@ yyreduce:
 
   case 92:
 
-/* Line 1464 of yacc.c  */
+/* Line 1455 of yacc.c  */
 #line 912 "gram.y"
     {
 				(yyval.num) = (uint32_t)~0;
@@ -2674,8 +2666,8 @@ yyreduce:
 
 
 
-/* Line 1464 of yacc.c  */
-#line 2679 "gram.c"
+/* Line 1455 of yacc.c  */
+#line 2671 "gram.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -2886,7 +2878,7 @@ yyreturn:
 
 
 
-/* Line 1684 of yacc.c  */
+/* Line 1675 of yacc.c  */
 #line 917 "gram.y"
 
 
@@ -2958,4 +2950,3 @@ yyerror(char *msg)
 	cleanup();
 	flog(LOG_ERR, "%s in %s, line %d: %s", msg, conf_file, num_lines, yytext);
 }
-

@@ -119,8 +119,8 @@ static void final_check(const struct ebt_u_entry *entry,
 	   (struct ebt_wmm_mark_t_info *)target->data;
 		            
 	if(markinfo->mark == WMM_MARK_DSCP) {
-		if (entry->ethproto != ETH_P_IP || entry->invflags & EBT_IPROTO)
-			print_error("wmm-mark dscp must be used with -p IPv4");
+		if ((entry->ethproto != ETH_P_IPV6 && entry->ethproto != ETH_P_IP) || entry->invflags & EBT_IPROTO)
+			print_error("wmm-mark dscp must be used with -p IPv4/IPv6");
 		
 	} else if (markinfo->mark == WMM_MARK_8021D) {
 		if (entry->ethproto != ETH_P_8021Q || entry->invflags & EBT_IPROTO)

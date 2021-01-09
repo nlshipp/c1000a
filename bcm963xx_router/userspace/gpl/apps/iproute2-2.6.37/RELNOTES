@@ -2,7 +2,7 @@
 ! 1. Compile with rh-7.2
 ! 2. What the hell some people blame on socklen_t defined in unistd.h? Check.
  * Kim Woelders <kim@woelders.dk>, various useful fixups: compilation
-   with old kernels, cross-compiling, "all" == "any" in prefix spec. 
+   with old kernels, cross-compiling, "all" == "any" in prefix spec.
  * Collected from my disk, cleaned and packed to directory iproute2/misc/
    several utilities: ss, nstat, ifstat, rtacct, arpd and module tcp_diag.
    Writing some docs. me.
@@ -17,7 +17,7 @@
    Seeing this crap for ages but lucky match of desire/ability to repair
    and a huff about this happened only today. :-)
  * "Mr. James W. Laferriere" <babydr@baby-dragons.com>
-   doc: option to produce ps output for non-a4 and not only 2 pages/sheet. 
+   doc: option to produce ps output for non-a4 and not only 2 pages/sheet.
  * Jamal's patch for ingres qdisc.
  * Bernd Eckenfels <ecki@lina.inka.de>: deleted orphaned bogus #include
    in include/utils.h.
@@ -48,8 +48,8 @@
  * Rafal Maszkowski <rzm@icm.edu.pl>, batch mode tc. The most old patch.
  * Updates list of data protocol ids.
    Lots of reporters. I bring my apologies.
- * Jan Rekorajski <baggins@sith.mimuw.edu.pl>. Updated list of datalink types. 
- * Christina Chen <chenchristina@cwc.nus.edu.sg>. Bug in parsing IPv6 address match in u32. 
+ * Jan Rekorajski <baggins@sith.mimuw.edu.pl>. Updated list of datalink types.
+ * Christina Chen <chenchristina@cwc.nus.edu.sg>. Bug in parsing IPv6 address match in u32.
  * Pekka Savola <pekkas@netcore.fi>. ip -6 route flush dev lo stuck
    on deleting root of the table.
  * Werner. dsmark fixes.
@@ -58,7 +58,7 @@
    it prints some crap.
  * Rui Prior <rprior@inescporto.pt>. f_route failed to resolve fromif.
    Werner also noticed this and sent patch. Bad place... [RETHINK]
- * Kim Woelders <kim@woelders.dk>. 
+ * Kim Woelders <kim@woelders.dk>.
    - changes in Makefile for cross-compile
    - understand "all" as alias for "any"
    - bug in iprule.c
@@ -113,7 +113,7 @@
 [990630]
   * DiffServ support.
 	Werner Almesberger <almesber@lrc.di.epfl.ch>
-	Jamal Hadi Salim <hadi@nortelnetworks.com> 
+	Jamal Hadi Salim <hadi@nortelnetworks.com>
   * DECnet support.
 	Steve Whitehouse <SteveW@ACM.org>
   * Some minor tweaks in docs and code.

@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  *
  ************************************************************************/
 
@@ -83,7 +85,11 @@ CmsRet cmsMsg_sendReply(void *msgHandle, const CmsMsgHeader *msg, CmsRet retCode
 {
    CmsMsgHandle *handle = (CmsMsgHandle *) msgHandle;
    CmsMsgHeader replyMsg = EMPTY_MSG_HEADER;
-
+#ifdef AEI_VDSL_CUSTOMER_NCS
+   //Since the old message is a reply message, we needn't send the reply message of the old reply message back.
+  if(msg->flags_response==1)
+	return CMSRET_INTERNAL_ERROR;	
+#endif
    replyMsg.dst = msg->src;
    replyMsg.src = msg->dst;
    replyMsg.type = msg->type;
@@ -221,7 +227,11 @@ static CmsRet sendAndGetReplyBuf(void *msgHandle, const CmsMsgHeader *buf, CmsMs
       {
          if (replyMsg->type == sentType)
          {  
+#ifdef AEI_COVERITY_FIX
+            memcpy((*replyBuf), replyMsg, (size_t)(sizeof(CmsMsgHeader) + replyMsg->dataLength));
+#else
             memcpy((*replyBuf), replyMsg, (sizeof(CmsMsgHeader) + replyMsg->dataLength));
+#endif
             doReceive = FALSE;
             CMSMEM_FREE_BUF_AND_NULL_PTR(replyMsg);
          }
@@ -393,6 +403,8 @@ void cmsMsg_requeuePutBacks(void *msgHandle)
       msg->flags_requeue = 1;
 
       oalMsg_send(handle->commFd, msg);
+
+      CMSMEM_FREE_BUF_AND_NULL_PTR(msg);
    }
 
    return;

@@ -106,12 +106,16 @@ extern int br_set_port_priority(const char *br, const char *p,
 // brcm begin
 extern int br_enable_port_snooping(const char *br, int enable);
 extern int br_enable_proxy_mode(const char *br, int enable);
+extern int br_igmp_enable_rate_limit(const char *br, int limit);
 extern int br_mld_enable_port_snooping(const char *br, int enable);
 extern int br_mld_enable_proxy_mode(const char *br, int enable);
 extern int br_add_fdb(const char *bridge, const char *ifName, 
 					const char *pMac);
 extern int br_del_fdb(const char *bridge, const char *ifName, 
 					const char *pMac);
+
+extern int br_enable_uni_uni_ctrl(const char *br, int enable);
+
 
 // brcm end
 extern int br_set_path_cost(const char *br, const char *p, 

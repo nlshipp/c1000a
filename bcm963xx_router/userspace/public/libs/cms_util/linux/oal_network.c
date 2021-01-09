@@ -3,27 +3,29 @@
  *  Copyright (c) 2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  * 
  ************************************************************************/
 
@@ -37,8 +39,6 @@
 #include "bcmnet.h"
 #include "cms.h"
 #include "cms_util.h"
-
-
 
 /** Ported from getLanInfo
  *
@@ -62,7 +62,11 @@ CmsRet oal_getLanInfo(const char *lan_ifname, struct in_addr *lan_ip, struct in_
       return CMSRET_INTERNAL_ERROR;
    }
 
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(lan.ifr_name,lan_ifname,sizeof(lan.ifr_name));
+#else
    strcpy(lan.ifr_name,lan_ifname);
+#endif
    if (ioctl(socketfd,SIOCGIFADDR,&lan) < 0) {
       cmsLog_error("SIOCGIFADDR failed, errno=%d", errno);
       close(socketfd);
@@ -100,7 +104,11 @@ UBOOL8 oal_isInterfaceUp(const char *ifname)
       return FALSE;
    }
 
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(intf.ifr_name, ifname,sizeof(intf.ifr_name));
+#else
    strcpy(intf.ifr_name, ifname);
+#endif
 
    // if interface is br0:0 and
    // there is no binding IP address then return down
@@ -211,7 +219,11 @@ CmsRet oal_Net_getPersistentWanIfNameList(char **persistentWanIfNameList)
       return CMSRET_RESOURCE_EXCEEDED;
    }
 
+#ifdef AEI_COVERITY_FIX
+   memset((void *) &ifr,0, sizeof(ifr));
+#else
    memset((void *) &ifr, sizeof(ifr), 0);
+#endif
    ifr.ifr_data = *persistentWanIfNameList;
    if (ioctl(skfd, SIOCGWANPORT, &ifr) < 0)
    {
@@ -231,13 +243,74 @@ CmsRet oal_Net_getPersistentWanIfNameList(char **persistentWanIfNameList)
    
 }
 
+CmsRet oal_Net_getGMACPortIfNameList(char **GMACPortIfNameList)
+{
+
+#ifdef CMS_BRCM_GMAC
+
+#ifdef DESKTOP_LINUX
+
+   *GMACPortIfNameList = cmsMem_alloc(512, 0);
+   strcpy(*GMACPortIfNameList, "eth1,eth3");
+
+#else
+
+   SINT32  skfd;
+   struct ifreq ifr;
+
+   if ((skfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
+   {
+      cmsLog_error("Error openning socket for getting the  GMAC enet port list");
+      return CMSRET_INTERNAL_ERROR;
+   }
+   
+    /* Get the name -> if_index mapping for ethswctl */
+    strcpy(ifr.ifr_name, "bcmsw");
+    if (ioctl(skfd, SIOCGIFINDEX, &ifr) < 0) 
+    {
+        close(skfd);
+        cmsLog_debug("bcmsw interface does not exist.  Error: %d", errno);
+        return CMSRET_INTERNAL_ERROR;
+    }
+
+   /* Allocate dynamic memory to hold max interface names (eth0,eth1,..eth10<cr>)*/
+   if ((*GMACPortIfNameList = cmsMem_alloc(((MAX_GMAC_ETH_PORT * (IFNAMSIZ+1)) + 2), ALLOC_ZEROIZE)) == NULL)
+   {
+      cmsLog_error("Fail to alloc mem in getting the GMAC enet port list");
+      close(skfd);      
+      return CMSRET_RESOURCE_EXCEEDED;
+   }
+
+   memset((void *) &ifr, sizeof(ifr), 0);
+   ifr.ifr_data = *GMACPortIfNameList;
+   if (ioctl(skfd, SIOCGGMACPORT, &ifr) < 0)
+   {
+      cmsLog_error("ioct error in getting the GMAC enet port list.  Error: %d", errno);
+      close(skfd);
+      CMSMEM_FREE_BUF_AND_NULL_PTR(*GMACPortIfNameList);
+      return CMSRET_INTERNAL_ERROR;
+   }
+
+   close(skfd);
+
+   cmsLog_debug("GMACPortIfNameList=%s, strlen=%d", *GMACPortIfNameList, strlen(*GMACPortIfNameList));
+
+#endif /* DESKTOP_LINUX */
+
+#endif /* CMS_BRCM_GMAC */
+
+   return CMSRET_SUCCESS;
+   
+}
+
+
 
 #if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
 
 /** Get the global unicast ipv6 address of the interface.
  *
  */
-CmsRet oal_getLanAddr6(const char *ifname, char *ipAddr)
+CmsRet oal_getLanAddr6(const char *ifname,char *ipAddr)
 {
    FILE *fp;
    char *space, *p1, *p2;
@@ -290,6 +363,87 @@ CmsRet oal_getLanAddr6(const char *ifname, char *ipAddr)
    return CMSRET_SUCCESS;
 
 }  /* End of oal_getLanAddr6() */
+
+
+
+/**
+* Get the correct ipv6 lan address from br0;
+*
+******************************/
+CmsRet oal_getBr0Addr6(const char *ifname,char *cli_ipaddr, char *ipAddr)
+    {
+       FILE *fp;
+       char *space, *p1, *p2;
+       char line[BUFLEN_64];
+       char *cli_colon=NULL;
+       char  cli_addr_head[BUFLEN_64]={0};
+       char  cli_compare[BUFLEN_64]={0};
+       SINT32 i,j;
+
+       cli_colon=strstr(cli_ipaddr,":");
+       strncpy(cli_addr_head,cli_ipaddr,cli_colon-cli_ipaddr);
+       if(strlen(cli_addr_head)<4)
+       {
+        for(j=0;j<4;j++)
+         {
+		   cli_compare[j]='0';
+           if(strlen(cli_compare)+strlen(cli_addr_head)==4)
+            break;
+         }
+             strcat(cli_compare,cli_addr_head);
+       }
+       else
+        strncpy(cli_compare,cli_addr_head,4);
+
+        //cmsLog_error("\n@@cli_compare=%s\n",cli_compare);
+       *ipAddr = '\0';
+
+       if ((fp = fopen("/proc/net/if_inet6", "r")) == NULL)
+       {
+          /* error */
+          cmsLog_error("failed to open /proc/net/if_inet6");
+          return CMSRET_INTERNAL_ERROR;
+       }
+
+       while (fgets(line, sizeof(line), fp) != NULL)
+       {
+          if (strstr(line, ifname) != NULL && strncmp(line, "fe80", 4) != 0&&strncmp(line,cli_compare,4)==0)
+          {
+             if ((space = strchr(line, ' ')) != NULL)
+             {
+                /* terminate the ip address string */
+                *space = '\0';
+             }
+
+             /* insert a colon every 4 digits in the address string */
+             p2 = ipAddr;
+             for (i = 0, p1 = line; *p1 != '\0'; i++)
+             {
+                if (i == 4)
+                {
+                   i = 0;
+                   *p2++ = ':';
+                }
+                *p2++ = *p1++;
+             }
+
+             /* append prefix length 64 */
+             *p2++ = '/';
+             *p2++ = '6';
+             *p2++ = '4';
+             *p2 = '\0';
+             break;   /* done */
+          }
+       }
+
+       fclose(fp);
+
+       return CMSRET_SUCCESS;
+
+}  /* End of oal_getLanAddr6() */
+
+
+
 
 /** Get the ipv6 address of the interface.
  *
@@ -383,6 +537,14 @@ CmsRet oal_getIfAddr6(const char *ifname, UINT32 addrIdx,
                *scope     = strtoul(scp, NULL, 16);
                *ifaFlags  = strtoul(flags, NULL, 16);
 
+#ifdef AEI_COVERITY_FIX
+		 if (addr == NULL)
+		 {
+		    cmsLog_error("Invalid /proc/net/if_inet6 line");
+		    ret = CMSRET_INTERNAL_ERROR;
+		    break;
+		 }
+#endif
                /* insert a colon every 4 digits in the address string */
                p2 = ipAddr;
                for (i = 0, p1 = addr; *p1 != '\0'; i++)

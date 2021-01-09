@@ -7,28 +7,17 @@
 #include <linux/in.h>
 #include "br_private.h"
 #include <linux/blog.h>
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
 #include "br_mcast.h"
-#endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
-
-#define BRCTL_ENABLE_SNOOPING 21
-#define BRCTL_ENABLE_PROXY_MODE 22
-
-#define SNOOPING_BLOCKING_MODE 2
 
 union ip_array {
 	unsigned int ip_addr;
     unsigned char ip_ar[4];
 };
 
-
 #define TIMER_CHECK_TIMEOUT 10
-#define QUERY_TIMEOUT 130
 #define BR_IGMP_MEMBERSHIP_TIMEOUT 260 /* RFC3376 */
-//#define QUERY_TIMEOUT 60
-
 
 #define IGMPV3_GRP_REC_SIZE(x)  (sizeof(struct igmpv3_grec) + \
                        (sizeof(struct in_addr) * ((struct igmpv3_grec *)x)->grec_nsrcs))
@@ -36,9 +25,9 @@ union ip_array {
 
 struct net_bridge_mc_src_entry
 {
-    struct in_addr		src;
-    unsigned long		tstamp;
-    int                 filt_mode;
+    struct in_addr   src;
+    unsigned long    tstamp;
+    int              filt_mode;
 };
 
 struct net_bridge_mc_rep_entry
@@ -49,23 +38,26 @@ struct net_bridge_mc_rep_entry
 
 struct net_bridge_mc_fdb_entry
 {
-	struct net_bridge_port *dst;
-	struct in_addr          grp;
-	struct list_head        rep_list;
+	struct hlist_node               hlist;
+	struct net_bridge_port         *dst;
+	struct in_addr                  grp;
+	struct list_head                rep_list;
 	struct net_bridge_mc_src_entry  src_entry;
-	uint32_t                lan_tci; /* vlan id */
-	uint32_t                wan_tci; /* vlan id */
-    int                     num_tags;
-	unsigned char			is_local;
-	unsigned char			is_static;
-	unsigned long			tstamp;
-    char                    wan_name[IFNAMSIZ];
-    char                    lan_name[IFNAMSIZ];
+	uint32_t                        lan_tci; /* vlan id */
+	uint32_t                        wan_tci; /* vlan id */
+	int                             num_tags;
+	unsigned long                   tstamp;
+	char                            wan_name[IFNAMSIZ];
+	char                            lan_name[IFNAMSIZ];
+	char                            type;
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-	uint32_t                blog_idx;
+	uint32_t                        blog_idx;
+	char                            root;
+#if defined(AEI_VDSL_MC_SSM_HIT)
+        uint32_t                saddr;
 #endif
-	struct net_device      *from_dev;
-	struct list_head 		list;
+#endif
+	struct net_device              *from_dev;
 };
 
 int br_igmp_control_filter(const unsigned char *dest, __be32 dest_ip);
@@ -95,22 +87,26 @@ extern void br_igmp_mc_fdb_remove_grp(struct net_bridge *br,
                                       struct in_addr *grp);
 extern void br_igmp_mc_fdb_cleanup(struct net_bridge *br);
 extern int br_igmp_mc_fdb_remove(struct net_device *from_dev,
-                                 int wan_ops,
                                  struct net_bridge *br, 
                                  struct net_bridge_port *prt, 
                                  struct in_addr *grp, 
                                  struct in_addr *rep, 
                                  int mode, 
                                  struct in_addr *src);
-void br_igmp_snooping_init(void);
+int br_igmp_mc_fdb_update_bydev( struct net_bridge *br,
+                                 struct net_device *dev );
+int __init br_igmp_snooping_init(void);
+void br_igmp_snooping_fini(void);
 void br_igmp_set_snooping(int val);
 void br_igmp_handle_netdevice_events(struct net_device *ndev, unsigned long event);
 void br_igmp_lan2lan_snooping_update(int val);
 int br_igmp_get_lan2lan_snooping_info(void);
-int br_igmp_process_if_change(struct net_bridge *br);
+int br_igmp_process_if_change(struct net_bridge *br, struct net_device *ndev);
 struct net_bridge_mc_fdb_entry *br_igmp_mc_fdb_copy(struct net_bridge *br, 
                                      const struct net_bridge_mc_fdb_entry *igmp_fdb);
 void br_igmp_mc_fdb_del_entry(struct net_bridge *br, 
                               struct net_bridge_mc_fdb_entry *igmp_fdb);
+void br_igmp_mc_rep_free(struct net_bridge_mc_rep_entry *rep);
+void br_igmp_mc_fdb_free(struct net_bridge_mc_fdb_entry *mc_fdb);
 #endif
 #endif /* _BR_IGMP_H */

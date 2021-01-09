@@ -306,6 +306,18 @@ struct user_net_device_stats {
 	unsigned long rx_dropped;	/* no space in linux buffers    */
 	unsigned long tx_dropped;	/* no space available in linux  */
 	unsigned long rx_multicast;	/* multicast packets received   */
+	
+	/* BRCM change, JIRA 10503 - extended statistics */
+    unsigned long   tx_multicast_packets;  /* multicast packets transmitted */
+    unsigned long   rx_multicast_bytes;  /* multicast bytes recieved */ 
+    unsigned long   tx_multicast_bytes;  /* multicast bytes transmitted */
+    unsigned long   rx_unicast_packets;  /* unicast packets recieved */
+    unsigned long   tx_unicast_packets;  /* unicast packets transmitted */
+    unsigned long   rx_broadcast_packets;  /* broadcast packets recieved */
+    unsigned long   tx_broadcast_packets;  /* broadcast packets transmitted */
+    unsigned long   rx_unknown_packets;  /* unknown protocol packets recieved */
+	/* End BRCM change, JIRA 10503 */
+	
 	unsigned long rx_compressed;
 	unsigned long tx_compressed;
 	unsigned long collisions;
@@ -342,6 +354,10 @@ struct interface {
 	char hwaddr[32];                        /* HW address            */
 	int statistics_valid;
 	struct user_net_device_stats stats;     /* statistics            */
+	
+	/* BRCM change, JIRA 10503 - add statistics formatting*/
+    int procnetdev_vsn;                     /* Format of statistics */
+	
 	int keepalive;                          /* keepalive value for SLIP */
 	int outfill;                            /* outfill value for SLIP */
 };
@@ -452,53 +468,101 @@ static char *get_name(char *name, char *p)
 static const char *const ss_fmt[] = {
 	"%n%llu%u%u%u%u%n%n%n%llu%u%u%u%u%u",
 	"%llu%llu%u%u%u%u%n%n%llu%llu%u%u%u%u%u",
-	"%llu%llu%u%u%u%u%u%u%llu%llu%u%u%u%u%u%u"
+	"%llu%llu%u%u%u%u%u%u%llu%llu%u%u%u%u%u%u",
+	
+	/* BRCM change, JIRA 10503 - add extended statistics format */
+    "%llu%llu%u%u%u%u%u%u%llu%llu%u%u%u%u%u%u%u%u%u%u%u%u%u%u"
 };
 #else
 static const char *const ss_fmt[] = {
 	"%n%llu%lu%lu%lu%lu%n%n%n%llu%lu%lu%lu%lu%lu",
 	"%llu%llu%lu%lu%lu%lu%n%n%llu%llu%lu%lu%lu%lu%lu",
-	"%llu%llu%lu%lu%lu%lu%lu%lu%llu%llu%lu%lu%lu%lu%lu%lu"
+	"%llu%llu%lu%lu%lu%lu%lu%lu%llu%llu%lu%lu%lu%lu%lu%lu",
+
+/* BRCM change, JIRA 10503 - add extended statstics format */
+	"%llu%llu%lu%lu%lu%lu%lu%lu%llu%llu%lu%lu%lu%lu%lu%lu%lu%lu%lu%lu%lu%lu%lu%lu",
 };
 
 #endif
 
 static void get_dev_fields(char *bp, struct interface *ife, int procnetdev_vsn)
 {
+    /* Clear the statistics structure */
 	memset(&ife->stats, 0, sizeof(struct user_net_device_stats));
+    
+	/* BRCM change, JIRA 10503 */
+    /* Record what format is being used (so we can print it out appropriately) */
+    ife->procnetdev_vsn = procnetdev_vsn;
+    
+    /* Parse depending on the format of the file */
+    if(procnetdev_vsn < 3) {
+	
+        sscanf(bp, ss_fmt[procnetdev_vsn],
+               &ife->stats.rx_bytes, /* missing for 0 */
+               &ife->stats.rx_packets,
+               &ife->stats.rx_errors,
+               &ife->stats.rx_dropped,
+               &ife->stats.rx_fifo_errors,
+               &ife->stats.rx_frame_errors,
+               &ife->stats.rx_compressed, /* missing for <= 1 */
+               &ife->stats.rx_multicast, /* missing for <= 1 */
+               &ife->stats.tx_bytes, /* missing for 0 */
+               &ife->stats.tx_packets,
+               &ife->stats.tx_errors,
+               &ife->stats.tx_dropped,
+               &ife->stats.tx_fifo_errors,
+               &ife->stats.collisions,
+               &ife->stats.tx_carrier_errors,
+               &ife->stats.tx_compressed /* missing for <= 1 */
+               );
 
-	sscanf(bp, ss_fmt[procnetdev_vsn],
-		   &ife->stats.rx_bytes, /* missing for 0 */
-		   &ife->stats.rx_packets,
-		   &ife->stats.rx_errors,
-		   &ife->stats.rx_dropped,
-		   &ife->stats.rx_fifo_errors,
-		   &ife->stats.rx_frame_errors,
-		   &ife->stats.rx_compressed, /* missing for <= 1 */
-		   &ife->stats.rx_multicast, /* missing for <= 1 */
-		   &ife->stats.tx_bytes, /* missing for 0 */
-		   &ife->stats.tx_packets,
-		   &ife->stats.tx_errors,
-		   &ife->stats.tx_dropped,
-		   &ife->stats.tx_fifo_errors,
-		   &ife->stats.collisions,
-		   &ife->stats.tx_carrier_errors,
-		   &ife->stats.tx_compressed /* missing for <= 1 */
-		   );
-
-	if (procnetdev_vsn <= 1) {
-		if (procnetdev_vsn == 0) {
-			ife->stats.rx_bytes = 0;
-			ife->stats.tx_bytes = 0;
-		}
-		ife->stats.rx_multicast = 0;
-		ife->stats.rx_compressed = 0;
-		ife->stats.tx_compressed = 0;
-	}
+        if (procnetdev_vsn <= 1) {
+            if (procnetdev_vsn == 0) {
+                ife->stats.rx_bytes = 0;
+                ife->stats.tx_bytes = 0;
+            }
+            ife->stats.rx_multicast = 0;
+            ife->stats.rx_compressed = 0;
+            ife->stats.tx_compressed = 0;
+        }
+    }
+	/* BRCM change, JIRA 10503 - extened format reading */
+    else {
+        /* Read format from extended output, including multi/uni/broadcast data */
+        sscanf(bp, ss_fmt[procnetdev_vsn],
+                /* Basic statistics, just like procnetdev_vsn == 2 */
+               &ife->stats.rx_bytes, 
+               &ife->stats.rx_packets,
+               &ife->stats.rx_errors,
+               &ife->stats.rx_dropped,
+               &ife->stats.rx_fifo_errors,
+               &ife->stats.rx_frame_errors,
+               &ife->stats.rx_compressed, 
+               &ife->stats.rx_multicast, 
+               &ife->stats.tx_bytes, 
+               &ife->stats.tx_packets,
+               &ife->stats.tx_errors,
+               &ife->stats.tx_dropped,
+               &ife->stats.tx_fifo_errors,
+               &ife->stats.collisions,
+               &ife->stats.tx_carrier_errors,
+               &ife->stats.tx_compressed,       
+               
+               /* extended statistics */
+               &ife->stats.tx_multicast_packets, &ife->stats.rx_multicast_bytes, &ife->stats.tx_multicast_bytes, 
+               &ife->stats.rx_unicast_packets, &ife->stats.tx_unicast_packets, &ife->stats.rx_broadcast_packets, &ife->stats.tx_broadcast_packets, 
+               &ife->stats.rx_unknown_packets
+               );
+    }
+	/* End BRCM change, JIRA 10503 */
+    
 }
 
 static int procnetdev_version(char *buf)
 {
+    /* Look for labels in the heading that indicate what format is being used */    
+	if (strstr(buf, "unicast"))
+		return 3;
 	if (strstr(buf, "compressed"))
 		return 2;
 	if (strstr(buf, "bytes"))
@@ -570,10 +634,16 @@ static int if_readlist_proc(char *target)
 	if (!fh) {
 		return if_readconf();
 	}
-	fgets(buf, sizeof buf, fh);	/* eat line */
-	fgets(buf, sizeof buf, fh);
+	fgets(buf, sizeof buf, fh);	/* eat first line */
+	fgets(buf, sizeof buf, fh); /* read second line */
 
 	procnetdev_vsn = procnetdev_version(buf);
+    
+	/* BRCM change, JIRA 10503 - support extended statsitics reading*/
+    /* For some formats, there's a third line of header that needs to be ignored */
+    if(procnetdev_vsn == 3)
+        fgets(buf, sizeof buf, fh);	/* eat third line */
+	/* End BRCM change, JIRA 10503 */
 
 	err = 0;
 	while (fgets(buf, sizeof buf, fh)) {
@@ -882,7 +952,8 @@ static int hw_null_address(const struct hwtype *hw, void *ap)
 
 static const char TRext[] ALIGN1 = "\0\0\0Ki\0Mi\0Gi\0Ti";
 
-static void print_bytes_scaled(unsigned long long ull, const char *end)
+/* BRCM change, JIRA 10503 - removed "end" pointer */
+static void print_bytes_scaled(unsigned long long ull)
 {
 	unsigned long long int_part;
 	const char *ext;
@@ -901,8 +972,9 @@ static void print_bytes_scaled(unsigned long long ull, const char *end)
 		}
 		--i;
 	} while (i);
-
-	printf("X bytes:%llu (%llu.%u %sB)%s", ull, int_part, frac_part, ext, end);
+/* BRCM change, JIRA 10503 - removed "end" pointer */
+	printf("%llu (%llu.%u %sB)", ull, int_part, frac_part, ext);
+/* End BRCM change, JIRA 10503 */
 }
 
 
@@ -1097,32 +1169,116 @@ static void ife_print(struct interface *ptr)
 	/* If needed, display the interface statistics. */
 
 	if (ptr->statistics_valid) {
-		/* XXX: statistics are currently only printed for the primary address,
-		 *      not for the aliases, although strictly speaking they're shared
-		 *      by all addresses.
-		 */
-		printf("          ");
+/* BRCM change, JIRA 10503 - add extended formats, accomodate print_bytes_scaled() change */
+        /* Depending on the format read in, output the statistics */
+        if(ptr->procnetdev_vsn <= 2) {
+            /* Legacy formats */
+            
+            /* XXX: statistics are currently only printed for the primary address,
+             *      not for the aliases, although strictly speaking they're shared
+             *      by all addresses.
+             */
+            printf("          ");
 
-		printf("RX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
-			   ptr->stats.rx_packets, ptr->stats.rx_errors,
-			   ptr->stats.rx_dropped, ptr->stats.rx_fifo_errors,
-			   ptr->stats.rx_frame_errors);
-		if (can_compress)
-			printf("             compressed:%lu\n",
-				   ptr->stats.rx_compressed);
-		printf("          ");
-		printf("TX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n",
-			   ptr->stats.tx_packets, ptr->stats.tx_errors,
-			   ptr->stats.tx_dropped, ptr->stats.tx_fifo_errors,
-			   ptr->stats.tx_carrier_errors);
-		printf("          collisions:%lu ", ptr->stats.collisions);
-		if (can_compress)
-			printf("compressed:%lu ", ptr->stats.tx_compressed);
-		if (ptr->tx_queue_len != -1)
-			printf("txqueuelen:%d ", ptr->tx_queue_len);
-		printf("\n          R");
-		print_bytes_scaled(ptr->stats.rx_bytes, "  T");
-		print_bytes_scaled(ptr->stats.tx_bytes, "\n");
+            printf("RX packets:%llu errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
+                   ptr->stats.rx_packets, ptr->stats.rx_errors,
+                   ptr->stats.rx_dropped, ptr->stats.rx_fifo_errors,
+                   ptr->stats.rx_frame_errors);               
+            
+            printf("TX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n",
+                   ptr->stats.tx_packets, ptr->stats.tx_errors,
+                   ptr->stats.tx_dropped, ptr->stats.tx_fifo_errors,
+                   ptr->stats.tx_carrier_errors);
+            printf("          collisions:%lu ", ptr->stats.collisions);
+            if (can_compress)
+                printf("compressed:%lu ", ptr->stats.tx_compressed);
+                
+            if (ptr->tx_queue_len != -1)
+                {
+                printf("          ");
+                printf("txqueuelen:%d ", ptr->tx_queue_len);
+                }
+                
+            // Byte counts
+            printf("          ");
+            printf("RX bytes:");
+            print_bytes_scaled(ptr->stats.rx_bytes);
+            printf(" TX bytes:");        
+            print_bytes_scaled(ptr->stats.tx_bytes);
+            printf("\n");
+        }
+    else {
+            /* Extended formats, including multi/uni/broadcast data */
+            
+            /* XXX: statistics are currently only printed for the primary address,
+             *      not for the aliases, although strictly speaking they're shared
+             *      by all addresses.
+             */              
+
+            // RX packet counts
+            printf("          ");
+            printf("RX packets:%llu multicast:%lu unicast:%lu broadcast:%lu",
+                   ptr->stats.rx_packets, ptr->stats.rx_multicast,
+                   ptr->stats.rx_unicast_packets, ptr->stats.rx_broadcast_packets);
+            if (can_compress)
+                printf(" compressed:%lu\n", ptr->stats.rx_compressed);
+            else
+                printf("\n");
+                
+            // RX error counts
+            printf("          ");
+            printf("RX errors:%lu dropped:%lu overruns:%lu frame:%lu\n",
+                   ptr->stats.rx_errors,
+                   ptr->stats.rx_dropped, ptr->stats.rx_fifo_errors,
+                   ptr->stats.rx_frame_errors);
+            
+            // printf("TX packets:%llu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n",
+                   // ptr->stats.tx_packets, ptr->stats.tx_errors,
+                   // ptr->stats.tx_dropped, ptr->stats.tx_fifo_errors,
+                   // ptr->stats.tx_carrier_errors);
+            // printf("          collisions:%lu ", ptr->stats.collisions);
+            // if (can_compress)
+                // printf("compressed:%lu ", ptr->stats.tx_compressed);
+
+            // TX packet counts
+            printf("          ");
+            printf("TX packets:%llu multicast:%lu unicast:%lu broadcast:%lu",
+                   ptr->stats.tx_packets, ptr->stats.tx_multicast_packets,
+                   ptr->stats.tx_unicast_packets, ptr->stats.tx_broadcast_packets);
+            if (can_compress)
+                printf(" compressed:%lu\n", ptr->stats.tx_compressed);
+            else
+                printf("\n");
+                              
+            // TX error counts
+            printf("          ");
+            printf("TX errors:%lu dropped:%lu overruns:%lu carrier:%lu collisions:%lu\n",
+                   ptr->stats.tx_errors,
+                   ptr->stats.tx_dropped, ptr->stats.tx_fifo_errors,
+                   ptr->stats.tx_carrier_errors, ptr->stats.collisions);
+
+             
+                
+            if (ptr->tx_queue_len != -1)
+                {
+                printf("          ");
+                printf("txqueuelen:%d\n", ptr->tx_queue_len);
+                }
+                
+            // Byte counts
+            printf("          ");
+            printf("RX bytes:");
+            print_bytes_scaled(ptr->stats.rx_bytes);
+            printf(" TX bytes:");        
+            print_bytes_scaled(ptr->stats.tx_bytes);
+            printf("\n          ");
+            printf("RX multicast bytes:");
+            print_bytes_scaled(ptr->stats.rx_multicast_bytes);
+            printf(" TX multicast bytes:");        
+            print_bytes_scaled(ptr->stats.tx_multicast_bytes);
+            printf("\n");
+        }
+/* End BRCM change, JIRA 10503 */
 	}
 
 	if (ptr->map.irq || ptr->map.mem_start

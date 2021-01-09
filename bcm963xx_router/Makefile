@@ -1,17 +1,4 @@
-#****************************************************************************
 #
-#  Copyright (c) 2001, 2002, 2003, 2004  Broadcom Corporation
-#  All Rights Reserved
-#  No portions of this material may be reproduced in any form without the
-#  written permission of:
-#          Broadcom Corporation
-#          16251 Laguna Canyon Road
-#          Irvine, California 92618
-#  All information contained in this document is Broadcom Corporation
-#  company private, proprietary, and trade secret.
-#
-#****************************************************************************
-
 # Top-level Makefile for all commengine xDSL platforms
 
 ###########################################
@@ -26,7 +13,7 @@ all: prebuild_checks all_postcheck1
 
 all_postcheck1: profile_saved_check sanity_check \
      create_install kernelbuild modbuild kernelbuildlite \
-     userspace  gdbserver vodsl dectd hosttools buildimage
+     userspace  gdbserver dectd hosttools buildimage
 
 ############################################################################
 #
@@ -36,6 +23,14 @@ all_postcheck1: profile_saved_check sanity_check \
 ############################################################################
 BUILD_DIR = $(shell pwd)
 include $(BUILD_DIR)/make.common
+
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+ifneq ($(strip $(AEI_TWO_IN_ONE_FIRMWARE)),)
+	IMAGE_BUILD_OPTION_RELEASE2=--release2
+else
+	IMAGE_BUILD_OPTION_RELEASE2=
+endif
+endif
 
 ############################################################################
 #
@@ -58,11 +53,6 @@ endif
 
 ifeq ($(strip $(BRCM_KERNEL_KALLSYMS)),y) 
 KERNEL_KALLSYMS=1
-endif
-
-ifeq ($(strip $(BRCM_KERNEL_OPROFILE)),y) 
-	export CONFIG_DEBUG_INFO=1
-	export CONFIG_FRAME_POINTER=1
 endif
 
 #Set up ADSL standard
@@ -165,8 +155,6 @@ $(AEI_PRODUCTINFO_FILE): $(BUILD_DIR)/version.make
 	@echo "#define AEI_CUSTOMER \"$(ACT_CUSTOMER)\"" >> $(AEI_PRODUCTINFO_FILE)
 	@echo "#define AEI_MODEL \"$(ACT_PROJECT)\"" >> $(AEI_PRODUCTINFO_FILE)
 	@echo "#endif" >> $(AEI_PRODUCTINFO_FILE)
-else
-AEI_PRODUCTINFO_FILE := 
 endif
 
 userspace: sanity_check create_install data-model $(BCM_SWVERSION_FILE) $(AEI_PRODUCTINFO_FILE)
@@ -194,6 +182,11 @@ menuconfig:
 	$(MAKE) -C $(HOSTTOOLS_DIR)/scripts/lxdialog HOSTCC=gcc
 	$(CONFIG_SHELL) $(HOSTTOOLS_DIR)/scripts/Menuconfig $(TARGETS_DIR)/config.in
 
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+memleak: make_version_check sanity_check \
+     create_install kernelbuild modbuild kernelbuildlite \
+     userspace hosttools buildimage
+endif
 
 #
 # the userspace apps and libs make their own directories before
@@ -206,19 +199,18 @@ create_install: $(AEI_PRODUCTINFO_FILE)
 		mkdir -p $(INSTALL_DIR)/bin
 		mkdir -p $(INSTALL_DIR)/lib
 
-# By default, let make spawn 1 job per core.
+#############################################
 # To set max jobs, specify on command line, BRCM_MAX_JOBS=8
 # To also specify a max load, BRCM_MAX_JOBS="6 --max-load=3.0"
 # To specify max load without max jobs, BRCM_MAX_JOBS=" --max-load=3.5"
 ifneq ($(strip $(BRCM_MAX_JOBS)),)
-ACTUAL_MAX_JOBS := $(BRCM_MAX_JOBS)
+ACTUAL_MAX_JOBS :=1
 else
 NUM_CORES := $(shell grep processor /proc/cpuinfo | wc -l)
-ACTUAL_MAX_JOBS := $(NUM_CORES)
+ACTUAL_MAX_JOBS :=1
 endif
 
-kernelbuild: $(BCM_SWVERSION_FILE) $(AEI_PRODUCTINFO_FILE)
-ifeq ($(wildcard $(KERNEL_DIR)/vmlinux),)
+define pre_kernelbuild
 	echo starting kernel build at $(INC_KERNEL_BASE) ACT_OPTIONS $(ACT_OPTIONS)
 	@cd $(INC_KERNEL_BASE); \
 	if [ ! -e linux/CREDITS ]; then \
@@ -228,10 +220,14 @@ ifeq ($(wildcard $(KERNEL_DIR)/vmlinux),)
 	$(GENDEFCONFIG_CMD) $(PROFILE_PATH) ${MAKEFLAGS} $(ACT_OPTIONS) ${GENDEFFLAG}
 	cd $(KERNEL_DIR); \
 	cp -f $(KERNEL_DIR)/arch/mips/defconfig $(KERNEL_DIR)/.config; \
-	$(MAKE) oldconfig; $(MAKE) -j $(ACTUAL_MAX_JOBS)
-else
-	cd $(KERNEL_DIR); $(MAKE) -j $(ACTUAL_MAX_JOBS)
+	cd $(KERNEL_DIR); $(MAKE) oldconfig;
+endef
+
+kernelbuild: $(BCM_SWVERSION_FILE) $(AEI_PRODUCTINFO_FILE)
+ifeq ($(wildcard $(KERNEL_DIR)/vmlinux),)
+	$(call pre_kernelbuild)
 endif
+	cd $(KERNEL_DIR); $(MAKE) -j $(ACTUAL_MAX_JOBS)
 
 kernel: sanity_check create_install kernelbuild hosttools buildimage
 
@@ -276,6 +272,12 @@ enetmodbuild:
 	cd $(KERNEL_DIR); $(MAKE) M=$(INC_ENETDRV_PATH) modules
 enetmodclean:
 	cd $(KERNEL_DIR); $(MAKE) M=$(INC_ENETDRV_PATH) clean
+
+eponmodbuild:
+	cd $(KERNEL_DIR); $(MAKE) M=$(INC_EPONDRV_PATH) modules
+eponmodclean:
+	cd $(KERNEL_DIR); $(MAKE) M=$(INC_EPONDRV_PATH) clean
+
 
 modules: sanity_check create_install modbuild kernelbuildlite hosttools buildimage
 
@@ -470,15 +472,25 @@ export BUILD_4_LEVEL_QOS=y
 endif
 
 
-# vodsl (voice daemon)
-# mwang: for now, I still need to leave vodsl at this top level because
+# (voice daemon)
+# mwang: for now, I still need to leave at this top level because
 # it depends on so many of the voice defines in this top level Makefile.
+ifneq ($(strip $(BUILD_VODSL)),)
 vodsl: sanity_check
-	@echo "skipping vodsl (not configured)"
+	$(MAKE) -C $(BUILD_DIR)/userspace/private/apps/vodsl $(BUILD_VODSL)
+else
+vodsl: sanity_check
+	@echo "skipping (not configured)"
+endif
 
 #dectd
+ifneq ($(strip $(BUILD_DECT)),)
+dectd: sanity_check
+	$(MAKE) -C $(BUILD_DIR)/userspace/private/apps/dectd dynamic
+else
 dectd: sanity_check
 	@echo "Skipping dectd application (not configured)"
+endif
 
 # Leave it for the future when soap server is decoupled from cfm
 ifneq ($(strip $(BUILD_SOAP)),)
@@ -663,24 +675,62 @@ endif
 
 ifeq ($(strip $(BRCM_KERNEL_ROOTFS)),jffs2)
 ifneq ($(strip $(AEI_CONFIG_JFFS)),)
+ifneq ($(strip $(AEI_SIGNED_FIRMWARE)),)
+ifneq ($(strip $(AEI_TWO_IN_ONE_FIRMWARE)),)
+	cd $(PROFILE_DIR); \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs16kbtagg.img --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 16  --rootfsfile rootfs16kb.img ; \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs128kbtagg.img --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 128  --rootfsfile rootfs128kb.img ;
+else
 	cd $(PROFILE_DIR); \
 	dd if=/dev/zero of=file128k.tmp bs=1k count=128; \
 	cat $(CFE_ROM_FILE) file128k.tmp | head --bytes=$(FLASH_NAND_BLOCK_16KB) > cferom.tmp; \
-	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs16kbtag.img --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 16  --rootfsfile rootfs16kb.img ; \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs16kbtagg.img --release $(BRCM_RELEASETAG) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 16  --rootfsfile rootfs16kb.img ; \
+	cat $(CFE_ROM_FILE) file128k.tmp | head --bytes=$(FLASH_NAND_BLOCK_128KB) > cferom.tmp; \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs128kbtagg.img --release $(BRCM_RELEASETAG) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 128  --rootfsfile rootfs128kb.img ; \
+	rm file128k.tmp;
+endif
+	echo -e "#!/bin/sh" > a.sh ;  \
+	echo -e "export BRCM_BOARD_ID=$(BRCM_BOARD_ID)" >> a.sh ;  \
+	echo -e "export BRCM_VOICE_BOARD_ID=$(BRCM_VOICE_BOARD_ID)" >> a.sh; \
+	echo -e "export BRCM_NUM_MAC_ADDRESSES=$(BRCM_NUM_MAC_ADDRESSES)" >>a.sh; \
+	echo -e "export BRCM_BASE_MAC_ADDRESS=$(BRCM_BASE_MAC_ADDRESS)" >>a.sh; \
+	echo -e "export BRCM_MAIN_TP_NUM=$(BRCM_MAIN_TP_NUM)" >>a.sh; \
+	echo -e "export BRCM_PSI_SIZE=$(BRCM_PSI_SIZE)" >>a.sh; \
+	echo -e "export BRCM_GPON_SERIAL_NUMBER=$(BRCM_GPON_SERIAL_NUMBER)" >>a.sh; \
+	echo -e "export BRCM_GPON_PASSWORD=$(BRCM_GPON_PASSWORD)" >>a.sh; \
+	echo -e "export PROFILE_DIR=$(PROFILE_DIR)" >>a.sh; \
+	echo -e "export VENDOR_NAME=$(VENDOR_NAME)" >>a.sh; \
+	echo -e "export PROFILE=$(PROFILE)" >>a.sh; \
+	echo -e "export BRCM_RELEASETAG=$(BRCM_RELEASETAG)" >>a.sh; \
+	echo -e "export IMAGES_DIR=$(IMAGES_DIR)" >>a.sh; \
+	echo -e "export BRCM_CHIP=$(BRCM_CHIP)" >>a.sh; \
+	echo -e "export CFE_ROM_FILE=$(TARGETS_DIR)/cfe/cfe$(BRCM_CHIP)rom.bin" >> a.sh; \
+	echo -e "export FLASH_NAND_BLOCK_16KB=$(FLASH_NAND_BLOCK_16KB)" >>a.sh; \
+	echo -e "export FLASH_NAND_BLOCK_128KB=$(FLASH_NAND_BLOCK_128KB)" >>a.sh; \
+	chmod 777 a.sh;
+else
+	cd $(PROFILE_DIR); \
+	dd if=/dev/zero of=file128k.tmp bs=1k count=128; \
+	cat $(CFE_ROM_FILE) file128k.tmp | head --bytes=$(FLASH_NAND_BLOCK_16KB) > cferom.tmp; \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs16kbtag.img --release $(BRCM_RELEASETAG) $(IMAGE_BUILD_OPTION_RELEASE2) $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 16  --rootfsfile rootfs16kb.img ; \
 	cat cferom.tmp rootfs16kbtag.img > $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16); \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND16 $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w; \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND16 rootfs16kbtag.img $(FLASH_NAND_FS_IMAGE_NAME_16).w; \
 	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w; \
 	cat $(CFE_ROM_FILE) file128k.tmp | head --bytes=$(FLASH_NAND_BLOCK_128KB) > cferom.tmp; \
-	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs128kbtag.img --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 128  --rootfsfile rootfs128kb.img ; \
+	$(HOSTTOOLS_DIR)/AEINandImageBuilder --output rootfs128kbtag.img --release $(BRCM_RELEASETAG) $(IMAGE_BUILD_OPTION_RELEASE2) $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize 128  --rootfsfile rootfs128kb.img ; \
 	cat cferom.tmp rootfs128kbtag.img > $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128); \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w; \
-	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 rootfs128kb.img $(FLASH_NAND_FS_IMAGE_NAME_128).w; \
+	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 rootfs128kbtag.img $(FLASH_NAND_FS_IMAGE_NAME_128).w; \
 	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w; \
 	rm $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128); \
 	rm file128k.tmp cferom.tmp;
+endif
 	@mkdir -p $(IMAGES_DIR)
-	@cp $(PROFILE_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w $(IMAGES_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16)_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M').w
+ifeq ($(strip $(AEI_SIGNED_FIRMWARE)),)
+	@cp $(PROFILE_DIR)/$(FLASH_NAND_FS_IMAGE_NAME_${NAND_FLASH_BLOCK_SIZE}).w $(IMAGES_DIR)/$(FLASH_NAND_FS_IMAGE_NAME_${NAND_FLASH_BLOCK_SIZE})_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M').w
+	@cp $(PROFILE_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_${NAND_FLASH_BLOCK_SIZE}).w $(IMAGES_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_${NAND_FLASH_BLOCK_SIZE})_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M').w
+endif
 	@echo
 	@echo -e "Done! Image $(PROFILE) has been built in $(PROFILE_DIR)."
 else
@@ -690,16 +740,17 @@ else
 	cat cferom.tmp rootfs16kb.img > $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16); \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND16 $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w; \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND16 rootfs16kb.img $(FLASH_NAND_FS_IMAGE_NAME_16).w; \
-	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w; \
+	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --auxfsprcnt=$(BRCM_AUXFS_PERCENT) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w; \
 	cat $(CFE_ROM_FILE) file128k.tmp | head --bytes=$(FLASH_NAND_BLOCK_128KB) > cferom.tmp; \
 	cat cferom.tmp rootfs128kb.img > $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128); \
 	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w; \
-	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 rootfs128kb.img $(FLASH_NAND_FS_IMAGE_NAME_128).w; \
-	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w; \
+	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NAND128 rootfs128kbtag.img $(FLASH_NAND_FS_IMAGE_NAME_128).w; \
+	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --auxfsprcnt=$(BRCM_AUXFS_PERCENT) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --wholeflashfile=$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w; \
 	rm $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16) $(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128); \
 	rm file128k.tmp cferom.tmp;
 	@mkdir -p $(IMAGES_DIR)
 	@cp $(PROFILE_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16).w $(IMAGES_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_16)_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M').w
+	@cp $(PROFILE_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128).w $(IMAGES_DIR)/$(FLASH_NAND_CFEROM_FS_IMAGE_NAME_128)_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M').w
 	@echo
 	@echo -e "Done! Image $(PROFILE) has been built in $(PROFILE_DIR)."
 endif
@@ -730,10 +781,10 @@ ifneq ($(strip $(AEI_TWO_IN_ONE_FIRMWARE)),)
 	$(STRIP) --remove-section=.note --remove-section=.comment vmlinux; \
 	$(OBJCOPY) -O binary vmlinux vmlinux.bin; \
 	$(HOSTTOOLS_DIR)/cmplzma -k -2 vmlinux vmlinux.bin vmlinux.lz;\
-	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz; \
-	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(CFE_FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz --include-cfe; \
-        $(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --inputfile=$(CFE_FS_KERNEL_IMAGE_NAME) --outputfile=$(FLASH_IMAGE_NAME); \
-	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NOR $(FLASH_IMAGE_NAME) $(FLASH_IMAGE_NAME).w
+	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz; \
+	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(CFE_FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --release2 $(BRCM_RELEASETAG2) --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz --include-cfe; \
+        $(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --logsize=$(BRCM_LOG_SECTION_SIZE) --auxfsprcnt=$(BRCM_AUXFS_PERCENT) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --inputfile=$(CFE_FS_KERNEL_IMAGE_NAME) --outputfile=$(FLASH_IMAGE_NAME); \
+	$(HOSTTOOLS_DIR)/addvtoken --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --flashtype NOR $(FLASH_IMAGE_NAME) $(FLASH_IMAGE_NAME).w
 	@mkdir -p $(IMAGES_DIR)
 	@cp $(PROFILE_DIR)/$(FS_KERNEL_IMAGE_NAME) $(IMAGES_DIR)/$(FS_KERNEL_IMAGE_NAME)_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M')
 	@echo
@@ -744,10 +795,10 @@ else
 	$(STRIP) --remove-section=.note --remove-section=.comment vmlinux; \
 	$(OBJCOPY) -O binary vmlinux vmlinux.bin; \
 	$(HOSTTOOLS_DIR)/cmplzma -k -2 vmlinux vmlinux.bin vmlinux.lz;\
-	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz; \
-	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(CFE_FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --chip $(BRCM_CHIP) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz --include-cfe; \
-	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --inputfile=$(CFE_FS_KERNEL_IMAGE_NAME) --outputfile=$(FLASH_IMAGE_NAME); \
-	$(HOSTTOOLS_DIR)/addvtoken --chip $(BRCM_CHIP) --flashtype NOR $(FLASH_IMAGE_NAME) $(FLASH_IMAGE_NAME).w
+	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz; \
+	$(HOSTTOOLS_DIR)/bcmImageBuilder --output $(CFE_FS_KERNEL_IMAGE_NAME) --release $(BRCM_RELEASETAG) --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --board $(BRCM_BOARD_ID) --blocksize $(BRCM_FLASHBLK_SIZE) --cfefile $(CFE_FILE) --rootfsfile rootfs.img --kernelfile vmlinux.lz --include-cfe; \
+	$(HOSTTOOLS_DIR)/createimg --boardid=$(BRCM_BOARD_ID) --voiceboardid $(BRCM_VOICE_BOARD_ID) --numbermac=$(BRCM_NUM_MAC_ADDRESSES) --macaddr=$(BRCM_BASE_MAC_ADDRESS) --tp=$(BRCM_MAIN_TP_NUM) --psisize=$(BRCM_PSI_SIZE) --logsize=$(BRCM_LOG_SECTION_SIZE) --auxfsprcnt=$(BRCM_AUXFS_PERCENT) --gponsn=$(BRCM_GPON_SERIAL_NUMBER) --gponpw=$(BRCM_GPON_PASSWORD) --inputfile=$(CFE_FS_KERNEL_IMAGE_NAME) --outputfile=$(FLASH_IMAGE_NAME); \
+	$(HOSTTOOLS_DIR)/addvtoken --chip $(or $(TAG_OVERRIDE),$(BRCM_CHIP)) --flashtype NOR $(FLASH_IMAGE_NAME) $(FLASH_IMAGE_NAME).w
 	@mkdir -p $(IMAGES_DIR)
 	@cp $(PROFILE_DIR)/$(FS_KERNEL_IMAGE_NAME) $(IMAGES_DIR)/$(FS_KERNEL_IMAGE_NAME)_$(BRCM_RELEASETAG)-$(shell date '+%y%m%d_%H%M')
 	@echo
@@ -802,7 +853,7 @@ kernel_clean: sanity_check
 bcmdrivers_clean:
 	$(MAKE) -C bcmdrivers clean
 
-userspace_clean: sanity_check app_expand_before_clean fssrc_clean 
+userspace_clean: sanity_check app_expand_before_clean fssrc_clean
 	$(MAKE) -C userspace clean
 
 
@@ -856,7 +907,7 @@ xchange_clean:
 	rm -rf $(XCHANGE_DIR)/dslx/lib/LinuxUser
 	rm -rf $(XCHANGE_DIR)/dslx/obj/LinuxUser	
 
-# In the data release tarball, vodsl is not present,
+# In the data release tarball, is not present,
 # so don't go in there unconditionally.
 
 ifneq ($(strip $(BUILD_VODSL)),)
@@ -864,11 +915,11 @@ vodsl_clean: sanity_check
 	find userspace/private/apps/vodsl -name '*.o'|xargs rm -f
 else
 vodsl_clean:
-	@echo "skipping vodsl (not configured)"
+	@echo "skipping (not configured)"
 endif
 
 ifneq ($(strip $(BUILD_DECT)),)
-dectd_clean: sanity_check app_expand_before_clean fssrc_clean 
+dectd_clean: sanity_check app_expand_before_clean fssrc_clean
 	$(MAKE) -C $(BUILD_DIR)/userspace/private/apps/dectd clean
 	find bcmdrivers/broadcom/char/dectshim -name '*.ko'|xargs rm -f
 	find bcmdrivers/broadcom/char/dectshim -name '*.o'|xargs rm -f
@@ -915,11 +966,20 @@ wlan_clean:
 		`find . -name '*.oo'`\
 		`find . -name '*.bin'`\
 		`find . -name 'dummy.c'`\
+		`find . -name 'epivers'`\
+		`find . -name 'rver'`\
 	";\
 	for x in $$files; do\
 		rm -rf $$x;\
-	done
+	done;\
+	cd $(BUILD_DIR)/targets;\
+	rm -rf $(PROFILE)/fs.install/etc/wlan
 
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),)
+memleak_clean:
+	cd $(HOSTTOOLS_DIR)/memleak/; \
+	sh bcm_del.sh $(USERSPACE_PUBLIC_LIBS_DIR)/cms_util/
+endif
 ###########################################
 #
 # Temporary kernel patching mechanism
@@ -934,7 +994,20 @@ genpatch:
 patch:
 #	@hostTools/kup_tmp/patch
 	
+###########################################
+#
+# Get modules version
+#
+###########################################
+.PHONY: version_info
 
+version_info: sanity_check
+ifeq ($(wildcard $(KERNEL_DIR)/.config),)
+	$(call pre_kernelbuild)
+endif
+	@echo "$(MAKECMDGOALS):";\
+	cd $(KERNEL_DIR); $(MAKE) --silent version_info;
+	
 ###########################################
 #
 # System-wide exported variables
@@ -953,9 +1026,9 @@ BRCM_DRIVER_PCI            \
 BRCM_EXTRAVERSION          \
 BRCM_KERNEL_NETQOS         \
 BRCM_KERNEL_ROOTFS         \
+BRCM_KERNEL_AUXFS_JFFS2    \
 BRCM_SQUASHFS_BLOCK_SIZE         \
 BRCM_SQUASHFS_FRAGMENT_CACHE_SIZE         \
-BRCM_KERNEL_OPROFILE       \
 BRCM_LDX_APP               \
 BRCM_MIPS_ONLY_BUILD       \
 BRCM_MIPS_ONLY_BUILD       \
@@ -1004,7 +1077,6 @@ BUILD_BCMCRYPTO \
 BUILD_BCMSHARED \
 BUILD_NAS                  \
 BUILD_NVRAM                \
-BUILD_OPROFILE             \
 BUILD_PORT_MIRRORING			 \
 BUILD_PPPD                 \
 PPP_AUTODISCONN			   \
@@ -1055,7 +1127,6 @@ BUILD_UDHCP_RELAY          \
 BUILD_UPNP                 \
 BUILD_VCONFIG              \
 BUILD_SUPERDMZ             \
-BUILD_SIP_TLS              \
 BUILD_WLCTL                \
 BUILD_ZEBRA                \
 BUILD_LIBUSB               \
@@ -1071,10 +1142,14 @@ BUILD_VIRT_SRVR            \
 BUILD_PORT_TRIG            \
 BUILD_TR69C_BCM_SSL        \
 BUILD_IPV6                 \
+BUILD_BOARD_LOG_SECTION    \
+BRCM_LOG_SECTION_SIZE      \
+BRCM_FLASHBLK_SIZE         \
+BRCM_AUXFS_PERCENT     \
+BRCM_BACKUP_PSI      \
 LINUX_KERNEL_USBMASS       \
 BUILD_IPSEC                \
 BUILD_MoCACTL              \
-BUILD_MoCACTL1             \
 BUILD_MoCACTL2             \
 BUILD_GPONCTL              \
 BUILD_PMON                 \
@@ -1089,7 +1164,7 @@ BUILD_BMU_3CELL            \
 BUILD_MROUTE               \
 BUILD_RNGD                 \
 BUILD_OSGI_JVM             \
-RELEASE_BUILD        	   \
+RELEASE_BUILD              \
 NO_PRINTK_AND_BUG          \
 FLASH_NAND_BLOCK_16KB      \
 FLASH_NAND_BLOCK_128KB     \
@@ -1099,12 +1174,18 @@ BRCM_SWITCH_SCHED_SP        \
 BRCM_SWITCH_SCHED_WRR       \
 BUILD_SWMDK					\
 BUILD_IQCTL					\
-BUILD_BPMCTL
+IMAGE_BUILD_OPTION_RELEASE2 \
+BUILD_BPMCTL               \
+BUILD_EPONCTL              \
+BUILD_6802_MOCA            \
+BUILD_TMS                  \
+IMAGE_VERSION              \
+FORCE
 
 ifneq ($(strip $(AEI_TWO_IN_ONE_FIRMWARE)),)
 export \
 BRCM_RELEASE2               \
 BRCM_RELEASETAG2            \
-BRCM_VERSION2               
+BRCM_VERSION2
 endif
 

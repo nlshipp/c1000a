@@ -12,7 +12,7 @@
  #define YY_INPUT(buf, result, max_size)				\
  {									\
  next:									\
- 	if (ematch_argc <= 0)						\
+	if (ematch_argc <= 0)						\
 		result = YY_NULL;					\
 	else if (**ematch_argv == '\0') {				\
 		NEXT_EM_ARG();						\
@@ -42,23 +42,23 @@
 
  static void strbuf_enlarge(void)
  {
- 	strbuf_size += 512;
- 	strbuf = realloc(strbuf, strbuf_size);
+	strbuf_size += 512;
+	strbuf = realloc(strbuf, strbuf_size);
  }
 
  static void strbuf_append_char(char c)
  {
- 	while (strbuf_index >= strbuf_size)
- 		strbuf_enlarge();
- 	strbuf[strbuf_index++] = c;
+	while (strbuf_index >= strbuf_size)
+		strbuf_enlarge();
+	strbuf[strbuf_index++] = c;
  }
 
  static void strbuf_append_charp(char *s)
  {
- 	while (strbuf_index >= strbuf_size)
- 		strbuf_enlarge();
- 	memcpy(strbuf + strbuf_index, s, strlen(s));
- 	strbuf_index += strlen(s);
+	while (strbuf_index >= strbuf_size)
+		strbuf_enlarge();
+	memcpy(strbuf + strbuf_index, s, strlen(s));
+	strbuf_index += strlen(s);
  }
 
 %}

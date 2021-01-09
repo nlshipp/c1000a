@@ -185,7 +185,7 @@ static int check(const char *tablename,
 	spin_lock_init(&(info->data->lock));
 	for (i = 0; i < 256; i++)
 		INIT_LIST_HEAD(&(info->data->iphash[i]));
-	
+
 	return 1;
 }
 
@@ -208,7 +208,7 @@ static void destroy(void *matchinfo, unsigned int matchinfosize)
 	kfree(info->data);
 }
 
-static struct ipt_match connlimit_match = { 
+static struct ipt_match connlimit_match = {
 	.name = "connlimit",
 	.match = &match,
 	.checkentry = &check,

@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2007 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+<:copyright-BRCM:2011:DUAL/GPL:standard
+
+   Copyright (c) 2011 Broadcom Corporation
+   All Rights Reserved
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 /**************************************************************************
@@ -37,6 +47,10 @@
 #define MAX_MATCH_IDS               128
 #define MAX_DEFAULT_MATCH_IDS       16
 #define ENET_8021Q_SIZE             4
+#define PTM_MAX_TX_FRAME_LEN        1984  /* Per chip limitation, 6328/6362/6368 SAR can only
+                                           * transmit max PTM frame size of
+                                           * 1984 + 4(FCS) = 1988
+                                           */
 #define MAX_MTU_SIZE                (1500 + 14 + 4 + ENET_8021Q_SIZE)
 #ifdef XTM_CACHE_SMARTFLUSH
 #define MAX_RFC2684_HDR_SIZE        10
@@ -45,7 +59,7 @@
 #endif
 #define SAR_DMA_MAX_BURST_LENGTH    8
 #define RXBUF_FKB_INPLACE           ((sizeof(FkBuff_t) + 0x0f) & ~0x0f)
-#define RXBUF_HEAD_RESERVE          ((176 + 0x3f) & ~0x3f)
+#define RXBUF_HEAD_RESERVE          ((208 + 0x3f) & ~0x3f)
 #define RXBUF_SIZE                  ((MAX_MTU_SIZE +                    \
                                         MAX_RFC2684_HDR_SIZE +          \
                                       (SAR_DMA_MAX_BURST_LENGTH * 8)    \
@@ -228,6 +242,7 @@ struct bcmxtmrt_dev_context;   /* forward reference */
 typedef struct BcmXtm_RxDma {
 
     BcmPktDma_XtmRxDma pktDmaRxInfo;
+
     struct sk_buff  *freeSkbList;
     unsigned char   *buf_pool[MAX_BUFMEM_BLOCKS];
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
@@ -255,6 +270,8 @@ typedef struct dev_params
 #define PTM_FLOW_PRI_LOW     0
 #define PTM_FLOW_PRI_HIGH    1
 
+#define XTM_DEF_REDUCED_MISSING_DS_MAX_DEVIATION 16
+
 #ifndef FAP_4KE
 
 #if defined(AEI_VDSL_STATS_DIAG)
@@ -278,6 +295,8 @@ typedef struct bcmxtmrt_dev_context
     UINT32 ulLinkState;
     UINT32 ulLinkUsRate[MAX_BOND_PORTS] ;
     UINT32 ulLinkDsRate ;
+    UINT32 ulDsSeqDeviation ;
+    UINT32 ulDsOrigSeqDeviation ;
     UINT32 ulTrafficType ;
     UINT32 ulPortDataMask ;
     UINT32 ulOpenState;
@@ -304,6 +323,9 @@ typedef struct bcmxtmrt_dev_context
 #if defined(AEI_VDSL_TOOLBOX)
     UINT16 usMirrorInFlags;
     UINT16 usMirrorOutFlags;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    int matchVlanId;
+#endif
 #else
     /*Port Mirroring fields*/
     char szMirrorIntfIn[MIRROR_INTF_SIZE];
@@ -338,6 +360,7 @@ typedef struct bcmxtmrt_dev_context
 #define XTMRT_PTM_BOND_FRAG_HDR_SIZE         2
 #define XTMRT_PTM_BOND_FRAG_HDR_EOP          1
 #define XTMRT_PTM_BOND_FRAG_HDR_SOP          2
+#define XTMRT_PTM_BOND_FRAG_HDR_EOP_DROP     4
 
 typedef union _XtmRtPtmBondFragHdr {
    struct _s1Val {
@@ -369,14 +392,17 @@ typedef union _XtmRtPtmTxBondHeader {
 /* PTM Rx Bonding Definitions */
 
 /* tune both the following timeout factors together on receive queue */
-#define RX_SEQ_TIMEOUT        (msecs_to_jiffies(250))
-#define MAX_TICK_COUNT        (250/SAR_TIMEOUT)
+#define RX_SEQ_TIMEOUT        (msecs_to_jiffies(50))
+#define RX_MISSING_TIMEOUT    (msecs_to_jiffies(60000))
+#define RX_THROTTLE_TIMEOUT   (msecs_to_jiffies(1000))
+#define MAX_TICK_COUNT        0
 
 /* Commands for the resync method */
 #define RESYNC_TIMEOUT        0x01
 #define RESYNC_OVERFLOW       0x02
 #define RESYNC_PORT           0x04
 #define RESYNC_FLUSH          0x08
+#define RESYNC_MISSING        0x10
 
 #define RESYNC_LIMIT          5
 #define DROP_WEIGHT           5
@@ -407,7 +433,7 @@ typedef union _XtmRtPtmTxBondHeader {
 #define SEQ_NR(fragHdr)    (fragHdr.s1Val.seqNo)
 #define RX_FLAGS(fragHdr)  (fragHdr.s1Val.rxFlags)
 #define ABSOLUTE(i)         (((i)>=0)?(i):-(i))
-#define MAX_SEQ_NR_DEVIATION XTMRT_PTM_BOND_RX_QUEUE_LEN
+#define MAX_SEQ_NR_DEVIATION (XTMRT_PTM_BOND_RX_QUEUE_LEN/2)
 #define NEXT_SEQ_NR(i) (((i)+1)&MAX_SEQ_NR)
 #define INC_SEQ_NR(i,seq) (((i)+seq)&MAX_SEQ_NR)
 
@@ -432,8 +458,11 @@ typedef struct _XtmRtPtmBondRxQInfo {
 
 #define PACKET_BLOG           0
 #define PACKET_NORMAL         1
+#define PACKET_DROP           2
 
 #define MAX_WT_PORT_DIST      100
+
+#define MAX_NON_ACCEL_PKTS_IN_SEC  8000
 
 typedef struct _XtmRtPtmBondInfo {
    UINT32               totalWtPortDist ;
@@ -443,6 +472,7 @@ typedef struct _XtmRtPtmBondInfo {
    UINT8                u8ConfWtPortDist [MAX_WT_PORT_DIST] ;
    UINT32               ulLinkUsWt [MAX_BOND_PORTS] ;
    UINT32               ulConfLinkUsWt [MAX_BOND_PORTS] ;
+   UINT32               rxDsReducedDeviation ;
 	XtmRtPtmBondRxQInfo  rxq [XTMRT_PTM_BOND_RX_QUEUE_LEN] ;   /* reordering fkb buff queue */
 #define PTMBOND_FWD_BUF_INDEX             0
 #define PTMBOND_SCRATCHPAD_BUF_INDEX      1
@@ -455,6 +485,7 @@ typedef struct _XtmRtPtmBondInfo {
 	int                  dropMonitor ;		/* successive rx errors force queue resync */
 	int                  rxFragQueued;     /* rx number of fragments that are in the queue */
 	unsigned long        rxLastFrag;		   /* time last fragment was received */
+	unsigned long        rxMissingFrag;		   /* time last fragment was received */
    unsigned long        tickCount ;
 
 	/* (Error) counters */
@@ -462,7 +493,8 @@ typedef struct _XtmRtPtmBondInfo {
 	UINT32               rfw;				   /* rx forwarded fragments */
 	UINT32               rxo;				   /* rx forwarded octets counter */
 	UINT32               rxp;				   /* rx forwarded packets counter */
-      UINT32               rxpl;				   /* rx forwarded packets counter */
+        UINT32               rxpl;				   /* rx forwarded packets non-accel counter */
+        UINT32               rxd;				   /* rx dropped packets non-accel counter */
 	UINT32               old;              /* rx old sequence number received (past) */
 	UINT32               dup;              /* rx duplicated sequence number received */
 	UINT32               oos;              /* rx out-of-sync fragments dropped */
@@ -473,6 +505,7 @@ typedef struct _XtmRtPtmBondInfo {
 	UINT32               end;              /* rx artificially ended packets */
       UINT32               stp;              /* rx dropped due to sync at the startup */
 	UINT32               bqo;              /* rx dropped due to flush after buffer queue overrun. */
+	UINT32               mfd;              /* rx dropped due to missing fragment(s) */
 	UINT32               flu;              /* rx dropped due to queue flush */
 	UINT32               tim;              /* rx dropped due to expected sequence number timeout */
 	UINT32               dro;              /* rx dropped due to line removal */
@@ -505,8 +538,13 @@ typedef struct _XtmRtPtmBondInfo {
 #define XTM_SW_CHANNEL(key)               (key>>16)
 #define XTM_SW_CHANNEL_INDEX(key)         (key&0xFFFF)
 
-#define XTM_SW_DMA_DELETE                  0x1
-#define XTM_SW_DMA_FLUSH                   0x2
+/* Below ordering is important */
+#define XTM_SW_DMA_NO_COMMAND              0x0
+#define XTM_SW_DMA_FORCE_DELETE            0x1
+#define XTM_SW_DMA_DELETE                  0x2
+#define XTM_SW_DMA_FORCE_FLUSH             0x3
+#define XTM_SW_DMA_FLUSH                   0x4
+#define XTM_SW_DMA_FORCED                  0x1
 
 #define MIN_WFQ_ALLOWANCE                  1
 typedef struct _swSchedWfqInfo {
@@ -596,13 +634,15 @@ typedef struct bcmxtmrt_global_info
     void *pAsmContext;
 
     /* MIB counter registers. */
-    UINT32 *pulMibTxOctetCountBase;
     UINT32 ulMibRxClrOnRead;
-    UINT32 *pulMibRxCtrl;
-    UINT32 *pulMibRxMatch;
-    UINT32 *pulMibRxOctetCount;
-    UINT32 *pulMibRxPacketCount;
-    UINT32 *pulRxCamBase;
+    volatile UINT32 *pulMibTxOctetCountBase;
+    volatile UINT32 *pulMibRxCtrl;
+    volatile UINT32 *pulMibRxMatch;
+    volatile UINT32 *pulMibRxOctetCount;
+    volatile UINT32 *pulMibRxPacketCount;
+    volatile UINT32 *pulRxCamBase;
+    UINT32 noOfNonAccelPktsDSInSec ; /* For throttling DS Non-FC packets */
+    UINT32 prevTime ;
 
     /* SW Scheduler (Used in BCM6368) */
     XtmRtTxSchedContext    txSchedCtxt ;
@@ -615,6 +655,8 @@ typedef struct bcmxtmrt_global_info
     /* Everything else. */
     UINT32 ulChipRev;
     UINT32 ulDrvState;
+    /* Temporary storage for stats collection */
+    struct net_device_stats dummy_stats;
 } BCMXTMRT_GLOBAL_INFO, *PBCMXTMRT_GLOBAL_INFO;
 
 extern BCMXTMRT_GLOBAL_INFO g_GlobalInfo;
@@ -627,17 +669,18 @@ void FlushAssignRxBuffer(int channel, UINT8 *pucData, UINT8 *pucEnd);
 void bcmxtmrt_ptmbond_initialize (int) ;
 int bcmxtmrt_ptmbond_calculate_link_weights (PBCMXTMRT_DEV_CONTEXT pDevCtx) ;
 UINT32 bcmxtmrt_process_rx_pkt( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rxdma,
-                              FkBuff_t *pFkb, UINT16 bufStatus, int delLen, int trailerDelLen);
-void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx, pNBuff_t *ppNBuff,
+                              FkBuff_t *pFkb, UINT16 bufStatus, int delLen, int trailerDelLen, 
+                              BOOLEAN throttle);
+int bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx, pNBuff_t *ppNBuff,
                                struct sk_buff **ppNBuffSkb, UINT8 **ppData, 
                                int *pLen) ;
 void bcmxtmrt_ptmbond_receive_rx_fragment (PBCMXTMRT_DEV_CONTEXT pDevCtx, FkBuff_t *pFkb,
                                            UINT16 bufStatus, UINT16 rxdmaIndex) ;
 void bcmxtmrt_ptm_receive_and_drop (PBCMXTMRT_DEV_CONTEXT pDevCtx, FkBuff_t *fkb,
                                     UINT16 bufStatus, UINT16 rxdmaIndex) ;
-void bcmxtmrt_ptmbond_handle_port_status_change (XtmRtPtmBondInfo *pBondInfo,
-                                                 UINT32 ulLinkState, UINT32 ulPortMask) ;
-void bcmxtmrt_ptmbond_tick (XtmRtPtmBondInfo *pBondInfo, int timeCheck) ;
+void bcmxtmrt_ptmbond_handle_port_status_change (PBCMXTMRT_DEV_CONTEXT pDevCtx, XtmRtPtmBondInfo *pBondInfo,
+                                                 UINT32 ulLinkState, UINT32 dmaSize) ;
+void bcmxtmrt_ptmbond_tick (PBCMXTMRT_DEV_CONTEXT pDevCtx, XtmRtPtmBondInfo *pBondInfo, int timeCheck) ;
 void *bond_memcpy (void * dest, void const * src, size_t cnt) ;
 
 int ProcRxBondCtrs(char *page, char **start, off_t off, int cnt, int *eof, void *data);

@@ -7,7 +7,9 @@ cd -- "$2" || { echo "Syntax: $0 SRCTREE OBJTREE"; exit 1; }
 # In separate objtree build, include/ might not exist yet
 mkdir include 2>/dev/null
 
-srctree="$1"
+# brcm: avoid sed argument too long error with some linux hosts.
+#srctree="$1"
+srctree="."
 
 # (Re)generate include/applets.h
 src="$srctree/include/applets.src.h"

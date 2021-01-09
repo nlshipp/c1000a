@@ -173,7 +173,7 @@ AC_EGREP_CPP(yes,
 AC_MSG_RESULT($result)
 case $result in
 yes)	tailq_foreach=yes
- 	;;
+	;;
 *)	tailq_foreach=no
 	;;
 esac
@@ -209,7 +209,7 @@ AC_CACHE_VAL(ts_cv_sa_len, [dnl
  AC_TRY_COMPILE([
  #include <sys/types.h>
  #include <sys/socket.h>
- ], [ 
+ ], [
  struct sockaddr a;
  a.sa_len = 1;
  ], [ts_cv_sa_len="yes"], [ts_cv_sa_len="no"])])

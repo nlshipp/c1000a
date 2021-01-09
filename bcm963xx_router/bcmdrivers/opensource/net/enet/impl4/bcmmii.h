@@ -1,20 +1,29 @@
 /*
-<:copyright-gpl
  Copyright 2004-2010 Broadcom Corp. All Rights Reserved.
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+ <:label-BRCM:2011:DUAL/GPL:standard    
+ 
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
+ 
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
+ 
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
+ 
+ :>
 */
 #ifndef _BCMMII_H_
 #define _BCMMII_H_
@@ -44,6 +53,7 @@
 #define MII_REGISTER_1C                     0x1c
     #define MII_1C_WRITE_ENABLE             (1 << 15)
     #define MII_1C_AUTO_POWER_DOWN_SV       (0x0a << 10)
+        #define MII_1C_APD_COMPATIBILITY    (1 << 8)
         #define MII_1C_AUTO_POWER_DOWN      (1 << 5)
         #define MII_1C_SLEEP_TIMER_SEL      (1 << 4)
         #define MII_1C_WAKEUP_TIMER_SEL_84  (1 << 0)
@@ -58,7 +68,14 @@
 #define MII_BRCM_TEST                       0x1f
     #define MII_BRCM_TEST_SHADOW_ENABLE     0x0080
     #define MII_BRCM_TEST_SHADOW2_ENABLE    0x0004
-#if defined (CONFIG_BCM96816)
+
+/* Shadow register 0x18 access */
+#define MII_REGISTER_18                     0x18
+   #define MII_REG_18_SEL(_s)               (((_s) << 12) | 0x7)
+   #define MII_REG_18_WR(_s,_v)             (((_s) == 7 ? 0x8000 : 0) | (_v) | (_s)) /* Shadow 111 bit[15] = 1 for write */      
+      #define RGMII_RXD_TO_RXC_SKEW         (1 << 8) /* Based on 54616 but should be good for others */
+
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) || defined(CONFIG_BCM96828))
 #define MII_DSP_COEFF_ADDR                  0x17
 #define MII_DSP_COEFF_RW_PORT               0x15
 #endif
@@ -121,6 +138,9 @@ typedef struct {
         #define REG_PORT_RX_DISABLE                       0x01
         #define REG_PORT_CTRL_DISABLE                     0x03
 
+        #define REG_PORT_STP_SHIFT                        5
+        #define REG_PORT_STP_MASK                         (0x7 << REG_PORT_STP_SHIFT)
+        
 #if defined (CONFIG_BCM96328)
     #define EPHY_PORTS       5
     #define NUM_RGMII_PORTS  1
@@ -135,6 +155,15 @@ typedef struct {
     #define GPHY_PORT_PHY_ID 4
     #define NUM_RGMII_PORTS  4
     #define RGMII_PORT_ID    4
+#elif defined (CONFIG_BCM96828)
+    #define EPHY_PORTS       8
+    #define NUM_RGMII_PORTS  4
+    #define GPHY1_PORT_ID     2
+    #define GPHY1_PORT_PHY_ID 3
+    #define GPHY2_PORT_ID     3
+    #define GPHY2_PORT_PHY_ID 4
+    #define RGMII_PORT_ID    4
+    #define EPON_PORT_ID     7
 #elif defined (CONFIG_BCM96368)
     #define EPHY_PORTS       6
     #define NUM_RGMII_PORTS  2
@@ -147,6 +176,19 @@ typedef struct {
     #define MOCA_PORT_ID     5
     #define GPON_PORT_ID     7
     #define RGMII_PORT_ID    2
+#elif defined (CONFIG_BCM96818) /* FIXME - AC */
+    #define EPHY_PORTS       4
+    #define NUM_RGMII_PORTS  4
+    #define SERDES_PORT_ID   4
+    #define GPON_PORT_ID     7
+    #define RGMII_PORT_ID    2
+    #define RGMII1_PORT_ID   2
+    #define RGMII2_PORT_ID   3
+    #define RGMII3_PORT_ID   5	
+#elif defined (CONFIG_BCM96318)
+    #define EPHY_PORTS       4
+    #define NUM_RGMII_PORTS  1
+    #define RGMII_PORT_ID    5
 #endif
 
 #define USB_PORT_ID     6
@@ -154,19 +196,22 @@ typedef struct {
 
 #define BCM54610_PHYID2  0xBD63
 #define BCM50612_PHYID2  0x5E60
+#define BCMAC201_PHYID2  0xBC30
+#define BCM54616_PHYID2  0x5D10
 #define BCM_PHYID_M      0xFFF0
 
     #define REG_MII_PORT_CONTROL                          0x08
 
         #define REG_MII_PORT_CONTROL_RX_UCST_EN           0x10
         #define REG_MII_PORT_CONTROL_RX_MCST_EN           0x08
-        #define REG_MII_PORT_CONTROL_RX_BCST_EN           0x04 
+        #define REG_MII_PORT_CONTROL_RX_BCST_EN           0x04  
 
     #define REG_SWITCH_MODE                               0x0b
 
         #define REG_SWITCH_MODE_FRAME_MANAGE_MODE         0x01
         #define REG_SWITCH_MODE_SW_FWDG_EN                0x02
         #define REG_SWITCH_MODE_FLSH_GPON_EGRESS_Q        0x08
+        #define BROADCAST_TO_ONLY_MIPS                    0x20
 
     #define REG_CONTROL_MII1_PORT_STATE_OVERRIDE          0x0e
         #define REG_CONTROL_MPSO_MII_SW_OVERRIDE          0x80
@@ -195,6 +240,8 @@ typedef struct {
         #define REG_PORT_FORWARD_MCST                     0x80
         #define REG_PORT_FORWARD_UCST                     0x40
         #define REG_PORT_FORWARD_IP_MCST                  0x01
+
+    #define REG_PORT_ENABLE                               0x23
 
     #define REG_PROTECTED_PORT_MAP                        0x24 
 
@@ -264,6 +311,7 @@ typedef struct {
 
     #define REG_RGMII_CTRL_P4                             0x64
     #define REG_RGMII_CTRL_P5                             0x65
+    #define REG_RGMII_CTRL_P7                             0x67
         #define REG_RGMII_CTRL_ENABLE_GMII                0x80
         #define REG_RGMII_CTRL_DLL_IQQD                   0x04
         #define REG_RGMII_CTRL_DLL_RXC_BYPASS             0x02
@@ -273,6 +321,7 @@ typedef struct {
             #define REG_RGMII_CTRL_MODE_RGMII             0x00
             #define REG_RGMII_CTRL_MODE_RvMII             0x20
             #define REG_RGMII_CTRL_MODE_MII               0x10
+            #define REG_RGMII_CTRL_MODE_GMII              0x30
 
     #define REG_RGMII_TIMING_P4                           0x6c
     #define REG_RGMII_TIMING_P5                           0x6d
@@ -344,6 +393,12 @@ typedef struct {
 
     #define REG_MDIO_DATA_ADDR                            0xb4
 
+    #define REG_EEE_CTRL                                  0xc0
+        #define REG_EEE_CTRL_ENABLE                       0x01
+
+    #define REG_EEE_TW_SYS_TX_100                         0xd0
+    #define REG_EEE_TW_SYS_TX_1000                        0xd2
+
 /****************************************************************************
     External switch pseudo PHY: Page (0x02)
 ****************************************************************************/
@@ -353,6 +408,7 @@ typedef struct {
     #define REG_GLOBAL_CONFIG                             0x00
 
         #define ENABLE_MII_PORT                           0x80
+        #define IGMP_REDIRECTION_EN                       0x01
         #define RECEIVE_IGMP                              0x08
         #define RECEIVE_BPDU                              0x02
         #define GLOBAL_CFG_RESET_MIB                      0x01
@@ -397,12 +453,15 @@ typedef struct {
 
     #define REG_ARL_TBL_CTRL                              0x00
         #define ARL_TBL_CTRL_START_DONE                   0x80 
+        #define ARL_TBL_CTRL_READ                         0x01
     #define REG_ARL_MAC_INDX_LO                           0x02
     #define REG_ARL_MAC_INDX_HI                           0x04
     #define REG_ARL_VLAN_INDX                             0x08
     #define REG_ARL_MAC_LO_ENTRY                          0x10
     #define REG_ARL_VID_MAC_HI_ENTRY                      0x14
     #define REG_ARL_DATA_ENTRY                            0x18
+        #define ARL_DATA_ENTRY_VALID                      0x8000
+        #define ARL_DATA_ENTRY_STATIC                     0x4000
     #define REG_ARL_SRCH_CTRL                             0x30
         #define ARL_SRCH_CTRL_START_DONE                  0x80 
         #define ARL_SRCH_CTRL_SR_VALID                    0x01
@@ -414,13 +473,22 @@ typedef struct {
     #define REG_VLAN_TBL_INDX                             0x62
     #define REG_VLAN_TBL_ENTRY                            0x64
 
+/* External switch 53115 and 53125 ARL search registers */
+    #define REG_ARL_SRCH_CTRL_531xx                       0x50
+    #define REG_ARL_SRCH_MAC_LO_ENTRY_531xx               0x60
+    #define REG_ARL_SRCH_VID_MAC_HI_ENTRY_531xx           0x64
+    #define REG_ARL_SRCH_DATA_ENTRY_531xx                 0x68
+        #define ARL_DATA_ENTRY_VALID_531xx                0x10000
+        #define ARL_DATA_ENTRY_STATIC_531xx               0x8000
+    #define REG_ARL_SRCH_DATA_RESULT_DONE_531xx           0x78
+    
 /****************************************************************************
    Flow Control: Page (0x0A)
 ****************************************************************************/
 
 #define PAGE_FLOW_CTRL                                    0x0A
 
-#if defined (CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     #define REG_FC_DIAG_PORT_SEL                          0x00
     #define REG_FC_CTRL                                   0x0E
     #define REG_FC_PRIQ_HYST                              0x10
@@ -445,6 +513,13 @@ typedef struct {
     #define REG_FC_Q_MON_CNT                              0x60
     #define REG_PEAK_RXBUF_COUNT                          0x78
 #endif
+
+
+/****************************************************************************
+   External Switch Internal Phy: Page (0x10-0x14)
+****************************************************************************/
+
+#define PAGE_INTERNAL_PHY_MII                             0x10
 
 /****************************************************************************
    MIB Counters: Page (0x20 to 0x28)
@@ -471,7 +546,16 @@ typedef struct {
     #define REG_MIB_P0_RXSYMBOLERRORS                     0xA0
     #define REG_MIB_P0_RXEXCESSSIZEDISC                   0x9C
 
-
+    /* Define an offset for use for register reads of external switches */
+    /* NOTE: The 5398 is the same as the itnernal Roboswitch, but on
+       legacy designs can actually be an external switch. */
+    #if (CONFIG_BCM_EXT_SWITCH_TYPE == 5398)
+        #define REG_MIB_P0_EXTSWITCH_OFFSET               0x00
+    #else
+        #define REG_MIB_P0_EXTSWITCH_OFFSET               0x0C
+    #endif
+        
+    
 /****************************************************************************
    QOS : Page (0x30)
 ****************************************************************************/
@@ -479,7 +563,7 @@ typedef struct {
 #define PAGE_QOS                                          0x30
 
     #define REG_QOS_GLOBAL_CTRL                           0x00
-#if defined (CONFIG_BCM96816)
+#if defined (CONFIG_BCM96816) || defined (CONFIG_BCM96818)
         #define PORT_QOS_EN_M                             0x1
         #define PORT_QOS_EN_S                             7
         #define QOS_LAYER_SEL_M                           0x3
@@ -499,7 +583,7 @@ typedef struct {
     #define REG_QOS_8021P_EN                              0x04
     #define REG_QOS_8021P_PRIO_MAP                        0x10
     #define REG_QOS_PORT_PRIO_MAP_P0                      0x50
-#if defined (CONFIG_BCM96816)
+#if defined (CONFIG_BCM96816) || defined (CONFIG_BCM96818)
     #define REG_QOS_PRIO_TO_QID_SEL_BITS                  3
     #define REG_QOS_PRIO_TO_QID_SEL_M                     0x7
 #else
@@ -517,7 +601,7 @@ typedef struct {
     #define REG_QOS_DSCP_PRIO_MAP3HI                      0x44
 
     #define REG_QOS_TXQ_CTRL                              0x80
-#if defined (CONFIG_BCM96816)
+#if defined (CONFIG_BCM96816) || defined (CONFIG_BCM96818)
         #define TXQ_CTRL_TXQ_MODE_M                       0x7 
         #define TXQ_CTRL_TXQ_MODE_S                       2 
         #define TXQ_CTRL_HQ_PREEMPT_M                     0x1
@@ -557,6 +641,8 @@ typedef struct {
     #define REG_VLAN_GLOBAL_8021Q                         0x00
         #define VLAN_EN_8021Q_M                           0x1
         #define VLAN_EN_8021Q_S                           7
+        #define VLAN_IVL_SVL_M                            0x3
+        #define VLAN_IVL_SVL_S                            5
         #define PRIO_TAG_FRAME_CTRL_M                     0x3
         #define PRIO_TAG_FRAME_CTRL_S                     0
     #define REG_VLAN_GLOBAL_CTRL1                         0x01
@@ -652,6 +738,15 @@ typedef struct {
 #endif
 
 /****************************************************************************
+   EEE: Page (0x92)
+****************************************************************************/
+
+#define PAGE_EEE                                          0x92
+    #define REG_EEE_EN_CTRL                               0x00
+    #define REG_EEE_SLEEP_TIMER_G                         0x10
+    #define REG_EEE_SLEEP_TIMER_FE                        0x34
+
+/****************************************************************************
    FFE Registers
 ****************************************************************************/
 
@@ -670,6 +765,9 @@ typedef struct {
 #define PBMAP_MIPS           0x100
 #define PBMAP_MIPS_N_GPON    0x180
 #define DEFAULT_PBVLAN_MAP   0x1FF
+#define PBMAP_MIPS_N_EPON    0x180
+#define PBMAP_UNIS           0x7F
+#define PBMAP_EPON           0x80
 
 
 /****************************************************************************
@@ -679,10 +777,10 @@ typedef struct {
 #define EWAN_PORT_ID    4
 #endif
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-#define LAN_PORT_ID_4   3        
-#define LAN_PORT_ID_3   2                             
+#define LAN_PORT_ID_4   3
+#define LAN_PORT_ID_3   2
 #define LAN_PORT_ID_2   1
-#define LAN_PORT_ID_1   0  
+#define LAN_PORT_ID_1   0
 #endif
 
 #if defined(AEI_VDSL_HPNA)

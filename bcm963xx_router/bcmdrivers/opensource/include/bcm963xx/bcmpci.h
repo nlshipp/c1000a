@@ -1,54 +1,88 @@
 /*
-<:copyright-gpl 
- Copyright 2004 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
-:>
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:> 
 */
 
 #ifndef BCMPCI_H
 #define BCMPCI_H
 
 /* BUS assignment */
-#define BCM_BUS_PCI		0    /* bus 0, MPI. USB, etc */
-#define BCM_BUS_PCIE_ROOT	1    /* bus 1, pcie root complex */
-#define BCM_BUS_PCIE_DEVICE	2    /* bus 2, pcie devices */
-
-/* PCIE memory map in physical address, window1:1MB, window2:16MB */
-#if defined(CONFIG_BCM963268)
-#define BCM_PCIE_MEM1_BASE 	0x11000000 
-#define BCM_PCIE_MEM1_SIZE	0x00f00000
-#else	
-#define BCM_PCIE_MEM1_BASE 	0x10f00000 
-#define BCM_PCIE_MEM1_SIZE	0x00100000
+#define BCM_BUS_PCI						0    /* bus 0, MPI. USB, etc */
+#define BCM_BUS_PCIE_ROOT					1    /* bus 1, pcie root complex */
+#define BCM_BUS_PCIE_DEVICE					2    /* bus 2, pcie devices */
+/* 
+ * For integrated onchip WLAN support
+ */
+#define WLAN_ONCHIP_DEV_SLOT					0      /* predefined pci slot number to sit in */
+#define WLAN_ONCHIP_DEV_NUM					1      /* predefined instance of onchip wlan */
+#define WLAN_ONCHIP_PCI_ID					0x435f14e4
+#define WLAN_ONCHIP_RESOURCE_SIZE				0x2000
+#define WLAN_ONCHIP_PCI_HDR_DW_LEN				64
 #endif
 
-#define BCM_PCIE_MEM2_BASE	0xa0000000
-#define BCM_PCIE_MEM2_SIZE	0x01000000
+
+#if defined (__BCM_MAP_PART_H)
+/* chip specific is defined in PCIEH_MEMX_XXXX in bcm_map_part.h */
+#if defined(PCIEH)
+#ifdef PCIEH_MEM1_BASE
+#ifdef PCIEH_PCIE_IS_DEFAULT_TARGET
+/* for those are ubus default targets and can use a bigger MEM1 */
+#define BCM_PCIE_MEM1_BASE					PCIEH_MEM1_BASE 
+#define BCM_PCIE_MEM1_SIZE					PCIEH_MEM1_SIZE
+#else
+#define BCM_PCIE_MEM1_BASE					PCIEH_MEM2_BASE 
+#define BCM_PCIE_MEM1_SIZE					PCIEH_MEM2_SIZE
+#endif
+#else	
+#error "PCIEH_MEM1_BASE/PCIEH_MEM1_SIZE not defined in xxxx_map_part.h"
+#endif
+
+#ifdef PCIEH_MEM2_BASE
+#ifdef PCIEH_PCIE_IS_DEFAULT_TARGET
+#define BCM_PCIE_MEM2_BASE					PCIEH_MEM2_BASE 
+#define BCM_PCIE_MEM2_SIZE					PCIEH_MEM2_SIZE
+#else
+#define BCM_PCIE_MEM2_BASE					PCIEH_MEM1_BASE 
+#define BCM_PCIE_MEM2_SIZE					PCIEH_MEM1_SIZE
+#endif
+#else	
+#error "PCIEH_MEM2_BASE/PCIEH_MEM2_SIZE not defined in xxxx_map_part.h"
+#endif
+#endif /* PCIEH */
 
 /* PCI memory window in physical address space */
-#if defined(CONFIG_BCM963268)
 /* Not a true PCI memory allocated by the chip
    assume PCIE MEM2 is not used,
    stealing unused PCIE MEM2 space to get PCI scanning going
    all devices hanging on pci bus 0 must fix-up their base address accordingly   
 */
-#define BCM_PCI_MEM_BASE    BCM_PCIE_MEM2_BASE
-#define BCM_PCI_MEM_SIZE    0x00100000
+#if defined(MPI_BASE)
+#define BCM_PCI_MEM_BASE						0x11000000
+#define BCM_PCI_MEM_SIZE						0x01000000
 #else
-#define BCM_PCI_MEM_BASE    0x11000000
-#define BCM_PCI_MEM_SIZE    0x01000000
+#define BCM_PCI_MEM_BASE						BCM_PCIE_MEM2_BASE
+#define BCM_PCI_MEM_SIZE						0x00100000
 #endif
 
 /* Card bus memory window in physical address space */ 
@@ -110,13 +144,5 @@ typedef enum {
 #define pcmciaAttr          (pcmciaAttrOffset | pcmciaBase)
 #define pcmciaMem           (pcmciaMemOffset  | pcmciaBase)
 #define pcmciaIo            (pcmciaIoOffset   | pcmciaBase)
-
-/* 
- * For integrated onchip WLAN support
- */
-#define WLAN_ONCHIP_DEV_SLOT        0      /* predefined pci slot number to sit in */
-#define WLAN_ONCHIP_DEV_NUM         1      /* predefined instance of onchip wlan */
-#define WLAN_ONCHIP_PCI_ID	    0x435f14e4
-#define WLAN_ONCHIP_RESOURCE_SIZE   0x2000
-#define WLAN_ONCHIP_PCI_HDR_DW_LEN  64
 #endif
+

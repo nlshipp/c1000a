@@ -6,12 +6,12 @@
 #include <net/sock.h>
 #include <linux/in.h>
 #include <linux/if.h>
+#include <linux/if_vlan.h>
 #include "br_igmp.h"
 #include "br_mld.h"
 
 #define MAX_PAYLOAD             1024
 
-#define MCPD_MAX_IFS            10
 
 #if 0
 static DEFINE_RWLOCK(mcpd_queue_lock);
@@ -59,10 +59,12 @@ typedef enum mcpd_msgtype
     MCPD_MSG_MLD_SNOOP_ENTRY,
     MCPD_MSG_MLD_SNOOP_ADD,
     MCPD_MSG_MLD_SNOOP_DEL,
+    MCPD_MSG_MLD_LAN2LAN_SNOOP,
     MCPD_MSG_IGMP_PURGE_ENTRY,
     MCPD_MSG_MLD_PURGE_ENTRY,
     MCPD_MSG_IF_CHANGE,
     MCPD_MSG_MC_FDB_CLEANUP, /* clean up for MIB RESET */
+    MCPD_MSG_SET_PRI_QUEUE,
     MCPD_MSG_MAX
 } t_MCPD_MSGTYPES;
 
@@ -100,43 +102,12 @@ typedef struct mcpd_pkt_info
     int                       port_no;
     int                       if_index;
     int                       data_len;
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+    unsigned char             srcMac[6];
+#endif
     __u32                     corr_tag;
-    int                       is_new_grp_pkt;/* only used in user space */
     __u16                     tci;/* vlan id */
 } t_MCPD_PKT_INFO;
-
-typedef struct mcpd_wan_info
-{
-    char                      if_name[IFNAMSIZ];
-    int                       if_ops;
-} t_MCPD_WAN_INFO;
-
-typedef struct mcpd_igmp_snoop_entry 
-{
-    char                      br_name[IFNAMSIZ];
-    //char                      port_name[IFNAMSIZ];
-    int                       port_no;
-    struct                    in_addr grp;
-    struct                    in_addr src;
-    struct                    in_addr rep;
-    int                       mode;
-    int                       code;
-    __u16                     tci;/* vlan id */
-    t_MCPD_WAN_INFO           wan_info[MCPD_MAX_IFS];
-} t_MCPD_IGMP_SNOOP_ENTRY;
-
-typedef struct mcpd_mld_snoop_entry 
-{
-    char                      br_name[IFNAMSIZ];
-    char                      port_no;
-    struct                    in6_addr grp;
-    struct                    in6_addr src;
-    struct                    in6_addr rep;
-    int                       mode;
-    int                       code;
-    __u16                     tci;/* vlan id */
-    t_MCPD_WAN_INFO           wan_info[MCPD_MAX_IFS];
-} t_MCPD_MLD_SNOOP_ENTRY;
 
 typedef struct mcpd_igmp_purge_entry
 {
@@ -145,6 +116,8 @@ typedef struct mcpd_igmp_purge_entry
     struct in_addr            rep;
     t_MCPD_PKT_INFO           pkt_info;
 } t_MCPD_IGMP_PURGE_ENTRY;
+
+extern void (*bcm_mcast_def_pri_queue_hook)(struct sk_buff *);
 
 static void mcpd_dump_buf(char *buf, int len)
 {
@@ -226,7 +199,7 @@ static int mcpd_enqueue_packet(struct net_bridge *br, struct sk_buff *skb)
 } /* mcpd_enqueue_packet */
 #endif
 
-int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb)
+int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb, int protocol)
 {
     struct nlmsghdr *nlh;
     char *ptr = NULL;
@@ -236,12 +209,32 @@ int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb)
     char *br_name = br->dev->name;
     int if_index = br->dev->ifindex;
     int port_no = skb->dev->br_port->port_no;
+    int len;
+    u8 *pData;
 
     if(!mcpd_pid)
         return 0;
 
-    buf_size = skb->len + sizeof(t_MCPD_MSG_HDR) + sizeof(t_MCPD_PKT_INFO);
-    new_skb = alloc_skb(NLMSG_SPACE(buf_size), GFP_ATOMIC);
+    len   = skb->len;
+    pData = skb->data;
+    if (vlan_eth_hdr(skb)->h_vlan_proto != protocol)
+    {
+        if ( vlan_eth_hdr(skb)->h_vlan_proto == ETH_P_8021Q )
+        {
+            if ( vlan_eth_hdr(skb)->h_vlan_encapsulated_proto == protocol )
+            {
+                len   -= sizeof(struct vlan_hdr);
+                pData += sizeof(struct vlan_hdr);
+            }
+            else
+            {
+                return 0;
+            }
+        }
+    }
+
+    buf_size = len + sizeof(t_MCPD_MSG_HDR) + sizeof(t_MCPD_PKT_INFO);
+    new_skb  = alloc_skb(NLMSG_SPACE(buf_size), GFP_ATOMIC);
 
     if(!new_skb) {
         printk("br_netlink_mcpd.c:%d %s() errr no mem\n", __LINE__, __FUNCTION__);
@@ -254,7 +247,7 @@ int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb)
     nlh->nlmsg_pid = 0;
     nlh->nlmsg_flags = 0;
     skb_put(new_skb, NLMSG_SPACE(buf_size));
-    if(skb->protocol == 0x86DD)
+    if(protocol == ETH_P_IPV6)
         ((t_MCPD_MSG_HDR *)ptr)->type = MCPD_MSG_MLD_PKT;
     else
         ((t_MCPD_MSG_HDR *)ptr)->type = MCPD_MSG_IGMP_PKT;
@@ -265,9 +258,12 @@ int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb)
 
     memcpy(pkt_info->br_name, br_name, IFNAMSIZ);
     memcpy(pkt_info->port_name, skb->dev->name, IFNAMSIZ);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+    memcpy(pkt_info->srcMac, skb_mac_header(skb)+6, 6);
+#endif
     pkt_info->port_no = port_no;
     pkt_info->if_index = if_index;
-    pkt_info->data_len = skb->len;
+    pkt_info->data_len = len;
     pkt_info->corr_tag = (__u32)skb;
     pkt_info->tci = 0;
 
@@ -277,7 +273,7 @@ int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb)
 #endif /*  defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE) */
     ptr += sizeof(t_MCPD_PKT_INFO);
 
-    memcpy(ptr, skb->data, skb->len);
+    memcpy(ptr, pData, len);
 
     NETLINK_CB(new_skb).dst_group = 0;
     NETLINK_CB(new_skb).pid = mcpd_pid;
@@ -341,10 +337,10 @@ static void mcpd_nl_process_registration(struct sk_buff *skb)
 static void mcpd_nl_process_lan2lan_snooping(struct sk_buff *skb)
 {
     struct nlmsghdr *nlh = (struct nlmsghdr *)skb->data;
-    unsigned char *ptr;
+    unsigned char   *ptr;
     int val;
 
-    ptr = NLMSG_DATA(nlh);
+    ptr  = NLMSG_DATA(nlh);
     ptr += sizeof(t_MCPD_MSG_HDR);
 
     val = (int)*(int *)ptr;
@@ -353,6 +349,22 @@ static void mcpd_nl_process_lan2lan_snooping(struct sk_buff *skb)
 
     return;
 }
+
+
+static int mcpd_is_br_port(struct net_bridge *br,struct net_device *from_dev)
+{
+    struct net_bridge_port *p = NULL;
+    int ret = 0;
+
+    spin_lock_bh(&br->lock);
+    list_for_each_entry_rcu(p, &br->port_list, list) {
+        if ((p->dev) && (!memcmp(p->dev->name, from_dev->name, IFNAMSIZ)))
+            ret = 1;
+    }
+    spin_unlock_bh(&br->lock);
+
+    return ret;
+} /* br_igmp_is_br_port */
 
 static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
 {
@@ -383,9 +395,6 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
         return;
     }
 
-    if(!(br->igmp_snooping))
-        return;
-
     rcu_read_lock();
     prt = br_get_port(br, snoop_entry->port_no);
     rcu_read_unlock();
@@ -396,12 +405,13 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
         {
             from_dev = dev_get_by_name(&init_net, 
                                        snoop_entry->wan_info[idx].if_name);
+            if (!from_dev)
+               continue;
 
             if((snoop_entry->mode == MCPD_SNOOP_IN_CLEAR) ||
-                (snoop_entry->mode == MCPD_SNOOP_EX_CLEAR)) 
+               (snoop_entry->mode == MCPD_SNOOP_EX_CLEAR)) 
             {
                 br_igmp_mc_fdb_remove(from_dev,
-                                  snoop_entry->wan_info[idx].if_ops,
                                   br, 
                                   prt, 
                                   &snoop_entry->grp, 
@@ -411,6 +421,12 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
             }
             else
             {
+                if((snoop_entry->wan_info[idx].if_ops == MCPD_IF_TYPE_BRIDGED) && 
+                   (!mcpd_is_br_port(br, from_dev)))
+                {
+                   dev_put(from_dev);
+                   continue;
+                }
 
                 br_igmp_mc_fdb_add(from_dev,
                                snoop_entry->wan_info[idx].if_ops,
@@ -422,9 +438,7 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
                                snoop_entry->tci, 
                                &snoop_entry->src);
             }
-
-            if(from_dev)
-                dev_put(from_dev);
+            dev_put(from_dev);
         }
         else
         {
@@ -439,7 +453,6 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
             (snoop_entry->mode == MCPD_SNOOP_EX_CLEAR)) 
         {
             br_igmp_mc_fdb_remove(dev,
-                                    snoop_entry->wan_info[idx].if_ops,
                                     br, 
                                     prt, 
                                     &snoop_entry->grp, 
@@ -449,9 +462,8 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
         }
         else
         {
-
             br_igmp_mc_fdb_add(dev,
-                               snoop_entry->wan_info[idx].if_ops,
+                               MCPD_IF_TYPE_BRIDGED,
                                br, 
                                prt, 
                                &snoop_entry->grp, 
@@ -469,6 +481,22 @@ static void mcpd_nl_process_igmp_snoop_entry(struct sk_buff *skb)
 } /* mcpd_nl_process_igmp_snoop_entry*/
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+static void mcpd_nl_process_mld_lan2lan_snooping(struct sk_buff *skb)
+{
+    struct nlmsghdr *nlh = (struct nlmsghdr *)skb->data;
+    unsigned char   *ptr;
+    int val;
+
+    ptr  = NLMSG_DATA(nlh);
+    ptr += sizeof(t_MCPD_MSG_HDR);
+
+    val = (int)*(int *)ptr;
+
+    br_mld_lan2lan_snooping_update(val);
+
+    return;
+}
+
 static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
 {
     struct nlmsghdr *nlh = (struct nlmsghdr *)skb->data;
@@ -498,9 +526,6 @@ static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
         return;
     }
 
-    if(!(br->mld_snooping))
-      return;
-
     rcu_read_lock();
     prt = br_get_port(br, snoop_entry->port_no);
     rcu_read_unlock();
@@ -511,12 +536,16 @@ static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
         {
             from_dev = dev_get_by_name(&init_net, 
                                        snoop_entry->wan_info[idx].if_name);
+            if(!from_dev)
+               continue;
 
             if((snoop_entry->mode == MCPD_SNOOP_IN_CLEAR) ||
                 (snoop_entry->mode == MCPD_SNOOP_EX_CLEAR)) 
             {
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+                mcast_snooping_call_chain(SNOOPING_DEL_ENTRY,snoop_entry);
+#endif
                 br_mld_mc_fdb_remove(from_dev,
-                                    snoop_entry->wan_info[idx].if_ops,
                                     br, 
                                     prt, 
                                     &snoop_entry->grp, 
@@ -526,6 +555,13 @@ static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
             }
             else
             {
+                if((snoop_entry->wan_info[idx].if_ops == MCPD_IF_TYPE_BRIDGED) && 
+                   (!mcpd_is_br_port(br, from_dev)))
+                {
+                   dev_put(from_dev);
+                   continue;
+                }
+
                 br_mld_mc_fdb_add(from_dev,
                                 snoop_entry->wan_info[idx].if_ops,
                                 br, 
@@ -535,14 +571,49 @@ static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
                                 snoop_entry->mode, 
                                 snoop_entry->tci, 
                                 &snoop_entry->src);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+                mcast_snooping_call_chain(SNOOPING_ADD_ENTRY,snoop_entry);
+#endif
             }
-
-            if(from_dev)
-                dev_put(from_dev);
+            dev_put(from_dev);
         }
         else
         {
             break;
+        }
+    }
+
+    /* if LAN-2-LAN snooping enabled make an entry */
+    if(br_mld_get_lan2lan_snooping_info())
+    {
+        if((snoop_entry->mode == MCPD_SNOOP_IN_CLEAR) ||
+            (snoop_entry->mode == MCPD_SNOOP_EX_CLEAR)) 
+        {
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+            mcast_snooping_call_chain(SNOOPING_DEL_ENTRY,snoop_entry);
+#endif
+            br_mld_mc_fdb_remove(dev,
+                                 br, 
+                                 prt, 
+                                 &snoop_entry->grp, 
+                                 &snoop_entry->rep, 
+                                 snoop_entry->mode, 
+                                 &snoop_entry->src);
+        }
+        else
+        {
+            br_mld_mc_fdb_add(dev,
+                              MCPD_IF_TYPE_BRIDGED,
+                              br, 
+                              prt, 
+                              &snoop_entry->grp, 
+                              &snoop_entry->rep, 
+                              snoop_entry->mode, 
+                              snoop_entry->tci, 
+                              &snoop_entry->src);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+            mcast_snooping_call_chain(SNOOPING_ADD_ENTRY,snoop_entry);
+#endif
         }
     }
 
@@ -553,36 +624,79 @@ static void mcpd_nl_process_mld_snoop_entry(struct sk_buff *skb)
 } /* mcpd_nl_process_mld_snoop_entry*/
 #endif
 
-static void mcpd_nl_process_if_change(struct sk_buff *skb)
+
+static void mcpd_nl_process_mcast_pri_queue (struct sk_buff *skb)
 {
     struct nlmsghdr *nlh = (struct nlmsghdr *)skb->data;
-    struct net_device *dev = NULL;
-    struct net_bridge *br = NULL;
     unsigned char *ptr;
-    char *if_name;
+    int val;
 
     ptr = NLMSG_DATA(nlh);
     ptr += sizeof(t_MCPD_MSG_HDR);
 
-    if_name = ptr;
+    val = (int)*(int *)ptr;
 
-    dev = dev_get_by_name(&init_net, if_name);
-        
-    if(!dev)
+    br_mcast_set_pri_queue(val);
+
+    return;
+}
+
+static void mcpd_nl_process_if_change(struct sk_buff *skb)
+{
+    struct nlmsghdr *nlh = (struct nlmsghdr *)skb->data;
+    struct net_device *ndev = NULL;
+    struct net_device *dev = NULL;
+    struct net_bridge *br = NULL;
+    unsigned char *ptr;
+
+    ptr = NLMSG_DATA(nlh);
+    ptr += sizeof(t_MCPD_MSG_HDR);
+    ndev = dev_get_by_name(&init_net, ptr);
+    if(!ndev)
         return;
 
-    br = netdev_priv(dev);
 
-    if(!br)
+    if (ndev->priv_flags & IFF_EBRIDGE)
     {
-        dev_put(dev);
-        return;
+        br = netdev_priv(ndev);
+        if ( NULL == br )
+        {
+            dev_put(ndev);
+            return;
+        }
+
+        /* update is for a bridge interface so flsuh all entries */
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
+        br_igmp_process_if_change(br, NULL);
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+        br_mld_process_if_change(br, NULL);
+#endif
+    }
+    else
+    {
+        read_lock(&dev_base_lock);
+        for_each_netdev(&init_net, dev)
+        {
+            if(dev->priv_flags & IFF_EBRIDGE)
+            {
+                br = netdev_priv(dev);
+                if ( NULL == br )
+                {
+                    continue;
+                }
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
+                br_igmp_process_if_change(br, ndev);
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+                br_mld_process_if_change(br, ndev);
+#endif
+            }
+        }
+        read_unlock(&dev_base_lock);
     }
 
-    br_igmp_process_if_change(br);
-
-    if(dev)
-        dev_put(dev);
+    dev_put(ndev);
 
     return;
 } /* mcpd_nl_process_igmp_snoop_entry*/
@@ -592,8 +706,7 @@ static void mcpd_nl_process_mc_fdb_cleanup(void)
     struct net_device *dev = NULL;
     struct net_bridge *br = NULL;
 
-    rtnl_lock();
-    ASSERT_RTNL();
+    read_lock(&dev_base_lock);
     for(dev = first_net_device(&init_net); 
         dev; 
         dev = next_net_device(dev)) 
@@ -610,7 +723,7 @@ static void mcpd_nl_process_mc_fdb_cleanup(void)
 #endif
         }
     }
-    rtnl_unlock();
+    read_unlock(&dev_base_lock);
     return;
 }
 
@@ -753,6 +866,10 @@ static inline void mcpd_nl_rcv_skb(struct sk_buff *skb)
             case MCPD_MSG_MLD_SNOOP_ENTRY:
                 mcpd_nl_process_mld_snoop_entry(skb);
                 break;
+
+            case MCPD_MSG_MLD_LAN2LAN_SNOOP:
+                mcpd_nl_process_mld_lan2lan_snooping(skb);
+                break;
 #endif
 
             case MCPD_MSG_IF_CHANGE:
@@ -761,6 +878,10 @@ static inline void mcpd_nl_rcv_skb(struct sk_buff *skb)
 
             case MCPD_MSG_MC_FDB_CLEANUP:
                 mcpd_nl_process_mc_fdb_cleanup();
+                break;
+
+            case MCPD_MSG_SET_PRI_QUEUE:
+                mcpd_nl_process_mcast_pri_queue(skb);
                 break;
 
             default:
@@ -797,6 +918,8 @@ static int __init mcpd_module_init(void)
         printk("MCPD: failure to create kernel netlink socket\n");
         return -ENOMEM;
     }
+
+    bcm_mcast_def_pri_queue_hook = br_mcast_set_skb_mark_queue;    
 
     return 0;
 } /* mcpd_module_init */

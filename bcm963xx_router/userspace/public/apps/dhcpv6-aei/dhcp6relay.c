@@ -636,7 +636,7 @@ relay6_recv(s, fromclient)
 			break;
 	}
 	/*
-	 * DHCPv6 relay may receive a DHCPv6 packet from a non-listening 
+	 * DHCPv6 relay may receive a DHCPv6 packet from a non-listening
 	 * interface, when a DHCPv6 server is running on that interface.
 	 * This check prevents such reception.
 	 */
@@ -824,7 +824,7 @@ relay_to_server(dh6, len, from, ifname, ifid)
 		 * When relaying a message from a client, we need a global
 		 * link address.
 		 * XXX: this may be too strong for the stateless case, but
-		 * the DHCPv6 specification seems to require the behavior. 
+		 * the DHCPv6 specification seems to require the behavior.
 		 */
 		if (dh6->dh6_msgtype != DH6_RELAY_FORW)
 			goto out;
@@ -1008,7 +1008,7 @@ relay_to_client(dh6relay, len, from)
 	if (dh6->dh6_msgtype != DH6_RELAY_REPLY) {
 		relayed++;
 	} else {
-		/* 
+		/*
 		 * change dst port to server/relay port, since it's a
 		 * reply to relay, not to a client
 		 */

@@ -137,6 +137,11 @@ static void br_stp_start(struct net_bridge *br)
 		br_port_state_selection(br);
 		spin_unlock_bh(&br->lock);
 	}
+
+#if defined(CONFIG_MIPS_BRCM)
+	/* STP enabled, send notification for all ports */
+	br_stp_notify_state_bridge(br);
+#endif
 }
 
 static void br_stp_stop(struct net_bridge *br)
@@ -158,6 +163,10 @@ static void br_stp_stop(struct net_bridge *br)
 	}
 
 	br->stp_enabled = BR_NO_STP;
+#if defined(CONFIG_MIPS_BRCM)
+	/* STP disabled, send notification for all ports */
+	br_stp_notify_state_bridge(br);
+#endif
 }
 
 void br_stp_set_enabled(struct net_bridge *br, unsigned long val)
@@ -207,7 +216,7 @@ void br_stp_change_bridge_id(struct net_bridge *br, const unsigned char *addr)
 static const unsigned short br_mac_zero_aligned[ETH_ALEN >> 1];
 
 /* called under bridge lock */
-void br_stp_recalculate_bridge_id(struct net_bridge *br)
+bool br_stp_recalculate_bridge_id(struct net_bridge *br)
 {
 	const unsigned char *br_mac_zero =
 			(const unsigned char *)br_mac_zero_aligned;
@@ -216,13 +225,13 @@ void br_stp_recalculate_bridge_id(struct net_bridge *br)
 
 	/* user has chosen a value so keep it */
 	if (br->flags & BR_SET_MAC_ADDR)
-		return;
+		return false;
 
 	list_for_each_entry(p, &br->port_list, list) {
 		if (addr == br_mac_zero ||
 		    memcmp(p->dev->dev_addr, addr, ETH_ALEN) < 0)
 			addr = p->dev->dev_addr;
-#if defined(AEI_CONTROL_LAYER) 
+#if defined(AEI_CONTROL_LAYER)
 		if(strcmp(p->dev->name, "eth0") == 0){
 			addr = p->dev->dev_addr;
 			break;
@@ -230,8 +239,11 @@ void br_stp_recalculate_bridge_id(struct net_bridge *br)
 #endif
 	}
 
-	if (compare_ether_addr(br->bridge_id.addr, addr))
-		br_stp_change_bridge_id(br, addr);
+	if (compare_ether_addr(br->bridge_id.addr, addr) == 0)
+		return false;	/* no change */
+
+	br_stp_change_bridge_id(br, addr);
+	return true;
 }
 
 /* called under bridge lock */

@@ -3,27 +3,29 @@
  *  Copyright (c) 2008  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  * 
  ************************************************************************/
 
@@ -33,9 +35,62 @@
 #include "cms_log.h"
 
 
+
+struct xml_esc_entry {
+   char esc;  /**< character that needs to be escaped */
+   char *seq; /**< escape sequence */
+   int  len;  /**< length of escape sequence */
+};
+
+struct xml_esc_entry xml_esc_table[] = {
+      {'<', "&lt;", 4},
+      {'>', "&gt;", 4},
+      {'&', "&amp;", 5},
+      {'%', "&#37;", 5},
+      {' ', "&#32;", 5},
+      {'\t', "&#09;", 5},
+      {'\n', "&#10;", 5},
+      {'\r', "&#13;", 5},
+      {'"', "&quot;", 6},
+};
+
+#define NUM_XML_ESC_ENTRIES (sizeof(xml_esc_table)/sizeof(struct xml_esc_entry))
+
+
+
+UBOOL8 cmsXml_isEscapeNeeded(const char *string)
+{
+   UINT32 len, i=0, e=0;
+   UBOOL8 escapeNeeded = FALSE;
+
+   if (string == NULL)
+   {
+      return FALSE;
+   }
+
+   len = strlen(string);
+
+   /* look for characters which need to be escaped. */
+   while (escapeNeeded == FALSE && i < len)
+   {
+      for (e=0; e < NUM_XML_ESC_ENTRIES; e++)
+      {
+         if (string[i] == xml_esc_table[e].esc)
+         {
+            escapeNeeded = TRUE;
+            break;
+         }
+      }
+      i++;
+   }
+
+   return escapeNeeded;
+}
+
+
 CmsRet cmsXml_escapeString(const char *string, char **escapedString)
 {
-   UINT32 len, len2, i=0, j=0;
+   UINT32 len, len2, i=0, j=0, e=0, f=0;
    char *tmpStr;
 
    if (string == NULL)
@@ -49,17 +104,13 @@ CmsRet cmsXml_escapeString(const char *string, char **escapedString)
    /* see how many characters need to be escaped and what the new length is */
    while (i < len)
    {
-      if (string[i] == '<' || string[i] == '>')
+      for (e=0; e < NUM_XML_ESC_ENTRIES; e++)
       {
-         len2 += 3;
-      }
-      else if (string[i] == '&' || string[i] == '%')
-      {
-         len2 += 4;
-      }
-      else if (string[i] == '"')
-      {
-         len2 += 5;
+         if (string[i] == xml_esc_table[e].esc)
+         {
+            len2 += (xml_esc_table[e].len - 1);
+            break;
+         }
       }
       i++;
    }
@@ -73,46 +124,25 @@ CmsRet cmsXml_escapeString(const char *string, char **escapedString)
    i=0;
    while (i < len)
    {
-      if (string[i] == '<')
+      UBOOL8 found;
+
+      found = FALSE;
+      /* see if we need to replace any characters with esc sequences */
+      for (e=0; e < NUM_XML_ESC_ENTRIES; e++)
       {
-         tmpStr[j++] = '&';
-         tmpStr[j++] = 'l';
-         tmpStr[j++] = 't';
-         tmpStr[j++] = ';';
+         if (string[i] == xml_esc_table[e].esc)
+         {
+            for (f=0; f<xml_esc_table[e].len; f++)
+            {
+               tmpStr[j++] = xml_esc_table[e].seq[f];
+               found = TRUE;
+            }
+            break;
+         }
       }
-      else if (string[i] == '>')
-      {
-         tmpStr[j++] = '&';
-         tmpStr[j++] = 'g';
-         tmpStr[j++] = 't';
-         tmpStr[j++] = ';';
-      }
-      else if (string[i] == '&')
-      {
-         tmpStr[j++] = '&';
-         tmpStr[j++] = 'a';
-         tmpStr[j++] = 'm';
-         tmpStr[j++] = 'p';
-         tmpStr[j++] = ';';
-      }
-      else if (string[i] == '%')
-      {
-         tmpStr[j++] = '&';
-         tmpStr[j++] = '#';
-         tmpStr[j++] = '3';
-         tmpStr[j++] = '7';
-         tmpStr[j++] = ';';
-      }
-      else if (string[i] == '"')
-      {
-         tmpStr[j++] = '&';
-         tmpStr[j++] = 'q';
-         tmpStr[j++] = 'u';
-         tmpStr[j++] = 'o';
-         tmpStr[j++] = 't';
-         tmpStr[j++] = ';';
-      }
-      else
+
+      /* no replacement, then just copy over the original string */
+      if (!found)
       {
          tmpStr[j++] = string[i];
       }
@@ -126,10 +156,57 @@ CmsRet cmsXml_escapeString(const char *string, char **escapedString)
 }
 
 
+UBOOL8 cmsXml_isUnescapeNeeded(const char *escapedString)
+{
+   UINT32 len, i=0, e=0, f=0;
+   UBOOL8 unescapeNeeded = FALSE;
+   UBOOL8 matched=FALSE;
+
+   if (escapedString == NULL)
+   {
+      return FALSE;
+   }
+
+   len = strlen(escapedString);
+
+   while (unescapeNeeded == FALSE && i < len)
+   {
+      /* all esc sequences begin with &, so look for that first */
+      if (escapedString[i] == '&')
+      {
+         for (e=0; e < NUM_XML_ESC_ENTRIES && !matched; e++)
+         {
+            if (i+xml_esc_table[e].len-1 < len)
+            {
+               /* check for match against an individual sequence */
+               matched = TRUE;
+               for (f=1; f < xml_esc_table[e].len; f++)
+               {
+                  if (escapedString[i+f] != xml_esc_table[e].seq[f])
+                  {
+                     matched = FALSE;
+                     break;
+                  }
+               }
+            }
+         }
+      }
+
+      i++;
+
+      /* if we saw a match, then unescape is needed */
+      unescapeNeeded = matched;
+   }
+
+   return unescapeNeeded;
+}
+
+
 CmsRet cmsXml_unescapeString(const char *escapedString, char **string)
 {
-   UINT32 len, i=0, j=0;
+   UINT32 len, i=0, j=0, e=0, f=0;
    char *tmpStr;
+   UBOOL8 matched=FALSE;
 
    if (escapedString == NULL)
    {
@@ -146,66 +223,41 @@ CmsRet cmsXml_unescapeString(const char *escapedString, char **string)
 
    while (i < len)
    {
-      if (escapedString[i] != '&')
+      /* all esc sequences begin with &, so look for that first */
+      if (escapedString[i] == '&')
       {
+         for (e=0; e < NUM_XML_ESC_ENTRIES && !matched; e++)
+         {
+            if (i+xml_esc_table[e].len-1 < len)
+            {
+               /* check for match against an individual sequence */
+               matched = TRUE;
+               for (f=1; f < xml_esc_table[e].len; f++)
+               {
+                  if (escapedString[i+f] != xml_esc_table[e].seq[f])
+                  {
+                     matched = FALSE;
+                     break;
+                  }
+               }
+            }
+
+            if (matched)
+            {
+               tmpStr[j++] = xml_esc_table[e].esc;
+               i += xml_esc_table[e].len;
+            }
+         }
+      }
+
+      if (!matched)
+      {
+         /* not a valid escape sequence, just copy it */
          tmpStr[j++] = escapedString[i++];
       }
-      else
-      {
-         /*
-          * We have a possible escape sequence.  Check for the
-          * whole thing in 1 shot.
-          */
-         if ((i+3<len) &&
-             escapedString[i+1] == 'g' &&
-             escapedString[i+2] == 't' &&
-             escapedString[i+3] == ';')
-         {
-            tmpStr[j++] = '>';
-            i += 4;
-         }
-         else if ((i+3<len) &&
-             escapedString[i+1] == 'l' &&
-             escapedString[i+2] == 't' &&
-             escapedString[i+3] == ';')
-         {
-            tmpStr[j++] = '<';
-            i += 4;
-         }
-         else if ((i+4<len) &&
-             escapedString[i+1] == 'a' &&
-             escapedString[i+2] == 'm' &&
-             escapedString[i+3] == 'p' &&
-             escapedString[i+4] == ';')
-         {
-            tmpStr[j++] = '&';
-            i += 5;
-         }
-         else if ((i+4<len) &&
-             escapedString[i+1] == '#' &&
-             escapedString[i+2] == '3' &&
-             escapedString[i+3] == '7' &&
-             escapedString[i+4] == ';')
-         {
-            tmpStr[j++] = '%';
-            i += 5;
-         }
-         else if ((i+5<len) &&
-             escapedString[i+1] == 'q' &&
-             escapedString[i+2] == 'u' &&
-             escapedString[i+3] == 'o' &&
-             escapedString[i+4] == 't' &&
-             escapedString[i+5] == ';')
-         {
-            tmpStr[j++] = '"';
-            i += 6;
-         }
-         else
-         {
-            /* not a valid escape sequence, just copy it */
-            tmpStr[j++] = escapedString[i++];
-         }
-      }
+
+      /* going on to next character, so reset matched */
+      matched = FALSE;
    }
 
    *string = tmpStr;

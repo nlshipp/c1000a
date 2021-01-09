@@ -25,13 +25,13 @@
 #define KSAMTIB_CIGAM_2SFFJ 0x8519 /* For detecting wrong-endian fs */
 #define JFFS2_EMPTY_BITMASK 0xffff
 #define JFFS2_DIRTY_BITMASK 0x0000
-
-#if defined(CONFIG_MTD_BRCMNAND)
+/* not necessary for the NAND */
+//#if defined(CONFIG_MTD_BRCMNAND)
 /* JFFS2 eraseblock header compat/incompat/rocompat features set */
 #define JFFS2_EBH_COMPAT_FSET 0x00
 #define JFFS2_EBH_INCOMPAT_FSET 0x00
 #define JFFS2_EBH_ROCOMPAT_FSET 0x00
-#endif
+//#endif
 
 /* Summary node MAGIC marker */
 #define JFFS2_SUM_MAGIC	0x02851885
@@ -52,6 +52,7 @@
 #define JFFS2_COMPR_DYNRUBIN	0x05
 #define JFFS2_COMPR_ZLIB	0x06
 #define JFFS2_COMPR_LZO		0x07
+#define JFFS2_COMPR_LZARI       0x08
 /* Compatibility flags. */
 #define JFFS2_COMPAT_MASK 0xc000      /* What do to if an unknown nodetype is found */
 #define JFFS2_NODE_ACCURATE 0x2000
@@ -69,6 +70,7 @@
 #define JFFS2_NODETYPE_CLEANMARKER (JFFS2_FEATURE_RWCOMPAT_DELETE | JFFS2_NODE_ACCURATE | 3)
 #define JFFS2_NODETYPE_PADDING (JFFS2_FEATURE_RWCOMPAT_DELETE | JFFS2_NODE_ACCURATE | 4)
 
+#define JFFS2_NODETYPE_ERASEBLOCK_HEADER (JFFS2_FEATURE_RWCOMPAT_DELETE | JFFS2_NODE_ACCURATE | 5)
 #define JFFS2_NODETYPE_SUMMARY (JFFS2_FEATURE_RWCOMPAT_DELETE | JFFS2_NODE_ACCURATE | 6)
 
 #define JFFS2_NODETYPE_XATTR (JFFS2_FEATURE_INCOMPAT | JFFS2_NODE_ACCURATE | 8)
@@ -213,8 +215,8 @@ struct jffs2_raw_summary
 	jint32_t node_crc; 	/* node crc */
 	jint32_t sum[0]; 	/* inode summary info */
 };
-
-#if defined(CONFIG_MTD_BRCMNAND)
+/* not necessary NAND, the JFFS2 also need it */
+//#if defined(CONFIG_MTD_BRCMNAND)
 struct jffs2_raw_ebh
 {
 	jint16_t magic;
@@ -229,7 +231,7 @@ struct jffs2_raw_ebh
 	jint32_t erase_count; /* the erase count of this erase block */
 	jint32_t data[0];
 } __attribute__((packed));
-#endif
+//#endif
 
 union jffs2_node_union
 {
@@ -238,6 +240,7 @@ union jffs2_node_union
 	struct jffs2_raw_xattr x;
 	struct jffs2_raw_xref r;
 	struct jffs2_raw_summary s;
+	struct jffs2_raw_ebh eh;
 	struct jffs2_unknown_node u;
 };
 

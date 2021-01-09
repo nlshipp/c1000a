@@ -51,6 +51,9 @@ void dns_sunbet_init(void)
    char dns2[CMS_IPADDR_LENGTH];
    char line[BUFLEN_128];
    SubnetDnsPair *curr = NULL;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   SubnetDnsPair *next = NULL;
+#endif
    UBOOL8 done = FALSE;
    struct in_addr lanSubnet;
    struct in_addr lanMask;
@@ -72,8 +75,15 @@ void dns_sunbet_init(void)
                     curr->dns1, curr->dns2);
       cmsMem_free(curr->dns1);
       cmsMem_free(curr->dns2);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+/*QA-Bug #101962 fix,'head' is not freed clean*/
+      next = curr->next;
+      cmsMem_free(curr);
+      curr = next;
+#else
       curr = curr->next;
       cmsMem_free(curr);
+#endif
    }
    head = NULL;
    
@@ -83,7 +93,12 @@ void dns_sunbet_init(void)
       if ((nullPtr = strchr(curPtr, ';')) != NULL)
       {
          *nullPtr = '\0';
+#if defined(AEI_COVERITY_FIX)
+         /*CID 12231: Destination buffer too small*/
+         strlcpy(wanIfName, curPtr, sizeof(wanIfName));
+#else
          strcpy(wanIfName, curPtr);
+#endif
          curPtr = nullPtr + 1;         
       }
       
@@ -97,7 +112,12 @@ void dns_sunbet_init(void)
       sprintf(dnsList, "%s", curPtr);
 
       /* get rid of '\n' */
+#if defined(AEI_COVERITY_FIX)
+      /*CID 12157:Stray semicolon*/
+      if (dnsList[strlen(dnsList) -1] == '\n')
+#else
       if (dnsList[strlen(dnsList) -1] == '\n');
+#endif
       {
          dnsList[strlen(dnsList) - 1] = '\0';
       }
@@ -106,6 +126,10 @@ void dns_sunbet_init(void)
 
       if (cmsUtl_parseDNS(dnsList, dns1, dns2, TRUE) != CMSRET_SUCCESS)
       {
+         /* fix resource leak, coverity id 11833 */
+#if defined(AEI_COVERITY_FIX)
+         fclose(fp);
+#endif
          cmsLog_error("Failed to parse dns list %s", dnsList);
          return;
       }
@@ -163,7 +187,7 @@ void dns_sunbet_init(void)
    fclose(fp);
 }
 
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)
 UBOOL8 dns_subnet_map(struct in6_addr *lanIp, char *dns1)
 #else
 UBOOL8 dns_subnet_map(struct in_addr *lanIp, char *dns1)
@@ -181,7 +205,7 @@ UBOOL8 dns_subnet_map(struct in_addr *lanIp, char *dns1)
    while (!found && curr)
    {
 
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)
 	   /* need ipv6-review, for now fail compare */
 	  if (0)
 #else
@@ -196,7 +220,9 @@ UBOOL8 dns_subnet_map(struct in_addr *lanIp, char *dns1)
          */
 #ifndef DMP_X_BROADCOM_COM_IPV6_1
          /* need ipv6-review */
+#ifndef AEI_CONTROL_LAYER
          cmsLog_notice("Found dns %s for subnet %s", dns1, inet_ntoa(*lanIp));
+#endif
 #endif
       }
       else

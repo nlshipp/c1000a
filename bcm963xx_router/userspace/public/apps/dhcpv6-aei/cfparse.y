@@ -163,7 +163,7 @@ statement:
 	;
 
 interface_statement:
-	INTERFACE IFNAME BCL declarations ECL EOS 
+	INTERFACE IFNAME BCL declarations ECL EOS
 	{
 		struct cf_namelist *ifl;
 
@@ -500,7 +500,7 @@ declarations:
 			$$ = head;
 		}
 	;
-	
+
 declaration:
 		SEND dhcpoption_list EOS
 		{
@@ -749,7 +749,7 @@ dhcpoption:
 rangeparam:
 		STRING TO STRING
 		{
-			struct dhcp6_range range0, *range;		
+			struct dhcp6_range range0, *range;
 
 			memset(&range0, 0, sizeof(range0));
 			if (inet_pton(AF_INET6, $1, &range0.min) != 1) {
@@ -780,7 +780,7 @@ rangeparam:
 addressparam:
 		STRING duration
 		{
-			struct dhcp6_prefix pconf0, *pconf;		
+			struct dhcp6_prefix pconf0, *pconf;
 
 			memset(&pconf0, 0, sizeof(pconf0));
 			if (inet_pton(AF_INET6, $1, &pconf0.addr) != 1) {
@@ -807,7 +807,7 @@ addressparam:
 		}
 	|	STRING duration duration
 		{
-			struct dhcp6_prefix pconf0, *pconf;		
+			struct dhcp6_prefix pconf0, *pconf;
 
 			memset(&pconf0, 0, sizeof(pconf0));
 			if (inet_pton(AF_INET6, $1, &pconf0.addr) != 1) {
@@ -840,7 +840,7 @@ addressparam:
 prefixparam:
 		STRING SLASH NUMBER duration
 		{
-			struct dhcp6_prefix pconf0, *pconf;		
+			struct dhcp6_prefix pconf0, *pconf;
 
 			memset(&pconf0, 0, sizeof(pconf0));
 			if (inet_pton(AF_INET6, $1, &pconf0.addr) != 1) {
@@ -867,7 +867,7 @@ prefixparam:
 		}
 	|	STRING SLASH NUMBER duration duration
 		{
-			struct dhcp6_prefix pconf0, *pconf;		
+			struct dhcp6_prefix pconf0, *pconf;
 
 			memset(&pconf0, 0, sizeof(pconf0));
 			if (inet_pton(AF_INET6, $1, &pconf0.addr) != 1) {
@@ -900,7 +900,7 @@ prefixparam:
 poolparam:
 		STRING duration
 		{
-			struct dhcp6_poolspec* pool;		
+			struct dhcp6_poolspec* pool;
 
 			if ((pool = malloc(sizeof(*pool))) == NULL) {
 				yywarn("can't allocate memory");
@@ -925,7 +925,7 @@ poolparam:
 		}
 	|	STRING duration duration
 		{
-			struct dhcp6_poolspec* pool;		
+			struct dhcp6_poolspec* pool;
 
 			if ((pool = malloc(sizeof(*pool))) == NULL) {
 				yywarn("can't allocate memory");
@@ -1063,7 +1063,7 @@ ianaconf_list:
 	;
 
 ianaconf:
-	 	ADDRESS addressparam EOS
+		ADDRESS addressparam EOS
 		{
 			struct cf_list *l;
 
@@ -1201,7 +1201,7 @@ add_namelist(new, headp)
 	struct cf_namelist *new, **headp;
 {
 	struct cf_namelist *n;
-	
+
 	/* check for duplicated configuration */
 	for (n = *headp; n; n = n->next) {
 		if (strcmp(n->name, new->name) == 0) {

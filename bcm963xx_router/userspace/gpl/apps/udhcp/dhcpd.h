@@ -122,12 +122,12 @@ struct static_lease {
     uint8_t *mac;
     uint32_t *ip;
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-	/* forget about ptrs since more expensive */ 
+	/* forget about ptrs since more expensive */
 	uint32_t gw;
 	uint32_t subnet;
 	uint32_t dns1;
 	uint32_t dns2;
-#endif    
+#endif
     struct static_lease *next;
 };
 
@@ -174,12 +174,20 @@ struct ip_mac_list
 };
 
 #define VENDOR_CLASS_ID_STR_SIZE    256
-#define VENDOR_CLASS_ID_TOKEN       ";" 
+#define VENDOR_CLASS_ID_TOKEN       ";"
 
 struct vlanOption60 {
 	char *vendorClassId[VENDOR_CLASS_ID_TAB_SIZE];
 	char *vlanID;
 	struct vlanOption60 * next;
+};
+#endif
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+struct dhcpvlanOption60 {
+	char vendorClassId[256];
+	char vlanID[16];
+	struct dhcpvlanOption60 * next;
 };
 #endif
 
@@ -195,7 +203,7 @@ struct iface_config_t {
     //u_int32_t vendorClassIdMaxAddress;  /* End of option 60 lease, network order */
     char *opt67WarrantVids[VENDOR_CLASS_ID_TAB_SIZE];
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     char *stbVids[VENDOR_CLASS_ID_TAB_SIZE];
 #endif
 #if defined(AEI_VDSL_STB_NO_FIREWALL)
@@ -207,6 +215,10 @@ struct iface_config_t {
     u_int32_t vendorClassIdMinAddress;  /* Start address of option 60 lease, network order */
     u_int32_t vendorClassIdMaxAddress;  /* End of option 60 lease, network order */
     struct vlanOption60 * vlanOption60list;
+#endif
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+	struct dhcpvlanOption60 * dhcpvlanOption60list;
 #endif
 
 #ifdef AEI_VDSL_CUSTOMER_QWEST
@@ -281,5 +293,8 @@ extern struct relay_config_t *cur_relay;
 extern void *msgHandle;
 
 void exit_server(int retval);
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK //add william 2012-4-25
+void sendDhcpVlanUpdatedMsg(char *ip,char *vlanId);
+#endif
 		
 #endif

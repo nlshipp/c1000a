@@ -27,6 +27,11 @@
 #if defined(CONFIG_MIPS_BRCM)
 #include "br_igmp.h"
 #include <linux/blog.h>
+#include <linux/bcm_log.h>
+#endif
+
+#if defined(CONFIG_MIPS_BRCM)
+int (*fdb_check_expired_wl_hook)(unsigned char *addr) = NULL;
 #endif
 
 static struct kmem_cache *br_fdb_cache __read_mostly;
@@ -163,7 +168,12 @@ void br_fdb_cleanup(unsigned long _data)
 			this_timer = f->ageing_timer + delay;
 			if (time_before_eq(this_timer, jiffies))
 #if defined(CONFIG_MIPS_BRCM)
-				fdb_delete(br, f);
+			{
+				if (fdb_check_expired_wl_hook && (fdb_check_expired_wl_hook(f->addr.addr) == 0))
+					f->ageing_timer = jiffies;  /* refresh */
+				else
+					fdb_delete(br, f);
+			}
 #else
 				fdb_delete(f);
 #endif /* CONFIG_MIPS_BRCM */
@@ -511,6 +521,21 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 				       " own address as source address\n",
 				       source->dev->name);
 		} else {
+#if defined(CONFIG_MIPS_BRCM)
+            /* In case of MAC move - let ethernet driver clear switch ARL */
+			if (fdb->dst && fdb->dst->port_no != source->port_no) {
+				bcmFun_t *ethswClearArlFun;
+				/* Get the switch clear ARL function pointer */
+				ethswClearArlFun =  bcmFun_get(BCM_FUN_IN_ENET_CLEAR_ARL_ENTRY);
+				if ( ethswClearArlFun ) {
+					ethswClearArlFun((void*)addr);
+				}
+#if defined(CONFIG_BLOG)
+				/* Also flush the associated entries in accelerators */
+				blog_notify(DESTROY_BRIDGEFDB, (void*)fdb, 0, 0);
+#endif
+			}
+#endif /* BRCM_MIPS */
 			/* fastpath: update of existing entry */
 			fdb->dst = source;
 			fdb->ageing_timer = jiffies;
@@ -554,5 +579,8 @@ int br_fdb_adddel_static(struct net_bridge *br, struct net_bridge_port *source,
    
 	return ret;
 }
+
+EXPORT_SYMBOL(fdb_check_expired_wl_hook);
+
 #endif
 

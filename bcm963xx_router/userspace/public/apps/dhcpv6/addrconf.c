@@ -59,11 +59,6 @@
 #include "timer.h"
 #include "dhcp6c_ia.h"
 #include "prefixconf.h"
-#if 1 //brcm
-#include "cms_msg.h"
-extern void *msgHandle;
-extern Dhcp6cStateChangedMsgBody dhcp6cMsgBody;
-#endif
 
 TAILQ_HEAD(statefuladdr_list, statefuladdr);
 struct iactl_na {
@@ -92,7 +87,7 @@ struct statefuladdr {
 
 static struct statefuladdr *find_addr __P((struct statefuladdr_list *,
     struct dhcp6_statefuladdr *));
-static void remove_addr __P((struct statefuladdr *));
+static int remove_addr __P((struct statefuladdr *));
 static int isvalid_addr __P((struct iactl *));
 static u_int32_t duration_addr __P((struct iactl *));
 static void cleanup_addr __P((struct iactl *));
@@ -106,10 +101,6 @@ static int na_ifaddrconf __P((ifaddrconf_cmd_t, struct statefuladdr *));
 
 extern struct dhcp6_timer *client6_timo __P((void *));
 
-#if 1 //brcm
-static int updateIp6AddrFile __P((ifaddrconf_cmd_t, char *, struct sockaddr_in6 *));
-static void sendAddrEventMessage __P((ifaddrconf_cmd_t, const char *, const char *));
-#endif
 
 int
 update_address(ia, addr, dhcpifp, ctlp, callback)
@@ -184,7 +175,8 @@ update_address(ia, addr, dhcpifp, ctlp, callback)
 	    in6addr2str(&addr->addr, 0), addr->pltime, addr->vltime);
 
 	if (sa->addr.vltime != 0)
-		na_ifaddrconf(IFADDRCONF_ADD, sa);
+		if (na_ifaddrconf(IFADDRCONF_ADD, sa) < 0)
+			return (-1);
 
 	/*
 	 * If the new vltime is 0, this address immediately expires.
@@ -192,7 +184,8 @@ update_address(ia, addr, dhcpifp, ctlp, callback)
 	 */
 	switch (sa->addr.vltime) {
 	case 0:
-		remove_addr(sa);
+		if (remove_addr(sa) < 0)
+			return (-1);
 		break;
 	case DHCP6_DURATION_INFINITE:
 		if (sa->timer)
@@ -235,10 +228,12 @@ find_addr(head, addr)
 	return (NULL);
 }
 
-static void
+static int
 remove_addr(sa)
 	struct statefuladdr *sa;
 {
+	int ret;
+
 	dprintf(LOG_DEBUG, FNAME, "remove an address %s",
 	    in6addr2str(&sa->addr.addr, 0));
 
@@ -246,8 +241,10 @@ remove_addr(sa)
 		dhcp6_remove_timer(&sa->timer);
 
 	TAILQ_REMOVE(&sa->ctl->statefuladdr_head, sa, link);
-	na_ifaddrconf(IFADDRCONF_REMOVE, sa);
+	ret = na_ifaddrconf(IFADDRCONF_REMOVE, sa);
 	free(sa);
+
+	return (ret);
 }
 
 static int
@@ -394,12 +391,12 @@ na_ifaddrconf(cmd, sa)
 	addr = &sa->addr;
 	memset(&sin6, 0, sizeof(sin6));
 	sin6.sin6_family = AF_INET6;
-#ifndef __linux__
+#ifdef HAVE_SA_LEN
 	sin6.sin6_len = sizeof(sin6);
 #endif
 	sin6.sin6_addr = addr->addr;
 
-#if 1 //brcm
+#if 1 /* brcm: TODO: should be done in CMS */
 	return (ifaddrconf(cmd, sa->dhcpif->ifname, &sin6, 64,
 	    addr->pltime, addr->vltime));
 #else
@@ -407,148 +404,3 @@ na_ifaddrconf(cmd, sa)
 	    addr->pltime, addr->vltime));
 #endif
 }
-
-#if 0 //brcm: moved from common.c */
-int
-ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
-	ifaddrconf_cmd_t cmd;
-	char *ifname;
-	struct sockaddr_in6 *addr;
-	int plen;
-	int pltime;
-	int vltime;
-{
-#ifdef __KAME__
-	struct in6_aliasreq req;
-#endif
-#ifdef __linux__
-	struct in6_ifreq req;
-	struct ifreq ifr;
-#endif
-	unsigned long ioctl_cmd;
-	char *cmdstr;
-	int s;			/* XXX overhead */
-
-	switch(cmd) {
-	case IFADDRCONF_ADD:
-		cmdstr = "add";
-#ifdef __KAME__
-		ioctl_cmd = SIOCAIFADDR_IN6;
-#endif
-#ifdef __linux__
-		ioctl_cmd = SIOCSIFADDR;
-#endif
-		break;
-	case IFADDRCONF_REMOVE:
-		cmdstr = "remove";
-#ifdef __KAME__
-		ioctl_cmd = SIOCDIFADDR_IN6;
-#endif
-#ifdef __linux__
-		ioctl_cmd = SIOCDIFADDR;
-#endif
-		break;
-	default:
-		return (-1);
-	}
-
-	if ((s = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-		dprintf(LOG_ERR, FNAME, "can't open a temporary socket: %s",
-		    strerror(errno));
-		return (-1);
-	}
-
-	memset(&req, 0, sizeof(req));
-#ifdef __KAME__
-	req.ifra_addr = *addr;
-	memcpy(req.ifra_name, ifname, sizeof(req.ifra_name));
-	(void)sa6_plen2mask(&req.ifra_prefixmask, plen);
-	/* XXX: should lifetimes be calculated based on the lease duration? */
-	req.ifra_lifetime.ia6t_vltime = vltime;
-	req.ifra_lifetime.ia6t_pltime = pltime;
-#endif
-#ifdef __linux__
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
-	if (ioctl(s, SIOGIFINDEX, &ifr) < 0) {
-		dprintf(LOG_NOTICE, FNAME, "failed to get the index of %s: %s",
-		    ifname, strerror(errno));
-		close(s); 
-		return (-1); 
-	}
-	memcpy(&req.ifr6_addr, &addr->sin6_addr, sizeof(struct in6_addr));
-	req.ifr6_prefixlen = plen;
-	req.ifr6_ifindex = ifr.ifr_ifindex;
-#endif
-
-	if (ioctl(s, ioctl_cmd, &req)) {
-		dprintf(LOG_NOTICE, FNAME, "failed to %s an address on %s: %s",
-		    cmdstr, ifname, strerror(errno));
-		close(s);
-		return (-1);
-	}
-
-	dprintf(LOG_DEBUG, FNAME, "%s an address %s/%d on %s", cmdstr,
-	    addr2str((struct sockaddr *)addr), plen, ifname);
-
-	close(s);
-
-	return (0);
-}
-#endif
-
-#if 1 //brcm
-int
-ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
-	ifaddrconf_cmd_t cmd;
-	char *ifname;
-	struct sockaddr_in6 *addr;
-	int plen;
-	int pltime;
-	int vltime;
-{
-    char extAddr[BUFLEN_48];
-	char *cmdstr;
-
-	switch(cmd) {
-	case IFADDRCONF_ADD:
-		cmdstr = "add";
-		break;
-	case IFADDRCONF_REMOVE:
-		cmdstr = "remove";
-		break;
-	default:
-		return (-1);
-	}
-
-	dprintf(LOG_DEBUG, FNAME, "%s an address %s/%d on %s", cmdstr,
-	    addr2str((struct sockaddr *)addr), plen, ifname);
-
-    snprintf(extAddr, sizeof(extAddr), "%s/%d", addr2str((struct sockaddr *)addr), plen);
-    sendAddrEventMessage(cmd, ifname, extAddr);
-
-    return 0;
-}
-
-void sendAddrEventMessage(ifaddrconf_cmd_t cmd, const char *ifname, const char *addr)
-{
-   /* TODO: Currently, we always assume br0 as the  PD interface */
-   if ( strncmp(ifname, "br", 2) == 0 )  /* address of the PD interface */
-   {
-      snprintf(dhcp6cMsgBody.pdIfAddress, sizeof(dhcp6cMsgBody.pdIfAddress), "%s", addr);
-   }
-   else  /* address of the WAN interface */
-   {
-      dhcp6cMsgBody.addrAssigned = TRUE;
-      dhcp6cMsgBody.addrCmd      = cmd;
-      snprintf(dhcp6cMsgBody.ifname, sizeof(dhcp6cMsgBody.ifname), "%s", ifname);
-      snprintf(dhcp6cMsgBody.address, sizeof(dhcp6cMsgBody.address), "%s", addr);
-   }
-
-   dprintf(LOG_NOTICE, FNAME, "DHCP6C_ADDR_CHANGED");
-
-   return;
-
-}  /* End of sendAddrEventMessage() */
-
-#endif

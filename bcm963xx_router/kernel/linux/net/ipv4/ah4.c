@@ -10,7 +10,7 @@
 #include <net/icmp.h>
 #include <net/protocol.h>
 
-#if defined(CONFIG_MIPS_BRCM)
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
 #include <linux/blog.h>
 #endif
 
@@ -118,25 +118,22 @@ static int ip_clear_mutable_options(struct iphdr *iph, __be32 *daddr)
 
 static void ah_output_done(struct crypto_async_request *base, int err)
 {
-#if !defined(CONFIG_MIPS_BRCM)
 	u8 *icv;
-#endif
 	struct iphdr *iph;
 	struct sk_buff *skb = base->data;
-	struct iphdr *top_iph = ip_hdr(skb);
-#if !defined(CONFIG_MIPS_BRCM)
+#if defined(CONFIG_MIPS_BRCM)
+	struct xfrm_state *x = skb->dst->xfrm;
+#else
 	struct xfrm_state *x = skb_dst(skb)->xfrm;
+#endif
 	struct ah_data *ahp = x->data;
+	struct iphdr *top_iph = ip_hdr(skb);
 	struct ip_auth_hdr *ah = ip_auth_hdr(skb);
 	int ihl = ip_hdrlen(skb);
-#endif
 
 	iph = AH_SKB_CB(skb)->tmp;
-    /* auth data is already copied in spu driver */
-#if !defined(CONFIG_MIPS_BRCM)
 	icv = ah_tmp_icv(ahp->ahash, iph, ihl);
 	memcpy(ah->auth_data, icv, ahp->icv_trunc_len);
-#endif
 
 	top_iph->tos = iph->tos;
 	top_iph->ttl = iph->ttl;
@@ -145,10 +142,6 @@ static void ah_output_done(struct crypto_async_request *base, int err)
 		top_iph->daddr = iph->daddr;
 		memcpy(top_iph+1, iph+1, top_iph->ihl*4 - sizeof(struct iphdr));
 	}
-
-#if !defined(CONFIG_MIPS_BRCM)
-	err = ah->nexthdr;
-#endif
 
 	kfree(AH_SKB_CB(skb)->tmp);
 	xfrm_output_resume(skb, err);
@@ -232,15 +225,18 @@ static int ah_output(struct xfrm_state *x, struct sk_buff *skb)
 	AH_SKB_CB(skb)->tmp = iph;
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
-    if((skb_headroom(skb) < 32) ||
-       (skb_tailroom(skb) < 16))
-    {
-        req->alloc_buff_spu = 1;
-    }
-    else
-    {
-        req->alloc_buff_spu = 0;
-    }
+	if((skb_headroom(skb) < 32) ||
+	    (skb_tailroom(skb) < 16))
+	{
+		req->alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->alloc_buff_spu = 0;
+	}
+
+	/* not used for output */   
+	req->headerLen = 0;
 #endif
 
 	err = crypto_ahash_digest(req);
@@ -280,31 +276,21 @@ static void ah_input_done(struct crypto_async_request *base, int err)
 	struct ip_auth_hdr *ah = ip_auth_hdr(skb);
 	int ihl = ip_hdrlen(skb);
 	int ah_hlen = (ah->hdrlen + 2) << 2;
-        struct iphdr *iph = ip_hdr(skb);
-#ifdef CONFIG_MIPS_BRCM
-	unsigned char *ptr;
-#endif /* CONFIG_MIPS_BRCM */
 
 	work_iph = AH_SKB_CB(skb)->tmp;
 	auth_data = ah_tmp_auth(work_iph, ihl);
-
-#ifdef CONFIG_MIPS_BRCM
-        ptr = (unsigned char *)iph;
-        icv = ptr + ihl + sizeof(struct ip_auth_hdr);
-#else
 	icv = ah_tmp_icv(ahp->ahash, auth_data, ahp->icv_trunc_len);
-#endif /* CONFIG_MIPS_BRCM */
 
 	err = memcmp(icv, auth_data, ahp->icv_trunc_len) ? -EBADMSG: 0;
 	if (err)
 		goto out;
 
+	err = ah->nexthdr;
+
 	skb->network_header += ah_hlen;
 	memcpy(skb_network_header(skb), work_iph, ihl);
 	__skb_pull(skb, ah_hlen + ihl);
 	skb_set_transport_header(skb, -ihl);
-
-	err = ah->nexthdr;
 out:
 	kfree(AH_SKB_CB(skb)->tmp);
 	xfrm_input_resume(skb, err);
@@ -356,13 +342,13 @@ static int ah_input(struct xfrm_state *x, struct sk_buff *skb)
 
 	skb->ip_summed = CHECKSUM_NONE;
 
-	ah = (struct ip_auth_hdr *)skb->data;
-	iph = ip_hdr(skb);
-	ihl = ip_hdrlen(skb);
-
 	if ((err = skb_cow_data(skb, 0, &trailer)) < 0)
 		goto out;
 	nfrags = err;
+
+	ah = (struct ip_auth_hdr *)skb->data;
+	iph = ip_hdr(skb);
+	ihl = ip_hdrlen(skb);
 
 	work_iph = ah_alloc_tmp(ahash, nfrags, ihl + ahp->icv_trunc_len);
 	if (!work_iph)
@@ -399,15 +385,18 @@ static int ah_input(struct xfrm_state *x, struct sk_buff *skb)
 	AH_SKB_CB(skb)->tmp = work_iph;
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
-    if((skb_headroom(skb) < 32) ||
-       (skb_tailroom(skb) < 16))
-    {
-        req->alloc_buff_spu = 1;
-    }
-    else
-    {
-        req->alloc_buff_spu = 0;
-    }
+	if((skb_headroom(skb) < 32) ||
+	   (skb_tailroom(skb) < 16))
+	{
+		req->alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->alloc_buff_spu = 0;
+	}
+
+	/* offset to icv */
+	req->headerLen = &ah->auth_data[0] - skb->data;
 #endif
 
 	err = crypto_ahash_digest(req);

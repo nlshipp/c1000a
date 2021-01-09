@@ -3,7 +3,7 @@
 #BRCM begin
 #EXT_FUNC+=802_3 nat arp arpreply ip standard log redirect vlan mark_m mark \
 #          pkttype stp among limit
-EXT_FUNC+=ip ip6 standard vlan mark_m mark time ftos
+EXT_FUNC+=ip ip6 standard vlan mark_m mark time ftos skiplog
 EXT_TABLES+=filter nat broute
 
 ifeq ($(strip $(WIRELESS)),1)

@@ -8,20 +8,6 @@ if [ "$MOD_DIR" == "" ] ; then
     MOD_DIR=$PROFILE/modules
 fi
 
-if [ "$BUILD_OPROFILE" == "y" ]; then
-    rm -rf $PROFILE/op
-    mkdir $PROFILE/op
-    mkdir $PROFILE/op/bin_symbols
-    echo "Save copies of kernel modules with symbols for oprofile"
-    cp -av $MOD_DIR/lib/modules $PROFILE/op/bin_symbols
-    echo "Copy vmlinux with symbols for oprofile"
-    cp -av $KERNEL_DIR/vmlinux $PROFILE/op/bin_symbols
-    echo "Copy oprofile applications"
-    cp -av $BUILD_DIR/userspace/gpl/apps/oprofile/op_bin/* $PROFILE/op
-    echo "Copy oprofile configuration files"
-    cp -av $BUILD_DIR/userspace/gpl/apps/oprofile/op_home_dir/* $PROFILE/op
-fi
-
 if [ "$FSSRC_DIR" == "" ]; then
     FSSRC_DIR=./fs.src
 fi
@@ -42,6 +28,14 @@ fi
 chmod 777 $ROOTFS
 # Copy files onto root file system
 echo "Creating target root file system..."
+if [ "$AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A" != "" ]; then
+#STRIP bin and lib
+eval "find $PROFILE/fs.install/bin $PROFILE/fs.install/lib -type f | xargs file | grep "ELF" | sed "s/\:.*//g"|xargs $STRIP"
+#delete section that is not neccesary
+eval "find $PROFILE/fs.install -type f | xargs file | grep "ELF" | sed "s/\:.*//g"|xargs $STRIP -R .pdr -R .rel.pdr -R .gnu.version_r -R .gnu.version -R .comment -R .reginfo -R .gnu.attributes"
+rm -f $INSTALL_DIR/bin/chantest $INSTALL_DIR/bin/qualitytest $INSTALL_DIR/bin/qosbuilder $INSTALL_DIR/bin/pwrdown $INSTALL_DIR/bin/eventmonitor $INSTALL_DIR/bin/xtalkmgr $INSTALL_DIR/bin/getrntopology $INSTALL_DIR/bin/getnics
+fi
+
 cp -av $FSSRC_DIR/* $ROOTFS
 cp -av $INSTALL_DIR/* $ROOTFS
 # Create directories as needed
@@ -54,12 +48,20 @@ mkdir $ROOTFS/etc/adsl
 mkdir $ROOTFS/data
 cp -av $BRCMDRIVERS_DIR/broadcom/char/adsl/bcm9$BRCM_CHIP/*.bin  $ROOTFS/etc/adsl
 
+if [ "$BRCM_CHIP" == "63268" ] ; then
+single_version=`grep "VERSION="  $BRCMDRIVERS_DIR/broadcom/char/adsl/impl1/adslcore63268/adsl_defs.h | cut -d '=' -f 2| cut -d ' ' -f 1`
+bondc0_version=`grep "VERSION="  $BRCMDRIVERS_DIR/broadcom/char/adsl/impl1/adslcore63268bnd/adsl_defs.h | cut -d '=' -f 2| cut -d ' ' -f 1`
+bondd0_version=`grep "VERSION="  $BRCMDRIVERS_DIR/broadcom/char/adsl/impl1/adslcore63268bnd5/adsl_defs.h | cut -d '=' -f 2| cut -d ' ' -f 1`
+echo "$single_version|$bondc0_version|$bondd0_version" > $ROOTFS/etc/adsl/version.txt
+fi
+
+if [ "$BRCM_KERNEL_ROOTFS" != "jffs2" ] && [ "$BRCM_KERNEL_AUXFS_JFFS2" == "y" ] ; then
+    chmod +w $ROOTFS/etc/fstab
+    echo -e "/dev/mtdblock1\t/data\tjffs2\tnofail\t0\t0\n" >> $ROOTFS/etc/fstab
+    chmod -w $ROOTFS/etc/fstab
+fi
+	
 if [ "$BRCM_CHIP" == "6816" ] ; then
-        mkdir $ROOTFS/etc/moca
-             cp -av $BRCMDRIVERS_DIR/broadcom/char/moca/bcm9$BRCM_CHIP/image/moca10coreA0.bin  $ROOTFS/etc/moca
-             cp -av $BRCMDRIVERS_DIR/broadcom/char/moca/bcm9$BRCM_CHIP/image/moca11coreA0.bin  $ROOTFS/etc/moca
-             cp -av $BRCMDRIVERS_DIR/broadcom/char/moca/bcm9$BRCM_CHIP/image/moca10core.bin  $ROOTFS/etc/moca
-             cp -av $BRCMDRIVERS_DIR/broadcom/char/moca/bcm9$BRCM_CHIP/image/moca11core.bin  $ROOTFS/etc/moca
         mkdir $ROOTFS/etc/cmf
         if [ "$CONFIG_BCM_GPON_160MHz_FFE" == "y" ] ; then
              cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/*160MHz*.h  $ROOTFS/etc/cmf
@@ -70,7 +72,15 @@ if [ "$BRCM_CHIP" == "6816" ] ; then
              cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/*.obj  $ROOTFS/etc/cmf
              cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/cmfcfg  $ROOTFS/etc/cmf
              rm -f $ROOTFS/etc/cmf/*160MHz*
+             rm -f $ROOTFS/etc/cmf/*6818*
         fi
+fi
+
+if [ "$BRCM_CHIP" == "6818" ] ; then
+        mkdir $ROOTFS/etc/cmf
+        cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/*6818*.h  $ROOTFS/etc/cmf
+        cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/*6818*.obj  $ROOTFS/etc/cmf
+        cp -av $BRCMDRIVERS_DIR/broadcom/char/pktcmf/bcm9$BRCM_CHIP/ffe/cmfcfg_6818cmf  $ROOTFS/etc/cmf/cmfcfg
 fi
 
 if [ "$BRCM_KERNEL_OPROFILE" == "y" ] ; then
@@ -78,25 +88,60 @@ if [ "$BRCM_KERNEL_OPROFILE" == "y" ] ; then
 fi
 
 
+#
+# Make a mountpoint for CGROUPS.
+# Making a mount point in buildFS is only in 4.12.  In 4.14, this logic is
+# moved to userspace/public/apps/cgroupctl/Makefile
+#
+if [ "$CONFIG_CGROUPS" == "y" ]; then
+    mkdir -p $ROOTFS/cgroups/cputree
+fi
+
+
+#
+# Make a mountpoint for the debugFS, which is currently only used by ftrace.
+# Making a mountpoint in buildFS is only in 4.12.  In 4.14, this logic is
+# moved to userspace/public/apps/tracectl/Makefile
+#
+if [ "$CONFIG_TRACING" == "y" ]; then
+    mkdir -p $ROOTFS/sys/kernel/debug
+    rm -f $ROOTFS/debug
+    ln -s sys/kernel/debug $ROOTFS/debug
+fi
+
+
+# this tells busybox to set the core rlimit to unlimited, thus allowing
+# apps to dump their core when they crash
+if [ "$CONFIG_ELF_CORE" == "y" ]; then
+   touch $ROOTFS/.init_enable_core
+fi
+
+
 if [ "$CONFIG_EPON_SDK" != "" ] ; then
    mkdir $ROOTFS/etc/epon
    echo "Copying 3715 images..."
-   cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/Boot*.tkf $ROOTFS/etc/epon/bootcode
-   cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/App*.tkf $ROOTFS/etc/epon/appfw
-   if [ "$BRCM_CHIP" == "6328" ] ; then
-      PERS_FILE_PREFIX="63293"
-   elif [ "$BRCM_CHIP" == "6362" ] ; then
-      PERS_FILE_PREFIX="63629"
+   if [ "$BRCM_CHIP" == "6828" ] ; then
+      cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/6828/Boot*.tkf $ROOTFS/etc/epon/bootcode
+      cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/6828/App*.tkf $ROOTFS/etc/epon/appfw
+      cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/6828/Pers* $ROOTFS/etc/epon/
    else
-      PERS_FILE_PREFIX="$BRCM_CHIP"
-   fi
-   PERS_FILE=`echo $BUILD_DIR/userspace/private/libs/eponsdk/firmware/personality/"$PERS_FILE_PREFIX"_GMII_Pers*.tkf|sed -e 's/\"//g'`
-   if [ -f "$PERS_FILE" ] ; then
-      cp -avrf $PERS_FILE $ROOTFS/etc/epon/gmii_pers
-   fi
-   PERS_FILE=`echo $BUILD_DIR/userspace/private/libs/eponsdk/firmware/personality/"$PERS_FILE_PREFIX"_MII_Pers*.tkf|sed -e 's/\"//g'`
-   if [ -f "$PERS_FILE" ] ; then
-      cp -avrf $PERS_FILE $ROOTFS/etc/epon/mii_pers
+      cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/Boot*.tkf $ROOTFS/etc/epon/bootcode
+      cp -avrf $BUILD_DIR/userspace/private/libs/eponsdk/firmware/App*.tkf $ROOTFS/etc/epon/appfw
+      if [ "$BRCM_CHIP" == "6328" ] ; then
+         PERS_FILE_PREFIX="63293"
+      elif [ "$BRCM_CHIP" == "6362" ] ; then
+         PERS_FILE_PREFIX="63629"
+      else
+         PERS_FILE_PREFIX="$BRCM_CHIP"
+      fi
+      PERS_FILE=`echo $BUILD_DIR/userspace/private/libs/eponsdk/firmware/personality/"$PERS_FILE_PREFIX"_GMII_Pers*.tkf|sed -e 's/\"//g'`
+      if [ -f "$PERS_FILE" ] ; then
+         cp -avrf $PERS_FILE $ROOTFS/etc/epon/gmii_pers
+      fi
+      PERS_FILE=`echo $BUILD_DIR/userspace/private/libs/eponsdk/firmware/personality/"$PERS_FILE_PREFIX"_MII_Pers*.tkf|sed -e 's/\"//g'`
+      if [ -f "$PERS_FILE" ] ; then
+         cp -avrf $PERS_FILE $ROOTFS/etc/epon/mii_pers
+      fi
    fi
 fi
 
@@ -189,7 +234,13 @@ if [ "$BRCM_DRIVER_GPON" != "" ] ; then
      if [ "$BRCM_GPON_FPGA" == "y" ]; then
      cp -avrf $BRCMDRIVERS_DIR/broadcom/char/gpon/impl$CONFIG_BCM_GPON_IMPL/fs/fpga/gpon/* $TGT_DIR
      else
-     cp -avrf $BRCMDRIVERS_DIR/broadcom/char/gpon/impl$CONFIG_BCM_GPON_IMPL/fs/$BRCM_CHIP/gpon/* $TGT_DIR
+     cp -avrf $BRCMDRIVERS_DIR/broadcom/char/gpon/impl$CONFIG_BCM_GPON_IMPL/fs/6816/gpon/* $TGT_DIR
+	  rm -rf $TGT_DIR/scripts/rsmibclr*
+     if [ "$BRCM_CHIP" != "6816" ]; then
+     cp -avrf $BRCMDRIVERS_DIR/broadcom/char/gpon/impl$CONFIG_BCM_GPON_IMPL/fs/6816/gpon/scripts/rsmibclr_6818 $TGT_DIR/scripts/rsmibclr
+     else
+     cp -avrf $BRCMDRIVERS_DIR/broadcom/char/gpon/impl$CONFIG_BCM_GPON_IMPL/fs/6816/gpon/scripts/rsmibclr $TGT_DIR/scripts/
+     fi
      fi
 
    if [ -d $ROOTFS/opt/modules ]; then
@@ -220,6 +271,8 @@ fi
 cd $MOD_DIR
 cp -a lib $TOP_DIR/$ROOTFS/.
 
+cp ../../wget $TOP_DIR/$ROOTFS/sbin
+
 if [ "$STRIP" != "/bin/touch" ]; then
 # Stripping unneeded module symbols only when strip is "enabled"
 echo "Stripping kernel modules..."
@@ -235,7 +288,11 @@ find $TOP_DIR/$ROOTFS/lib/modules -name "*.ko"
       eval "find $TOP_DIR/$ROOTFS/lib/modules -name 'ip*.ko' |xargs $STRIP --strip-debug"
    fi
 fi
+if [ "$AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A" != "" ]; then
+#delete section that is not neccesary
+eval "find $TOP_DIR/$ROOTFS/lib/modules -name '*.ko' | xargs $STRIP -g -S -x -X -R .pdr -R .rel.pdr -R .gnu.version_r -R .gnu.version -R .comment -R .reginfo -R .gnu.attributes"
 
+fi
 
 #delete unwanted module
 echo "deleting intermediate wl modules"
@@ -280,20 +337,33 @@ fi
 ###################################################
 # ACTIONTEC DO MERGE
 ##################################################
-if [ "$AEI_VDSL_CUSTOMER_NCS" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then 
+if [ "$AEI_VDSL_CUSTOMER_NCS" != "" -o "$AEI_VDSL_BCMSDK" != "" ]; then
 echo "##############################"
 echo " Do Actiontec merge ..."
 echo "##############################"
-if [ -d $ACT_COMMON_PATH ]; then 
+if [ -d $ACT_COMMON_PATH ]; then
 	cd $ACT_COMMON_PATH
 	./$ACT_MERGE_ACTION
 fi
-if [ -d $ACT_PROJECT_PATH ]; then 
+if [ -d $ACT_PROJECT_PATH ]; then
 	cd $ACT_PROJECT_PATH
 	./$ACT_MERGE_ACTION
 fi
+
+# Memory Leak Toolkit - modify profile
+if [ "$ACT_OPTIONS" = "memleak" ]; then
+#MLT_MARK="#up eth0 for memory leak toolkit"
+#MLT_LANIP_UP="ifconfig eth0 192.168.0.1 netmask 255.255.255.0 up"
+#sed -e 's/smd/\n '"$MLT_MARK"'\n '"$MLT_LANIP_UP"'\n smd/g' $TOP_DIR/$ROOTFS/etc/profile > $TOP_DIR/$ROOTFS/etc/profile.tmp
+#mv $TOP_DIR/$ROOTFS/etc/profile.tmp $TOP_DIR/$ROOTFS/etc/profile
+chmod 755 $TOP_DIR/$ROOTFS/etc/profile
+# Memory Leak Toolkit - copy some files needed
+cd $HOSTTOOLS_DIR/memleak
+cp -f thankyou.html $TOP_DIR/$ROOTFS/webs/
+./bcm_copy.sh $BUILD_DIR $HOSTTOOLS_DIR/memleak
 fi
 
+fi
 # If a consumer release has created a filesystem tarball, fill in
 # any missing proprietary binaries using that tarball
 ( cd $TOP_DIR/$ROOTFS ; tar xzkf ../filesystem.tgz 2>/dev/null ; true )

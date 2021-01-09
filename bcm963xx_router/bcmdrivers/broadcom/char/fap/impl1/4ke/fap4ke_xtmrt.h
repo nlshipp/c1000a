@@ -5,19 +5,25 @@
  *    Copyright (c) 2009 Broadcom Corporation
  *    All Rights Reserved
  * 
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License, version 2, as published by
- * the Free Software Foundation (the "GPL").
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
  * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
  * 
- * 
- * A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- * writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
  * 
  * :>
  ***********************************************************/
@@ -34,13 +40,12 @@
  *
  *****************************************************************************/
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
+
 #include "bcmPktDma_defines.h"
 
 #define FAP4KE_XTM_MAX_DEV_CTXS   16    /* up to 256 */
 #define FAP4KE_XTM_MAX_MATCH_IDS  128
-
-#define XTMFREE_FORCE_FREE          1
-#define XTMFREE_NO_FORCE_FREE       0
 
 #define XTM_TX_VCID_MASK    0xf
 
@@ -67,8 +72,10 @@ typedef struct {
 fapRet xtmInit(int isFirstTime);
 fapRet xtmRxChannelInit(uint32 channel, uint32 numBds, uint32 Bds, uint32 Dma);
 fapRet xtmTxChannelInit(uint32 channel, uint32 numBds, uint32 Bds, uint32 Dma);
+fapRet xtmTxChannelInitState(uint32 channel, uint32 DmaStateRam);
 fapRet xtmCreateDevice(uint32 devId, uint32 encapType, uint32 headerLen, uint32 trailerLen);
 fapRet xtmLinkUp(uint32 devId, uint32 matchId);
+fapRet xtmDrvResetStats(uint32 port);
 void xtmDmaStatus(int channel);
 void xtmRxDmaStatus(int channel);
 void xtmTxDmaStatus(int channel);
@@ -86,4 +93,5 @@ void xtmBpmFreeBufResp( uint32 channel, uint32 seqId );
 int  xtmFlushIudmaRings( void );
 #endif
 
+#endif /* CONFIG_BCM_XTMCFG */
 #endif  /* defined(__FAP4KE_XTMRT_H_INCLUDED__) */

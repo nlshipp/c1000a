@@ -1,115 +1,107 @@
+/* vi: set sw=4 ts=4: */
 /*
- * ip.c		"ip" utility frontend.
+ * "ip" utility frontend.
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
- * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
- *
+ * Authors: Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
  * Changes:
- *
  * Rani Assaf <rani@magic.metawire.com> 980929:	resolve addresses
+ * Bernhard Reutner-Fischer rewrote to use index_in_substr_array
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <syslog.h>
-#include <fcntl.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <string.h>
+#include "libbb.h"
 
-#include "./libiproute/utils.h"
-#include "./libiproute/ip_common.h"
+#include "libiproute/utils.h"
+#include "libiproute/ip_common.h"
 
-#include "busybox.h"
+#if ENABLE_FEATURE_IP_ADDRESS \
+ || ENABLE_FEATURE_IP_ROUTE \
+ || ENABLE_FEATURE_IP_LINK \
+ || ENABLE_FEATURE_IP_TUNNEL \
+ || ENABLE_FEATURE_IP_RULE
 
-#if 0
-int preferred_family = AF_UNSPEC;
-int oneline = 0;
-char * _SL_ = NULL;
-
-void ip_parse_common_args(int *argcp, char ***argvp)
+static int ip_print_help(char **argv UNUSED_PARAM)
 {
-	int argc = *argcp;
-	char **argv = *argvp;
+	bb_show_usage();
+}
 
-	while (argc > 1) {
-		char *opt = argv[1];
+typedef int (*ip_func_ptr_t)(char**);
 
-		if (strcmp(opt,"--") == 0) {
-			argc--; argv++;
-			break;
-		}
+static int ip_do(ip_func_ptr_t ip_func, char **argv)
+{
+	argv = ip_parse_common_args(argv + 1);
+	return ip_func(argv);
+}
 
-		if (opt[0] != '-')
-			break;
-
-		if (opt[1] == '-')
-			opt++;
-
-		if (matches(opt, "-family") == 0) {
-			argc--;
-			argv++;
-			if (strcmp(argv[1], "inet") == 0)
-				preferred_family = AF_INET;
-			else if (strcmp(argv[1], "inet6") == 0)
-				preferred_family = AF_INET6;
-			else if (strcmp(argv[1], "link") == 0)
-				preferred_family = AF_PACKET;
-			else
-				invarg(argv[1], "invalid protocol family");
-		} else if (strcmp(opt, "-4") == 0) {
-			preferred_family = AF_INET;
-		} else if (strcmp(opt, "-6") == 0) {
-			preferred_family = AF_INET6;
-		} else if (strcmp(opt, "-0") == 0) {
-			preferred_family = AF_PACKET;
-		} else if (matches(opt, "-oneline") == 0) {
-			++oneline;
-		} else {
-			bb_show_usage();
-		}
-		argc--;	argv++;
-	}
-	_SL_ = oneline ? "\\" : "\n" ;
+#if ENABLE_FEATURE_IP_ADDRESS
+int ipaddr_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int ipaddr_main(int argc UNUSED_PARAM, char **argv)
+{
+	return ip_do(do_ipaddr, argv);
+}
+#endif
+#if ENABLE_FEATURE_IP_LINK
+int iplink_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int iplink_main(int argc UNUSED_PARAM, char **argv)
+{
+	return ip_do(do_iplink, argv);
+}
+#endif
+#if ENABLE_FEATURE_IP_ROUTE
+int iproute_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int iproute_main(int argc UNUSED_PARAM, char **argv)
+{
+	return ip_do(do_iproute, argv);
+}
+#endif
+#if ENABLE_FEATURE_IP_RULE
+int iprule_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int iprule_main(int argc UNUSED_PARAM, char **argv)
+{
+	return ip_do(do_iprule, argv);
+}
+#endif
+#if ENABLE_FEATURE_IP_TUNNEL
+int iptunnel_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int iptunnel_main(int argc UNUSED_PARAM, char **argv)
+{
+	return ip_do(do_iptunnel, argv);
 }
 #endif
 
-int ip_main(int argc, char **argv)
+
+int ip_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int ip_main(int argc UNUSED_PARAM, char **argv)
 {
-	int ret = EXIT_FAILURE;
+	static const char keywords[] ALIGN1 =
+		IF_FEATURE_IP_ADDRESS("address\0")
+		IF_FEATURE_IP_ROUTE("route\0")
+		IF_FEATURE_IP_ROUTE("r\0")
+		IF_FEATURE_IP_LINK("link\0")
+		IF_FEATURE_IP_TUNNEL("tunnel\0")
+		IF_FEATURE_IP_TUNNEL("tunl\0")
+		IF_FEATURE_IP_RULE("rule\0")
+		;
+	static const ip_func_ptr_t ip_func_ptrs[] = {
+		ip_print_help,
+		IF_FEATURE_IP_ADDRESS(do_ipaddr,)
+		IF_FEATURE_IP_ROUTE(do_iproute,)
+		IF_FEATURE_IP_ROUTE(do_iproute,)
+		IF_FEATURE_IP_LINK(do_iplink,)
+		IF_FEATURE_IP_TUNNEL(do_iptunnel,)
+		IF_FEATURE_IP_TUNNEL(do_iptunnel,)
+		IF_FEATURE_IP_RULE(do_iprule,)
+	};
+	ip_func_ptr_t ip_func;
+	int key;
 
-	ip_parse_common_args(&argc, &argv);
+	argv = ip_parse_common_args(argv + 1);
+	key = *argv ? index_in_substrings(keywords, *argv++) : -1;
+	ip_func = ip_func_ptrs[key + 1];
 
-	if (argc > 1) {
-#ifdef CONFIG_FEATURE_IP_ADDRESS
-		if (matches(argv[1], "address") == 0) {
-			ret = do_ipaddr(argc-2, argv+2);
-		}
-#endif
-#ifdef CONFIG_FEATURE_IP_ROUTE
-		if (matches(argv[1], "route") == 0) {
-			ret = do_iproute(argc-2, argv+2);
-		}
-#endif
-#ifdef CONFIG_FEATURE_IP_LINK
-		if (matches(argv[1], "link") == 0) {
-			ret = do_iplink(argc-2, argv+2);
-		}
-#endif
-#ifdef CONFIG_FEATURE_IP_TUNNEL
-		if (matches(argv[1], "tunnel") == 0 || strcmp(argv[1], "tunl") == 0) {
-			ret = do_iptunnel(argc-2, argv+2);
-		}
-#endif
-	}
-	if (ret) {
-		bb_show_usage();
-	}
-	return(EXIT_SUCCESS);
+	return ip_func(argv);
 }
+
+#endif /* any of ENABLE_FEATURE_IP_xxx is 1 */

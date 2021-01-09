@@ -9,8 +9,8 @@ WIDE-DHCPv6
 	The implementation mainly conforms to the following standards:
 
 	- RFC3315: Dynamic Host Configuration Protocol for IPv6 (DHCPv6)
-	- RFC3319: Dynamic Host Configuration Protocol (DHCPv6) Options 
-         	   for Session Initiation Protocol (SIP) Servers
+	- RFC3319: Dynamic Host Configuration Protocol (DHCPv6) Options
+		   for Session Initiation Protocol (SIP) Servers
 	- RFC3633: IPv6 Prefix Options for Dynamic Host Configuration
 	           Protocol (DHCP)
 	- RFC3646: DNS Configuration options for Dynamic Host
@@ -33,7 +33,7 @@ WIDE-DHCPv6
 
 Bug Reports and Mailing Lists
 
-	Bugs reports should be put to the Bug Tracking System at 
+	Bugs reports should be put to the Bug Tracking System at
 	sourceforge.net
 		http://sourceforge.net/projects/wide-dhcpv6/
 

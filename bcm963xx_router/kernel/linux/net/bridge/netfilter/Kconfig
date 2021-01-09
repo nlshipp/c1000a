@@ -200,6 +200,15 @@ config BRIDGE_EBT_FTOS_T
 
 	  To compile it as a module, choose M here.  If unsure, say N.
 
+config BRIDGE_EBT_SKIPLOG_T
+	tristate "ebt: skip target support"
+	depends on BRIDGE_NF_EBTABLES
+	help
+	  This option adds the skiplog target, which can prevent packet from
+	  acceleration.
+
+	  To compile it as a module, choose M here.  If unsure, say N.
+
 config BRIDGE_EBT_WMM_MARK
 	tristate "ebt: Wireless Wi-Fi WMM marking support"
 	depends on BRIDGE_NF_EBTABLES

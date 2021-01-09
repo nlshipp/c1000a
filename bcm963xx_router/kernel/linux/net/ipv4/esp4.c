@@ -224,15 +224,16 @@ static int esp_output(struct xfrm_state *x, struct sk_buff *skb)
 	ESP_SKB_CB(skb)->tmp = tmp;
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
-    if((skb_headroom(skb) < 32) ||
-       (skb_tailroom(skb) < 16))
-    {
-        req->areq.alloc_buff_spu = 1;
-    }
-    else
-    {
-        req->areq.alloc_buff_spu = 0;
-    }
+	if((skb_headroom(skb) < 32) ||
+	   (skb_tailroom(skb) < 16))
+	{
+		req->areq.alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->areq.alloc_buff_spu = 0;
+	}
+	req->areq.headerLen = esph->enc_data + crypto_aead_ivsize(aead) - skb->data;
 #endif
 
 	err = crypto_aead_givencrypt(req);
@@ -398,15 +399,16 @@ static int esp_input(struct xfrm_state *x, struct sk_buff *skb)
 	aead_request_set_assoc(req, asg, sizeof(*esph));
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
-    if((skb_headroom(skb) < 32) ||
-       (skb_tailroom(skb) < 16))
-    {
-        req->alloc_buff_spu = 1;
-    }
-    else
-    {
-        req->alloc_buff_spu = 0;
-    }
+	if((skb_headroom(skb) < 32) ||
+	   (skb_tailroom(skb) < 16))
+	{
+		req->alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->alloc_buff_spu = 0;
+	}
+	req->headerLen = sizeof(*esph) + crypto_aead_ivsize(aead);
 #endif
 
 	err = crypto_aead_decrypt(req);

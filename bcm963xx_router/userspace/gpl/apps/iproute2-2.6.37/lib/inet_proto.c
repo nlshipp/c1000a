@@ -66,5 +66,3 @@ int inet_proto_a2n(char *buf)
 	}
 	return -1;
 }
-
-

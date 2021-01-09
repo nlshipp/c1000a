@@ -124,6 +124,118 @@ extern unsigned int skb_avail_headroom(const struct sk_buff *skb);
 #define CLR_SKBSHINFO_DIRTYP_ACK(d) do { \
               (d) = (uint8 *) (~SKBSHINFO_DIRTYP_ACK & (uint32)(d));} while (0)
 
+/* PKTC: Use 8 bytes of skb tstamp field to store below info */
+struct chain_node {
+	struct sk_buff	*link;
+	unsigned int	flags:3, pkts:9, bytes:20;
+};
+
+#define CHAIN_NODE(skb)		((struct chain_node*)&(((struct sk_buff*)skb)->tstamp))
+
+#define	PKTCSETATTR(s, f, p, b)	({CHAIN_NODE(s)->flags = (f); CHAIN_NODE(s)->pkts = (p); \
+	                         CHAIN_NODE(s)->bytes = (b);})
+#define	PKTCCLRATTR(s)		({CHAIN_NODE(s)->flags = CHAIN_NODE(s)->pkts = \
+	                         CHAIN_NODE(s)->bytes = 0;})
+#define	PKTCGETATTR(s)		(CHAIN_NODE(s)->flags << 29 | CHAIN_NODE(s)->pkts << 20 | \
+	                         CHAIN_NODE(s)->bytes)
+#define	PKTCCNT(skb)		(CHAIN_NODE(skb)->pkts)
+#define	PKTCLEN(skb)		(CHAIN_NODE(skb)->bytes)
+#define	PKTCFLAGS(skb)		(CHAIN_NODE(skb)->flags)
+#define	PKTCSETCNT(skb, c)	(CHAIN_NODE(skb)->pkts = (c))
+#define	PKTCINCRCNT(skb)	(CHAIN_NODE(skb)->pkts++)
+#define	PKTCADDCNT(skb, c)	(CHAIN_NODE(skb)->pkts += (c))
+#define	PKTCSETLEN(skb, l)	(CHAIN_NODE(skb)->bytes = (l))
+#define	PKTCADDLEN(skb, l)	(CHAIN_NODE(skb)->bytes += (l))
+#define	PKTCSETFLAG(skb, fb)	(CHAIN_NODE(skb)->flags |= (fb))
+#define	PKTCCLRFLAG(skb, fb)	(CHAIN_NODE(skb)->flags &= ~(fb))
+
+#define WLF_PKTC 0x80000000 /* from wlc_pub.h */
+#define	CHAINED	(1 << 19)
+
+#define	PKTSETCHAINED(osh, skb)	(((struct sk_buff*)(skb))->mac_len |= CHAINED)
+#define	PKTCLRCHAINED(osh, skb)	(((struct sk_buff*)(skb))->mac_len &= (~CHAINED))
+
+#define	PKTCLINK(skb)		((*(uint32_t *)&((struct sk_buff*)skb)->cb[0] & WLF_PKTC) ? (CHAIN_NODE(skb)->link) : NULL)
+#define	PKTSETCLINK(skb, x)	({*(uint32_t *)&((struct sk_buff*)skb)->cb[0] |= WLF_PKTC; (CHAIN_NODE(skb)->link = (struct sk_buff*)(x));})
+
+#define	PKTISCHAINED(skb)	(PKTCLINK(skb) != NULL)
+#define FOREACH_CHAINED_PKT(skb, nskb) \
+	for (; (skb) != NULL; (skb) = (nskb)) \
+		if ((nskb) = PKTCLINK(skb), PKTSETCLINK((skb), NULL), 1)
+#define	PKTCFREE(osh, skb, send) \
+do { \
+	void *nskb; \
+	ASSERT((skb) != NULL); \
+	FOREACH_CHAINED_PKT((skb), nskb) { \
+		PKTCLRCHAINED((osh), (skb)); \
+		PKTCCLRATTR((skb)); \
+		PKTFREE((osh), (skb), (send)); \
+	} \
+} while (0)
+#define PKTCENQTAIL(h, t, p) \
+do { \
+	if ((t) == NULL) { \
+		(h) = (t) = (p); \
+	} else { \
+		PKTSETCLINK((t), (p)); \
+		(t) = (p); \
+	} \
+} while (0)
+
+struct _macaddr {
+       uint8_t octet[6];
+} __attribute__((packed));
+
+typedef struct ctf_brc_hot {
+        struct _macaddr       ea;     /* Dest mac addr */
+        struct net_device *tx_dev;    /* Dev to be sent */
+        uint16_t             hits;    /* hit count */
+} ctf_brc_hot_t;
+
+/* compare two ethernet addresses - assumes the pointers can be referenced as shorts */
+#define _eacmp(a, b)     ((((uint16_t *)(a))[0] ^ ((uint16_t *)(b))[0]) | \
+                         (((uint16_t *)(a))[1] ^ ((uint16_t *)(b))[1]) | \
+                         (((uint16_t *)(a))[2] ^ ((uint16_t *)(b))[2]))
+
+/* Copy an ethernet address in reverse order */
+#define ether_rcopy(s, d) \
+do { \
+        ((uint16_t *)(d))[2] = ((uint16_t *)(s))[2]; \
+        ((uint16_t *)(d))[1] = ((uint16_t *)(s))[1]; \
+        ((uint16_t *)(d))[0] = ((uint16_t *)(s))[0]; \
+} while (0)
+
+#define MAXBRCHOT	16
+#define MAXBRCHOTIF     1
+
+#define DEV_IFIDX(dev)          (((struct net_device *)dev)->ifindex)
+
+#define CTF_BRC_HOT_HASH(da)    ((((uint8_t *)da)[3] ^ (((uint8_t *)da)[4]) ^ ((uint8_t *)da)[5]) & (MAXBRCHOT - 1))
+#define CTF_HOTBRC_CMP(brc, da) \
+({ \
+        ctf_brc_hot_t *bh = brc + CTF_BRC_HOT_HASH(da); \
+        ((_eacmp((bh)->ea.octet, (da)) == 0) && ((bh)->tx_dev)); \
+})
+
+#define CTF_BRC_HOT(i, j) \
+        (brc_hot[(((i) & (MAXBRCHOTIF - 1)) * MAXBRCHOT) + (j)])
+
+#define CTF_BRC_HOT_LOOKUP(da) \
+        &CTF_BRC_HOT(MAXBRCHOTIF, CTF_BRC_HOT_HASH(da))
+
+#define CTF_BRC_HOT_UPDATE(da, dev) \
+        CTF_BRC_HOT(MAXBRCHOTIF, CTF_BRC_HOT_HASH(da)).ea = *(struct _macaddr *)(da); \
+        if (dev) CTF_BRC_HOT(MAXBRCHOTIF, CTF_BRC_HOT_HASH(da)).tx_dev = dev; 
+		
+#define CTF_BRC_HOT_CLEAR(da) \
+{       int i, j; \
+        for (i=0; i<MAXBRCHOTIF; i++) {\
+                for (j=0; j<MAXBRCHOT; j++) {\
+                        if (_eacmp(CTF_BRC_HOT(i, j).ea.octet, (da)) == 0) \
+                                memset(&CTF_BRC_HOT(i, j), 0, sizeof(ctf_brc_hot_t)); \
+                }\
+        }\
+}
 #endif	/* defined(CONFIG_MIPS_BRCM) */
 
 
@@ -474,6 +586,7 @@ struct sk_buff {
         __u16 vlan_count;
         __u16 vlan_tpid;
         __u32 vlan_header[SKB_VLAN_MAX_TAGS];
+	     struct net_device	*rxdev;
 #endif
 #endif /* CONFIG_MIPS_BRCM */
 

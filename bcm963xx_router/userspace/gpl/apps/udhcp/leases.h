@@ -16,7 +16,7 @@ struct dhcpOfferedAddr {
 #if defined(AEI_VDSL_CUSTOMER_NCS)
     int icon;                   /* get device identifier according to option 12/60 */
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     u_int32_t is_stb;
 #endif
 #if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)

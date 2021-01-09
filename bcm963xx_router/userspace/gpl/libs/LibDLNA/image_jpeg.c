@@ -102,7 +102,7 @@ probe_jpeg (AVFormatContext *ctx,
     if (codecs->vc->width  <= jpeg_profiles_mapping[i].max_width &&
         codecs->vc->height <= jpeg_profiles_mapping[i].max_height)
       return jpeg_profiles_mapping[i].profile;
-  
+
   return NULL;
 }
 

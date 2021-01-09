@@ -70,7 +70,7 @@ int incstackp = 0;
 
 static int yy_first_time = 1;
 static int yyerrorcount = 0;
- 
+
 #ifndef NOCONFIG_DEBUG
 #define YYDEBUG 1
 
@@ -148,7 +148,7 @@ ecl		\}
 }
 
 	/* address pool configuration */
-<S_CNF>pool { DECHO; BEGIN S_ADDRPOOL; return (ADDRPOOL); }  
+<S_CNF>pool { DECHO; BEGIN S_ADDRPOOL; return (ADDRPOOL); }
 
 <S_ADDRPOOL>{string} {
 	DECHO;
@@ -209,7 +209,7 @@ ecl		\}
 
 	/* provided for a backward compatibility to WIDE-DHCPv6 before Oct 1 2006 */
 <S_CNF>nis-server-domain-name { DECHO; return (NIS_NAME); }
-<S_CNF>nisp-server-domain-name { DECHO; return (NISP_NAME); }	
+<S_CNF>nisp-server-domain-name { DECHO; return (NISP_NAME); }
 
 	/* generic options */
 <S_CNF>information-only { DECHO; return (INFO_ONLY); }

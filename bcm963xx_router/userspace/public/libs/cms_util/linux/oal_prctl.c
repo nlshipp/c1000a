@@ -5,23 +5,32 @@
  *    Copyright (c) 2006 Broadcom Corporation
  *    All Rights Reserved
  * 
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License, version 2, as published by
- * the Free Software Foundation (the "GPL").
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
  * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
  * 
- * 
- * A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- * writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
  * 
  * :>
  *
  ************************************************************************/
+
+#define _GNU_SOURCE
+#include "sched.h"  /* for CPU_ZERO and CPU_SET */
 
 #include "../oal.h"
 #include "cms_util.h"
@@ -113,7 +122,7 @@ CmsRet oal_spawnProcess(const SpawnProcessInfo *spawnInfo, SpawnedProcessInfo *p
 	  {
 	      if (spawnInfo->serverFd2 != -1)
 	      {
-	         close(CMS_DYNAMIC_LAUNCH_SERVER_FD2);         
+	         close(CMS_DYNAMIC_LAUNCH_SERVER_FD2);
 	         dup2(spawnInfo->serverFd2, CMS_DYNAMIC_LAUNCH_SERVER_FD2);
 	      }
 	  }
@@ -193,6 +202,46 @@ CmsRet oal_spawnProcess(const SpawnProcessInfo *spawnInfo, SpawnedProcessInfo *p
 
    freeArgs(argv); /* don't need these anymore */
 
+   /* set additional params in child if requested */
+   if (spawnInfo->cpuGroupName)
+   {
+      CmsRet r2;
+      r2 = oal_setCgroup(pid, CGROUP_CPUTREEDIR, spawnInfo->cpuGroupName);
+      if (CMSRET_SUCCESS != r2)
+      {
+         cmsLog_error("Failed to assign pid %d to group %s",
+               pid, spawnInfo->cpuGroupName);
+      }
+   }
+
+   /*
+    * Work around a bug(?) in the kernel by setting the cpu binding before
+    * the RT priority.  Otherwise, rt_nr_migratory and nr_cpus_allowed
+    * becomes inconsistent.
+    */
+   if (spawnInfo->cpuMask)
+  {
+	 CmsRet r2;
+	 r2 = oal_setCpuMask(pid, spawnInfo->cpuMask);
+	 if (CMSRET_SUCCESS != r2)
+	 {
+		cmsLog_error("Failed to set pid %d to cpuMask 0x%x",
+			  pid, spawnInfo->cpuMask);
+	 }
+  }
+
+   if (spawnInfo->setSched)
+   {
+      CmsRet r2;
+      r2 = oal_setScheduler(pid, spawnInfo->schedPolicy, spawnInfo->schedPriority);
+      if (CMSRET_SUCCESS != r2)
+      {
+         cmsLog_error("Failed to set scheduler for %d to policy %d priority %d",
+               pid, spawnInfo->schedPolicy, spawnInfo->schedPriority);
+      }
+   }
+
+   /* fill in return info struct */
    memset(procInfo, 0, sizeof(SpawnedProcessInfo));
    procInfo->pid = pid;
    procInfo->status = PSTAT_RUNNING;
@@ -513,8 +562,8 @@ int oal_getPidByName(const char *name)
    UBOOL8 found=FALSE;
    int pid, rc, p, i;
    int rval = CMS_INVALID_PID;
-   char filename[BUFLEN_256];
    char processName[BUFLEN_256];
+   char filename[BUFLEN_256];
 
    if (NULL == (dir = opendir("/proc")))
    {
@@ -569,3 +618,117 @@ int oal_getPidByName(const char *name)
 }
 
 
+int oal_getNameByPid(int pid, char *nameBuf, int nameBufLen)
+{
+   FILE *fp;
+   char processName[BUFLEN_256];
+   char filename[BUFLEN_256];
+   int rval=-1;
+
+   if (nameBuf == NULL || nameBufLen <= 0)
+   {
+      cmsLog_error("invalid args, nameBuf=%p nameBufLen=%d", nameBuf, nameBufLen);
+      return rval;
+   }
+
+   snprintf(filename, sizeof(filename), "/proc/%d/stat", pid);
+   if ((fp = fopen(filename, "r")) == NULL)
+   {
+      cmsLog_error("could not open %s", filename);
+   }
+   else
+   {
+      int rc, p;
+      /* Get the process name, format: 913 (consoled) */
+      memset(nameBuf, 0, nameBufLen);
+      memset(processName, 0, sizeof(processName));
+      rc = fscanf(fp, "%d (%s", &p, processName);
+      fclose(fp);
+
+      if (rc >= 2)
+      {
+         int c=0;
+         while (c < nameBufLen-1 &&
+                processName[c] != 0 && processName[c] != ')')
+         {
+            nameBuf[c] = processName[c];
+            c++;
+         }
+         rval = 0;
+      }
+      else
+      {
+         cmsLog_error("fscanf of %s failed", filename);
+      }
+   }
+
+   return rval;
+}
+
+
+CmsRet oal_setScheduler(SINT32 pid, SINT32 policy, SINT32 priority)
+{
+   struct sched_param sp;
+   CmsRet ret=CMSRET_SUCCESS;
+
+   sp.sched_priority = priority;
+
+   if (sched_setscheduler(pid, policy, &sp) == -1)
+   {
+      ret = CMSRET_INTERNAL_ERROR;
+   }
+
+   return ret;
+}
+
+
+CmsRet oal_setCpuMask(SINT32 pid, UINT32 cpuMask)
+{
+   CmsRet ret=CMSRET_SUCCESS;
+   cpu_set_t cpuSet;
+   UINT32 cpu=0;
+   UINT32 bit;
+
+   CPU_ZERO(&cpuSet);
+
+   for (cpu=0; cpu < 16; cpu++)  //I'm only testing for 16 CPU's, should be enough
+   {
+      bit = (1 << cpu);
+
+      if (bit & cpuMask)
+      {
+         CPU_SET(cpu, &cpuSet);
+      }
+   }
+
+   if (sched_setaffinity(pid, sizeof(cpuSet), &cpuSet) == -1)
+   {
+      ret = CMSRET_INTERNAL_ERROR;
+   }
+
+   return ret;
+}
+
+
+CmsRet oal_setCgroup(SINT32 pid, const char *groupBase, const char *groupName)
+{
+   CmsRet ret;
+   char taskPath[CMS_MAX_FULLPATH_LENGTH]={0};
+   char pidBuf[BUFLEN_16]={0};
+
+   if (0 == pid)
+   {
+      pid = getpid();
+   }
+
+   snprintf(pidBuf, sizeof(pidBuf)-1, "%d", pid);
+   snprintf(taskPath, sizeof(taskPath)-1, "%s/%s/tasks", groupBase, groupName);
+   ret = cmsFil_writeToProc(taskPath, pidBuf);
+   if (ret != CMSRET_SUCCESS)
+   {
+      cmsLog_error("Could not write %s to %s, ret=%d",
+            pidBuf, taskPath, ret);
+   }
+
+   return ret;
+}

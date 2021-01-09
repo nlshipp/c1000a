@@ -1,20 +1,28 @@
 /*
-<:copyright-gpl 
- Copyright 2004 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
-:>
+<:label-BRCM:2011:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:> 
+
 */
 /*
  * prom.c: PROM library initialization code.
@@ -36,7 +44,6 @@
 #include <boardparms.h>
 
 extern int  do_syslog(int, char *, int);
-
 
 unsigned char g_blparms_buf[1024];
 
@@ -62,18 +69,41 @@ const uint32 cpu_speed_table[0x20] = {
 };
 #endif
 
-#if defined (CONFIG_BCM963268)
+#if defined (CONFIG_BCM963268) 
 const uint32 cpu_speed_table[0x20] = {
     0, 0, 400, 320, 0, 0, 0, 0, 0, 0, 333, 400, 0, 0, 320, 400,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 #endif
 
+#if defined (CONFIG_BCM96318) 
+const uint32 cpu_speed_table[0x04] = {
+    166, 400, 250, 333
+};
+#endif
+
+#if defined (CONFIG_BCM96828)
+const uint32 cpu_speed_table[0x20] = {
+    400, 400, 320, 320, 375, 375, 375, 375, 333, 333, 400, 400, 320, 320, 400, 400,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+#endif
+
+
 #if defined (CONFIG_BCM96816)
 const uint32 cpu_speed_table[0x20] = {
     200, 400, 400, 320, 200, 400, 333, 333, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 400, 400, 200, 360, 400, 400, 300, 300, 320, 320, 400, 400
 };
+#endif
+
+
+#if defined (CONFIG_BCM96818)
+const uint32 cpu_speed_table[0x20] = {
+    200, 400, 400, 320, 200, 400, 333, 333, 160, 240, 450, 450, 450, 450, 360, 450,
+    0, 0, 0, 0, 160, 400, 200, 360, 400, 400, 300, 300, 320, 320, 400, 400
+};
+
 #endif
 
 static char promBoardIdStr[NVRAM_BOARD_ID_STRING_LEN];
@@ -241,7 +271,7 @@ UINT32 __init calculateCpuSpeed(void)
 }
 #endif
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) || defined(CONFIG_BCM963268) || defined (CONFIG_BCM96828)
 UINT32 __init calculateCpuSpeed(void)
 {
     UINT32 mips_pll_fvco;
@@ -250,6 +280,19 @@ UINT32 __init calculateCpuSpeed(void)
     mips_pll_fvco >>= MISC_STRAP_BUS_MIPS_PLL_FVCO_SHIFT;
 
     return cpu_speed_table[mips_pll_fvco] * 1000000;
+}
+#endif
+
+#if defined(CONFIG_BCM96318)
+UINT32 __init calculateCpuSpeed(void)
+{
+	UINT32 uiCpuSpeedTableIdx;				// Index into the CPU speed table (0 to 3)
+	
+	// Get the strapOverrideBus bits to index into teh CPU speed table	
+	uiCpuSpeedTableIdx = STRAP->strapOverrideBus & STRAP_BUS_MIPS_FREQ_MASK;
+	uiCpuSpeedTableIdx >>= STRAP_BUS_MIPS_FREQ_SHIFT;
+    
+    return cpu_speed_table[uiCpuSpeedTableIdx] * 1000000;
 }
 #endif
 

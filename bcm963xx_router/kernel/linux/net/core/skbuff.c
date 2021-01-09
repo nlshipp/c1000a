@@ -972,6 +972,7 @@ static void __copy_skb_header(struct sk_buff *new, const struct sk_buff *old)
     for (i=0; i<SKB_VLAN_MAX_TAGS; i++) {
         new->vlan_header[i] = old->vlan_header[i];
     }
+    new->rxdev = old->rxdev;
 #endif
 #else
 #ifdef CONFIG_NET_SCHED
@@ -1024,6 +1025,7 @@ static struct sk_buff *__skb_clone(struct sk_buff *n, struct sk_buff *skb)
     for (i=0; i<SKB_VLAN_MAX_TAGS; i++) {
         n->vlan_header[i] = skb->vlan_header[i];
     }
+    n->rxdev = skb->rxdev;
 #endif
 
 

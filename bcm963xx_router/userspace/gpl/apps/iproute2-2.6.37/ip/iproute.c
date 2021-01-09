@@ -559,7 +559,7 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 					fprintf(fp, " %llums",
 						(unsigned long long) val / hz);
 				else
-					fprintf(fp, " %.2fms", 
+					fprintf(fp, " %.2fms",
 						(double)val / hz);
 			}
 		}
@@ -842,7 +842,7 @@ int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 			}
 			if (get_jiffies(&rtt, *argv, 0, &raw))
 				invarg("\"rtt\" value is invalid\n", *argv);
-			rta_addattr32(mxrta, sizeof(mxbuf), RTAX_RTT, 
+			rta_addattr32(mxrta, sizeof(mxbuf), RTAX_RTT,
 				(raw) ? rtt : rtt * 8);
 		} else if (strcmp(*argv, "rto_min") == 0) {
 			unsigned rto_min;
@@ -1590,4 +1590,3 @@ int do_iproute(int argc, char **argv)
 	fprintf(stderr, "Command \"%s\" is unknown, try \"ip route help\".\n", *argv);
 	exit(-1);
 }
-

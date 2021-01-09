@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -40,7 +42,11 @@
 /** Config file version.
  *
  */
+#if defined(AEI_VDSL_PASSWORD_ENCRYPTION)
+#define CMS_CONFIG_FILE_VERSION "3.2"
+#else
 #define CMS_CONFIG_FILE_VERSION "3.0"
+#endif
 
 
 /** Number of spaces to indent each line in the config file.
@@ -170,7 +176,11 @@
  * then gets confused and have to look up some manual.
  * If 0, then no timeout.
  */
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#define SSHD_EXIT_ON_IDLE_TIMEOUT  300
+#else
 #define SSHD_EXIT_ON_IDLE_TIMEOUT  600
+#endif
 
 
 /** This is the port telnetd listens on.
@@ -250,7 +260,9 @@
  * 
  */
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)||defined(AEI_VDSL_CUSTOMER_TELUS)
+#if defined(AEI_VDSL_CUSTOMER_TDS)
+#define TR69C_CONN_REQ_PORT      4567
+#elif defined(AEI_VDSL_CUSTOMER_BELLALIANT)||defined(AEI_VDSL_CUSTOMER_TELUS)
 #define TR69C_CONN_REQ_PORT      7547
 #else
 #define TR69C_CONN_REQ_PORT      4567
@@ -266,7 +278,11 @@
 /** This is the path part of the URL for tr69c connection requests from the ACS.
  * 
  */
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#define TR69C_CONN_REQ_PATH      "/cwmp/"
+#else
 #define TR69C_CONN_REQ_PATH      "/"
+#endif
 
 
 /** The amount of idle time, in seconds, before tr69c exits.
@@ -278,12 +294,12 @@
  * is very important, and you do not want the tr69c client to exit, then you
  * can set this to a very large value (e.g. 2160356, which is one year).
  */
-#ifdef AEI_VDSL_CUSTOMER_NCS 
-/* we do not want tr69c client to exit, because each time tr69c startup 
- *  * it will reset some configuration and save it to flash, this time consuming 
- *   */ 
-#define TR69C_EXIT_ON_IDLE_TIMEOUT       2160356 
-#else 
+#ifdef AEI_VDSL_CUSTOMER_NCS
+/* we do not want tr69c client to exit, because each time tr69c startup
+ *  * it will reset some configuration and save it to flash, this time consuming
+ *   */
+#define TR69C_EXIT_ON_IDLE_TIMEOUT       2160356
+#else
 #define TR69C_EXIT_ON_IDLE_TIMEOUT       30 
 #endif
 
@@ -319,5 +335,34 @@
 #define DNS_PROBE_TIMEOUT 3 
 #endif
 #define DNS_PROBE_MAX_TRY 3
+
+
+/** Path to the cgroups cpu subsystem hierarchy.
+ *
+ * This path must be kept in sync with userspace/public/apps/cgroupctl/Makefile
+ * and userspace/public/apps/cgroupctl/scripts/cgroup.conf
+ */
+#define CGROUP_CPUTREEDIR  "/cgroups/cputree"
+
+
+/** Path to a magic cookie file to indicate CMS smd is shutting down.
+ */
+#define SMD_SHUTDOWN_IN_PROGRESS "/tmp/smd_shutdown_in_progress"
+
+
+/** Max length of a full path name.
+ *
+ * Linux and various filesystems is usually 4096, but we limit it to save
+ * some memory.
+ */
+#define CMS_MAX_FULLPATH_LENGTH     1024
+
+
+/** Max length of a file name.
+ *
+ * Linux and various filesystems is around 1024, but we limit it to save
+ * some memory.
+ */
+#define CMS_MAX_FILENAME_LENGTH     100
 
 #endif  /* __CMS_PARAMS_H__ */

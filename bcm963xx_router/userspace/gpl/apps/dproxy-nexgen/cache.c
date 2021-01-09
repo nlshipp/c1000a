@@ -86,7 +86,11 @@ static int cache_byname(FILE * fp, char *name, char ip[BUF_SIZE])
 	 token = strtok( line, " ");
 	 if( !strcasecmp( token, name) ){
 		token = strtok( NULL, " ");
+#ifdef AEI_CONTROL_LAYER
+		while( (isalnum(*token) || (*token=='.')||(*token==':')) && (i<BUF_SIZE-1) ) ip[i++] = *token++;
+#else
 		while( (isalnum(*token) || (*token=='.')) && (i<BUF_SIZE-1) ) ip[i++] = *token++;
+#endif
 		ip[i] = 0;  /* here, i is at most BUF_SIZE-1 */
 		return 1;
 	 }
@@ -250,7 +254,7 @@ void cache_add_hosts_entries(FILE *cache_file)
 	 while( (name = strtok( NULL, " \t" )) ){
 	   if(name[0] == '#')break;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if 0//defined(AEI_VDSL_CUSTOMER_NCS)
            if(strstr(name,config.domain_name)==NULL)
                 fprintf( cache_file, "%s.%s %s %ld\n", name,config.domain_name, ip, 0L );
            else
@@ -407,6 +411,9 @@ struct lease_t {
 #if defined(AEI_VDSL_DHCP_LEASE)
    char layer2Interface[32];
    u_int32_t is_stb;
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    char vendorid[256];
 #endif
 };
 

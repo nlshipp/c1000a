@@ -277,7 +277,7 @@ static int addconf_broadcast_dad_failed(struct inet6_ifaddr *ifp) {
 	skb=alloc_skb(NLMSG_SPACE(sizeof(struct dad_failed_msg_t)),GFP_KERNEL);
 	if (!skb) {
 		printk(KERN_ERR "alloc skb error\n");
-		return -1;   
+		return -1;
 	}
 
     printk(KERN_ERR "====>DAD failed on %s,%04X:%04X:%04X:%04X:%04X:%04X:%04X:%04X\n",
@@ -293,7 +293,7 @@ static int addconf_broadcast_dad_failed(struct inet6_ifaddr *ifp) {
 
 	nlh = NLMSG_PUT(skb, 0, 0, NLMSG_DONE, sizeof(struct dad_failed_msg_t));
 	msg = (struct dad_failed_msg_t *)NLMSG_DATA(nlh);
-	
+
     ipv6_addr_copy(&msg->addr,&ifp->addr);
     strncpy(msg->name,ifp->idev->dev->name,sizeof(msg->name));
 	msg->prefix_len = ifp->prefix_len;
@@ -330,7 +330,7 @@ static int addconf_broadcast_dad_failed(struct inet6_ifaddr *ifp) {
 	return ret;
 nlmsg_failure:
 	kfree_skb(skb);
-    return -EINVAL; 
+    return -EINVAL;
 }
 
 static void broadcast_resend_dad(unsigned long param)
@@ -491,7 +491,7 @@ static struct inet6_dev * ipv6_add_dev(struct net_device *dev)
                 else if (!strncmp(dev->name,"ppp",3)) {
                         printk(KERN_ERR"ipv6_add_dev on %s,forwarding set to 0 for IOT\n",dev->name);
                         ndev->cnf.forwarding = 0;
-                }		
+                }
 	}
 #endif
 #endif
@@ -1549,7 +1549,7 @@ static void addrconf_dad_stop(struct inet6_ifaddr *ifp)
 		ifp->flags |= IFA_F_TENTATIVE;
 		spin_unlock_bh(&ifp->lock);
 		in6_ifa_put(ifp);
-#ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
+#ifdef ACTION_TEC_IPV6_CODE_FOR_IOT_DEL_ADDR
 		ipv6_del_addr(ifp);
 #endif
 #ifdef CONFIG_IPV6_PRIVACY
@@ -2245,8 +2245,8 @@ static int inet6_addr_add(struct net *net, int ifindex, struct in6_addr *pfx,
 	struct inet6_dev *idev;
 	struct net_device *dev;
 	int scope;
-	u32 flags;
-	clock_t expires;
+	u32 flags = 0;
+	clock_t expires = 0;
 	unsigned long timeout;
 
 	ASSERT_RTNL();
@@ -2363,10 +2363,14 @@ int addrconf_add_ifaddr(struct net *net, void __user *arg)
 	rtnl_lock();
 	err = inet6_addr_add(net, ireq.ifr6_ifindex, &ireq.ifr6_addr,
 			     ireq.ifr6_prefixlen, IFA_F_PERMANENT,
+        INFINITY_LIFE_TIME, INFINITY_LIFE_TIME);
+/*time out control by dhcp6c*/
+#if 0
 #ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
 						 ireq.ifr6_pltime,ireq.ifr6_vltime);
 #else
 			     INFINITY_LIFE_TIME, INFINITY_LIFE_TIME);
+#endif
 #endif
 
 	rtnl_unlock();
@@ -2563,6 +2567,54 @@ static void addrconf_sit_config(struct net_device *dev)
 }
 #endif
 
+#if defined(CONFIG_MIPS_BRCM)
+static int addrconf_update_lladdr(struct net_device *dev)
+{
+	struct inet6_dev *idev;
+	struct inet6_ifaddr *ifladdr = NULL;
+	struct inet6_ifaddr *ifp;
+	struct in6_addr addr6;
+	int err = -EADDRNOTAVAIL;
+
+	ASSERT_RTNL();
+
+	idev = __in6_dev_get(dev);
+	if (idev != NULL)
+	{
+		read_lock_bh(&idev->lock);
+		for (ifp=idev->addr_list; ifp; ifp=ifp->if_next)
+		{        
+			if (IFA_LINK == ifp->scope)
+			{
+				ifladdr = ifp;
+				in6_ifa_hold(ifp);
+				break;
+			}
+		}
+		read_unlock_bh(&idev->lock);
+
+		if ( ifladdr )
+		{
+			/* delete the address */
+			ipv6_del_addr(ifladdr);
+
+			/* add new LLA */ 
+			memset(&addr6, 0, sizeof(struct in6_addr));
+			addr6.s6_addr32[0] = htonl(0xFE800000);
+
+			if (0 == ipv6_generate_eui64(addr6.s6_addr + 8, dev))
+			{
+				addrconf_add_linklocal(idev, &addr6);
+				err = 0;
+			}
+		}
+	}
+
+	return err;
+
+}
+#endif
+
 static inline int
 ipv6_inherit_linklocal(struct inet6_dev *idev, struct net_device *link_dev)
 {
@@ -2744,6 +2796,14 @@ static int addrconf_notify(struct notifier_block *this, unsigned long event,
 				return notifier_from_errno(err);
 		}
 		break;
+
+#if defined(CONFIG_MIPS_BRCM)
+	case NETDEV_CHANGEADDR:
+		addrconf_update_lladdr(dev);
+		break;
+#endif
+
+      
 	}
 
 	return NOTIFY_OK;
@@ -2874,7 +2934,11 @@ static void addrconf_rs_timer(unsigned long data)
 
 #if defined(CONFIG_MIPS_BRCM)
 	/* WAN interface needs to act as a host. */
-	if (ifp->idev->cnf.forwarding && !(ifp->idev->dev->priv_flags & IFF_WANDEV))
+	if (ifp->idev->cnf.forwarding && 
+		(!(ifp->idev->dev->priv_flags & IFF_WANDEV) ||
+		((ifp->idev->dev->priv_flags & IFF_WANDEV) && 
+		!strchr(ifp->idev->dev->name, '.'))
+        ))
 #else
 	if (ifp->idev->cnf.forwarding)
 #endif
@@ -2924,7 +2988,7 @@ static void addrconf_dad_kick(struct inet6_ifaddr *ifp)
 		rand_num = 0;
 	else
 		rand_num = net_random() % (idev->cnf.rtr_solicit_delay ? : 1);
-	//rand_num = 5*HZ;//per For debug only,if error just delete this line; 
+	//rand_num = 5*HZ;//per For debug only,if error just delete this line;
 
 	ifp->probes = idev->cnf.dad_transmits;
 	addrconf_mod_timer(ifp, AC_DAD, rand_num);
@@ -3037,7 +3101,8 @@ static void addrconf_dad_completed(struct inet6_ifaddr *ifp)
 #if defined(CONFIG_MIPS_BRCM)
 	/* WAN interface needs to act as a host. */
 	if (( (ifp->idev->cnf.forwarding == 0) || 
-		  (ifp->idev->dev->priv_flags & IFF_WANDEV) ) &&
+		((ifp->idev->dev->priv_flags & IFF_WANDEV) && 
+		strchr(ifp->idev->dev->name, '.')) ) &&
 #else
 	if (ifp->idev->cnf.forwarding == 0 &&
 #endif

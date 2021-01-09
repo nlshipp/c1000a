@@ -2,25 +2,31 @@
 #define __FAPTMR_H_INCLUDED__
 
 /*
- <:copyright-BRCM:2007:DUAL/GPL:standard
- 
-    Copyright (c) 2007 Broadcom Corporation
-    All Rights Reserved
- 
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
- 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- 
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
- 
+<:copyright-BRCM:2009:DUAL/GPL:standard
+
+   Copyright (c) 2009 Broadcom Corporation
+   All Rights Reserved
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 
@@ -36,12 +42,16 @@
 
 #include "fap4ke_task.h"
 
+#define CC_FAP4KE_TIMER_HIRES
+
 /* System timer tick rate */
-#define FAPTMR_HZ 10
+#define FAPTMR_HZ_LORES 10    /* 100ms */
+#define FAPTMR_HZ_HIRES 5000  /* 200us */
 
-#define fap4keTmr_jiffies64 ( *((volatile int64 *)(&p4keDspramGbl->timers.jiffies64)) )
+#define FAP4KE_TIMER_JIFFIES_32(_jiffies64) ( (uint32)(_jiffies64) )
 
-#define fap4keTmr_jiffies ( (uint32)(fap4keTmr_jiffies64) )
+#define fap4keTmr_jiffiesLoRes FAP4KE_TIMER_JIFFIES_32(p4keDspramGbl->timers.ctrl.loRes.jiffies64)
+#define fap4keTmr_jiffiesHiRes FAP4KE_TIMER_JIFFIES_32(p4keDspramGbl->timers.ctrl.hiRes.jiffies64)
 
 #define FAP4KE_TIMER_INIT(_timer, _handler, _arg, _taskPriority)        \
     do {                                                                \
@@ -66,13 +76,31 @@
 #define fap4keTmr_isTimeBefore_eq(_unknown, _known) fap4keTmr_isTimeAfter_eq(_known, _unknown)
 
 typedef struct {
+    /* Timer Management */
+    volatile int64 jiffies64;
+    Dll_t list;
+} fap4keTmr_CtrlInfo_t;
+
+typedef struct {
+    /* Timer Control Information */
+    fap4keTmr_CtrlInfo_t loRes;
+    fap4keTmr_CtrlInfo_t hiRes;
+} fap4keTmr_Ctrl_t;
+
+typedef struct {
     Dll_t node;            /* used internally to maintain linked-list of timers */
     uint32 expiration;     /* expiration time, in fap4keTmr_Jiffies */
     fap4keTsk_taskPriority_t taskPriority; /* timer task priority */
     fap4keTsk_task_t task; /* the task in which the timer handler will run */
 } fap4keTmr_timer_t;
 
-fapRet fap4keTmr_add(fap4keTmr_timer_t *timer);
+typedef enum {
+    FAP4KE_TIMER_TYPE_LORES=0,
+    FAP4KE_TIMER_TYPE_HIRES,
+    FAP4KE_TIMER_TYPE_MAX
+} fap4keTmr_type_t;
+
+fapRet fap4keTmr_add(fap4keTmr_timer_t *timer, fap4keTmr_type_t type);
 void fap4keTmr_Init(void);
 
 #define FAP4KE_PM_CPU_HISTORY_MAX 8

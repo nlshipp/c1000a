@@ -1,0 +1,21 @@
+@@  @@
+ #
+ # Packet Acceleration
+ #
+-BRCM_DRIVER_PKTFLOW=m
+-# BRCM_DRIVER_PKTFLOW_IPV6 is not set
+-BRCM_DRIVER_PKTFLOW_IPV6=y
+-BRCM_DRIVER_PKTFLOW_MCAST=y
+-# BRCM_DRIVER_PKTFLOW_DEBUG is not set
+-BUILD_FCCTL=dynamic
+-BRCM_DRIVER_FAP=m
+-BRCM_DRIVER_FAP_GSO=y
+-# BRCM_DRIVER_FAP_LAYER2 is not set
+-BRCM_DRIVER_ARL=m
+-BUILD_CMFAPI=dynamic
+-BUILD_CMFD=dynamic
+-BUILD_CMFCTL=dynamic
++# BRCM_DRIVER_PKTFLOW is not set
+ 
+ #
+ # Buffer Pool Manager and Ingress QoS

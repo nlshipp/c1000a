@@ -4,7 +4,7 @@
  * Copyright (C) 2002, 2004  Red Hat Inc.
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -14,7 +14,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -89,7 +89,7 @@ struct DBusTransport
 
   DBusAuth *auth;                             /**< Authentication conversation */
 
-  DBusCredentials *credentials;               /**< Credentials of other end read from the socket */  
+  DBusCredentials *credentials;               /**< Credentials of other end read from the socket */
 
   long max_live_messages_size;                /**< Max total size of received messages. */
   long max_live_messages_unix_fds;            /**< Max total unix fds of received messages. */
@@ -99,17 +99,17 @@ struct DBusTransport
   char *address;                              /**< Address of the server we are connecting to (#NULL for the server side of a transport) */
 
   char *expected_guid;                        /**< GUID we expect the server to have, #NULL on server side or if we don't have an expectation */
-  
+
   DBusAllowUnixUserFunction unix_user_function; /**< Function for checking whether a user is authorized. */
   void *unix_user_data;                         /**< Data for unix_user_function */
-  
+
   DBusFreeFunction free_unix_user_data;         /**< Function to free unix_user_data */
 
   DBusAllowWindowsUserFunction windows_user_function; /**< Function for checking whether a user is authorized. */
   void *windows_user_data;                            /**< Data for windows_user_function */
-  
+
   DBusFreeFunction free_windows_user_data;            /**< Function to free windows_user_data */
-  
+
   unsigned int disconnected : 1;              /**< #TRUE if we are disconnected. */
   unsigned int authenticated : 1;             /**< Cache of auth state; use _dbus_transport_get_is_authenticated() to query value */
   unsigned int send_credentials_pending : 1;  /**< #TRUE if we need to send credentials */

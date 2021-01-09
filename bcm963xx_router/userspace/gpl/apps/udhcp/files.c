@@ -26,7 +26,7 @@
 #include "static_leases.h"
 
 #define BRCM_RETRY_INTERVAL 1
-#define BRCM_RETRY_COUNT    3
+#define BRCM_RETRY_COUNT    10
 
 #ifdef DHCP_RELAY
 static void register_message(CmsMsgType msgType);
@@ -204,7 +204,8 @@ static int read_dns_opt(char *line, struct ip_list **dns_list)
         return 0;
 
     /* do not modify the original string */
-    strncpy(text, line, sizeof(text));
+    /*CID 10197: Buffer not null terminated*/
+    strlcpy(text, line, sizeof(text));
 
     if (!(opt = strtok(text, " \t=")))
         return 0;
@@ -360,34 +361,29 @@ static int read_staticlease(const char *const_line, void *arg)
 
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
 	ip_string = strtok(NULL, " \t");
-
         if (ip_string)
 	{
 		//if not placeholder, read the ip
 		if (strcasecmp(ip_string,"gateway"))
 			read_ip(ip_string, &gw);
 		ip_string = strtok(NULL, " \t");
-     
 		if (ip_string)
 		{
 			if (strcasecmp(ip_string,"subnet"))
 				read_ip(ip_string, &subnet);
 			ip_string = strtok(NULL, " \t");
-       
 			if (ip_string)
 			{
 				if (strcasecmp(ip_string,"dns"))
 				{
 					cmsLog_error("========dns %s=========",ip_string);
 					char *d1 = strtok(ip_string, ",");
-  
 					if (d1)
 					{
 						cmsLog_error("========dns1 %s=========",d1);
 						read_ip(d1, &dns1);
 					}
 					ip_string = strtok(NULL, " \t");
-            
 					if (ip_string)
 					{
 						cmsLog_error("========dns2 %s=========",ip_string);
@@ -410,6 +406,75 @@ static int read_staticlease(const char *const_line, void *arg)
 
 }
 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+static int AEI_read_dhcpvlanoption60(const char *const_line, struct iface_config_t *iface)
+{
+	int i = 0;
+	char *line, *token;
+
+	line = (char *) const_line;
+	#if 0
+	LOG(LOG_ERR, "william->AEI_read_dhcpvlanoption60() line=\"%s\"\n", line);
+	#endif
+	token = strtok(line, "|");
+
+	if (token)
+	{
+        if (strlen(token))
+		{
+            if (iface->dhcpvlanOption60list==NULL)
+			{
+                iface->dhcpvlanOption60list =  malloc(sizeof(struct dhcpvlanOption60));
+				memset(iface->dhcpvlanOption60list,0,sizeof(struct dhcpvlanOption60));
+                if (iface->dhcpvlanOption60list)
+				{
+                    iface->dhcpvlanOption60list->next=NULL;
+
+                    //iface->vlanOption60list->vlanID = strdup(token);
+                    strcpy(iface->dhcpvlanOption60list->vlanID,token);
+	                token = strtok(NULL, VENDOR_CLASS_ID_TOKEN);
+
+					if(token)
+					{
+						strcpy(iface->dhcpvlanOption60list->vendorClassId,token);
+					}
+                    //then init the list
+
+                }
+            }
+		    else
+			{
+		       struct dhcpvlanOption60 * prev = iface->dhcpvlanOption60list;
+		       struct dhcpvlanOption60 * curr = iface->dhcpvlanOption60list;
+		       do {
+		           prev = curr;
+		           curr = curr->next;
+		       }
+		       while (curr);
+
+		       curr = prev->next = malloc(sizeof(struct dhcpvlanOption60));
+			   memset(curr,0,sizeof(struct dhcpvlanOption60));
+		       if (curr)
+			   {
+		            curr->next=NULL;
+
+					strcpy(curr->vlanID,token);
+	                token = strtok(NULL, VENDOR_CLASS_ID_TOKEN);
+
+					if(token)
+					{
+						strcpy(curr->vendorClassId,token);
+					}
+
+			}
+		    }
+            }
+        }
+
+	return 0;
+}
+#endif
+
 #if defined(AEI_VDSL_CUSTOMER_NCS) //add william 2012-1-11
 static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *iface)
 {
@@ -417,7 +482,7 @@ static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *
 	char *line, *token;
 
 	line = (char *) const_line;
-	#if 1
+	#if 0
 	LOG(LOG_ERR, "william->read_vendorClassId() line=\"%s\"\n", line);
 	#endif
 
@@ -429,7 +494,7 @@ static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *
                     if (iface->vlanOption60list) {
                         iface->vlanOption60list->next=NULL;
 
-                        //blank the list because uninit things might not be NULL                        
+                        //blank the list because uninit things might not be NULL
                         for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++)
                             iface->vlanOption60list->vendorClassId[i]=NULL;
 
@@ -442,21 +507,21 @@ static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *
 		            token = strtok(NULL, VENDOR_CLASS_ID_TOKEN);
 		            i++;
 	                }
-                    }    
+                    }
                 }
                 else {
                    struct vlanOption60 * prev = iface->vlanOption60list;
                    struct vlanOption60 * curr = iface->vlanOption60list;
                    do {
                        prev = curr;
-                       curr = curr->next; 
+                       curr = curr->next;
                    }
                    while (curr);
 
                    curr = prev->next = malloc(sizeof(struct vlanOption60));
                    if (curr) {
                         curr->next=NULL;
-                        //blank the list                        
+                        //blank the list
                         for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++)
                             curr->vendorClassId[i]=NULL;
                         i = 0;
@@ -467,7 +532,7 @@ static int AEI_read_vlanoption60(const char *const_line, struct iface_config_t *
 		            token = strtok(NULL, VENDOR_CLASS_ID_TOKEN);
 		            i++;
 	                }
-                    }    
+                    }
                 }
             }
         }
@@ -488,7 +553,6 @@ static void release_iface_config(struct iface_config_t *iface)
         close(iface->skt);
         iface->skt = -1;
     }
-
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 	//int i;
     struct vlanOption60 * curr = iface->vlanOption60list;
@@ -496,18 +560,18 @@ static void release_iface_config(struct iface_config_t *iface)
 	iface->vendorClassIdMinAddress = 0;
 	iface->vendorClassIdMaxAddress = 0;
     for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
-    	if (iface->vendorClassId[i]) {
-        	free(iface->vendorClassId[i]);
+	if (iface->vendorClassId[i]) {
+		free(iface->vendorClassId[i]);
             iface->vendorClassId[i] = NULL;
         }
     }
-        
+
     while (curr) {
-    	prev = curr;
+	prev = curr;
         curr = curr->next;
         for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
-        	if (prev->vendorClassId[i]) {
-            	free(prev->vendorClassId[i]);
+		if (prev->vendorClassId[i]) {
+		free(prev->vendorClassId[i]);
                 prev->vendorClassId[i] = NULL;
             }
         }
@@ -518,10 +582,23 @@ static void release_iface_config(struct iface_config_t *iface)
         prev->next=NULL;
         free(prev);
         prev = NULL;
-    } 
+    }
 #endif
 
-	
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+	struct vlanOption60 * vlancurr = iface->dhcpvlanOption60list;
+    struct vlanOption60 * vlanprev = NULL;
+	while (vlancurr)
+	{
+	vlanprev = vlancurr;
+        vlancurr = vlancurr->next;
+        vlanprev->next=NULL;
+        free(vlanprev);
+        vlanprev = NULL;
+    }
+#endif
+
+
 #ifdef AEI_VDSL_CUSTOMER_TELUS
     for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
         if (iface->opt67WarrantVids[i])
@@ -529,7 +606,7 @@ static void release_iface_config(struct iface_config_t *iface)
     }
 #endif
 
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE)|| defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) {
         if (iface->stbVids[i])
             free(iface->stbVids[i]);
@@ -657,7 +734,12 @@ static int set_iface_config_defaults(void)
         local_rc = -1;
         for (retry_count = 0; retry_count < BRCM_RETRY_COUNT; retry_count++) {
             ifr.ifr_addr.sa_family = AF_INET;
+#if defined(AEI_COVERITY_FIX)
+            /*CID 12258:Copy into fixed size buffer*/
+            strlcpy(ifr.ifr_name, iface->interface, sizeof(ifr.ifr_name));
+#else
             strcpy(ifr.ifr_name, iface->interface);
+#endif
             if ((local_rc = ioctl(fd, SIOCGIFADDR, &ifr)) == 0) {
                 sin = (struct sockaddr_in *)&ifr.ifr_addr;
                 iface->server = sin->sin_addr.s_addr;
@@ -673,11 +755,21 @@ static int set_iface_config_defaults(void)
         if (local_rc < 0) {
             LOG(LOG_ERR, "SIOCGIFADDR failed on %s!", ifr.ifr_name);
 #if !defined(AEI_VDSL_CUSTOMER_QWEST) && !defined(AEI_VDSL_CUSTOMER_BELLALIANT)  //hk_qwest //hk_ctl
+            /*Coverity Fix CID:11895 Resource leak*/
+            close(fd);
             return 0;
 #else
             if (strcmp(ifr.ifr_name, "br0") == 0) {
+#if defined(AEI_COVERITY_FIX)
+                /*Coverity Fix CID:11895 Resource leak*/
+                close(fd);
+#endif
                 return 0;
             } else {
+#if defined(AEI_COVERITY_FIX)
+                /*Coverity Fix CID:11895 Resource leak*/
+                close(fd);
+#endif
                 return 1;
             }
 #endif
@@ -705,6 +797,10 @@ static int set_iface_config_defaults(void)
             iface->ifindex = ifr.ifr_ifindex;
         } else {
             LOG(LOG_ERR, "SIOCGIFINDEX failed on %s!", ifr.ifr_name);
+#if defined(AEI_COVERITY_FIX)
+                /*Coverity Fix CID:11895 Resource leak*/
+            close(fd);
+#endif
             return 0;
         }
         /* Retrieve MAC of the interface */
@@ -715,6 +811,10 @@ static int set_iface_config_defaults(void)
                   iface->arp[0], iface->arp[1], iface->arp[2], iface->arp[3], iface->arp[4], iface->arp[5]);
         } else {
             LOG(LOG_ERR, "SIOCGIFHWADDR failed on %s!", ifr.ifr_name);
+#if defined(AEI_COVERITY_FIX)
+                /*Coverity Fix CID:11895 Resource leak*/
+            close(fd);
+#endif
             return 0;
         }
         /* set lease time from option or default */
@@ -854,10 +954,8 @@ static void read_vids(const char *line, char **vids, int size)
 {
     int i;
     char *token, *str;
-
     if (line == NULL || vids == NULL || size <= 0)
         return;
-
     for (i = 0, str = line; i < size; i++, str = NULL) {
         token = strtok(str, ",");
         if (token == NULL)
@@ -872,7 +970,7 @@ static void read_vids(const char *line, char **vids, int size)
 int read_config(char *file)
 {
     FILE *in;
-#ifdef AEI_VDSL_CUSTOMER_NCS    
+#ifdef AEI_VDSL_CUSTOMER_NCS
     char buffer[_CONFIG_BUF_SIZE], *token, *line;
 #else
     char buffer[80], *token, *line;
@@ -967,13 +1065,17 @@ int read_config(char *file)
         else if (strcasecmp(token, "stb_vid") == 0)
             read_vids(line, cur_iface->stbVids, VENDOR_CLASS_ID_TAB_SIZE);
 #endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+		else if (strcasecmp(token, "dhcpvlanoption60") == 0)
+			AEI_read_dhcpvlanoption60(line, cur_iface);
+#endif
 #if defined(AEI_VDSL_CUSTOMER_NCS)
         else if (strcasecmp(token, "vendorClassIdMinAddress") == 0)
             read_ip(line, &cur_iface->vendorClassIdMinAddress);
         else if (strcasecmp(token, "vendorClassIdMaxAddress") == 0)
             read_ip(line, &cur_iface->vendorClassIdMaxAddress);
 		else if (strcasecmp(token, "vlanoption60") == 0) //add william 2012-1-10
-			AEI_read_vlanoption60(line, cur_iface);	
+			AEI_read_vlanoption60(line, cur_iface);
 #endif
 #ifdef AEI_VDSL_CUSTOMER_QWEST
         else if (strcasecmp(token, "dns_proxy") == 0)
@@ -1050,7 +1152,12 @@ int read_config(char *file)
             LOG(LOG_WARNING, "unknown keyword '%s'", token);
     }
     fclose(in);
-
+#ifndef AEI_VDSL_DHCP_LEASE
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    snprintf(buffer,sizeof(buffer),"MSFT_IPTV,SAIP*,Xbox 360,PS3");
+    read_vids(buffer, cur_iface->stbVids, VENDOR_CLASS_ID_TAB_SIZE);
+#endif
+#endif
     /* Set default interface name if it's missing */
     if (iface_config->interface == NULL)
         iface_config->interface = strdup("eth0");
@@ -1122,6 +1229,10 @@ void write_leases(int dummy __attribute__ ((unused)))
                     fwrite(iface->interface, 32, 1, fp);
                 fwrite(&(iface->leases[i].is_stb), 4, 1, fp);
 #endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+                fwrite(iface->leases[i].vendorid, sizeof(iface->leases[i].vendorid), 1, fp);
+#endif
+
             }
         }
     }
@@ -1142,6 +1253,10 @@ struct saved_lease {
 #if defined(AEI_VDSL_DHCP_LEASE)
     char layer2Interface[32];
     u_int32_t is_stb;
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+//in bcmqos.c function bcmExecOptCmd() need checking vendorid, so we also need saving it.
+    char vendorid[256];
 #endif
 };
 
@@ -1174,14 +1289,16 @@ void read_leases(char *file)
 
                 iface->leases[cur_iface->cnt_leases].yiaddr = lease.yiaddr;
                 iface->leases[cur_iface->cnt_leases].expires = ntohl(lease.expires);
- 
+
                 if (server_config.remaining)
                     iface->leases[cur_iface->cnt_leases].expires += curr;
                 memcpy(iface->leases[cur_iface->cnt_leases].chaddr, lease.chaddr, sizeof(lease.chaddr));
                 memcpy(iface->leases[cur_iface->cnt_leases].hostname, lease.hostname, sizeof(lease.hostname));
-
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-                struct static_lease *static_lease;               
+                memcpy(iface->leases[cur_iface->cnt_leases].vendorid, lease.vendorid, sizeof(lease.vendorid));
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+                struct static_lease *static_lease;
 
                 static_lease = AEI_getLeaseByIp(iface->static_leases, lease.yiaddr);
                 if (static_lease && (memcmp(static_lease->mac, lease.chaddr, 6) != 0))
@@ -1255,9 +1372,9 @@ void send_lease_info(UBOOL8 isDelete, const struct dhcpOfferedAddr *lease)
     body->leaseTimeRemaining = (SINT32) remaining;
     /**
      * @file files.c
-     * @Synopsis  
+     * @Synopsis
      * @author Mathias Lorente
-     * @version 
+     * @version
      * @date 2011-11-11
      */
 
@@ -1276,7 +1393,7 @@ void send_lease_info(UBOOL8 isDelete, const struct dhcpOfferedAddr *lease)
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_TELUS)
     snprintf(body->clientID, sizeof(body->clientID), lease->clientid);
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE) ||defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     body->isStb = is_stb(lease->vendorid);
 #endif
 

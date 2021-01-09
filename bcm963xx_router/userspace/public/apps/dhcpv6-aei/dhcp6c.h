@@ -39,8 +39,8 @@ extern void client6_send __P((struct dhcp6_event *));
 #ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
 extern int ctl_layer_cfg_check( struct dhcp6_if *ifp,char* wan_dhcpv6_ipv6_addr );
 extern void remove_na_address __P((struct dhcp6_if *,char*,int*) );
+extern void sendDhcp6cEventMessage __P((void));
 extern int rmna;
 extern int rmpd;
 
 #endif
-

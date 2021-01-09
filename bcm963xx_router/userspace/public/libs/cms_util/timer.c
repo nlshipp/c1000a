@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2010  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  *
 ************************************************************************/
 
@@ -300,6 +302,41 @@ void cmsTmr_executeExpiredEvents(void *handle)
    return;
 }
 
+CmsRet cmsTmr_getTimeRemaining(const void *handle, CmsEventHandler func, void *ctxData, UINT32 *ms)
+{
+   const CmsTimerHandle *tmrHandle = (const CmsTimerHandle *)handle;
+   CmsTimerEvent *tmrEvent;
+   CmsTimestamp   nowTms;
+   UINT32 msRem = 0;
+   CmsRet retVal = CMSRET_OBJECT_NOT_FOUND;
+
+   tmrEvent = tmrHandle->events;
+   while (tmrEvent != NULL)
+   {
+      if ((tmrEvent->func == func) && (tmrEvent->ctxData == ctxData))
+      {
+          retVal = CMSRET_SUCCESS;
+          cmsTms_get(&nowTms);
+          if ( IS_EARLIER_THAN(&nowTms, &tmrEvent->expireTms) )
+          {
+              msRem = cmsTms_deltaInMilliSeconds(&tmrEvent->expireTms, &nowTms);
+          }
+          else
+          {
+              msRem = 0;
+          }
+          break;
+      }
+      else
+      {
+         tmrEvent = tmrEvent->next;
+      }
+   }
+
+   *ms = msRem;
+
+   return retVal;
+}
 
 UBOOL8 cmsTmr_isEventPresent(const void *handle, CmsEventHandler func, void *ctxData)
 {
@@ -439,7 +476,7 @@ void cmsTmr_cancel2(void *handle, CmsEventHandler func, void *ctxData)
          prevEvent = currEvent;
          currEvent = currEvent->next;
 
-         if (currEvent != NULL && currEvent->func == func && 
+         if (currEvent != NULL && currEvent->func == func &&
              cmsUtl_strcmp(currEvent->ctxData, ctxData) == 0)
          {
             prevEvent->next = currEvent->next;
@@ -454,7 +491,7 @@ void cmsTmr_cancel2(void *handle, CmsEventHandler func, void *ctxData)
       tmrHandle->numEvents--;
 
       cmsLog_debug("canceled event %s, count=%d", currEvent->name, tmrHandle->numEvents);
-      CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent->ctxData); 
+      CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent->ctxData);
       CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent);
    }
    else
@@ -538,7 +575,7 @@ CmsRet cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32 ms,
    }
 
 
-   /* 
+   /*
     * Now we just need to insert it in the correct place in the timer handle.
     * We just insert the events in absolute order, i.e. smallest expire timer
     * at the head of the queue, largest at the end of the queue.  If the
@@ -550,7 +587,7 @@ CmsRet cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32 ms,
    {
       tmrHandle->events = newEvent;
    }
-   else 
+   else
    {
       currEvent = tmrHandle->events;
 
@@ -593,7 +630,7 @@ CmsRet cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32 ms,
 
    return CMSRET_SUCCESS;
 }
- 
+
 UINT32 cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, void *ctxData)
 {
    const CmsTimerHandle *tmrHandle = (const CmsTimerHandle *) handle;
@@ -624,4 +661,3 @@ UINT32 cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, void
    return timeremaining;
 }
 #endif /* DMP_PERIODICSTATSBASE_1 */
-

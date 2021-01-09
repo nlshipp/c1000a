@@ -4,19 +4,25 @@
     Copyright (c) 2007 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license 
+ agreement governing use of this software, this software is licensed 
+ to you under the terms of the GNU General Public License version 2 
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give 
+    you permission to link this software with independent modules, and 
+    to copy and distribute the resulting executable under terms of your 
+    choice, provided that you also meet, for each linked independent 
+    module, the terms and conditions of the license of that module. 
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications 
+    of the software.  
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine 
+ this software in any way with any other Broadcom software provided 
+ under a license other than the GPL, without Broadcom's express prior 
+ written consent. 
  
 :>
 */
@@ -31,7 +37,7 @@
  *******************************************************************************
  */
 
-#ifndef CONFIG_BCM96816
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
 
 #if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
 #include <bcm_intr.h>
@@ -111,8 +117,10 @@ int bcmPktDma_XtmInitTxChan_Iudma(uint32 bufDescrs,
    pXtmTxDma->txTailIndex = 0;
    pXtmTxDma->txEnabled = 0;
 
+#ifdef CONFIG_BCM96368
    if (dmaType == XTM_SW_DMA)
       pXtmTxDma->txSchedHeadIndex = 0;
+#endif
 
     return 1;
 }
@@ -128,13 +136,32 @@ int	bcmPktDma_XtmSelectRxIrq_Iudma(int channel)
 }
 
 /* --------------------------------------------------------------------------
+    Name: bcmPktDma_XtmRecvRingSize
+ Purpose: Receive ring size (Currently queued Rx Buffers) of the associated DMA desc.
+-------------------------------------------------------------------------- */
+uint32 bcmPktDma_XtmRecv_RingSize_Iudma(BcmPktDma_LocalXtmRxDma * rxdma)
+{
+    int ringSize ;
+
+    if (rxdma->rxTailIndex < rxdma->rxHeadIndex) {
+       ringSize = rxdma->numRxBds - rxdma->rxHeadIndex ;
+       ringSize += rxdma->rxTailIndex ;
+    }
+    else {
+       ringSize = rxdma->rxTailIndex - rxdma->rxHeadIndex ;
+    }
+
+    return (ringSize) ;
+}
+
+/* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmRecv
  Purpose: Receive a packet on a specific channel,
           returning the associated DMA desc
 -------------------------------------------------------------------------- */
 uint32 bcmPktDma_XtmRecv_Iudma(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pBuf, int * pLen)
 {
-    DmaDesc                  dmaDesc;
+    DmaDesc dmaDesc;
 
     FAP4KE_IUDMA_PMON_DECLARE();
     FAP4KE_IUDMA_PMON_BEGIN(FAP4KE_PMON_ID_IUDMA_RECV);
@@ -143,22 +170,101 @@ uint32 bcmPktDma_XtmRecv_Iudma(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **
 
     if (rxdma->rxAssignedBds != 0)
     {
-        /* Get the status from Rx BD */
+        /* Get the status from the current Rx BD */
         dmaDesc.word0 = rxdma->rxBds[rxdma->rxHeadIndex].word0;
 
         /* If no more rx packets, we are done for this channel */
         if ((dmaDesc.status & DMA_OWN) == 0)
         {
-            *pBuf = (unsigned char *)
-                   (phys_to_virt(rxdma->rxBds[rxdma->rxHeadIndex].address));
-            *pLen = (int) dmaDesc.length;
+            int nextIndex = rxdma->rxHeadIndex;
+            
+            /* Wrap around nextIndex */
+            if (++nextIndex == rxdma->numRxBds)
+                nextIndex = 0;
 
-            /* Wrap around the rxHeadIndex */
-            if (++rxdma->rxHeadIndex == rxdma->numRxBds)
+#ifdef CONFIG_BCM96318
+            /* 6318-A0: CRIUDMA-9
+             * After being disabled, an IUDMA RX channel will write out
+             * a SW owned descriptor that SW should discarded. The problem
+             * is that when reenabled, the channel will not move to the next
+             * descriptor. Instead, it re-reads the descriptor that it
+             * just wrote out. This gets SW and HW out of sync.
+             * This bug might happen on all ubus 2.0 based chip.
+             * Here is a work-around for this bug.
+             */
+            
+            /* If the next rx BD is DMA_OWN and
+             * the current rx BD is the same rx BD pointed to by iudma,
+             * then the current rx BD is a bogus packet. Put the current
+             * rx BD back to DMA_OWN, and don't change rxHeadIndex and
+             * rxAssignedBds.
+             *
+             * This work-around should cover the following cases:
+             * 1) rx iudma channel is disabled when swBdIdx == hwBdIdx and
+             *    the entire rx BD ring is DMA_OWN (ring empty).
+             *    Example:
+             *        a) Before channel disabled, swBdIdx == hwBdIdx == BD8
+             *        b) When channel is disabled, rx iudma will send out a bogus
+             *           rx packet at BD8 because BD8 is DMA_OWN. hwBdIdx remains
+             *           at BD8.
+             *        c) In this case, since the next BD9 is DMA_OWN, and current
+             *           swBdIdx(BD8) == hwBdIdx(BD8), the driver will ignore BD8,
+             *           and put it back to DMA_OWN. swBdIdx remains at BD8.
+             * 2) rx iudma channel is disabled when swBdIdx == hwBdIdx and
+             *    the entire rx BD ring is SW_OWN (ring full).
+             *    Example:
+             *        a) Before channel disabled, swBdIdx == hwBdIdx == BD8
+             *        b) When channel is disabled, rx iudma will NOT send out a bogus
+             *           rx packet at BD8 because BD8 is SW_OWN. hwBdIdx remains
+             *           at BD8.
+             *        c) In this case, since the next BD9 is SW_OWN, the driver will
+             *           continue process rx BDs until BD7. This time, the next BD8
+             *           is DMA_OWN (already processed), but current
+             *           swBDIdx(BD7) != hwBDIdx(BD8), the driver will process BD7.
+             *           There is no bogus packet to be ignored.
+             * 3) rx iudma channel is disabled when swBdIdx is before hwBdIdx in the
+             *    ring.
+             *    Example:
+             *        a) Before channel disabled, swBdIdx = BD5; hwBdIdx = BD24.
+             *           i.e. BD5 to BD23 is SW_OWN;  BD24 to BD4 is DMA_OWN.
+             *        b) When channel is disabled, rx iudma will send out a bogus
+             *           rx packet at BD24 because BD24 is DMA_OWN. hwBdIdx remains
+             *           at BD24.
+             *        c) In this case, since the next BD6 is SW_OWN, the driver will
+             *           continue process rx BDs until BD24. This time, the next BD25
+             *           is DMA_OWN, and current swBDIdx(BD24) == hwBDIdx(BD24), the
+             *           driver will ignore BD24 and put it back to DMA_OWN. swBDIdx
+             *           remains at BD24.
+             */ 
+            if ((rxdma->rxBds[nextIndex].status & DMA_OWN) &&
+                rxdma->rxHeadIndex ==
+                    (SAR_DMA->stram.s[SAR_RX_DMA_BASE_CHAN + rxdma->channel].state_data & 0x1FFF))
             {
-                rxdma->rxHeadIndex = 0;
+                printk("Warning: SAR Channel %d Rx Bogus Event\n", rxdma->channel);
+                dmaDesc.length  = RX_BUF_LEN;
+                dmaDesc.status &= DMA_WRAP;    /* keep the wrap bit */
+                dmaDesc.status |= DMA_OWN;
+                rxdma->rxBds[rxdma->rxHeadIndex].word0 = dmaDesc.word0;
+                
+                /* In the normal case, rxdma channel is re-enabled when rx buffer is freed.
+                 * In this case, since we put the current rx BD back to DMA_OWN,
+                 * there is no buffer to free. Therefore, we re-enable rxdma channel here.
+                 */                
+                if (rxdma->rxEnabled)
+                    rxdma->rxDma->cfg = DMA_ENABLE;
+                
+                /* don't change rxHeadIndex and rxAssignedBds */
             }
-            rxdma->rxAssignedBds--;
+            else
+#endif            
+            {
+                *pBuf = (unsigned char *)
+                       (phys_to_virt(rxdma->rxBds[rxdma->rxHeadIndex].address));
+                *pLen = (int) dmaDesc.length;
+
+                rxdma->rxHeadIndex = nextIndex;
+                rxdma->rxAssignedBds--;
+            }
         }
     }
     else   /* out of buffers! */
@@ -212,53 +318,41 @@ int bcmPktDma_XtmTxEnable_Iudma( BcmPktDma_XtmTxDma * txdma, PDEV_PARAMS unused,
 int bcmPktDma_XtmTxDisable_Iudma( BcmPktDma_LocalXtmTxDma * txdma, uint32 dmaType, void (*func) (uint32 param1,
          BcmPktDma_XtmTxDma *txswdma), uint32 param1)
 {
-    int j;
-
-    txdma->txEnabled = 0;
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-    /* Request the iuDMA to disable at the end of the next tx pkt - Jan 2011 */
-    txdma->txDma->cfg = DMA_PKT_HALT;
-#endif
-
     /* Changing txEnabled to 0 prevents any more packets
      * from being queued on a transmit DMA channel.  Allow all currenlty
      * queued transmit packets to be transmitted before disabling the DMA.
      */
+    txdma->txEnabled = 0;
 
     if (dmaType == XTM_HW_DMA) {
 
-    for (j = 0; j < 2000 && (txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE; j++)
-    {
-#if !defined(CONFIG_BCM_FAP) && !defined(CONFIG_BCM_FAP_MODULE)
-        udelay(500);
-#else
+        int j;
+
+        for (j = 0; (j < 40) && ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE); j++)
         {
-            /* Increase wait from .1 sec to .5 sec to handle longer XTM packets - May 2010 */
-            uint32 prevJiffies = fap4keTmr_jiffies + (FAPTMR_HZ) / 2; /* .5 sec */
-
-            while(!fap4keTmr_isTimeAfter(fap4keTmr_jiffies, prevJiffies));
-
-            if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
+            /* Request the iuDMA to disable at the end of the next tx pkt - Jan 2011 */
+            txdma->txDma->cfg = DMA_PKT_HALT;
+            
+#ifdef FAP_4KE
             {
-                return 0;    /* return so caller can handle the failure */
-            }
-        }
-#endif
-    }
+                uint32 prevJiffies = fap4keTmr_jiffiesLoRes + (FAPTMR_HZ_LORES / 10); /* 100 msec */
 
-    if ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
-    {
-        /* This should not happen. */
-        txdma->txDma->cfg = DMA_PKT_HALT;
-#if !defined(CONFIG_BCM_FAP) && !defined(CONFIG_BCM_FAP_MODULE)
-        udelay(500);
+                while(!fap4keTmr_isTimeAfter(fap4keTmr_jiffiesLoRes, prevJiffies));
+            
+                /* send a keep alive message to Host */
+                fapMailBox_4keSendKeepAlive();
+            }
 #else
-        /* This will not happen in the FAP/FAP_MODULE case */
+            mdelay(100);  /* 100 msec */
 #endif
+        }
         txdma->txDma->cfg = 0;
-        if ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
+        if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
+        {
+            /* This should not happen, unless there is a HW/Phy issue. */
+           //printk ("bcmxtmrt: warning!!! txdma cfg is DMA_ENABLE \n") ;
             return 0;    /* return so caller can handle the failure */
-    }
+        }
     } /* if DMA is HW Type */
     else {
 
@@ -294,7 +388,7 @@ int bcmPktDma_XtmRxEnable_Iudma( BcmPktDma_LocalXtmRxDma * rxdma )
 
 int bcmPktDma_XtmRxDisable_Iudma( BcmPktDma_LocalXtmRxDma * rxdma )
 {
-    int                       i;
+    int  i;
 
     //printk("bcmPktDma_XtmRxDisable_Iudma channel: %d\n", rxdma->channel);
 
@@ -316,9 +410,9 @@ int bcmPktDma_XtmRxDisable_Iudma( BcmPktDma_LocalXtmRxDma * rxdma )
         udelay(20);
 #else
         {
-            uint32 prevJiffies = fap4keTmr_jiffies;
+            uint32 prevJiffies = fap4keTmr_jiffiesLoRes;
 
-            while(!fap4keTmr_isTimeAfter(fap4keTmr_jiffies, prevJiffies));
+            while(!fap4keTmr_isTimeAfter(fap4keTmr_jiffiesLoRes, prevJiffies));
 
             if((rxdma->rxDma->cfg & DMA_ENABLE) == DMA_ENABLE)
             {
@@ -331,56 +425,6 @@ int bcmPktDma_XtmRxDisable_Iudma( BcmPktDma_LocalXtmRxDma * rxdma )
     return 1;
 }
 
-
-/* --------------------------------------------------------------------------
-    Name: bcmPktDma_XtmForceFreeXmitBufGet
- Purpose: Gets a TX buffer to free by caller, ignoring DMA_OWN status
--------------------------------------------------------------------------- */
-BOOL bcmPktDma_XtmForceFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma * txdma, uint32 *pKey,
-                                            uint32 *pTxSource, uint32 *pTxAddr,
-                                            uint32 *pRxChannel, uint32 dmaType,
-                                            uint32 noGlobalBufAccount)
-{
-    BOOL ret = FALSE;
-    int  bdIndex;
-
-    bdIndex = txdma->txHeadIndex;
-    *pKey = 0;
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-    /* TxSource & TxAddr not required in non-FAP applications */
-    *pTxSource = 0;
-    *pTxAddr   = 0;
-    *pRxChannel = 0;
-#endif
-
-    /* Reclaim transmitted buffers */
-    if (txdma->txFreeBds < txdma->ulQueueSize)
-    {
-        {
-           *pKey = txdma->txRecycle[bdIndex].key;
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-           *pTxSource = txdma->txRecycle[bdIndex].source;
-           *pTxAddr = txdma->txRecycle[bdIndex].address;
-           *pRxChannel = txdma->txRecycle[bdIndex].rxChannel;
-#endif
-
-           if (++txdma->txHeadIndex == txdma->ulQueueSize)
-               txdma->txHeadIndex = 0;
-
-           txdma->txFreeBds++;
-           txdma->ulNumTxBufsQdOne--;
-#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96362)  && !defined(CONFIG_BCM963268)
-           // FIXME - Which chip uses more then one TX queue?
-           if (!noGlobalBufAccount)
-           g_pXtmGlobalInfo->ulNumTxBufsQdAll--;
-#endif
-
-           ret = TRUE;
-        }
-    }
-
-    return ret;
-}
 
 #ifndef FAP_4KE
 
@@ -550,6 +594,16 @@ int bcmPktDma_XtmSetTxChanBpmThresh_Iudma( BcmPktDma_LocalXtmTxDma * txdma,
 }
 #endif
 
+void bcmPktDma_XtmGetStats_Iudma(uint8 vport, uint32 *rxDrop_p, uint32 *txDrop_p)
+{
+    *rxDrop_p = 0;
+    *txDrop_p = 0;
+}
+
+void bcmPktDma_XtmResetStats_Iudma(uint8 vport)
+{
+    return;
+}
 
 EXPORT_SYMBOL(g_pXtmGlobalInfo);
 
@@ -578,7 +632,8 @@ EXPORT_SYMBOL(bcmPktDma_XtmSetIqThresh_Iudma);
 EXPORT_SYMBOL(bcmPktDma_XtmSetRxChanBpmThresh_Iudma);
 EXPORT_SYMBOL(bcmPktDma_XtmSetTxChanBpmThresh_Iudma);
 #endif
-
+EXPORT_SYMBOL(bcmPktDma_XtmGetStats_Iudma);
+EXPORT_SYMBOL(bcmPktDma_XtmResetStats_Iudma);
 #endif /* FAP_4KE */
 
 #endif  /* #ifndef CONFIG_BCM96816 */

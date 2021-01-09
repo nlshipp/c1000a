@@ -161,13 +161,13 @@ int read_block(long long start, long long *next, char *block)
 {
 	unsigned short c_byte;
 	int offset = 2;
-	
+
 	if(swap) {
 		if(read_bytes(start, 2, block) == FALSE)
 			goto failed;
 		((unsigned char *) &c_byte)[1] = block[0];
-		((unsigned char *) &c_byte)[0] = block[1]; 
-	} else 
+		((unsigned char *) &c_byte)[0] = block[1];
+	} else
 		if(read_bytes(start, 2, (char *)&c_byte) == FALSE)
 			goto failed;
 
@@ -492,7 +492,7 @@ failure:
 	free(block_list);
 	return FALSE;
 }
-		
+
 
 int create_inode(char *pathname, unsigned int start_block, unsigned int offset)
 {
@@ -562,7 +562,7 @@ int create_inode(char *pathname, unsigned int start_block, unsigned int offset)
 				file_count ++;
 			}
 			break;
-		}	
+		}
 		case SQUASHFS_LREG_TYPE: {
 			unsigned int frag_bytes;
 			unsigned int blocks;
@@ -595,7 +595,7 @@ int create_inode(char *pathname, unsigned int start_block, unsigned int offset)
 				file_count ++;
 			}
 			break;
-		}	
+		}
 		case SQUASHFS_SYMLINK_TYPE: {
 			squashfs_symlink_inode_header *inodep = &header.symlink;
 			char name[65536];
@@ -634,8 +634,8 @@ int create_inode(char *pathname, unsigned int start_block, unsigned int offset)
 			sym_count ++;
 			break;
 		}
- 		case SQUASHFS_BLKDEV_TYPE:
-	 	case SQUASHFS_CHRDEV_TYPE: {
+		case SQUASHFS_BLKDEV_TYPE:
+		case SQUASHFS_CHRDEV_TYPE: {
 			squashfs_dev_inode_header *inodep = &header.dev;
 
 			if(swap) {
@@ -753,7 +753,7 @@ int create_inode_2(char *pathname, unsigned int start_block, unsigned int offset
 				file_count ++;
 			}
 			break;
-		}	
+		}
 		case SQUASHFS_SYMLINK_TYPE: {
 			squashfs_symlink_inode_header_2 *inodep = &header.symlink;
 			char name[65536];
@@ -792,8 +792,8 @@ int create_inode_2(char *pathname, unsigned int start_block, unsigned int offset
 			sym_count ++;
 			break;
 		}
- 		case SQUASHFS_BLKDEV_TYPE:
-	 	case SQUASHFS_CHRDEV_TYPE: {
+		case SQUASHFS_BLKDEV_TYPE:
+		case SQUASHFS_CHRDEV_TYPE: {
 			squashfs_dev_inode_header_2 *inodep = &header.dev;
 
 			if(swap) {
@@ -965,14 +965,14 @@ struct dir *squashfs_opendir(unsigned int block_start, unsigned int offset)
 	dir->mtime = header.dir.mtime;
 	dir->dirs = NULL;
 
-	while(bytes < size) {			
+	while(bytes < size) {
 		if(swap) {
 			squashfs_dir_header sdirh;
 			memcpy(&sdirh, directory_table + bytes, sizeof(sdirh));
 			SQUASHFS_SWAP_DIR_HEADER(&dirh, &sdirh);
 		} else
 			memcpy(&dirh, directory_table + bytes, sizeof(dirh));
-	
+
 		dir_count = dirh.count + 1;
 		TRACE("squashfs_opendir: Read directory header @ byte position %d, %d directory entries\n", bytes, dir_count);
 		bytes += sizeof(dirh);
@@ -1084,14 +1084,14 @@ struct dir *squashfs_opendir_2(unsigned int block_start, unsigned int offset)
 	dir->mtime = header.dir.mtime;
 	dir->dirs = NULL;
 
-	while(bytes < size) {			
+	while(bytes < size) {
 		if(swap) {
 			squashfs_dir_header_2 sdirh;
 			memcpy(&sdirh, directory_table + bytes, sizeof(sdirh));
 			SQUASHFS_SWAP_DIR_HEADER_2(&dirh, &sdirh);
 		} else
 			memcpy(&dirh, directory_table + bytes, sizeof(dirh));
-	
+
 		dir_count = dirh.count + 1;
 		TRACE("squashfs_opendir: Read directory header @ byte position %d, %d directory entries\n", bytes, dir_count);
 		bytes += sizeof(dirh);
@@ -1258,7 +1258,7 @@ int read_super(char *source)
 		sBlk.inode_table_start = sBlk.inode_table_start_2;
 		sBlk.directory_table_start = sBlk.directory_table_start_2;
 		sBlk.fragment_table_start = sBlk.fragment_table_start_2;
-		
+
 		s_ops.squashfs_opendir = squashfs_opendir_2;
 		s_ops.read_fragment = read_fragment_2;
 		s_ops.read_fragment_table = read_fragment_table_2;
@@ -1309,7 +1309,7 @@ failed_mount:
 #define VERSION() \
 	printf("unsquashfs version 1.3 (2007/01/02)\n");\
 	printf("copyright (C) 2007 Phillip Lougher <phillip@lougher.org.uk>\n\n"); \
-    	printf("This program is free software; you can redistribute it and/or\n");\
+	printf("This program is free software; you can redistribute it and/or\n");\
 	printf("modify it under the terms of the GNU General Public License\n");\
 	printf("as published by the Free Software Foundation; either version 2,\n");\
 	printf("or (at your option) any later version.\n\n");\
@@ -1326,7 +1326,7 @@ int main(int argc, char *argv[])
 
 	if((root_process = (geteuid() == 0))) //??
 		umask(0);
-	
+
 	for(i = 1; i < argc; i++) {
 		if(*argv[i] != '-')
 			break;

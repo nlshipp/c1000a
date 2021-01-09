@@ -53,6 +53,7 @@
     #define IRQ_TYPE uint32
 #endif
 
+
 volatile IrqControl_t * brcm_irq_ctrl[NR_CPUS];
 spinlock_t brcm_irqlock;
 
@@ -68,39 +69,66 @@ static void irq_dispatch_int(void)
 
     static uint32 isrNumber[NR_CPUS] = {[0 ... NR_CPUS-1] = (sizeof(IRQ_TYPE) * 8) - 1};
 
+#if defined(CONFIG_BCM963268)
+    IRQ_TYPE pendingExtIrqs;
+    static IRQ_TYPE extIrqBit[NR_CPUS];
+    static uint32 extIsrNumber[NR_CPUS] = {[0 ... NR_CPUS-1] = (sizeof(IRQ_TYPE) * 8) - 1};
+#endif
+
     spin_lock(&brcm_irqlock);
     pendingIrqs = brcm_irq_ctrl[cpu]->IrqStatus & brcm_irq_ctrl[cpu]->IrqMask;
+#if defined(CONFIG_BCM963268)
+    pendingExtIrqs = brcm_irq_ctrl[cpu]->ExtIrqStatus & brcm_irq_ctrl[cpu]->ExtIrqMask;
+#endif
     spin_unlock(&brcm_irqlock);
 
-    if (!pendingIrqs) {
-        return;
+    if (pendingIrqs) 
+    {
+        while (1) {
+            irqBit[cpu] <<= 1;
+            isrNumber[cpu]++;
+            if (isrNumber[cpu] == (sizeof(IRQ_TYPE) * 8)) {
+                isrNumber[cpu] = 0;
+                irqBit[cpu] = 0x1;
+            }
+            if (pendingIrqs & irqBit[cpu]) {
+                unsigned int irq = isrNumber[cpu] + INTERNAL_ISR_TABLE_OFFSET;
+                if (irq >= INTERRUPT_ID_EXTERNAL_0 && irq <= INTERRUPT_ID_EXTERNAL_3) {
+                    spin_lock(&brcm_irqlock);
+                    PERF->ExtIrqCfg |= (1 << (irq - INTERRUPT_ID_EXTERNAL_0 + EI_CLEAR_SHFT));      // Clear
+                    spin_unlock(&brcm_irqlock);
+                }
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
+                else if (irq >= INTERRUPT_ID_EXTERNAL_4 && irq <= INTERRUPT_ID_EXTERNAL_5) {
+                    spin_lock(&brcm_irqlock);
+                    PERF->ExtIrqCfg1 |= (1 << (irq - INTERRUPT_ID_EXTERNAL_4 + EI_CLEAR_SHFT));      // Clear
+                    spin_unlock(&brcm_irqlock);
+                }
+#endif
+                do_IRQ(irq);
+                break;
+            }
+        }
     }
 
-    while (1) {
-        irqBit[cpu] <<= 1;
-        isrNumber[cpu]++;
-        if (isrNumber[cpu] == (sizeof(IRQ_TYPE) * 8)) {
-            isrNumber[cpu] = 0;
-            irqBit[cpu] = 0x1;
-        }
-        if (pendingIrqs & irqBit[cpu]) {
-            unsigned int irq = isrNumber[cpu] + INTERNAL_ISR_TABLE_OFFSET;
-            if (irq >= INTERRUPT_ID_EXTERNAL_0 && irq <= INTERRUPT_ID_EXTERNAL_3) {
-                spin_lock(&brcm_irqlock);
-                PERF->ExtIrqCfg |= (1 << (irq - INTERRUPT_ID_EXTERNAL_0 + EI_CLEAR_SHFT));      // Clear
-                spin_unlock(&brcm_irqlock);
+#if defined(CONFIG_BCM963268)
+    if (pendingExtIrqs) 
+    {
+        while (1) {
+            extIrqBit[cpu] <<= 1;
+            extIsrNumber[cpu]++;
+            if (extIsrNumber[cpu] == (sizeof(IRQ_TYPE) * 8)) {
+                extIsrNumber[cpu] = 0;
+                extIrqBit[cpu] = 0x1;
             }
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816)
-            else if (irq >= INTERRUPT_ID_EXTERNAL_4 && irq <= INTERRUPT_ID_EXTERNAL_5) {
-                spin_lock(&brcm_irqlock);
-                PERF->ExtIrqCfg1 |= (1 << (irq - INTERRUPT_ID_EXTERNAL_4 + EI_CLEAR_SHFT));      // Clear
-                spin_unlock(&brcm_irqlock);
+            if (pendingExtIrqs & extIrqBit[cpu]) {
+                unsigned int extIrq = extIsrNumber[cpu] + INTERNAL_EXT_ISR_TABLE_OFFSET;
+                do_IRQ(extIrq);
+                break;
             }
-#endif
-            do_IRQ(irq);
-            break;
         }
     }
+#endif
 }
 
 #ifdef CONFIG_BCM_HOSTMIPS_PWRSAVE
@@ -154,6 +182,14 @@ void disable_brcm_irqsave(unsigned int irq, unsigned long stateSaveArray[])
 
             // Clear each cpu's selected interrupt enable.
             brcm_irq_ctrl[cpu]->IrqMask &= ~(((IRQ_TYPE)1) << (irq - INTERNAL_ISR_TABLE_OFFSET));
+
+#if defined(CONFIG_BCM963268)
+            // Save original interrupt's enable state.
+            stateSaveArray[cpu] = brcm_irq_ctrl[cpu]->ExtIrqMask & (((IRQ_TYPE)1) << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+
+            // Clear each cpu's selected interrupt enable.
+            brcm_irq_ctrl[cpu]->ExtIrqMask &= ~(((IRQ_TYPE)1) << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+#endif
         }
 
         // Release spinlock and enable this processor's interrupts.
@@ -177,6 +213,9 @@ void restore_brcm_irqsave(unsigned int irq, unsigned long stateSaveArray[])
     {
         // Restore cpu's original interrupt enable (off or on).
         brcm_irq_ctrl[cpu]->IrqMask |= stateSaveArray[cpu];
+#if defined(CONFIG_BCM963268)
+        brcm_irq_ctrl[cpu]->ExtIrqMask |= stateSaveArray[cpu];
+#endif
     }
 
     // Release spinlock and enable this processor's interrupts.
@@ -194,11 +233,25 @@ void enable_brcm_irq(unsigned int irq)
 
     spin_lock_irqsave(&brcm_irqlock, flags);
 
-    if( irq >= INTERNAL_ISR_TABLE_OFFSET ) {
+    if(( irq >= INTERNAL_ISR_TABLE_OFFSET ) 
+#if defined(CONFIG_BCM963268)
+        && ( irq < (INTERNAL_ISR_TABLE_OFFSET+64) ) 
+#endif
+        ) 
+    {
         for_each_cpu_mask(cpu, AFFINITY_OF(desc)) {
             brcm_irq_ctrl[cpu]->IrqMask |= (((IRQ_TYPE)1)  << (irq - INTERNAL_ISR_TABLE_OFFSET));
         }
     }
+#if defined(CONFIG_BCM963268)
+    else if(( irq >= INTERNAL_EXT_ISR_TABLE_OFFSET ) &&
+            ( irq < (INTERNAL_EXT_ISR_TABLE_OFFSET+64) ) ) 
+    {
+        for_each_cpu_mask(cpu, AFFINITY_OF(desc)) {
+            brcm_irq_ctrl[cpu]->ExtIrqMask |= (((IRQ_TYPE)1)  << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+        }
+    }
+#endif
     else if ((irq == INTERRUPT_ID_SOFTWARE_0) || (irq == INTERRUPT_ID_SOFTWARE_1)) {
         set_c0_status(0x1 << (STATUSB_IP0 + irq - INTERRUPT_ID_SOFTWARE_0));
     }
@@ -210,7 +263,7 @@ void enable_brcm_irq(unsigned int irq)
         PERF->ExtIrqCfg |= (1 << (irq - INTERRUPT_ID_EXTERNAL_0 + EI_CLEAR_SHFT));      // Clear
         PERF->ExtIrqCfg |= (1 << (irq - INTERRUPT_ID_EXTERNAL_0 + EI_MASK_SHFT));       // Unmask
     }
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     else if (irq >= INTERRUPT_ID_EXTERNAL_4 && irq <= INTERRUPT_ID_EXTERNAL_5) {
         PERF->ExtIrqCfg1 &= ~(1 << (irq - INTERRUPT_ID_EXTERNAL_4 + EI_INSENS_SHFT));    // Edge insesnsitive
         PERF->ExtIrqCfg1 |= (1 << (irq - INTERRUPT_ID_EXTERNAL_4 + EI_LEVEL_SHFT));      // Level triggered
@@ -229,11 +282,23 @@ void __disable_ack_brcm_irq(unsigned int irq)
     int cpu;
     struct irq_desc *desc = irq_desc + irq;
 
-    if( irq >= INTERNAL_ISR_TABLE_OFFSET ) {
+    if(( irq >= INTERNAL_ISR_TABLE_OFFSET ) 
+        && ( irq < (INTERNAL_ISR_TABLE_OFFSET+64) ) 
+        ) 
+    {
         for_each_cpu_mask(cpu, AFFINITY_OF(desc)) {
-            brcm_irq_ctrl[cpu]->IrqMask &= ~(((IRQ_TYPE)1) << (irq - INTERNAL_ISR_TABLE_OFFSET));
+            brcm_irq_ctrl[cpu]->IrqMask &= ~(((IRQ_TYPE)1)  << (irq - INTERNAL_ISR_TABLE_OFFSET));
         }
     }
+#if defined(CONFIG_BCM963268)
+    else if(( irq >= INTERNAL_EXT_ISR_TABLE_OFFSET ) &&
+            ( irq < (INTERNAL_EXT_ISR_TABLE_OFFSET+64) ) ) 
+    {
+        for_each_cpu_mask(cpu, AFFINITY_OF(desc)) {
+            brcm_irq_ctrl[cpu]->ExtIrqMask &= ~(((IRQ_TYPE)1)  << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+        }
+    }
+#endif
 }
 
 
@@ -329,9 +394,13 @@ void set_brcm_affinity(unsigned int irq, const struct cpumask *mask)
 
     spin_lock_irqsave(&brcm_irqlock, flags);
 
-    if( irq >= INTERNAL_ISR_TABLE_OFFSET ) {
+    if(( irq >= INTERNAL_ISR_TABLE_OFFSET ) 
+        && ( irq < (INTERNAL_ISR_TABLE_OFFSET+64) ) 
+        ) 
+    {
         for_each_online_cpu(cpu) {
             if (cpu_isset(cpu, *mask) && !(desc->status & IRQ_DISABLED)) {
+
                 brcm_irq_ctrl[cpu]->IrqMask |= (((IRQ_TYPE)1)  << (irq - INTERNAL_ISR_TABLE_OFFSET));
             }
             else {
@@ -339,6 +408,23 @@ void set_brcm_affinity(unsigned int irq, const struct cpumask *mask)
             }
         }
     }
+
+#if defined(CONFIG_BCM963268)
+    if(( irq >= INTERNAL_EXT_ISR_TABLE_OFFSET ) 
+        && ( irq < (INTERNAL_EXT_ISR_TABLE_OFFSET+64) ) 
+        ) 
+    {
+        for_each_online_cpu(cpu) {
+            if (cpu_isset(cpu, *mask) && !(desc->status & IRQ_DISABLED)) {
+
+                brcm_irq_ctrl[cpu]->ExtIrqMask |= (((IRQ_TYPE)1)  << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+            }
+            else {
+                brcm_irq_ctrl[cpu]->ExtIrqMask &= ~(((IRQ_TYPE)1) << (irq - INTERNAL_EXT_ISR_TABLE_OFFSET));
+            }
+        }
+    }
+#endif
 
     spin_unlock_irqrestore(&brcm_irqlock, flags);
 }
@@ -486,7 +572,7 @@ unsigned int BcmHalMapInterruptEx(FN_HANDLER pfunc,
 
     irqflags = IRQF_SAMPLE_RANDOM;
     irqflags |= (rearmMode == INTR_REARM_NO) ? IRQF_DISABLED : 0;
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816) /* || defined(CONFIG_BCM96818) *//* FIXME - AC */
     irqflags |= (irq == INTERRUPT_ID_MPI) ? IRQF_SHARED : 0;
 #endif
     /* There are 3 timers with individual control, so the interrupt can be shared */

@@ -7,19 +7,25 @@
    Copyright (c) 2007 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
 
 :>
 */
@@ -36,7 +42,6 @@ Boston, MA 02111-1307, USA.
 
 #include <bcmtypes.h>
 #include <bcm_map_part.h>
-
 #ifdef FAP_4KE
 #include "bcmPktDma_bds.h"
 #include "bcmPktDma_structs.h"
@@ -48,10 +53,12 @@ Boston, MA 02111-1307, USA.
 #include <linux/ppp_channel.h>
 #include "bcmPktDma_bds.h"
 #include "bcmenet.h"
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 #include "bcmxtmcfg.h"
 #include "bcmxtmrt.h"
-#ifndef CONFIG_BCM96816
+#if  !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
 #include "bcmxtmrtimpl.h"
+#endif
 #endif
 #include "bcmPktDma_structs.h"
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
@@ -63,8 +70,8 @@ Boston, MA 02111-1307, USA.
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
 
-#if defined(CONFIG_BCM963268) && ( defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM_PKTDMA_TX_SPLITTING) )
-#error "RX and TX SPLITTING MAY NOT BE CONFIGURED FOR THE 268 CHIP"
+#if (defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)) && ( defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM_PKTDMA_TX_SPLITTING) )
+#error "RX and TX SPLITTING MAY NOT BE CONFIGURED FOR THE 63268 OR 6828 CHIP"
 #endif
 
 enum { HOST_OWNED=0, FAP0_OWNED, FAP1_OWNED };
@@ -73,10 +80,20 @@ enum { HOST_OWNED=0, FAP0_OWNED, FAP1_OWNED };
 #define FAP1_IDX 1
 #define FAP_INVALID_IDX 0x0DEADFAB
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 
+#if defined(CONFIG_BCM_GMAC)
+#define PKTDMA_ETH_RX_OWNERSHIP        FAP0_OWNED, FAP1_OWNED
+#define PKTDMA_ETH_TX_OWNERSHIP        FAP1_OWNED, FAP0_OWNED
+#define PKTDMA_ETH_US_TX_IUDMA         1
+#define PKTDMA_ETH_DS_TX_IUDMA         0
+#else
 #define PKTDMA_ETH_RX_OWNERSHIP        FAP0_OWNED, FAP1_OWNED
 #define PKTDMA_ETH_TX_OWNERSHIP        FAP0_OWNED, FAP1_OWNED
+#define PKTDMA_ETH_US_TX_IUDMA         0
+#define PKTDMA_ETH_DS_TX_IUDMA         1
+#endif
+
 #define PKTDMA_XTM_RX_OWNERSHIP        FAP1_OWNED, FAP1_OWNED
 #define PKTDMA_XTM_TX_OWNERSHIP        FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED, FAP0_OWNED
 #define PKTDMA_ETH_US_IUDMA            0
@@ -138,6 +155,12 @@ extern const int g_Xtm_tx_iudma_ownership[XTM_TX_CHANNELS_MAX];
 
 #define PKTDMA_ETH_NO_BD_THRESHOLD     30
 
+#ifdef FAP_4KE 
+#define BCM_PKTDMA_LOG_ERROR(fmt, arg...)  fap4kePrt_Error(fmt, ##arg)
+#else
+#define BCM_PKTDMA_LOG_ERROR(fmt, arg...)  printk(CLRerr "ERROR - %s" fmt CLRnl, __FUNCTION__, ##arg)
+#endif
+
 //#define CC_BCM_PKTDMA_DEBUG
 
 /* TX Buffer sources supported by bcmPktDma Lib */
@@ -158,7 +181,12 @@ enum { HOST_VIA_LINUX=0,
        HOST_XTM_RX_GSO_LAST,
        HOST_ETH_RX,
        HOST_ETH_RX_GSO,
-       HOST_ETH_RX_GSO_LAST };
+       HOST_ETH_RX_GSO_LAST, 
+       FAP_MCAST_HDR_MCLOG,
+       FAP_MCAST_HDR_POOL,
+       FAP_MCAST_ETH_RX,
+       FAP_MCAST_XTM_RX
+	};
 
 /* TX DMA versions supported by bcmPktDma Lib. This is required in case of
  * BCM6368 running non-bonding/bonding. For non-bonding only HW_DMA is used and
@@ -169,8 +197,10 @@ enum {XTM_HW_DMA=0, XTM_SW_DMA=1} ;
 #ifndef FAP_4KE
 
 extern BcmEnet_devctrl *               g_pEnetDevCtrl;
-#ifndef CONFIG_BCM96816
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
+#endif
 #endif
 #endif /* !FAP_4KE */
 
@@ -182,20 +212,27 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 /* Eth versions of the interface */
 #define bcmPktDma_EthInitRxChan           bcmPktDma_EthInitRxChan_Iudma
 #define bcmPktDma_EthInitTxChan           bcmPktDma_EthInitTxChan_Iudma
+#if defined(CONFIG_BCM_GMAC)
+#define bcmPktDma_EthUnInitRxChan         bcmPktDma_EthUnInitRxChan_Iudma
+#define bcmPktDma_EthUnInitTxChan         bcmPktDma_EthUnInitTxChan_Iudma
+#endif
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
 #define bcmPktDma_EthSetIqThresh          bcmPktDma_EthSetIqThresh_Iudma
 #endif
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 #define bcmPktDma_EthSetRxChanBpmThresh   bcmPktDma_EthSetRxChanBpmThresh_Iudma
 #define bcmPktDma_EthSetTxChanBpmThresh   bcmPktDma_EthSetTxChanBpmThresh_Iudma
+#define bcmPktDma_EthXmitBufCountGet      bcmPktDma_EthXmitBufCountGet_Iudma
 #endif
 #define bcmPktDma_EthSelectRxIrq          bcmPktDma_EthSelectRxIrq_Iudma
 #define bcmPktDma_EthClrRxIrq             bcmPktDma_EthClrRxIrq_Iudma
 #define bcmPktDma_EthRecvAvailable        bcmPktDma_EthRecvAvailable_Iudma
 #define bcmPktDma_EthRecv                 bcmPktDma_EthRecv_Iudma
 #define bcmPktDma_EthFreeRecvBuf          bcmPktDma_EthFreeRecvBuf_Iudma
-#define bcmPktDma_EthXmitAvailable        bcmPktDma_EthXmitAvailable_Iudma
-#define bcmPktDma_EthXmit                 bcmPktDma_EthXmitNoCheck_Iudma
+#define bcmPktDma_EthXmitAvailable(p1,unused)   \
+    bcmPktDma_EthXmitAvailable_Iudma(p1)
+#define bcmPktDma_EthXmit(p1,p2,p3,p4,p5,p6,p7,unused1,unused2,unused3,p8) \
+    bcmPktDma_EthXmitNoCheck_Iudma (p1,p2,p3,p4,p5,p6,p7,p8)
 #define bcmPktDma_EthTxEnable             bcmPktDma_EthTxEnable_Iudma
 #define bcmPktDma_EthTxDisable            bcmPktDma_EthTxDisable_Iudma
 #define bcmPktDma_EthRxEnable             bcmPktDma_EthRxEnable_Iudma
@@ -205,6 +242,10 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 #define bcmPktDma_EthRecvBufGet           bcmPktDma_EthRecvBufGet_Iudma
 #endif
+
+#define bcmPktDma_EthSetPhyRate(_port, _enable, _kbps, _isWanPort)
+#define bcmPktDma_EthGetStats             bcmPktDma_EthGetStats_Iudma
+#define bcmPktDma_EthResetStats           bcmPktDma_EthResetStats_Iudma
 
 /* XTM versions of the interface */
 #define bcmPktDma_XtmInitRxChan           bcmPktDma_XtmInitRxChan_Iudma
@@ -218,11 +259,14 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #endif
 #define bcmPktDma_XtmSelectRxIrq          bcmPktDma_XtmSelectRxIrq_Iudma
 #define bcmPktDma_XtmClrRxIrq             bcmPktDma_XtmClrRxIrq_Iudma
+#define bcmPktDma_XtmRecv_RingSize        bcmPktDma_XtmRecv_RingSize_Iudma
 #define bcmPktDma_XtmRecv                 bcmPktDma_XtmRecv_Iudma
 #define bcmPktDma_XtmFreeRecvBuf          bcmPktDma_XtmFreeRecvBuf_Iudma
 #define bcmPktDma_XtmFreeXmitBuf          bcmPktDma_XtmFreeXmitBuf_Iudma
-#define bcmPktDma_XtmXmitAvailable        bcmPktDma_XtmXmitAvailable_Iudma
-#define bcmPktDma_XtmXmit                 bcmPktDma_XtmXmit_Iudma
+#define bcmPktDma_XtmXmitAvailable(p1, p2, unused)      \
+    bcmPktDma_XtmXmitAvailable_Iudma(p1, p2)
+#define bcmPktDma_XtmXmit(p1,p2,p3,p4,p5,p6,p7,p8,p9, unused)   \
+    bcmPktDma_XtmXmit_Iudma(p1,p2,p3,p4,p5,p6,p7,p8,p9);
 #define bcmPktDma_XtmXmitSwdmaToIudma     bcmPktDma_XtmXmit_Swdma_to_Iudma
 #define bcmPktDma_XtmTxEnable             bcmPktDma_XtmTxEnable_Iudma
 #define bcmPktDma_XtmTxDisable            bcmPktDma_XtmTxDisable_Iudma
@@ -236,6 +280,8 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 
 #define bcmPktDma_XtmCreateDevice(_devId, _encapType, _headerLen, _trailerLen)
 #define bcmPktDma_XtmLinkUp(_devId, _matchId)
+#define bcmPktDma_XtmGetStats             bcmPktDma_XtmGetStats_Iudma
+#define bcmPktDma_XtmResetStats           bcmPktDma_XtmResetStats_Iudma
 
 #else /* FAP is compiled in */
 
@@ -243,8 +289,12 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 /* Eth versions of the interface */
 #define bcmPktDma_EthInitRxChan           bcmPktDma_EthInitRxChan_Dqm
 #define bcmPktDma_EthInitTxChan           bcmPktDma_EthInitTxChan_Dqm
+#if defined(CONFIG_BCM_GMAC)
+#define bcmPktDma_EthUnInitRxChan         bcmPktDma_EthUnInitRxChan_Dqm
+#define bcmPktDma_EthUnInitTxChan         bcmPktDma_EthUnInitTxChan_Dqm
+#endif
 
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 #define bcmPktDma_EthInitExtSw            bcmPktDma_EthInitExtSw_Dqm
 #endif
 
@@ -255,6 +305,7 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 #define bcmPktDma_EthSetRxChanBpmThresh   bcmPktDma_EthSetRxChanBpmThresh_Dqm
 #define bcmPktDma_EthSetTxChanBpmThresh   bcmPktDma_EthSetTxChanBpmThresh_Dqm
+#define bcmPktDma_EthXmitBufCountGet      bcmPktDma_EthXmitBufCountGet_Dqm
 #endif
 #define bcmPktDma_EthSelectRxIrq          bcmPktDma_EthSelectRxIrq_Dqm
 #define bcmPktDma_EthClrRxIrq             bcmPktDma_EthClrRxIrq_Dqm
@@ -272,6 +323,9 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 #define bcmPktDma_EthRecvBufGet           bcmPktDma_EthRecvBufGet_Dqm
 #endif
+#define bcmPktDma_EthSetPhyRate           bcmPktDma_EthSetPhyRate_Dqm
+#define bcmPktDma_EthGetStats             bcmPktDma_EthGetStats_Dqm
+#define bcmPktDma_EthResetStats           bcmPktDma_EthResetStats_Dqm
 
 /* XTM versions of the interface */
 #define bcmPktDma_XtmInitRxChan           bcmPktDma_XtmInitRxChan_Dqm
@@ -287,6 +341,7 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #define bcmPktDma_XtmSelectRxIrq          bcmPktDma_XtmSelectRxIrq_Dqm
 #define bcmPktDma_XtmClrRxIrq             bcmPktDma_XtmClrRxIrq_Dqm
 #define bcmPktDma_XtmRecvAvailable        bcmPktDma_XtmRecvAvailable_Dqm
+#define bcmPktDma_XtmRecv_RingSize        bcmPktDma_XtmRecv_RingSize_Dqm
 #define bcmPktDma_XtmRecv                 bcmPktDma_XtmRecv_Dqm
 #define bcmPktDma_XtmFreeRecvBuf          bcmPktDma_XtmFreeRecvBuf_Dqm
 #define bcmPktDma_XtmFreeXmitBuf          bcmPktDma_XtmFreeXmitBuf_Dqm
@@ -308,6 +363,8 @@ extern PBCMXTMRT_GLOBAL_INFO           g_pXtmGlobalInfo;
 #define bcmPktDma_XtmLinkUp(_devId, _matchId)   \
     bcmPktDma_XtmLinkUp_Dqm(_devId, _matchId)
 
+#define bcmPktDma_XtmGetStats             bcmPktDma_XtmGetStats_Dqm
+#define bcmPktDma_XtmResetStats           bcmPktDma_XtmResetStats_Dqm
 #endif
 
 #define MAX_ETH_RX_CHANNELS               2
@@ -366,7 +423,7 @@ static inline int __bcmPktDma_EthRecvAvailableGet_Iudma(BcmPktDma_LocalEthRxDma 
 
     dmaDesc_p->word0 = rxdma->rxBds[rxdma->rxHeadIndex].word0;
 
-#if defined(RXCHANNEL_PKT_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_PKT_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     if (rxdma->enetrxchannel_isr_enable)
 #endif
     {
@@ -387,7 +444,7 @@ static inline int __bcmPktDma_EthRecvAvailableGet_Iudma(BcmPktDma_LocalEthRxDma 
     return 0;
 }
 
-
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmRecvAvailableGet_Iudma
  Purpose: Return 1 if a packet is available, 0 otherwise
@@ -415,6 +472,7 @@ static inline int __bcmPktDma_XtmRecvAvailableGet_Iudma(BcmPktDma_LocalXtmRxDma 
     //FAP4KE_IUDMA_PMON_END(FAP4KE_PMON_ID_IUDMA_RECV);
     return 0;
 }
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthRecvAvailable
@@ -442,11 +500,19 @@ static inline int bcmPktDma_EthRecvAvailable_Iudma(BcmPktDma_LocalEthRxDma *rxdm
 static inline int bcmPktDma_EthRecvAvailable_Dqm(BcmPktDma_LocalEthRxDma *rxdma)
 {
     // BCM_LOG_INFO(BCM_LOG_ID_FAP, "channel: %d", rxdma->channel);
-
-    return (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_ETH0_RX_Q + rxdma->channel));
+#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
+    if((bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_ETH_RX_Q_LOW)) 
+		||(bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_ETH_RX_Q_HI)))
+		return 1;
+	else
+		return 0;
+#else
+    return (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_ETH_RX_Q_LOW));
+#endif
 }
 #endif
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: __bcmPktDma_XtmRecvAvailable
  Purpose: Return 1 if a packet is available, 0 otherwise
@@ -463,6 +529,7 @@ static inline int __bcmPktDma_XtmRecvAvailable_Iudma(BcmPktDma_LocalXtmRxDma *rx
     //return ((rxdma->pBdHead->status & DMA_OWN) ? 0 : 1);
 
 }
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthRecvNoCheck_Iudma
@@ -483,7 +550,7 @@ static inline int __bcmPktDma_EthRecvNoCheck_Iudma(BcmPktDma_LocalEthRxDma *rxdm
 #endif
 
     /* If no more rx packets, we are done for this channel */
-#if defined(RXCHANNEL_PKT_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_PKT_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     if (rxdma->enetrxchannel_isr_enable != 0)
 #endif
     {
@@ -507,6 +574,7 @@ static inline int __bcmPktDma_EthRecvNoCheck_Iudma(BcmPktDma_LocalEthRxDma *rxdm
           packets are available. Must be used in conjunction with
           bcmPktDma_XtmRecvAvailableGet_Iudma().
 -------------------------------------------------------------------------- */
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 static inline int __bcmPktDma_XtmRecvNoCheck_Iudma(BcmPktDma_LocalXtmRxDma *rxdma)
 {
     //FAP4KE_IUDMA_PMON_DECLARE();
@@ -529,7 +597,7 @@ static inline int __bcmPktDma_XtmRecvNoCheck_Iudma(BcmPktDma_LocalXtmRxDma *rxdm
 
     return BCM_PKTDMA_SUCCESS;
 }
-
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthClrRxIrq
@@ -545,6 +613,7 @@ static inline void bcmPktDma_EthClrRxIrq_Iudma(BcmPktDma_LocalEthRxDma *rxdma)
     __bcmPktDma_EthClrRxIrq_Iudma(rxdma);
 }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmClrRxIrq
  Purpose: Clear the Rx interrupt for a specific channel
@@ -559,6 +628,7 @@ static inline void bcmPktDma_XtmClrRxIrq_Iudma(BcmPktDma_LocalXtmRxDma *rxdma)
     __bcmPktDma_XtmClrRxIrq_Iudma(rxdma);
 }
 
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthFreeXmitBufGet
@@ -591,6 +661,39 @@ static inline BcmPktDma_txRecycle_t *bcmPktDma_EthFreeXmitBufGet_Iudma(BcmPktDma
     FAP4KE_IUDMA_PMON_END(FAP4KE_PMON_ID_IUDMA_FREEXMITBUFGET);
 
     return NULL;
+}
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_EthFreeXmitBufGetRecycle_Iudma
+ Purpose: Gets a TX buffer to free by caller, but does not remove it from Ring
+-------------------------------------------------------------------------- */
+static inline BcmPktDma_txRecycle_t *bcmPktDma_EthFreeXmitBufGetRecycle_Iudma(BcmPktDma_LocalEthTxDma *txdma)
+{
+    if(txdma->txFreeBds < txdma->numTxBds)
+    {
+        int bdIndex = txdma->txHeadIndex;
+
+        if(!(txdma->txBds[bdIndex].status & DMA_OWN))
+        {
+            return (&txdma->txRecycle[bdIndex]);
+        }
+    }
+
+    return NULL;
+}
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_EthFreeXmitBufNoCheck_Iudma
+ Purpose: Frees the next TX buffer
+-------------------------------------------------------------------------- */
+static inline void bcmPktDma_EthFreeXmitBufNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma)
+{
+    if (++txdma->txHeadIndex == txdma->numTxBds)
+    {
+        txdma->txHeadIndex = 0;
+    }
+
+    txdma->txFreeBds++;
 }
 
 /* --------------------------------------------------------------------------
@@ -664,16 +767,23 @@ static inline BcmPktDma_txRecycle_t *bcmPktDma_EthFreeXmitBufGetNoCheck_Iudma(Bc
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
 static inline uint32 bcmPktDma_EthFreeXmitBufCount_Iudma(BcmPktDma_LocalEthTxDma *txdma)
 {
-
+#if 0
     uint32 txHeadIndex;
     uint32 ringOffset;
     uint32 txQueueDepth;
 
-    if(!txdma->txEnabled) return 0;
+//    if(!txdma->txEnabled) return 0;
 
     txHeadIndex = txdma->txHeadIndex;
 
-    ringOffset = SW_DMA->stram.s[(txdma->channel * 2) + 1].state_data;
+#if defined(CONFIG_BCM_GMAC)
+#define GMAC_TXDMA_BASE (GMAC_DMA_BASE + 0x210)
+    if (txdma->txDma == (volatile DmaChannelCfg *) GMAC_TXDMA_BASE)
+        ringOffset = GMAC_DMA->stram.s[(GMAC_PHY_CHAN * 2) + 1].state_data;
+    else
+#endif
+        ringOffset = SW_DMA->stram.s[(txdma->channel * 2) + 1].state_data;
+
     ringOffset &= 0x1FFF;
 
     if(ringOffset == txHeadIndex)
@@ -696,8 +806,22 @@ static inline uint32 bcmPktDma_EthFreeXmitBufCount_Iudma(BcmPktDma_LocalEthTxDma
         /* wraparound */
         txQueueDepth = txdma->numTxBds - txHeadIndex + ringOffset - 1;
     }
+    return txQueueDepth;
+#else
+    uint32 txHeadIndex;
+    uint32 txTailIndex;
+    uint32 txQueueDepth;
+
+    txHeadIndex = txdma->txHeadIndex;
+    txTailIndex = txdma->txTailIndex;
+
+    if (txTailIndex >= txHeadIndex) 
+        txQueueDepth = txTailIndex - txHeadIndex; 
+    else
+        txQueueDepth = txdma->numTxBds + txTailIndex - txHeadIndex; 
 
     return txQueueDepth;
+#endif
 }
 #endif
 
@@ -705,6 +829,7 @@ static inline uint32 bcmPktDma_EthFreeXmitBufCount_Iudma(BcmPktDma_LocalEthTxDma
     Name: bcmPktDma_XtmFreeXmitBufGet
  Purpose: Gets a TX buffer to free by caller
 -------------------------------------------------------------------------- */
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 static inline BOOL bcmPktDma_XtmFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint32 *pKey,
                                                      uint32 *pTxSource, uint32 *pTxAddr,
                                                      uint32 *pRxChannel,
@@ -729,13 +854,10 @@ static inline BOOL bcmPktDma_XtmFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma *tx
     /* Reclaim transmitted buffers */
     if (txdma->txFreeBds < txdma->ulQueueSize)
     {
-        if (txdma->txBds[bdIndex].status & DMA_OWN)
-        {
-            /* Do Nothing */
-        }
-        else
+        if (!(txdma->txBds[bdIndex].status & DMA_OWN))
         {
            *pKey = txdma->txRecycle[bdIndex].key;
+           txdma->txBds[bdIndex].status &=  ~DMA_OWN ; /* Clear the DMA_OWN flag, as this is force free */
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
            *pTxSource = txdma->txRecycle[bdIndex].source;
            *pTxAddr = txdma->txRecycle[bdIndex].address;
@@ -747,12 +869,11 @@ static inline BOOL bcmPktDma_XtmFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma *tx
 
            txdma->txFreeBds++;
            txdma->ulNumTxBufsQdOne--;
-#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96362) && !defined(CONFIG_BCM963268)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818) && !defined(CONFIG_BCM96362) && !defined(CONFIG_BCM963268) && !defined(CONFIG_BCM96828)
            // FIXME - Which chip uses more then one TX queue?
            if (!noGlobalBufAccount)
            g_pXtmGlobalInfo->ulNumTxBufsQdAll--;
 #endif
-
            ret = TRUE;
         }
     }
@@ -761,6 +882,116 @@ static inline BOOL bcmPktDma_XtmFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma *tx
 
     return ret;
 }
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_XtmForceFreeXmitBufGet
+ Purpose: Gets a TX buffer to free by caller, ignoring DMA_OWN status
+-------------------------------------------------------------------------- */
+static inline BOOL bcmPktDma_XtmForceFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma * txdma, uint32 *pKey,
+                                            uint32 *pTxSource, uint32 *pTxAddr,
+                                            uint32 *pRxChannel, uint32 dmaType,
+                                            uint32 noGlobalBufAccount)
+{
+    BOOL ret = FALSE;
+    int  bdIndex;
+
+    bdIndex = txdma->txHeadIndex;
+    *pKey   = 0;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    /* TxSource & TxAddr not required in non-FAP applications */
+    *pTxSource  = 0;
+    *pTxAddr    = 0;
+    *pRxChannel = 0;
+#endif
+
+    /* Reclaim transmitted buffers */
+    if (txdma->txFreeBds < txdma->ulQueueSize)
+    {
+#if 0 //for debug    
+        if (txdma->txBds[bdIndex].status & DMA_OWN)
+        {
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+            fap4kePrt_Error("Force free bdIndex %d\n", bdIndex);
+#else
+            printk("Force free bdIndex %d\n", bdIndex);            
+#endif
+        }
+#endif        
+        txdma->txBds[bdIndex].status &=  ~DMA_OWN ; /* Clear the DMA_OWN flag, as this is force free */
+        *pKey = txdma->txRecycle[bdIndex].key;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+        *pTxSource = txdma->txRecycle[bdIndex].source;
+        *pTxAddr = txdma->txRecycle[bdIndex].address;
+        *pRxChannel = txdma->txRecycle[bdIndex].rxChannel;
+#endif
+
+        if (++txdma->txHeadIndex == txdma->ulQueueSize)
+            txdma->txHeadIndex = 0;
+
+        txdma->txFreeBds++;
+        txdma->ulNumTxBufsQdOne--;
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818) && !defined(CONFIG_BCM96362) && !defined(CONFIG_BCM963268) && !defined(CONFIG_BCM96828)
+        // FIXME - Which chip uses more then one TX queue?
+        if (!noGlobalBufAccount)
+            g_pXtmGlobalInfo->ulNumTxBufsQdAll--;
+#endif
+
+        ret = TRUE;
+    }
+    else {
+       txdma->txBds[bdIndex].status &=  ~DMA_OWN ; /* Clear the DMA_OWN flag, as this is force free */
+       if (dmaType == XTM_HW_DMA)
+          txdma->txHeadIndex = (txdma->txStateRam->state_data & 0x1fff) ;
+#ifdef CONFIG_BCM96368
+       else 
+          txdma->txHeadIndex = txdma->txSchedHeadIndex ;
+#endif
+       txdma->txTailIndex = txdma->txHeadIndex ;
+    }
+
+    return ret;
+}
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_XtmFreeXmitBufGetRecycle_Iudma
+ Purpose: Gets a TX buffer to free by caller, but does not remove it from Ring
+-------------------------------------------------------------------------- */
+static inline BOOL bcmPktDma_XtmFreeXmitBufGetRecycle_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint32 *pKey,
+                                                     uint32 *pTxSource, uint32 *pTxAddr,
+                                                     uint32 *pRxChannel,
+                                                     uint32 dmaType,
+                                                     uint32 noGlobalBufAccount)
+{
+    BOOL ret = FALSE;
+    int  bdIndex;
+
+    bdIndex = txdma->txHeadIndex;
+    *pKey = 0;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    /* TxSource & TxAddr not required in non-FAP applications */
+    *pTxSource = 0;
+    *pTxAddr   = 0;
+    *pRxChannel = 0;
+#endif
+
+    if(txdma->txFreeBds < txdma->ulQueueSize)
+    {
+        if(!(txdma->txBds[bdIndex].status & DMA_OWN))
+        {
+           *pKey = txdma->txRecycle[bdIndex].key;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+           *pTxSource = txdma->txRecycle[bdIndex].source;
+           *pTxAddr = txdma->txRecycle[bdIndex].address;
+           *pRxChannel = txdma->txRecycle[bdIndex].rxChannel;
+#endif
+            ret = TRUE ;
+        }
+    }
+
+    return ret;
+}
+#endif /* CONFIG_BCM_XTMCFG */
+
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthFreeRecvBuf
@@ -775,12 +1006,11 @@ static inline int bcmPktDma_EthFreeRecvBuf_Iudma(BcmPktDma_LocalEthRxDma * rxdma
     FAP4KE_IUDMA_PMON_DECLARE();
     FAP4KE_IUDMA_PMON_BEGIN(FAP4KE_PMON_ID_IUDMA_FREERECVBUF);
 
-#if defined(CC_BCM_PKTDMA_DEBUG)
     if(rxdma->rxAssignedBds == rxdma->numRxBds)
     {
+        BCM_PKTDMA_LOG_ERROR("rxAssignedBds(%d) == numRxBds(%d)", rxdma->rxAssignedBds, rxdma->numRxBds);
         return BCM_PKTDMA_ERROR;
     }
-#endif
 
     tail_idx = rxdma->rxTailIndex;
     rxBd = &rxdma->rxBds[tail_idx];
@@ -834,13 +1064,7 @@ static inline void bcmPktDma_EthFreeRecvBuf_Dqm(BcmPktDma_LocalEthRxDma * rxdma,
     /* Wait until there is space in the ETH_FREE_RXBUF_Q,
        then send the free request to the FAP */
 
-    while(!bcmPktDma_isDqmXmitAvailableHost(rxdma->fapIdx, DQM_HOST2FAP_ETH_FREE_RXBUF_Q))
-    {
-#if defined(ENABLE_FAP_COMMS_DEBUG)
-        /* Count # times eth rx free to FAP must wait - May 2010 */
-        pHostPsmGbl(fapIdx)->debug_ctrs[ENET_RXFREE_HOST_2_FAP_WAIT]++;
-#endif
-    }
+    while(!bcmPktDma_isDqmXmitAvailableHost(rxdma->fapIdx, DQM_HOST2FAP_ETH_FREE_RXBUF_Q));
 
     msg.word0 = (uint32) rxdma->channel;
     msg.word1 = (uint32) pBuf;
@@ -854,6 +1078,7 @@ static inline void bcmPktDma_EthFreeRecvBuf_Dqm(BcmPktDma_LocalEthRxDma * rxdma,
     Name: bcmPktDma_XtmFreeRecvBuf
  Purpose: Free a single RX buffer
 -------------------------------------------------------------------------- */
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 static inline int bcmPktDma_XtmFreeRecvBuf_Iudma(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char *pBuf)
 {
     volatile DmaDesc        *rxBd;
@@ -893,6 +1118,17 @@ static inline int bcmPktDma_XtmFreeRecvBuf_Iudma(BcmPktDma_LocalXtmRxDma * rxdma
 
     return BCM_PKTDMA_SUCCESS;
 }
+#endif /* CONFIG_BCM_XTMCFG */
+
+#ifdef FAP_4KE
+#include "fap4ke_printer.h"
+//#define ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING
+#if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
+#define BCM_PKTDMA_TX_DEBUG fap4kePrt_Print
+#else
+#define BCM_PKTDMA_TX_DEBUG BCM_ENET_TX_DEBUG
+#endif
+#endif
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthXmitNoCheck
@@ -903,7 +1139,7 @@ static inline int bcmPktDma_XtmFreeRecvBuf_Iudma(BcmPktDma_LocalXtmRxDma * rxdma
 -------------------------------------------------------------------------- */
 static inline void bcmPktDma_EthXmitNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma, uint8 *pBuf, uint16 len,
                                                   int bufSource, uint16 dmaStatus, uint32 key,
-                                                  int param1)
+                                                  int param1, int param2)
 {
     int txIndex;
 
@@ -912,22 +1148,31 @@ static inline void bcmPktDma_EthXmitNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma
 
     txIndex = txdma->txTailIndex;
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
-    if(param1 != -1)
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
+    /*TODO fix this case for packet going through FAP on 6816 as param1 = rxchannel+recycleindex
+     * for mcast traffic
+     */
+    if(param2 != -1)
     {
+#if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
+        BCM_PKTDMA_TX_DEBUG("Tx BD: param2: 0x%08x \n", (uint32_t)param2);
+#endif
+        
         /* There are no other fields in the control, so keep it simple */
-        txdma->txBds[txIndex].control = param1;
+        txdma->txBds[txIndex].control = param2;
     }
 #endif
 
     {
         BcmPktDma_txRecycle_t *txRecycle_p = &txdma->txRecycle[txIndex];
-
         txRecycle_p->key = key;
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
         txRecycle_p->source = bufSource;
         txRecycle_p->address = (uint32)pBuf;
         txRecycle_p->rxChannel = param1;
+#if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
+        BCM_PKTDMA_TX_DEBUG("Tx BD: rxChannel: 0%d \n", param1);
+#endif
 #endif
     }
 
@@ -940,19 +1185,19 @@ static inline void bcmPktDma_EthXmitNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma
         dmaStatus |= DMA_WRAP;
         txdma->txTailIndex = 0;
 #if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
-        BCM_ENET_TX_DEBUG("Tx BD: dma_status: 0x%04x \n", dmaStatus);
+        BCM_PKTDMA_TX_DEBUG("Tx BD: dma_status: 0x%04x \n", dmaStatus);
 #endif
     }
     else
     {
         txdma->txTailIndex++;
 #if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
-        BCM_ENET_TX_DEBUG("Tx BD: dma_status: 0x%04x \n", dmaStatus);
+        BCM_PKTDMA_TX_DEBUG("Tx BD: dma_status: 0x%04x \n", dmaStatus);
 #endif
     }
 
     {
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
         volatile DmaDesc16 *txBd;
 #else
         volatile DmaDesc *txBd;
@@ -969,12 +1214,13 @@ static inline void bcmPktDma_EthXmitNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma
         txBd->word0 = dmaDesc.word0;
 
 #if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
-        BCM_ENET_TX_DEBUG("key: 0x%08x\n", (int)pNBuff);
-        BCM_ENET_TX_DEBUG("TX BD: address=0x%08x\n", (int)VIRT_TO_PHY(pBuf) );
-        BCM_ENET_TX_DEBUG("Tx BD: length=%u\n", len);
-        BCM_ENET_TX_DEBUG("Tx BD: word0=0x%04x \n", dmaDesc.word0);
+        BCM_PKTDMA_TX_DEBUG("bdIdx: %d bdAddr: 0x%08x\n", txIndex, (int)txBd);
+        BCM_PKTDMA_TX_DEBUG("key: 0x%08x\n", (int)key);
+        BCM_PKTDMA_TX_DEBUG("TX BD: address=0x%08x\n", (int)VIRT_TO_PHY(pBuf) );
+        BCM_PKTDMA_TX_DEBUG("Tx BD: length=%u\n", len);
+        BCM_PKTDMA_TX_DEBUG("Tx BD: word0=0x%04x \n", (unsigned int) dmaDesc.word0);
 
-        BCM_ENET_TX_DEBUG("Enabling Tx DMA \n");
+        BCM_PKTDMA_TX_DEBUG("Enabling Tx DMA \n");
 #endif
     }
 
@@ -987,14 +1233,39 @@ static inline void bcmPktDma_EthXmitNoCheck_Iudma(BcmPktDma_LocalEthTxDma *txdma
 }
 
 /* --------------------------------------------------------------------------
+    Name: bcmPktDma_EthXmitBufCountGet
+ Purpose: Determine the number of buffer queued for xmit
+-------------------------------------------------------------------------- */
+static inline int bcmPktDma_EthXmitBufCountGet_Iudma( BcmPktDma_LocalEthTxDma *txdma)
+{
+    return (txdma->numTxBds - txdma->txFreeBds);
+}
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_EthXmitBufCountGet_Dqm
+ Purpose: Determine the number of buffer queued for xmit
+-------------------------------------------------------------------------- */
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+static inline int bcmPktDma_EthXmitBufCountGet_Dqm(BcmPktDma_LocalEthTxDma *txdma, uint32 dqm)
+{
+	int dqmDepth = DQM_HOST2FAP_ETH_XMIT_DEPTH_LOW;
+    int avail = bcmPktDma_isDqmXmitAvailableHost(txdma->fapIdx, dqm);
+   
+	if(dqm == DQM_HOST2FAP_ETH_XMIT_Q_HI)
+		dqmDepth = DQM_HOST2FAP_ETH_XMIT_DEPTH_HI;
+		
+    return (dqmDepth- avail);
+}
+#endif
+
+
+/* --------------------------------------------------------------------------
     Name: bcmPktDma_EthXmitAvailable
  Purpose: Determine if there are free resources for the xmit
 -------------------------------------------------------------------------- */
 static inline int bcmPktDma_EthXmitAvailable_Iudma( BcmPktDma_LocalEthTxDma *txdma )
 {
-    if (txdma->txFreeBds != 0)  return 1;
-
-    return 0;
+    return (txdma->txFreeBds);
 }
 
 /* --------------------------------------------------------------------------
@@ -1003,7 +1274,7 @@ static inline int bcmPktDma_EthXmitAvailable_Iudma( BcmPktDma_LocalEthTxDma *txd
    Notes: Intended to be called on Host MIPs only
 -------------------------------------------------------------------------- */
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-static inline int bcmPktDma_EthXmitAvailable_Dqm(BcmPktDma_LocalEthTxDma *txdma)
+static inline int bcmPktDma_EthXmitAvailable_Dqm(BcmPktDma_LocalEthTxDma *txdma, uint32 dqm)
 {
     // BCM_LOG_INFO(BCM_LOG_ID_FAP, "chanel %d", txdma->channel);
 
@@ -1014,7 +1285,7 @@ static inline int bcmPktDma_EthXmitAvailable_Dqm(BcmPktDma_LocalEthTxDma *txdma)
     }
 #endif
 
-    return (bcmPktDma_isDqmXmitAvailableHost(txdma->fapIdx, DQM_HOST2FAP_ETH_XMIT_Q));
+    return (bcmPktDma_isDqmXmitAvailableHost(txdma->fapIdx, dqm));
 }
 #endif
 
@@ -1026,11 +1297,11 @@ static inline int bcmPktDma_EthXmitAvailable_Dqm(BcmPktDma_LocalEthTxDma *txdma)
 -------------------------------------------------------------------------- */
 static inline int bcmPktDma_EthXmit_Iudma(BcmPktDma_LocalEthTxDma * txdma, uint8 *pBuf, uint16 len,
                                           int bufSource, uint16 dmaStatus, uint32 key,
-                                          int param1)
+                                          int param1, int param2)
 {
     if(bcmPktDma_EthXmitAvailable_Iudma(txdma))
     {
-        bcmPktDma_EthXmitNoCheck_Iudma(txdma, pBuf, len, bufSource, dmaStatus, key, param1);
+        bcmPktDma_EthXmitNoCheck_Iudma(txdma, pBuf, len, bufSource, dmaStatus, key, param1, param2);
 
         return 1;
     }
@@ -1048,33 +1319,51 @@ static inline int bcmPktDma_EthXmit_Iudma(BcmPktDma_LocalEthTxDma * txdma, uint8
   Return: 1 on success; 0 otherwise
 -------------------------------------------------------------------------- */
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-static inline void bcmPktDma_EthXmitNoCheck_Dqm(BcmPktDma_LocalEthTxDma *txdma, uint8 *pBuf,
-                                                uint16 len, int bufSource,
-                                                uint16 dmaStatus, uint32 key, int param1)
+static inline void bcmPktDma_EthXmitNoCheck_Dqm(BcmPktDma_LocalEthTxDma *txdma,
+                                                uint8 *pBuf, uint16 len, int bufSource, uint16 dmaStatus,
+                                                uint32 key, int param1, uint32 dqm, uint32 virtDestPort,
+                                                uint32 destQueue, int param2)
 {
     fapDqm_EthTx_t tx;
 
 #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
     if(txdma->txOwnership == HOST_OWNED)
     {
-        bcmPktDma_EthXmitNoCheck_Iudma(txdma, pBuf, len, bufSource, dmaStatus, key, param1);
+        bcmPktDma_EthXmitNoCheck_Iudma(txdma, pBuf, len, bufSource, dmaStatus, 
+                                       key, param1, param2);
         return;
     }
 #endif
 
+#if defined(ENABLE_BCMPKTDMA_IUDMA_ERROR_CHECKING)
+    BCM_PKTDMA_TX_DEBUG("Tx BD: param1: 0x%08x \n", (uint32_t)param1);
+    BCM_PKTDMA_TX_DEBUG("Tx BD: param2: 0x%08x \n", (uint32_t)param2);
+#endif
+
+#if defined(CONFIG_BCM96818) && defined(DBL_DESC)
+    if (param2 != -1)
+    {
+        tx.pBuf = (uint8 *) 0xFFFFFFFF;
+        tx.key = param2;
+        bcmPktDma_dqmXmitMsgHost(txdma->fapIdx, dqm,
+                                 DQM_HOST2FAP_ETH_XMIT_Q_SIZE, (DQMQueueDataReg_S *)(&tx));
+    }
+#endif
+    
     tx.pBuf = pBuf;
     tx.source = bufSource;
-    tx.channel = txdma->channel;
+    tx.virtDestPort = virtDestPort;
+    tx.destQueue = destQueue;
     tx.len = len;
     tx.key = key;
     tx.dmaStatus = dmaStatus;
     tx.param1 = param1;
-
-    bcmPktDma_dqmXmitMsgHost(txdma->fapIdx, DQM_HOST2FAP_ETH_XMIT_Q,
+    bcmPktDma_dqmXmitMsgHost(txdma->fapIdx, dqm,
                              DQM_HOST2FAP_ETH_XMIT_Q_SIZE, (DQMQueueDataReg_S *)(&tx));
 }
 #endif
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmXmit
  Purpose: Xmit an NBuff
@@ -1093,6 +1382,20 @@ static inline int bcmPktDma_XtmXmit_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint8 
     //FAP4KE_IUDMA_PMON_DECLARE();
     //FAP4KE_IUDMA_PMON_BEGIN(FAP4KE_PMON_ID_IUDMA_XMIT);
 
+    /* Per chip limitation,
+     * max PTM frame size of 1984 + 4(FCS) = 1988 (6328/62/68)
+     * max PTM frame size of 1980 + 4(FCS) = 1984 (6318/268)
+     */
+    if (((dmaStatus & FSTAT_CT_MASK) == FSTAT_CT_PTM) && (len > PTM_MAX_TX_FRAME_LEN))
+    {
+#ifndef FAP_4KE
+        printk ("XtmIudma - PTM frame len=%u exceeds %u (max)", len, PTM_MAX_TX_FRAME_LEN);
+#else
+        fap4kePrt_Print ("XtmIudma - PTM frame len=%u exceeds %u (max)", len, PTM_MAX_TX_FRAME_LEN);
+#endif
+        return 0;   /* drop */
+    }        
+
     if (txdma->txFreeBds == 0) return 0;   /* No free tx BDs. Return Fail */
     if (txdma->txEnabled == 0) return 0;   /* Channel is down */
 
@@ -1103,7 +1406,7 @@ static inline int bcmPktDma_XtmXmit_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint8 
     /* Decrement total BD count */
     txdma->txFreeBds--;
     txdma->ulNumTxBufsQdOne++;
-#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96362) && !defined(CONFIG_BCM963268)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818) && !defined(CONFIG_BCM96362) && !defined(CONFIG_BCM963268) && !defined(CONFIG_BCM96828)
        // FIXME - Which chip uses more then one TX queue?
     if (!noGlobalBufAccount)
     g_pXtmGlobalInfo->ulNumTxBufsQdAll++;
@@ -1164,6 +1467,7 @@ static inline int bcmPktDma_XtmXmit_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint8 
 
     return 1;
 }
+#endif /* CONFIG_BCM_XTMCFG */
 
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 /* --------------------------------------------------------------------------
@@ -1207,6 +1511,7 @@ static inline BOOL bcmPktDma_EthRecvBufGet_Iudma(BcmPktDma_LocalEthRxDma * rxdma
     return TRUE;
 }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmRecvBufGet
  Purpose: Free a single RX buffer
@@ -1249,8 +1554,11 @@ static inline BOOL bcmPktDma_XtmRecvBufGet_Iudma(BcmPktDma_LocalXtmRxDma *rxdma,
 
     return TRUE;
 }
+#endif /* CONFIG_BCM_XTMCFG */
 #endif
 
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_XtmXmitSwdmaToIudma
  Purpose: Xmit the DmaDesc contents from SW DMA to HW DMA. Done by
@@ -1319,16 +1627,19 @@ static inline int bcmPktDma_XtmXmit_Swdma_to_Iudma(BcmPktDma_LocalXtmTxDma *txdm
 
     return 1;
 }
+#endif /* CONFIG_BCM_XTMCFG */
 
 static inline int bcmPktDma_EthXmitFreeCount_Iudma(BcmPktDma_LocalEthTxDma *txdma)
 {
     return txdma->txFreeBds;
 }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 static inline int bcmPktDma_XtmXmitFreeCount_Iudma(BcmPktDma_LocalXtmTxDma *txdma)
 {
     return txdma->txFreeBds;
 }
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthFreeRecvBufCount
@@ -1372,6 +1683,7 @@ static inline uint32 bcmPktDma_EthFreeRecvBufCount_Iudma(BcmPktDma_LocalEthRxDma
     }
 
     return(rxdma->numRxBds - rxQueueDepth);
+
 #else
     /* S/W version of function. Do not use h/w counter (ringOffset) that causes crashes - Sep 2010 */
     volatile DmaDesc * rxBd;
@@ -1399,7 +1711,6 @@ static inline uint32 bcmPktDma_EthFreeRecvBufCount_Iudma(BcmPktDma_LocalEthRxDma
 	return(0);
 #endif
 }
-
 
 /* --------------------------------------------------------------------------
     Name: bcmPktDma_EthCheckRecvNoBds
@@ -1523,7 +1834,6 @@ static inline uint32 bcmPktDma_EthRecv_Dqm(BcmPktDma_LocalEthRxDma * rxdma,
                                            unsigned char **pBuf,
                                            int            *pLen)
 {
-    uint32            dqm = DQM_FAP2HOST_ETH0_RX_Q + rxdma->channel;
     fapDqm_EthRx_t    rx;
     DmaDesc           dmaDesc;
 
@@ -1539,10 +1849,34 @@ static inline uint32 bcmPktDma_EthRecv_Dqm(BcmPktDma_LocalEthRxDma * rxdma,
 
     dmaDesc.word0 = 0;
 
-    if (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, dqm))
+	/* we use strict priority scheduling among HI & LOW priority DQM's*/
+
+#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
+    if (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, 
+										DQM_FAP2HOST_ETH_RX_Q_HI))
     {
-        bcmPktDma_dqmRecvMsgHost(rxdma->fapIdx, dqm, DQM_FAP2HOST_ETH_RX_Q_SIZE,
-                                 (DQMQueueDataReg_S *) &rx);
+        bcmPktDma_dqmRecvMsgHost(rxdma->fapIdx, DQM_FAP2HOST_ETH_RX_Q_HI,
+						 DQM_FAP2HOST_ETH_RX_Q_SIZE, (DQMQueueDataReg_S *) &rx);
+
+        *pBuf         = (unsigned char *) rx.pBuf;
+        dmaDesc.word0 = rx.dmaWord0;
+        *pLen         = dmaDesc.length;
+
+#ifndef FAP_4KE
+		//printk("suresh eth pkt recvd from HI dqm\n"); 
+#endif
+        //printk("pbuf: 0x%08lX len: %d dmaDesc.word0: 0x%08lX\n",
+        //          (long unsigned int)*pBuf, *pLen, dmaDesc.word0);
+    }
+    else if (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx, 
+										DQM_FAP2HOST_ETH_RX_Q_LOW))
+#else
+    if (bcmPktDma_isDqmRecvAvailableHost(rxdma->fapIdx,
+										 DQM_FAP2HOST_ETH_RX_Q_LOW))
+#endif
+    {
+        bcmPktDma_dqmRecvMsgHost(rxdma->fapIdx, DQM_FAP2HOST_ETH_RX_Q_LOW,
+					 	DQM_FAP2HOST_ETH_RX_Q_SIZE, (DQMQueueDataReg_S *) &rx);
 
         *pBuf         = (unsigned char *) rx.pBuf;
         dmaDesc.word0 = rx.dmaWord0;
@@ -1570,8 +1904,12 @@ int    bcmPktDma_EthInitRxChan_Dqm( uint32 bufDescrs,
 int    bcmPktDma_EthInitTxChan_Dqm( uint32 bufDescrs,
                                  BcmPktDma_LocalEthTxDma *pEthTxDma);
 
+#if defined(CONFIG_BCM_GMAC)
+int    bcmPktDma_EthUnInitRxChan_Dqm(BcmPktDma_LocalEthRxDma *pEthRxDma);
+int    bcmPktDma_EthUnInitTxChan_Dqm(BcmPktDma_LocalEthTxDma *pEthTxDma);
+#endif
 
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 int bcmPktDma_EthInitExtSw_Dqm( uint32 extSwConnPort);
 #endif
 
@@ -1580,7 +1918,12 @@ int bcmPktDma_EthInitRxChan_Iudma( uint32 bufDescrs,
 
 int bcmPktDma_EthInitTxChan_Iudma( uint32 bufDescrs,
                                    BcmPktDma_LocalEthTxDma *pEthTxDma);
+#if defined(CONFIG_BCM_GMAC)
+int bcmPktDma_EthUnInitRxChan_Iudma(BcmPktDma_LocalEthRxDma *pEthRxDma);
+int bcmPktDma_EthUnInitTxChan_Iudma(BcmPktDma_LocalEthTxDma *pEthTxDma);
+#endif
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int bcmPktDma_XtmInitRxChan_Iudma( uint32 bufDescrs,
                                    BcmPktDma_LocalXtmRxDma *pXtmRxDma);
 
@@ -1597,6 +1940,7 @@ int bcmPktDma_XtmInitTxChan_Dqm( uint32 bufDescrs,
 
 int bcmPktDma_XtmCreateDevice_Dqm(uint32 devId, uint32 encapType, uint32 headerLen, uint32 trailerLen);
 int bcmPktDma_XtmLinkUp_Dqm(uint32 devId, uint32 matchId);
+#endif /* CONFIG_BCM_XTMCFG */
 
 int bcmPktDma_EthInit_Dqm( BcmPktDma_LocalEthRxDma **pEthRxDma,
                              BcmPktDma_LocalEthTxDma **pEthTxDma,
@@ -1614,9 +1958,12 @@ int	bcmPktDma_EthInit_Iudma( BcmPktDma_LocalEthRxDma **pEthRxDma,
 int     bcmPktDma_EthSelectRxIrq_Iudma(int channel);
 int     bcmPktDma_XtmSelectRxIrq_Iudma(int channel);
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 void    bcmPktDma_XtmClrRxIrq_Iudma(BcmPktDma_LocalXtmRxDma * rxdma);
 
 uint32  bcmPktDma_XtmRecv_Iudma(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pBuf, int * pLen);
+
+uint32  bcmPktDma_XtmRecv_RingSize_Iudma(BcmPktDma_LocalXtmRxDma * rxdma);
 
 void    bcmPktDma_XtmFreeXmitBuf_Iudma(int channel, int index);
 
@@ -1626,27 +1973,35 @@ int     bcmPktDma_XtmXmit_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint8 *pBuf, uin
                                 uint32 dmaType, uint32 noGlobalBufAccount);
 
 int     bcmPktDma_XtmXmit_Swdma_to_Iudma(BcmPktDma_LocalXtmTxDma *txdma, DmaDesc dmaDesc, uint32 key) ;
+#endif /* CONFIG_BCM_XTMCFG */
 
 int     bcmPktDma_EthTxEnable_Iudma(BcmPktDma_LocalEthTxDma * txdma);
-#ifndef CONFIG_BCM96816
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int     bcmPktDma_XtmTxEnable_Iudma(BcmPktDma_XtmTxDma * txdma, PDEV_PARAMS pDevParams, uint32 dmaType);
 #endif
 
 int     bcmPktDma_EthTxDisable_Iudma(BcmPktDma_LocalEthTxDma * txdma);
-#ifndef CONFIG_BCM96816
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int     bcmPktDma_XtmTxDisable_Iudma(BcmPktDma_LocalXtmTxDma * txdma, uint32 dmaType, void (*func) (uint32 param1, BcmPktDma_XtmTxDma *txdma), uint32 param1);
 #endif
 
 int     bcmPktDma_EthRxEnable_Iudma(BcmPktDma_LocalEthRxDma * rxdma);
-int     bcmPktDma_XtmRxEnable_Iudma(BcmPktDma_LocalXtmRxDma * rxdma);
-
 int     bcmPktDma_EthRxDisable_Iudma(BcmPktDma_LocalEthRxDma * rxdma);
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
+int     bcmPktDma_XtmRxEnable_Iudma(BcmPktDma_LocalXtmRxDma * rxdma);
 int     bcmPktDma_XtmRxDisable_Iudma(BcmPktDma_LocalXtmRxDma * rxdma);
 
-BOOL bcmPktDma_XtmForceFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma * txdma, uint32 *pKey,
+static inline BOOL bcmPktDma_XtmForceFreeXmitBufGet_Iudma(BcmPktDma_LocalXtmTxDma * txdma, uint32 *pKey,
                                             uint32 *pTxSource, uint32 *pTxAddr,
                                             uint32 *pRxChannel, uint32 dmaType,
                                             uint32 noGlobalBufAccount);
+static inline BOOL bcmPktDma_XtmFreeXmitBufGetRecycle_Iudma(BcmPktDma_LocalXtmTxDma *txdma, uint32 *pKey,
+                                                     uint32 *pTxSource, uint32 *pTxAddr,
+                                                     uint32 *pRxChannel,
+                                                     uint32 dmaType,
+                                                     uint32 noGlobalBufAccount) ;
+#endif /* CONFIG_BCM_XTMCFG */
 
 int bcmPktDma_EthGetRxBds( BcmPktDma_LocalEthRxDma *rxdma, int channel );
 int bcmPktDma_EthGetTxBds( BcmPktDma_LocalEthTxDma *txdma, int channel );
@@ -1657,69 +2012,74 @@ int bcmPktDma_XtmGetTxBds( int channel );
 int bcmPktDma_EthSetIqThresh_Iudma( BcmPktDma_LocalEthRxDma * rxdma,
                                     uint16 loThresh,
                                     uint16 hiThresh);
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int bcmPktDma_XtmSetIqThresh_Iudma( BcmPktDma_LocalXtmRxDma * rxdma,
                                     uint16 loThresh,
                                     uint16 hiThresh);
+#endif /* CONFIG_BCM_XTMCFG */
 #endif
 
 #if defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)
 int bcmPktDma_EthSetRxChanBpmThresh_Iudma( BcmPktDma_LocalEthRxDma * rxdma,
                                            uint16 allocTrig,
                                            uint16 bulkAlloc);
+int bcmPktDma_EthBpmSetTxChanThresh_Iudma( BcmPktDma_LocalEthTxDma * txdma,
+                                           uint16 *dropThr );
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int bcmPktDma_XtmSetRxChanBpmThresh_Iudma( BcmPktDma_LocalXtmRxDma * rxdma,
                                            uint16 allocTrig,
                                            uint16 bulkAlloc );
-
 int bcmPktDma_EthSetTxChanBpmThresh_Iudma( BcmPktDma_LocalEthTxDma * txdma,
-                                           uint16 loThresh,
-                                           uint16 hiThresh);
+                                           uint16 *dropThr );
 int bcmPktDma_XtmSetTxChanBpmThresh_Iudma( BcmPktDma_LocalXtmTxDma * txdma,
                                            uint16 loThresh,
                                            uint16 hiThresh,
                                            uint32 dmaType);
+#endif /* CONFIG_BCM_XTMCFG */
 #endif
+void bcmPktDma_EthGetStats_Iudma(uint8 vport, uint32 *rxDropped, 
+    uint32 *txDropped);
+void bcmPktDma_EthResetStats_Iudma(uint8 vport);
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
+void bcmPktDma_XtmGetStats_Iudma(uint8 vport, uint32 *rxDropped, 
+    uint32 *txDropped);
+void bcmPktDma_XtmResetStats_Iudma(uint8 vport);
+#endif /* CONFIG_BCM_XTMCFG */
 
 /* DQM versions */
 int     bcmPktDma_EthSelectRxIrq_Dqm(int channel);
-int     bcmPktDma_XtmSelectRxIrq_Dqm(int channel);
-
 void    bcmPktDma_EthClrRxIrq_Dqm(BcmPktDma_LocalEthRxDma *rxdma);
-void    bcmPktDma_XtmClrRxIrq_Dqm(BcmPktDma_LocalXtmRxDma *rxdma);
-
-uint32  bcmPktDma_XtmRecv_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pBuf, int * pLen);
-
-void    bcmPktDma_XtmFreeRecvBuf_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char * pBuf);
-
 void    bcmPktDma_EthFreeXmitBuf_Dqm(int channel, BcmPktDma_LocalEthTxDma * txdma, int index);
-void    bcmPktDma_XtmFreeXmitBuf_Dqm(int channel, int index);
+int     bcmPktDma_EthTxEnable_Dqm(BcmPktDma_LocalEthTxDma * txdma);
+int     bcmPktDma_EthTxDisable_Dqm(BcmPktDma_LocalEthTxDma *  txdma);
+int     bcmPktDma_EthRxEnable_Dqm(BcmPktDma_LocalEthRxDma * rxdma);
+int     bcmPktDma_EthRxDisable_Dqm(BcmPktDma_LocalEthRxDma * rxdma);
+int     bcmPktDma_EthRxReEnable_Dqm(int channel);
 
-int     bcmPktDma_XtmXmitAvailable_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 dmaTypeUnused) ;
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
+int     bcmPktDma_XtmSelectRxIrq_Dqm(int channel);
+void    bcmPktDma_XtmClrRxIrq_Dqm(BcmPktDma_LocalXtmRxDma *rxdma);
+uint32  bcmPktDma_XtmRecv_RingSize_Dqm(BcmPktDma_LocalXtmRxDma * rxdma);
+uint32  bcmPktDma_XtmRecv_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pBuf, int * pLen);
+void    bcmPktDma_XtmFreeRecvBuf_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char * pBuf);
+void    bcmPktDma_XtmFreeXmitBuf_Dqm(int channel, int index);
+int     bcmPktDma_XtmXmitAvailable_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 dmaTypeUnused, uint32 dqm) ;
 
 int     bcmPktDma_XtmXmit_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint8 *pBuf, uint16 len, int bufSource, uint16 dmaStatus, uint32 key, int param1,
-                              uint32 dmaTypeUnUsed, uint32 noGlobalBufAccount);
-
-int     bcmPktDma_EthTxEnable_Dqm(BcmPktDma_LocalEthTxDma * txdma);
-#ifndef CONFIG_BCM96816
+                              uint32 dmaTypeUnUsed, uint32 noGlobalBufAccount, uint32 dqm);
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
 int     bcmPktDma_XtmTxEnable_Dqm(BcmPktDma_XtmTxDma * txdma, PDEV_PARAMS pDevParams, uint32 dmaTypeUnused);
-#endif
-
-int     bcmPktDma_EthTxDisable_Dqm(BcmPktDma_LocalEthTxDma *  txdma);
-#ifndef CONFIG_BCM96816
 int     bcmPktDma_XtmTxDisable_Dqm(BcmPktDma_LocalXtmTxDma * txdma, uint32 dmaTypeUnused, void (*func)(uint32 param1, BcmPktDma_XtmTxDma *txdma), uint32 param1);
 #endif
-int     bcmPktDma_EthRxEnable_Dqm(BcmPktDma_LocalEthRxDma * rxdma);
+
 int     bcmPktDma_XtmRxEnable_Dqm(BcmPktDma_LocalXtmRxDma * rxdma);
-
-int     bcmPktDma_EthRxDisable_Dqm(BcmPktDma_LocalEthRxDma * rxdma);
 int     bcmPktDma_XtmRxDisable_Dqm(BcmPktDma_LocalXtmRxDma * rxdma);
-
 BOOL    bcmPktDma_XtmFreeXmitBufGet_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 *pKey, uint32 *pTxSource,
                                         uint32 *pTxAddr, uint32 *rxChannel,
                                         uint32 dmaType, uint32 noGlobalBufAccount);
 
-int     bcmPktDma_EthRxReEnable_Dqm(int channel);
-
+#endif /* CONFIG_BCM_XTMCFG */
 
 #if defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE)
 int	bcmPktDma_EthSetIqThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
@@ -1728,38 +2088,52 @@ int	bcmPktDma_EthSetIqThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
 int	bcmPktDma_EthSetIqDqmThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
                                   uint16 loThresh,
                                   uint16 hiThresh);
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int	bcmPktDma_XtmSetIqThresh_Dqm( BcmPktDma_LocalXtmRxDma * rxdma,
                                   uint16 loThresh,
                                   uint16 hiThresh);
 int	bcmPktDma_XtmSetIqDqmThresh_Dqm( BcmPktDma_LocalXtmRxDma * rxdma,
                                   uint16 loThresh,
                                   uint16 hiThresh);
+#endif /* CONFIG_BCM_XTMCFG */
 #endif
 
 #if defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)
 int bcmPktDma_EthSetRxChanBpmThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
                                          uint16 allocTrig,
                                          uint16 bulkAlloc );
+int	bcmPktDma_EthSetTxChanBpmThresh_Dqm( BcmPktDma_LocalEthTxDma * txdma,
+                                         uint16 *dropThr );
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 int bcmPktDma_XtmSetRxChanBpmThresh_Dqm( BcmPktDma_LocalXtmRxDma * rxdma,
                                          uint16 allocTrig,
                                          uint16 bulkAlloc );
-
-int	bcmPktDma_EthSetTxChanBpmThresh_Dqm( BcmPktDma_LocalEthTxDma * txdma,
-                                         uint16 loThresh,
-                                         uint16 hiThresh);
 int	bcmPktDma_XtmSetTxChanBpmThresh_Dqm( BcmPktDma_LocalXtmTxDma * txdma,
                                          uint16 loThresh,
                                          uint16 hiThresh,
                                          uint32 dmaType);
+#endif /* CONFIG_BCM_XTMCFG */
 #endif
-void bcm63xx_enet_dqmhandler(unsigned long channel);
+
+void bcmPktDma_EthSetPhyRate_Dqm(uint8 port, uint8 enable, int kbps, int isWanPort);
+void bcmPktDma_EthGetStats_Dqm(uint8 vport, uint32 *rxDropped, 
+    uint32 *txDropped);
+void bcmPktDma_EthResetStats_Dqm(uint8 vport);
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
+void bcmPktDma_XtmGetStats_Dqm(uint8 vport, uint32 *rxDropped, 
+    uint32 *txDropped);
+void bcmPktDma_XtmResetStats_Dqm(uint8 vport);
+#endif /* CONFIG_BCM_XTMCFG */
+
+void bcm63xx_enet_dqmhandler(uint32 fapIdx, unsigned long channel);
 void bcm63xx_enet_xmit_free_handler(unsigned long channel);
 
-void bcm63xx_xtm_dqmhandler(unsigned long channel);
+void bcm63xx_xtm_dqmhandler(uint32 fapIdx, unsigned long channel);
 void bcm63xx_xtm_xmit_free_handler(unsigned long channel);
 
 /* Used by both iudma and dqm versions */
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 DmaDesc16 * bcmPktDma_EthAllocTxBds(int channel, int numBds);
 #else
 DmaDesc * bcmPktDma_EthAllocTxBds(int channel, int numBds);
@@ -1816,6 +2190,11 @@ static __inline uint32 getFapIdxFromEthTxIudma(int iudma)
         default:
             return FAP_INVALID_IDX;
     }
+}
+
+static __inline uint32 getFapIdxForGPONPort(void)
+{
+    return( getFapIdxFromEthRxIudma(getEthRxIudmaFromPort(GPON_PORT_ID)) );
 }
 
 static __inline uint32 getFapIdxFromEthRxPort(int port)

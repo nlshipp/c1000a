@@ -56,7 +56,7 @@ extern CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody;
 #ifdef CONFIG_IOT_RECONFIGURATION
 extern int got_valid_ia_pd;
 #endif
-typedef enum {IAS_ACTIVE, IAS_RENEW, IAS_REBIND} iastate_t;
+typedef enum {IAS_ACTIVE, IAS_RENEW, IAS_REBIND, IAS_REQUEST, IAS_RELEASE} iastate_t;
 
 struct ia {
 	TAILQ_ENTRY(ia) link;
@@ -279,7 +279,7 @@ renew_when_reconfig(ifp,serverID)
                 ctllog_debug(LOG_DEBUG,FLNAME,LINENUM,FNAME,"RCF: duidstr=(%s),iatype=%d,iaid=%d",
                 duidstr(&ia->serverid),conf->type,conf->iaid);
 			if (!duidcmp(serverID,&ia->serverid)){
-               	   ia_renew(ia);
+		   ia_renew(ia);
 				//return ia;
 			}
 
@@ -356,15 +356,15 @@ update_ia(iatype, ialist, ifp, serverid, authparam)
 			case DHCP6_LISTVAL_PREFIX6:
 				/* add or update the prefix */
 				iapdc = (struct iapd_conf *)iac;
-#ifdef CONFIG_IOT_RECONFIGURATION                
+#ifdef CONFIG_IOT_RECONFIGURATION
                 if(got_valid_ia_pd==0 ||(got_valid_ia_pd>0 && siav->val_prefix6.pltime/*siav->val_prefix6.vltime*/))
-#endif                    
+#endif
                     {
 								ctldhcp6cMsgBody.t1= ia->t1;
 								ctldhcp6cMsgBody.t2 =ia->t2;
 								dprintf(LOG_NOTICE, FNAME,"*******T1 [%d] T2[%d]\n", ctldhcp6cMsgBody.t1,ctldhcp6cMsgBody.t2);
                     }
-		
+
 				if (update_prefix(ia, &siav->val_prefix6,
 				    &iapdc->iapd_pif_list, ifp, &ia->ctl,
 				    callback)) {
@@ -524,7 +524,7 @@ reestablish_ia(ia)
 	struct dhcp6_event *ev;
 	struct dhcp6_eventdata *evd;
 
-	dprintf(LOG_DEBUG, FNAME, "re-establishing IA: %s-%lu", 
+	dprintf(LOG_DEBUG, FNAME, "re-establishing IA: %s-%lu",
 	    iastr(ia->conf->type), ia->conf->iaid);
 
 	if (ia->state != IAS_RENEW && ia->state != IAS_REBIND) {
@@ -534,11 +534,15 @@ reestablish_ia(ia)
 
 	/* cancel the current event for the prefix. */
 	if (ia->evdata) {
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK		
+		free_ev_datalist(ia->evdata);
+#else
 		TAILQ_REMOVE(&ia->evdata->event->data_list, ia->evdata, link);
 		if (ia->evdata->destructor)
 			ia->evdata->destructor(ia->evdata);
 		free(ia->evdata);
 		ia->evdata = NULL;
+#endif
 	}
 
 	/* we don't need a timer for the IA (see comments in ia_timo()) */
@@ -557,6 +561,20 @@ reestablish_ia(ia)
 		goto fail;
 	}
 
+	if (duidcpy(&ev->serverid, &ia->serverid)) {
+		dprintf(LOG_NOTICE, FNAME, "failed to copy server ID");
+		goto fail;
+	}
+
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+	ia->state = IAS_REQUEST;
+	//CENTURYLINK require request IA_NA and IA_PD at the same time
+	if(get_all_ia_data(ia,ev) <= 0)
+	{
+		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
+		goto fail;
+	}
+#else
 	if ((evd = malloc(sizeof(*evd))) == NULL) {
 		dprintf(LOG_NOTICE, FNAME,
 		    "failed to create a new event data");
@@ -565,11 +583,6 @@ reestablish_ia(ia)
 	memset(evd, 0, sizeof(*evd));
 	evd->event = ev;
 	TAILQ_INSERT_TAIL(&ev->data_list, evd, link);
-
-	if (duidcpy(&ev->serverid, &ia->serverid)) {
-		dprintf(LOG_NOTICE, FNAME, "failed to copy server ID");
-		goto fail;
-	}
 
 	iaparam.iaid = ia->conf->iaid;
 	iaparam.t1 = ia->t1;
@@ -584,6 +597,9 @@ reestablish_ia(ia)
 		}
 	}
 
+	ia->evdata = evd;
+#endif
+
 	if (ia->authparam != NULL) {
 		if ((ev->authparam = copy_authparam(ia->authparam)) == NULL) {
 			dprintf(LOG_WARNING, FNAME,
@@ -596,7 +612,6 @@ reestablish_ia(ia)
 	dhcp6_set_timeoparam(ev);
 	dhcp6_reset_timer(ev);
 
-	ia->evdata = evd;
 
 	client6_send(ev);
 
@@ -627,13 +642,17 @@ release_all_ia(ifp)
 {
 	struct ia_conf *iac;
 	struct ia *ia, *ia_next;
+	int ia_num = 0;
 
 	for (iac = TAILQ_FIRST(&ifp->iaconf_list); iac;
 	    iac = TAILQ_NEXT(iac, link)) {
 		for (ia = TAILQ_FIRST(&iac->iadata); ia; ia = ia_next) {
 			ia_next = TAILQ_NEXT(ia, link);
-
-			(void)release_ia(ia);
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+			ia_num ++;
+			if(ia_num == 1) //release all ia at the same time
+#endif
+				(void)release_ia(ia);
 
 			/*
 			 * The client MUST stop using all of the addresses
@@ -681,6 +700,15 @@ release_ia(ia)
 		goto fail;
 	}
 
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+	ia->state = IAS_RELEASE;
+	//CENTURYLINK require release IA_NA and IA_PD at the same time
+	if(get_all_ia_data(ia,ev) <= 0)
+	{
+		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
+		goto fail;
+	}
+#else
 	if ((evd = malloc(sizeof(*evd))) == NULL) {
 		dprintf(LOG_NOTICE, FNAME,
 		    "failed to create a new event data");
@@ -700,7 +728,7 @@ release_ia(ia)
 		}
 	}
 	TAILQ_INSERT_TAIL(&ev->data_list, evd, link);
-
+#endif
 	ev->timeouts = 0;
 	dhcp6_set_timeoparam(ev);
 	dhcp6_reset_timer(ev);
@@ -749,11 +777,16 @@ remove_ia(ia)
 		dhcp6_remove_timer(&ia->timer);
 
 	if (ia->evdata) {
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK		
+		free_ev_datalist(ia->evdata);
+#else
+
 		TAILQ_REMOVE(&ia->evdata->event->data_list, ia->evdata, link);
 		if (ia->evdata->destructor)
 			ia->evdata->destructor(ia->evdata);
 		free(ia->evdata);
 		ia->evdata = NULL;
+#endif
 	}
 
 	if (ia->ctl && ia->ctl->cleanup)
@@ -783,12 +816,16 @@ ia_timo(arg)
 
 	/* cancel the current event for the prefix. */
 	if (ia->evdata) {
-        ia_type=ia->evdata->type;
+		ia_type=ia->evdata->type;
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK		
+		free_ev_datalist(ia->evdata);
+#else
 		TAILQ_REMOVE(&ia->evdata->event->data_list, ia->evdata, link);
 		if (ia->evdata->destructor)
 			ia->evdata->destructor(ia->evdata);
 		free(ia->evdata);
 		ia->evdata = NULL;
+#endif        
 	}
 
 	switch (ia->state) {
@@ -829,6 +866,41 @@ ia_timo(arg)
 		goto fail;
 	}
 
+    if (ia->state == IAS_RENEW) {
+		if (duidcpy(&ev->serverid, &ia->serverid)) {
+			dprintf(LOG_NOTICE, FNAME, "failed to copy server ID");
+			goto fail;
+		}
+	}
+
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK	
+	//CENTURYLINK require renew/rebind IA_NA and IA_PD at the same time
+	if(get_all_ia_data(ia,ev) <= 0)
+	{
+		dprintf(LOG_NOTICE, FNAME, "failed to get IA data");
+		goto fail;
+	}
+
+	
+#ifdef ACTION_TEC_IPV6_CODE_FOR_REBIND
+	if(ia->state == IAS_REBIND)
+	{
+		dprintf(LOG_INFO, FNAME,"******ia_type=%d,DHCP6S_REBIND %d %d\n ",ia_type,rmna,rmpd);
+		if( ia_type== DHCP6_EVDATA_IANA )
+		{
+			char *wan_dhcpv6_ipv6_addr[64] = { 0 };
+			if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 )
+			{
+				remove_na_address(ia->ifp,wan_dhcpv6_ipv6_addr, &rmna);
+				dprintf(LOG_INFO, FNAME,"*****RM_NA_Addr  ifname[%s]  wan[%s]",
+				        ia->ifp->ifname,wan_dhcpv6_ipv6_addr);
+			}
+		}
+	}
+#endif
+
+
+#else
 	if ((evd = malloc(sizeof(*evd))) == NULL) {
 		dprintf(LOG_NOTICE, FNAME,
 		    "failed to create a new event data");
@@ -836,14 +908,7 @@ ia_timo(arg)
 	}
 	memset(evd, 0, sizeof(*evd));
 	evd->event = ev;
-	TAILQ_INSERT_TAIL(&ev->data_list, evd, link);
-
-	if (ia->state == IAS_RENEW) {
-		if (duidcpy(&ev->serverid, &ia->serverid)) {
-			dprintf(LOG_NOTICE, FNAME, "failed to copy server ID");
-			goto fail;
-		}
-	}
+	TAILQ_INSERT_TAIL(&ev->data_list, evd, link);	
 
 	iaparam.iaid = ia->conf->iaid;
 	iaparam.t1 = ia->t1;
@@ -872,33 +937,33 @@ ia_timo(arg)
 						if( ia_type== DHCP6_EVDATA_IANA /*&& 0 == rmna*/)
 							{
 								   char *wan_dhcpv6_ipv6_addr[64] = { 0 };
-								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 ) 
+								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 )
 								   {
 									remove_na_address(ia->ifp,wan_dhcpv6_ipv6_addr, &rmna);
 									dprintf(LOG_INFO, FNAME,"*****RM_NA_Addr  ifname[%s]  wan[%s]",
-										ia->ifp->ifname,wan_dhcpv6_ipv6_addr);							
+										ia->ifp->ifname,wan_dhcpv6_ipv6_addr);
 								   }
 							}
-			
+
 #if 0
 						if( ia->evdata->type == DHCP6_EVDATA_IANA && 0 == rmna)
 							{
 								   char *wan_dhcpv6_ipv6_addr[64] = { 0 };
-								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 ) 
+								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 )
 								   {
 									remove_na_address(ia->ifp,wan_dhcpv6_ipv6_addr, &rmna);
 									dprintf(LOG_INFO, FNAME,"*****RM_NA_Addr type[%d] ifname[%s]  wan[%s]",
-										ia->evdata->type,ia->ifp->ifname,wan_dhcpv6_ipv6_addr); 						
+										ia->evdata->type,ia->ifp->ifname,wan_dhcpv6_ipv6_addr);
 								   }
 							}
 						else if( ia->evdata->type == DHCP6_EVDATA_IAPD && 0 == rmpd )
 							{
 								char *wan_dhcpv6_ipv6_addr[64] = { 0 };
-								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 ) 
+								   if( ctl_layer_cfg_check( ia->ifp, wan_dhcpv6_ipv6_addr ) == 0 )
 								   {
 									remove_na_address(ia->ifp,wan_dhcpv6_ipv6_addr, &rmpd);
 									dprintf(LOG_INFO, FNAME,"*****RM_PD_Addr type[%d] ifname[%s]  wan[%s]",
-										ia->evdata->type,ia->ifp->ifname,wan_dhcpv6_ipv6_addr); 						
+										ia->evdata->type,ia->ifp->ifname,wan_dhcpv6_ipv6_addr);
 								   }
 							}
 #endif
@@ -908,6 +973,9 @@ ia_timo(arg)
 	default:
 		break;
 	}
+
+	ia->evdata = evd;
+#endif
 
 	ev->timeouts = 0;
 	dhcp6_set_timeoparam(ev);
@@ -921,7 +989,6 @@ ia_timo(arg)
 		}
 	}
 
-	ia->evdata = evd;
 
 	switch(ia->state) {
 	case IAS_RENEW:
@@ -1133,5 +1200,186 @@ fail:
 	return (-1);
 }
 
+#endif
+
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+/*
+*   Function: get_all_ia_data
+*
+*   Description: generate all IA data for renew/rebind/release, trigger by IA_NA or IA_PD timer
+*
+*   Input Parameters:
+*   struct ia *ias: the source IA, from this IA get all other IA
+*   struct dhcp6_event *ev: dhcp6 event
+*
+*   Return Values: <=0 error, >0 sucess
+*/
+int get_all_ia_data(ias, ev)
+struct ia *ias;
+struct dhcp6_event *ev;
+{
+
+	struct dhcp6_if *ifp = ias->ifp;
+	struct ia_conf *iac;
+	struct ia *ia, *ia_next;
+	struct dhcp6_ia iaparam;
+	struct dhcp6_eventdata *evd;
+	int ia_num = 0;
+
+	if(ifp == NULL)
+	{
+		dprintf(LOG_INFO, FNAME, "ifp == NULL");
+		return -1;
+	}
+
+	for (iac = TAILQ_FIRST(&ifp->iaconf_list); iac;
+	        iac = TAILQ_NEXT(iac, link)) {
+		for (ia = TAILQ_FIRST(&iac->iadata); ia; ia = ia_next)
+		{
+
+			if ((evd = malloc(sizeof(*evd))) == NULL) {
+				dprintf(LOG_NOTICE, FNAME,
+				        "failed to create a new event data");
+				return -1;
+			}
+			memset(evd, 0, sizeof(*evd));
+			if(ia->conf->iaid == ias->conf->iaid)
+			{
+			    //only source ia need record this event, other just put data to list
+				evd->event = ev;
+			}
+			TAILQ_INSERT_TAIL(&ev->data_list, evd, link);
+
+
+			iaparam.iaid = ia->conf->iaid;
+			iaparam.t1 = ia->t1;
+			iaparam.t2 = ia->t2;
+
+			switch(ias->state) {
+			case IAS_RENEW:
+				if (ia->ctl && ia->ctl->renew_data) {
+					if(ia->conf->iaid == ias->conf->iaid)
+					{
+					    //only source ia need record its event data, other just put data to list
+						if ((*ia->ctl->renew_data)(ia->ctl, &iaparam,
+						                           &ia->evdata, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make renew data");
+							return -1;
+						}
+
+						ia->evdata = evd;
+					}
+					else
+					{
+						if ((*ia->ctl->renew_data)(ia->ctl, &iaparam,
+						                           NULL, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make renew data");
+							return -1;
+						}
+					}
+					ia_num++;
+				}
+				break;
+			case IAS_REBIND:
+				if (ia->ctl && ia->ctl->rebind_data) {
+					if(ia->conf->iaid == ias->conf->iaid)
+					{
+						if ((*ia->ctl->rebind_data)(ia->ctl, &iaparam,
+						                            &ia->evdata, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make rebind data");
+							return -1;
+						}
+
+						ia->evdata = evd;
+					}
+					else
+					{
+						if ((*ia->ctl->rebind_data)(ia->ctl, &iaparam,
+						                            NULL, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make rebind data");
+							return -1;
+						}
+					}
+					ia_num++;
+				}
+				break;
+			case IAS_REQUEST:
+				if (ia->ctl && ia->ctl->reestablish_data) {
+					if(ia->conf->iaid == ias->conf->iaid)
+					{
+						if ((*ia->ctl->reestablish_data)(ia->ctl, &iaparam,
+						                                 &ia->evdata, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make reestablish data");
+							return -1;
+						}
+
+						ia->evdata = evd;
+					}
+					else
+					{
+						if ((*ia->ctl->reestablish_data)(ia->ctl, &iaparam,
+						                                 NULL, evd)) {
+							dprintf(LOG_NOTICE, FNAME,
+							        "failed to make reestablish data");
+							return -1;
+						}
+					}
+					ia_num++;
+				}
+				break;
+			case IAS_RELEASE:
+				if (ia->ctl && ia->ctl->release_data) {
+					if ((*ia->ctl->release_data)(ia->ctl, &iaparam,
+					                             NULL, evd)) {
+						dprintf(LOG_NOTICE, FNAME,
+						        "failed to make release data");
+						return -1;
+					}
+					ia_num++;
+				}
+				break;
+			default:
+				break;
+			}
+
+			ia_next = TAILQ_NEXT(ia, link);
+
+		}
+	}
+
+	return ia_num;
+}
+
+/*
+*   Function: free_ev_datalist
+*
+*   Description: free all event data list data
+*
+*   Input Parameters:
+*   struct dhcp6_eventdata *evds: the source event data
+*
+*/
+void free_ev_datalist(evds)
+struct dhcp6_eventdata *evds;
+{
+	struct dhcp6_eventdata *evdata = NULL;
+	if(evds == NULL)
+		return;
+
+	while (evdata = TAILQ_FIRST(&evds->event->data_list))
+	{
+		TAILQ_REMOVE(&evds->event->data_list, evdata, link);
+		if (evdata->destructor)
+			evdata->destructor(evdata);
+		free(evdata);
+		evdata = NULL;		
+	}
+
+}
 #endif
 

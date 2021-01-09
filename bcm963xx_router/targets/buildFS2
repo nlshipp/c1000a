@@ -26,6 +26,7 @@ else
         cp $PROFILE_DIR/vmlinux.lz $TARGET_FS/.
         echo -e "/cferam.000" > $HOSTTOOLS_DIR/nocomprlist
         echo -e "/vmlinux.lz" >> $HOSTTOOLS_DIR/nocomprlist
+        echo $IMAGE_VERSION > $TARGET_FS/etc/image_version
         chmod +w $TARGET_FS/etc/fstab
         echo -e "mtd:data\t/data\tjffs2\tdefaults\t0\t0\n" >> $TARGET_FS/etc/fstab
         chmod -w $TARGET_FS/etc/fstab

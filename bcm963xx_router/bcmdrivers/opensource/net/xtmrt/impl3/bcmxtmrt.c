@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl
- Copyright 2007 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2011:DUAL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2011 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 /**************************************************************************
@@ -64,6 +74,7 @@
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <linux/nbuff.h>
+#include "pktCmf_public.h"
 #include "bcmxtmrtimpl.h"
 #include "bcmPktDma.h"
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
@@ -81,8 +92,6 @@
 #endif
 
 static UINT32 gs_ulLogPorts[]  = {0, 3, 1, 2};
-
-static UINT32 swSchedTimerUsecs = 0 ;
 
 #define SW_SCHED_TIMER          TIMER1
 #define SW_SCHED_TIMEREN        TIMER1EN
@@ -152,11 +161,18 @@ static void ProcessRxCell(PBCMXTMRT_GLOBAL_INFO pGi, BcmXtm_RxDma *rxdma, UINT8 
 static void AEI_UpdateMirrorFlag(UINT16 *mirFlags, char *intfName, UINT8 enable);
 static void AEI_MultiMirrorPacket( struct sk_buff *skb, UINT16 mirFlags );
 static void AEI_MirrorPacket( struct sk_buff *skb, char *intfName );
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb);
+static UBOOL8 AEI_matchVlanId(struct sk_buff *skb, int vlanId);
+#endif
 #else
 static void MirrorPacket(struct sk_buff *skb, char *intfName, int need_unshare);
 #endif
 static void bcmxtmrt_timer( PBCMXTMRT_GLOBAL_INFO pGi );
-static int bcmxtmrt_sw_sched_init ( PBCMXTMRT_GLOBAL_INFO pGi ) ;
+#if defined(CONFIG_BCM96368)
+static UINT32 swSchedTimerUsecs = 0 ;
+
+static void bcmxtmrt_sw_sched_initOrReset ( PBCMXTMRT_GLOBAL_INFO pGi ) ;
 inline static UINT32 bcmxtmrt_swsched_getxmit_len (BcmPktDma_XtmTxDma *txSwdma);
 static void bcmxtmrt_swsched_xmit (XtmRtTxSchedContext *pTxSchedCtxt,
          BcmPktDma_XtmTxDma *txSwdma, int channel, int txSwChannel) ;
@@ -164,6 +180,7 @@ static void bcmxtmrt_swsched_swdma_bd_free(XtmRtTxSchedContext *pTxSchedCtxt,
          UINT32 txSwdmaIndex, UINT32 txBdIndex);
 static void bcmxtmrt_swsched_recycle (XtmRtTxSchedContext *pXtmTxSchedCtxt) ;
 static void bcmxtmrt_swscheduler ( PBCMXTMRT_GLOBAL_INFO pGi ) ;
+#endif
 static int DoGlobInitReq( PXTMRT_GLOBAL_INIT_PARMS pGip );
 static int DoGlobUninitReq( void );
 static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd );
@@ -184,8 +201,9 @@ static int DoSetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 static int DoUnsetTxHwQueues ( void ) ;
 static int DoUnsetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
     PXTMRT_TRANSMIT_QUEUE_ID pTxQId );
-static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma,
-    volatile DmaStateRam *pStRam) ;
+static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma);
+static void freeXmitPkts (PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma,
+                          int forceFree);
 static void FlushdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma) ;
 static int DoSendCellReq( PBCMXTMRT_DEV_CONTEXT pDevCtx, PXTMRT_CELL pC );
 static int DoDeleteDeviceReq( PBCMXTMRT_DEV_CONTEXT pDevCtx );
@@ -197,6 +215,7 @@ static int ProcDmaTxInfo(char *page, char **start, off_t off, int cnt,
     int *eof, void *data);
 static int ProcDmaRxInfo(char *page, char **start, off_t off, int cnt,
     int *eof, void *data);
+#if defined(CONFIG_BCM96368)
 static int ProcTxSchedInfo(char *page, char **start, off_t off, int cnt,
     int *eof, void *data);
 static void bcmxtmrt_swsched_set_swdma (UINT32 ulPtmPrioIdx, BcmPktDma_XtmTxDma  *txSwdma);
@@ -206,10 +225,11 @@ static void bcmxtmrt_swsched_unset_swdma (UINT32 ulPtmPrioIdx, BcmPktDma_XtmTxDm
 static void (*bcmxtmrt_swsched_timer_int_cb) (PBCMXTMRT_GLOBAL_INFO data) ;
 static PBCMXTMRT_GLOBAL_INFO bcmxtmrt_swsched_timer_int_cb_data ;
 static unsigned int bcmxtmrt_swsched_timer_int(unsigned int i) ;
-static int bcmxtmrt_compute_us_sched_timer_divpktsize (UINT32 usRate) ;
+static int bcmxtmrt_compute_us_sched_timer_divpktsize (UINT32 usRate, UINT32 dsRate) ;
 static int bcmxtmrt_init_swsched_timer (void (*cb)(PBCMXTMRT_GLOBAL_INFO cb_data), PBCMXTMRT_GLOBAL_INFO data,
                                          int timerInit) ;
 static void bcmxtmrt_uninit_swsched_timer (void);
+#endif
 
 
 /* Globals. */
@@ -264,7 +284,6 @@ static void xtm_rx_init_iq_thresh(int chnl);
 static thresh_t xtm_rx_dqm_iq_thresh[XTM_RX_CHANNELS_MAX];
 
 extern iqos_fap_xtmRxDqmQueue_hook_t iqos_fap_xtmRxDqmQueue_hook_g;
-void xtm_set_iq_thresh_dqm(int channel, uint16 loThresh, uint16 hiThresh);
 void xtm_iq_dqm_update_cong_status(int channel);
 void xtm_iq_dqm_status(void);
 #endif
@@ -492,6 +511,44 @@ static void bcmxtmrt_timeout( struct net_device *dev )
 } /* bcmxtmrt_timeout */
 
 
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+void bcmxtmrt_pktCmfXtmResetStats( uint32_t vport )
+{
+    bcmFun_t *pktCmfXtmResetStatsHook;
+
+    pktCmfXtmResetStatsHook =
+            bcmFun_get(BCM_FUN_ID_CMF_XTM_RESET_STATS);
+
+    if (pktCmfXtmResetStatsHook)
+    {
+        pktCmfXtmResetStatsHook( (void *) &vport);
+    }
+}
+
+void bcmxtmrt_pktCmfXtmGetStats( uint32_t vport,
+        uint32_t *rxDropped_p, uint32_t *txDropped_p )
+{
+    bcmFun_t *pktCmfXtmGetStatsHook;
+    PktCmfStatsParam_t statsParam;
+
+    *rxDropped_p = 0;
+    *txDropped_p = 0;
+
+    pktCmfXtmGetStatsHook =
+            bcmFun_get(BCM_FUN_ID_CMF_XTM_GET_STATS);
+
+    if (pktCmfXtmGetStatsHook)
+    {
+        statsParam.vport = vport;
+        statsParam.rxDropped_p = rxDropped_p;
+        statsParam.txDropped_p = txDropped_p;
+
+        pktCmfXtmGetStatsHook( (void *) &statsParam );
+    }
+}
+#endif
+
+
 /***************************************************************************
  * Function Name: bcmxtmrt_query
  * Description  : Called to return device statistics.
@@ -504,21 +561,33 @@ static struct net_device_stats *bcmxtmrt_query(struct net_device *dev)
 #else
     PBCMXTMRT_DEV_CONTEXT pDevCtx = dev->priv;
 #endif
-    struct net_device_stats *pStats = &pDevCtx->DevStats;
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-    UINT32 i;
+    struct net_device_stats *pStats = &pGi->dummy_stats; 
+    
+/* Do not grab statistics from MIB hardware but instead simply return the
+   pStats structure, which is constantly updated in software instead to
+   support extended statistics (i.e. multicast, broadcast, unicast 
+   packets and other data). */
+    UINT32 i=0;
     UINT32 found      = 0;
-    UINT32 rx_bytes   = 0;
-    UINT32 rx_packets = 0;
+    UINT32 rxDropped  = 0;
+    UINT32 txDropped  = 0;
+    UINT32 rxTotalDropped = 0;
+    UINT32 txTotalDropped = 0;
 
-    if( pDevCtx->ucTxVcid != INVALID_VCID )
-        pStats->tx_bytes += pGi->pulMibTxOctetCountBase[pDevCtx->ucTxVcid];
-
+	/* Copy the current driver stats to local copy */
+    memcpy(pStats, &pDevCtx->DevStats, sizeof(*pStats));
+   
     if (pDevCtx->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED)
     {
-       pStats->rx_bytes   = pGi->ptmBondInfo.bStats.rxo ;
-       pStats->rx_packets = (pGi->ptmBondInfo.bStats.rxp +
-                             pGi->ptmBondInfo.bStats.rxpl) ;
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+       bcmxtmrt_pktCmfXtmGetStats(i, (uint32_t*)&rxDropped, 
+            (uint32_t*)&txDropped);
+#else
+       bcmPktDma_XtmGetStats(i, &rxDropped, &txDropped); 
+#endif
+       pStats->rx_dropped  += rxDropped;
+       pStats->tx_dropped  += txDropped;
     }
     else
     {
@@ -526,45 +595,21 @@ static struct net_device_stats *bcmxtmrt_query(struct net_device *dev)
        {
           if( pGi->pDevCtxsByMatchId[i] == pDevCtx )
           {
-             *pGi->pulMibRxMatch = i;
-             rx_bytes   += *pGi->pulMibRxOctetCount;
-             *pGi->pulMibRxMatch = i;
-             rx_packets += *pGi->pulMibRxPacketCount;
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+             bcmxtmrt_pktCmfXtmGetStats(i, (uint32_t*)&rxDropped, 
+                    (uint32_t*)&txDropped);
+#else
+             bcmPktDma_XtmGetStats(i, &rxDropped, &txDropped); 
+#endif
+             rxTotalDropped += rxDropped;
+             txTotalDropped += txDropped;
              found = 1;
-
-             if ((pGi->bondConfig.sConfig.ptmBond != BC_PTM_BONDING_ENABLE)
-                   &&
-                   (pGi->bondConfig.sConfig.atmBond != BC_ATM_BONDING_ENABLE))
-             {
-                /* By convension, VCID 0 collects statistics for packets that use
-                 * Packet CMF rules.
-                 */
-                if( i == 0 )
-                {
-                   UINT32 j;
-                   for( j = MAX_DEFAULT_MATCH_IDS + 1; j < MAX_MATCH_IDS; j++ )
-                   {
-                      *pGi->pulMibRxMatch = j;
-                      rx_bytes   += *pGi->pulMibRxOctetCount;
-                      *pGi->pulMibRxMatch = j;
-                      rx_packets += *pGi->pulMibRxPacketCount;
-                   }
-                } /* if (i) */
-             }
           }
        } /* for (i) */
        if( found )
        {
-          if( *pGi->pulMibRxCtrl & pGi->ulMibRxClrOnRead )
-          {
-             pStats->rx_bytes   += rx_bytes;
-             pStats->rx_packets += rx_packets;
-          }
-          else 
-          {
-             pStats->rx_bytes    = rx_bytes;
-             pStats->rx_packets  = rx_packets;
-          }
+            pStats->rx_dropped += rxTotalDropped;
+            pStats->tx_dropped += txTotalDropped;
        }
     }
 
@@ -586,7 +631,6 @@ static int bcmxtmrt_change_mtu(struct net_device *dev, int new_mtu)
     return 0;
 }
 
-
 /***************************************************************************
  * Function Name: bcmxtmrt_clrStats
  * Description  : Called to clear device statistics.
@@ -600,10 +644,24 @@ static void bcmxtmrt_clrStats(struct net_device *dev)
     PBCMXTMRT_DEV_CONTEXT pDevCtx = dev->priv;
 #endif
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
+    UINT32 i;
 
     *pGi->pulMibRxCtrl |= pGi->ulMibRxClrOnRead;
     bcmxtmrt_query(dev);
     *pGi->pulMibRxCtrl &= ~pGi->ulMibRxClrOnRead;
+
+    for( i = 0; i < MAX_DEFAULT_MATCH_IDS; i++ )
+    {
+       if( pGi->pDevCtxsByMatchId[i] == pDevCtx )
+       {
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+          bcmxtmrt_pktCmfXtmResetStats(i);
+#else
+          bcmPktDma_XtmResetStats(i); 
+#endif
+       }
+    } /* for (i) */
+
     memset(&pDevCtx->DevStats, 0, sizeof(struct net_device_stats));
 } /* bcmxtmrt_clrStats */
 
@@ -653,6 +711,10 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         else
         {
 #if defined(AEI_VDSL_TOOLBOX)
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+            pDevCtx->matchVlanId = mirrorCfg.vlanId;
+#endif
+
             if( mirrorCfg.nDirection == MIRROR_DIR_IN )
             {
                 AEI_UpdateMirrorFlag(&(pDevCtx->usMirrorInFlags),
@@ -692,7 +754,7 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         break;
 #endif
 
-#if defined(AEI_VDSL_STATS_DIAG)
+#if defined(AEI_VDSL_STATS_DIAG) && !defined(AEI_VDSL_CUSTOMER_NCS)
     case SIOCGETMULTICASTSTATS:
     {
         if (copy_to_user((void *)data, (void *)&pDevCtx->multi_stats,
@@ -1094,13 +1156,13 @@ static int is_tcp_ack( const UINT8 * pData, int len )
                 if( (pData[AEI_L3_TYPE_OFFSET_H]==0x81) && ((pData[AEI_L3_TYPE_OFFSET_L]==0x00)) )  {
                         bVlan = TRUE;
                         pData += AEI_VLAN_HEAD_LEN; // pData bypass vlan
-                }       
+                }
 
                 // 1. Check IP (0x0800)
                 if( (pData[AEI_L3_TYPE_OFFSET_H]!=0x08) || (pData[AEI_L3_TYPE_OFFSET_L]!=0x00)) {
                         //printk( "not IP\n" );
-                        break;  
-                }       
+                        break;
+                }
                 pData += AEI_ETH_HEAD_LEN; // pData ptr to IP header
 
                 // 2. Check TCP (0x06)
@@ -1160,9 +1222,12 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
     PBCMXTMRT_DEV_CONTEXT pDevCtx = dev->priv;
 #endif
     DmaDesc  dmaDesc;
+    uint32 dqm;
+
 #if defined(AEI_VDSL_STATS_DIAG)
     int is_multicast = 0;
 #endif
+
 
     spin_lock_bh(&pGi->xtmlock_tx);
 
@@ -1213,7 +1278,7 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
 
 #ifdef AEI_VDSL_SMALL_PACKET_PRIORITY
         if (len<129 && uMark==0 && is_tcp_ack(pData,len)){
-			
+
             uMark |= AEI_VDSL_SMALL_PACKET_PRIORITY;
         }
 #endif
@@ -1313,6 +1378,25 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                   txdma = NULL;
             }
 #endif
+
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+            /* Send the high priority tarffic HOST2FAP HIGH priorty DQM's and other traffic
+             * through LOW priority HOST2FAP DQM 
+             * classification is based on (skb/fkb)->mark 
+             */
+
+            if((SKBMARK_GET_FLOW_ID(uMark)) && ((uMark & 0x7) == 0x7))
+            {
+                dqm = DQM_HOST2FAP_XTM_XMIT_Q_HI;
+            }
+            else 
+            {
+                dqm = DQM_HOST2FAP_XTM_XMIT_Q_LOW;
+            }
+#else
+            dqm = 0;
+#endif
+
             /* If a transmit queue was not found or the queue was disabled,
              * use the first (default) queue.
              */
@@ -1322,7 +1406,7 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
             if (txdma && txdma->txEnabled == 1)
             {
                 channel = txdma->ulDmaIndex;
-                ulTxAvailable = bcmPktDma_XtmXmitAvailable(txdma, TXDMATYPE(pDevCtx));
+                ulTxAvailable = bcmPktDma_XtmXmitAvailable(txdma, TXDMATYPE(pDevCtx), dqm);
             }
             else
                 ulTxAvailable = 0;
@@ -1332,6 +1416,9 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                 UINT32 ulRfc2684_type; /* Not needed as CMF "F in software" */
                 UINT32 ulHdrType = pDevCtx->ulHdrType;
                 UINT32 blogPhyType;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)				
+                FkBuff_t *pFkb = PNBUFF_2_FKBUFF(pNBuff);
+#endif
 
                 if( (pDevCtx->ulFlags & CNI_HW_ADD_HEADER) == 0 &&
                      HT_LEN(ulHdrType) != 0 && !isAtmCell )
@@ -1356,7 +1443,31 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                      ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
                      ulHdrType ==  HT_VC_MUX_ETHERNET) )
                 {
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+                    if (pDevCtx->matchVlanId >= 0)
+                    {
+                        if (pDevCtx->matchVlanId == 0)
+                        {
+                            if (!AEI_hasVlanTag(pNBuffSkb))
+                            {
+                                AEI_MultiMirrorPacket( pNBuffSkb, pDevCtx->usMirrorOutFlags );
+                            }
+                        }
+                        else
+                        {
+                            if (AEI_matchVlanId(pNBuffSkb, pDevCtx->matchVlanId))
+                            {
+                                AEI_MultiMirrorPacket( pNBuffSkb, pDevCtx->usMirrorOutFlags );
+                            }
+                        }
+                    }
+                    else
+                    {
+                        AEI_MultiMirrorPacket( pNBuffSkb, pDevCtx->usMirrorOutFlags );
+                    }
+#else
                     AEI_MultiMirrorPacket( pNBuffSkb, pDevCtx->usMirrorOutFlags );
+#endif
                 }
 #else
                 if( pDevCtx->szMirrorIntfOut[0] != '\0' &&
@@ -1389,10 +1500,8 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                 }
 
                 if (pDevCtx->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
-						 if (pDevCtx->ulPortDataMask != 0) {
-							 bcmxtmrt_ptmbond_add_hdr (pDevCtx, ulPtmPrioIdx, &pNBuff, &pNBuffSkb, &pData, &len) ;
-						 }
-						 else {
+						 if (pDevCtx->ulPortDataMask == 0 ||
+							  !bcmxtmrt_ptmbond_add_hdr (pDevCtx, ulPtmPrioIdx, &pNBuff, &pNBuffSkb, &pData, &len)) {
 							 nbuff_flushfree(pNBuff);
 							 pDevCtx->DevStats.tx_dropped++;
 							 goto unlock_done_xmit;
@@ -1476,8 +1585,6 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
                 if(IS_FKBUFF_PTR(pNBuff))
                 {
-                    FkBuff_t *pFkb = PNBUFF_2_FKBUFF(pNBuff);
-
                     /* We can only use the recycle context if this is an xtm or enet buffer */
                     if((pFkb->recycle_hook == (RecycleFuncP)bcmxtmrt_recycle) ||
                        (pFkb->recycle_hook == (RecycleFuncP)enet_recycle_hook))
@@ -1534,24 +1641,51 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
 
                         bcmPktDma_XtmXmit(txdma, pData, len, bufSource,
                                           dmaDesc.status, (uint32)key, rxChannel,
-                                          TXDMATYPE(pDevCtx), 0);
+                                          TXDMATYPE(pDevCtx), 0, dqm);
 
                         goto tx_continue;
                     }
                 }
 
                 bcmPktDma_XtmXmit(txdma, pData, len, HOST_VIA_DQM, dmaDesc.status, (uint32)pNBuff, 0,
-                                  TXDMATYPE(pDevCtx), 0);
+                                  TXDMATYPE(pDevCtx), 0, dqm);
 
 tx_continue:
 #else
                 bcmPktDma_XtmXmit(txdma, pData, len, HOST_VIA_LINUX,
-                                  dmaDesc.status, (uint32)pNBuff, 0, TXDMATYPE(pDevCtx), 0);
+                                  dmaDesc.status, (uint32)pNBuff, 0, TXDMATYPE(pDevCtx), 0, dqm);
 #endif
-
-                /* Transmitted bytes are counted in hardware. */
+                /* Gather statistics.  */
                 pDevCtx->DevStats.tx_packets++;
-                
+                pDevCtx->DevStats.tx_bytes += len;
+ 
+                /* Now, determine extended statistics.  Is this an Ethernet packet? */
+                if(ulHdrType == HT_PTM ||
+                   ulHdrType == HT_LLC_SNAP_ETHERNET || 
+                   ulHdrType == HT_VC_MUX_ETHERNET)
+                {
+                    /* Yes, this is Ethernet.  Test for multicast packet */
+                    if(pData[0]  == 0x01)
+                    {
+                        /* Multicast packet - record statistics */
+                        pDevCtx->DevStats.tx_multicast_packets++;
+                        pDevCtx->DevStats.tx_multicast_bytes += len;                    
+                    }
+
+                    /* Test for broadcast packet */
+                    if(pData[0] == 0xFF)
+                    {
+                        /* Constant value to test for Ethernet broadcast address */
+                        const unsigned char pucEtherBroadcastAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+                        
+                        /* Low byte indicates we might be broadcast - check against the rest */
+                        if(memcmp(pData, pucEtherBroadcastAddr, 5) == 0)
+                        {
+                            /* Broadcast packet - record statistics */
+                            pDevCtx->DevStats.rx_broadcast_packets++;
+                        }
+                    }
+                }
                 pDevCtx->pDev->trans_start = jiffies;
 
 #if defined(AEI_VDSL_STATS_DIAG)
@@ -1568,7 +1702,7 @@ tx_continue:
                  * queue.
                  */
                 nbuff_flushfree(pNBuff);
-                pDevCtx->DevStats.tx_errors++;
+                pDevCtx->DevStats.tx_dropped++;
             }
         }
         else
@@ -1985,7 +2119,16 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
     {
         ulMoreToReceive = 0;
 
+/* In case of FAP, we are checking DQMs and not DMAs.
+   Checking only one time should be sufficient, as the DQM delivers messages
+   for both low/high prios from either of the channels.
+   + Rx channel 1 is not used
+ */
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+        for  (i = 0;  i < MAX_RECEIVE_QUEUES-1; i++)
+#else
         for  (i = 0;  i < MAX_RECEIVE_QUEUES; i++)
+#endif
         {
             UINT32   ulCell;
 
@@ -2021,6 +2164,7 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                 FlushAssignRxBuffer(rxdma->channel, pBuf, pBuf);
                 if( pDevCtx )
                     pDevCtx->DevStats.rx_errors++;
+                goto drop_pkt;
             };
 #endif
 #endif
@@ -2040,6 +2184,14 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
 #else
                     int len = RXBUF_SIZE;
 #endif
+                    if( rxdma->freeSkbList == NULL )
+                    {
+                       FlushAssignRxBuffer(rxdma->pktDmaRxInfo.channel, pBuf, pBuf);
+                       if (pDevCtx)
+                           pDevCtx->DevStats.rx_dropped++;
+                       goto drop_pkt;
+                    }
+
                     skb = rxdma->freeSkbList;
                     rxdma->freeSkbList = rxdma->freeSkbList->next_free;
                     skb_headerinit( RXBUF_HEAD_RESERVE, len, skb, pBuf,
@@ -2052,6 +2204,7 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                     local_irq_save(flags);
                     local_irq_enable();
                     dev_queue_xmit(skb);
+		    printk ("bcmxtmrt : TEQ data \n") ;
                     local_irq_restore(flags);
                 }
                 else
@@ -2066,10 +2219,18 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                 FkBuff_t * pFkb;
                 UINT16 usLength = dmaDesc.length;
                 int delLen = 0, trailerDelLen = 0;
+#ifdef PHY_LOOPBACK
+                char mac[6] ;
+#endif
 
                 ulRxPktGood++;
                 ulBudget--;
 
+#ifdef PHY_LOOPBACK
+                memcpy (mac, pucData, 6) ;
+                memcpy (pucData, pucData+6, 6) ;
+                memcpy (pucData+6, mac, 6) ;
+#endif
                 if( (pDevCtx->ulFlags & LSC_RAW_ENET_MODE) != 0 )
                     usLength -= 4; /* ETH CRC Len */
 
@@ -2121,7 +2282,8 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                     spin_unlock_bh (&pGi->xtmlock_rx_bond);
                 }
                 else {
-                    bcmxtmrt_process_rx_pkt (pDevCtx, rxdma, pFkb, dmaDesc.status, delLen, trailerDelLen) ;
+                    bcmxtmrt_process_rx_pkt (pDevCtx, rxdma, pFkb, dmaDesc.status, delLen, trailerDelLen, 
+                                             FALSE) ;
                     //bcmxtmrt_ptm_receive_and_drop (pDevCtx, pFkb, dmaDesc.status, (UINT16) i) ;
                                          /* Used for SAR-phy Lpbk high-rate test */
                 }
@@ -2132,6 +2294,7 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                 ProcessRxCell(pGi, rxdma, pucData);
             }
 
+drop_pkt:
             if( ulRxPktProcessed >= ulRxPktMax )
                 break;
             else
@@ -2154,7 +2317,8 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
  ***************************************************************************/
 
 UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rxdma,
-                                 FkBuff_t *pFkb, UINT16 bufStatus, int delLen, int trailerDelLen )
+                                 FkBuff_t *pFkb, UINT16 bufStatus, int delLen, int trailerDelLen,
+                                 BOOLEAN throttle)
 {
    PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
    struct sk_buff *skb ;
@@ -2164,24 +2328,44 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
    UINT32 blogPhyType;
    UINT8  *pBuf = PFKBUFF_TO_PDATA(pFkb, RXBUF_HEAD_RESERVE) ;
    UINT32 retStatus;
+   
 #ifdef CONFIG_BLOG
    BlogAction_t blogAction;
 #endif
 
-   pDevCtx->pDev->last_rx = jiffies;
-
-   pDevCtx->DevStats.rx_bytes += pFkb->len ;
-
-   if( (ulHdrType ==  HT_PTM || ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
-        ulHdrType ==  HT_VC_MUX_ETHERNET)
-                     &&
-                    ((pucData[0] & 0x01) == 0x01) )
-                {
-                    pDevCtx->DevStats.multicast++;
-#if defined(AEI_VDSL_STATS_DIAG)
-                    pDevCtx->multi_stats.rx_multicast_bytes += pFkb->len;
-#endif
-                }
+    /* Record time of this RX */
+    pDevCtx->pDev->last_rx = jiffies;
+    
+    /* Calculate total RX packets received */
+    pDevCtx->DevStats.rx_packets++;
+    pDevCtx->DevStats.rx_bytes += pFkb->len;
+    
+    /* Now, determine extended statistics.  Is this an Ethernet packet? */
+    if(ulHdrType ==  HT_PTM || ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
+       ulHdrType ==  HT_VC_MUX_ETHERNET)
+    {
+        /* If this is a multicast packet, increment multicast counters */
+        if(pucData[0] == 0x01)
+        {
+            /* Multicast packet - record statistics */
+            pDevCtx->DevStats.multicast++;
+            pDevCtx->DevStats.rx_multicast_bytes += pFkb->len ;
+        }        
+        
+        /* Test for broadcast packet */
+        if(pucData[0] == 0xFF)
+        {
+            /* Constant value to test for Ethernet broadcast address */
+            const unsigned char pucEtherBroadcastAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+            
+            /* Low byte indicates we might be broadcast - check against the rest */
+            if(memcmp(pucData, pucEtherBroadcastAddr, 5) == 0)
+            {
+                /* Broadcast packet - record statistics */
+                pDevCtx->DevStats.rx_broadcast_packets++;
+            }
+        }        
+    }
 
    if( (pDevCtx->ulFlags & CNI_HW_REMOVE_HEADER) == 0 )
    {  /* cannot be an AtmCell, also do not use delLen (bonding), recompute */
@@ -2189,35 +2373,7 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
          ulRfc2684_type = HT_TYPE(ulHdrType); /* blog.h: Rfc2684_t */
    }
 
-#if defined(AEI_VDSL_TOOLBOX)
-   if( pDevCtx->usMirrorInFlags != 0 &&
-       (ulHdrType ==  HT_PTM ||
-        ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
-        ulHdrType ==  HT_VC_MUX_ETHERNET) )
-   {
-      struct sk_buff *skb_m;
-
-      spin_unlock_bh(&pGi->xtmlock_rx);
-
-      skb_m = fkb_xlate(pFkb);
-      if (skb_m != (struct sk_buff *)NULL)
-      {
-         uint32 recycle_context = 0;
-
-         RECYCLE_CONTEXT(recycle_context)->channel = rxdma->channel;
-
-         skb_m->recycle_hook = (RecycleFuncP)bcmxtmrt_recycle_skb_or_data;
-         skb_m->recycle_context = recycle_context;
-         skb_m->recycle_flags = SKB_DATA_RECYCLE;
-
-         AEI_MultiMirrorPacket( skb_m, pDevCtx->usMirrorInFlags );
-      }
-
-      dev_kfree_skb_any( skb_m );
-
-      spin_lock_bh(&pGi->xtmlock_rx);
-   }
-#else
+#if !defined(AEI_VDSL_TOOLBOX)
    if( pDevCtx->szMirrorIntfIn[0] != '\0' &&
          (ulHdrType ==  HT_PTM ||
           ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
@@ -2230,10 +2386,11 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
       skb_m = nbuff_xlate( FKBUFF_2_PNBUFF(fkbC_p) );    /* translate to skb */
       if (skb_m != (struct sk_buff *)NULL)
       {
-         MirrorPacket(skb_m, pDevCtx->szMirrorIntfOut, 0);
+         spin_unlock_bh(&pGi->xtmlock_rx);
+         MirrorPacket(skb_m, pDevCtx->szMirrorIntfIn, 0);
+         dev_kfree_skb_any( skb_m );
+         spin_lock_bh(&pGi->xtmlock_rx);
       }
-
-      dev_kfree_skb_any( skb_m );
    }
 #endif
 
@@ -2270,13 +2427,20 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
    {
 #endif
 
-        if( rxdma->freeSkbList == NULL )
+        pGi->noOfNonAccelPktsDSInSec++ ;
+
+        if (((throttle == TRUE) && (pGi->noOfNonAccelPktsDSInSec > MAX_NON_ACCEL_PKTS_IN_SEC))
+              ||
+            ( rxdma->freeSkbList == NULL ))
         {
            spin_unlock_bh(&pGi->xtmlock_rx);
 
            fkb_release(pFkb);  /* releases allocated blog */
            FlushAssignRxBuffer(rxdma->channel, pBuf, pBuf);
            pDevCtx->DevStats.rx_dropped++;
+           if (throttle == TRUE) 
+               return PACKET_DROP;
+           else
            return PACKET_NORMAL;
         }
 
@@ -2308,6 +2472,40 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rx
 
         __skb_trim(skb, pFkb->len);
         skb->dev = pDevCtx->pDev ;
+
+#if defined(AEI_VDSL_TOOLBOX)
+       if ( pDevCtx->usMirrorInFlags != 0 &&
+            (ulHdrType ==  HT_PTM ||
+             ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
+             ulHdrType ==  HT_VC_MUX_ETHERNET) )
+       {
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+           if (pDevCtx->matchVlanId >= 0)
+           {
+               if (pDevCtx->matchVlanId == 0)
+               {
+                   if (!AEI_hasVlanTag(skb))
+                   {
+                       AEI_MultiMirrorPacket( skb, pDevCtx->usMirrorInFlags );
+                   }
+               }
+               else
+               {
+                   if (AEI_matchVlanId(skb, pDevCtx->matchVlanId))
+                   {
+                       AEI_MultiMirrorPacket( skb, pDevCtx->usMirrorInFlags );
+                   }
+               }
+           }
+           else
+           {
+               AEI_MultiMirrorPacket( skb, pDevCtx->usMirrorInFlags );
+           }
+#else
+           AEI_MultiMirrorPacket( skb, pDevCtx->usMirrorInFlags );
+#endif
+       }
+#endif /* AEI_VDSL_TOOLBOX */
 
         switch( ulHdrType )
         {
@@ -2459,7 +2657,41 @@ static char * pMirrorIntfNames[] =
     "wl0.2",
     "wl0.3",
     NULL
-};  
+};
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#define AEI_VLAN_VID_MASK    0x0FFF
+
+static UBOOL8 AEI_hasVlanTag(struct sk_buff *skb)
+{
+    UBOOL8 hasVlan = FALSE;
+    struct vlan_ethhdr *veth = (struct vlan_ethhdr *)skb->data;
+
+    if (veth && (veth->h_vlan_proto == htons(ETH_P_8021Q)))
+    {
+        hasVlan = TRUE;
+    }
+
+    return hasVlan;
+}
+
+static UBOOL8 AEI_matchVlanId(struct sk_buff *skb, int vlanId)
+{
+    struct vlan_ethhdr *veth;
+    UBOOL8 match = FALSE;
+
+    if (AEI_hasVlanTag(skb))
+    {
+        veth = (struct vlan_ethhdr *)skb->data;
+        if (veth && ((veth->h_vlan_TCI & AEI_VLAN_VID_MASK) == vlanId))
+        {
+            match = TRUE;
+        }
+    }
+
+    return match;
+}
+#endif
 
 static void AEI_UpdateMirrorFlag(UINT16 *mirFlags, char *intfName, UINT8 enable)
 {
@@ -2602,7 +2834,13 @@ static void bcmxtmrt_timer( PBCMXTMRT_GLOBAL_INFO pGi )
 {
     UINT32 i;
     UINT32 ulHdrTypeIsPtm = FALSE;
-    PBCMXTMRT_DEV_CONTEXT pDevCtx;
+    PBCMXTMRT_DEV_CONTEXT pDevCtx, pPtmDevCtx=NULL;
+    unsigned long newThrottleTimeout = pGi->prevTime + RX_THROTTLE_TIMEOUT ;
+
+    if (time_after (jiffies, newThrottleTimeout)) {
+       pGi->prevTime = jiffies ;
+       pGi->noOfNonAccelPktsDSInSec = 0 ;
+    }
 
     /* Free transmitted buffers. */
     for( i = 0; i < MAX_DEV_CTXS; i++ ) {
@@ -2611,9 +2849,11 @@ static void bcmxtmrt_timer( PBCMXTMRT_GLOBAL_INFO pGi )
             {
                 bcmxtmrt_xmit( PNBUFF_NULL, pGi->pDevCtxs[i]->pDev );
             }
-            if (pGi->pDevCtxs[i]->ulHdrType == HT_PTM)
+            if (pGi->pDevCtxs[i]->ulHdrType == HT_PTM) {
                ulHdrTypeIsPtm = TRUE ;
+               pPtmDevCtx = pGi->pDevCtxs[i] ;
         }
+        } /* if (pDevCtx) */
     }
 
     if ((pGi->bondConfig.sConfig.ptmBond == BC_PTM_BONDING_ENABLE)
@@ -2621,7 +2861,7 @@ static void bcmxtmrt_timer( PBCMXTMRT_GLOBAL_INFO pGi )
         (ulHdrTypeIsPtm == TRUE)) {
        if (pGi->ptmBondInfo.tickCount >= MAX_TICK_COUNT) {
           spin_lock(&pGi->xtmlock_rx_bond);
-          bcmxtmrt_ptmbond_tick (&pGi->ptmBondInfo, 1) ;
+          bcmxtmrt_ptmbond_tick (pPtmDevCtx, &pGi->ptmBondInfo, 1) ;
           spin_unlock(&pGi->xtmlock_rx_bond);
           pGi->ptmBondInfo.tickCount = 0 ;
        }
@@ -2739,6 +2979,14 @@ int bcmxtmrt_request( XTMRT_HANDLE hDev, UINT32 ulCommand, void *pParm )
 
         break;
        }
+
+    case XTMRT_CMD_SET_DS_SEQ_DEVIATION:
+      if (g_GlobalInfo.bondConfig.sConfig.ptmBond == BC_PTM_BONDING_ENABLE) {
+         g_GlobalInfo.ptmBondInfo.rxDsReducedDeviation = (UINT32) pParm ;
+         printk ("bcmxtmrt: DS Reduced Deviation = %lu \n", g_GlobalInfo.ptmBondInfo.rxDsReducedDeviation) ;
+      }
+      break;
+
     case XTMRT_CMD_GET_NETDEV_TXCHANNEL:
         nRet = DoGetNetDevTxChannel( (PXTMRT_NETDEV_TXCHANNEL) pParm );
         break;
@@ -2798,9 +3046,11 @@ int bcmxtmrt_request( XTMRT_HANDLE hDev, UINT32 ulCommand, void *pParm )
  ***************************************************************************/
 static int DoGlobInitReq( PXTMRT_GLOBAL_INIT_PARMS pGip )
 {
+#if defined(CONFIG_BCM96368)
     int ret ;
+#endif
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-    UINT32 i, j = 0, k;
+    UINT32 i, j = 0;
 #if !(defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     UINT32 ulSize;
 #endif
@@ -3025,6 +3275,7 @@ static int DoGlobInitReq( PXTMRT_GLOBAL_INIT_PARMS pGip )
 #else
         while (BufsToAlloc)
         {
+            int k ;
             ulAllocAmt = (ulBufsPerBlock < BufsToAlloc) ? ulBufsPerBlock : BufsToAlloc;
 
             ulSize = ulAllocAmt * ulRxAllocSize;
@@ -3085,10 +3336,17 @@ static int DoGlobInitReq( PXTMRT_GLOBAL_INIT_PARMS pGip )
 
       //printk ("bcmxtmrt: sw dma ctrl area %x \n", (UINT32) pGi->swDmaCtrlBase) ;
 
+#if defined(CONFIG_BCM96368)
       /* Initialize the SW Scheduler */
-      ret = bcmxtmrt_sw_sched_init (pGi) ;
+      bcmxtmrt_sw_sched_initOrReset (pGi) ;
+#endif
+
+		/* start the HW timer for the scheduler */
+#if defined(CONFIG_BCM96368)
+		ret = bcmxtmrt_init_swsched_timer (bcmxtmrt_swscheduler, pGi, XTM_SW_SCHED_TIMER_INIT) ;
 
       if ((pGi->swDmaCtrlBase == NULL) || (ret != 0)) {
+         int k ;
 
          /* release all allocated receive buffers */
          printk(KERN_NOTICE CARDNAME": Low memory/Sw Scheduler Failure.\n");
@@ -3122,6 +3380,7 @@ static int DoGlobInitReq( PXTMRT_GLOBAL_INIT_PARMS pGip )
 
          return -ENOMEM;
       }
+#endif
 
       /* Alignment on 64-byte boundary */
       pGi->swDmaCtrl = (volatile DmaRegs *)(((int)pGi->swDmaCtrlBase + 0x3F) & ~0x3F);
@@ -3202,12 +3461,14 @@ static int DoGlobUninitReq( void )
        if (pGi->bondConfig.sConfig.ptmBond == BC_PTM_BONDING_ENABLE)
        {
           /* Uninitialize the SW Scheduler timer */
+#if defined(CONFIG_BCM96368)
            bcmxtmrt_uninit_swsched_timer () ;
 
           /* Uninitialize the swDmaCtrl area */
           if (pGi->swDmaCtrlBase != NULL)
              kfree ((void *) pGi->swDmaCtrlBase) ;
           pGi->swDmaCtrlBase = pGi->swDmaCtrl = NULL ;
+#endif
        }
 
         del_timer_sync(&pGi->Timer);
@@ -3290,8 +3551,8 @@ static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd )
         macId |= ((unit & 0xff) << 20);
 
 #if defined(AEI_VDSL_CUSTOMER_QWEST)
-printk("KEN- devname=%s\n",dev->name);
-        if(strstr(dev->name,"atm0")!=NULL || strstr(dev->name,"ptm0")!=NULL) 
+        printk("KEN- devname=%s\n",dev->name);
+	if(strstr(dev->name,"atm0")!=NULL || strstr(dev->name,"ptm0")!=NULL)
         kerSysGetMacAddress( dev->dev_addr,  0x12ffffff);
         else
 #endif
@@ -3384,7 +3645,11 @@ printk("KEN- devname=%s\n",dev->name);
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+#if defined(AEI_VDSL_CUSTOMER_NCS)
         netif_napi_add(dev, &pDevCtx->napi, bcmxtmrt_poll_napi, 32);
+#else
+        netif_napi_add(dev, &pDevCtx->napi, bcmxtmrt_poll_napi, 32);
+#endif
 #endif
         /* Don't reset or enable the device yet. "Open" does that. */
         printk("[%s.%d]: register_netdev\n", __func__, __LINE__);
@@ -3529,6 +3794,7 @@ static int DoLinkStsChangedReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 {
    PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
     int nRet = -EPERM;
+    UINT32 dmaSize ;
 
     local_bh_disable();
 
@@ -3566,15 +3832,39 @@ static int DoLinkStsChangedReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
               pDevCtx->ulLinkUsRate[0] = pLsc->ulLinkUsRate ;
               pDevCtx->ulLinkUsRate[1] = pLsc->ulOtherLinkUsRate ;
               pDevCtx->ulLinkDsRate    = pLsc->ulLinkDsRate + pLsc->ulOtherLinkDsRate ;
+               if (pLsc->ulDsSeqDeviation <= MAX_SEQ_NR_DEVIATION)
+                  pDevCtx->ulDsSeqDeviation  = pLsc->ulDsSeqDeviation ;
+               else {
+                  printk ("bcmxtmrt: !!!Diff Seq Deviation Exceeds Support \n") ;
+                  pDevCtx->ulDsSeqDeviation = MAX_SEQ_NR_DEVIATION ;
+               }
+
+               printk ("bcmxtmrt: DSD(%x) - %ld \n",
+                       (unsigned int) &pDevCtx->ulDsSeqDeviation, pDevCtx->ulDsSeqDeviation) ;
+               pDevCtx->ulDsOrigSeqDeviation = pDevCtx->ulDsSeqDeviation ;
 
               /* compute the weights */
+               if (pLsc->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
+                  pDevCtx->ulPortDataMask = pLsc->ulLinkDataMask ;
+			         //printk ("PDM1=%x\n", (unsigned int) pDevCtx->ulPortDataMask) ;
+                  if ((nRet = bcmxtmrt_ptmbond_calculate_link_weights (pDevCtx)) < 0) {
+                     pDevCtx->ulLinkUsRate[0] = ulLinkUsRate[0] ;
+                     pDevCtx->ulLinkUsRate[1] = ulLinkUsRate[1] ;
+                     pDevCtx->ulLinkDsRate    = ulLinkDsRate ;
+                     bcmxtmrt_ptmbond_calculate_link_weights (pDevCtx) ;
+                     break ;
+                  }
+               }
+
               if( pLsc->ulLinkState == LINK_UP )
               {
                  if (pLsc->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
+#if defined(CONFIG_BCM96368)
                     nRet = bcmxtmrt_init_swsched_timer (bcmxtmrt_swscheduler, pGi,
                           XTM_SW_SCHED_TIMER_REINIT) ;
                     if (nRet != 0)
                         break ;
+#endif
                  }
                  nRet = DoLinkUp( pDevCtx, pLsc , i);
               }
@@ -3584,19 +3874,12 @@ static int DoLinkStsChangedReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
                  nRet = DoLinkDownTx( pDevCtx, pLsc );
                  spin_unlock(&pGi->xtmlock_tx);
                  if (nRet == 0 && pLsc->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
+#if defined(CONFIG_BCM96368)
                     nRet = bcmxtmrt_init_swsched_timer (bcmxtmrt_swscheduler, pGi, XTM_SW_SCHED_TIMER_REINIT) ;
-                 }
-              }
-
-              if (nRet == 0 && pLsc->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
-                 pDevCtx->ulPortDataMask = pLsc->ulLinkDataMask ;
-                 //printk ("PDM1=%x\n", (unsigned int) pDevCtx->ulPortDataMask) ;
-                 if ((nRet = bcmxtmrt_ptmbond_calculate_link_weights (pDevCtx)) < 0) {
-                    pDevCtx->ulLinkUsRate[0] = ulLinkUsRate[0] ;
-                    pDevCtx->ulLinkUsRate[1] = ulLinkUsRate[1] ;
-                    pDevCtx->ulLinkDsRate    = ulLinkDsRate ;
-                    bcmxtmrt_ptmbond_calculate_link_weights (pDevCtx) ;
-                    break ;
+						  if (pLsc->ulLinkDataMask == 0) { /* All the links down. PtmBond Service is down */
+								bcmxtmrt_sw_sched_initOrReset (pGi) ;
+						  }
+#endif
                  }
               }
 
@@ -3607,8 +3890,9 @@ static int DoLinkStsChangedReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         if (nRet==0 && pDevCtx->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED) {
 
             spin_lock (&pGi->xtmlock_rx_bond) ;
-            bcmxtmrt_ptmbond_handle_port_status_change (&pGi->ptmBondInfo, pLsc->ulLinkState,
-                                                     pDevCtx->ulPortDataMask) ;
+            dmaSize = bcmPktDma_XtmRecv_RingSize (&pGi->rxdma[0]->pktDmaRxInfo) ; /* Rx channel 0 */
+            bcmxtmrt_ptmbond_handle_port_status_change (pDevCtx, &pGi->ptmBondInfo, pLsc->ulLinkState,
+                                                        dmaSize) ;
             spin_unlock (&pGi->xtmlock_rx_bond) ;
         }
     }
@@ -3716,6 +4000,8 @@ static int DoLinkUp( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         {
              pGi->ulDrvState = XTMRT_RUNNING;
 
+            pGi->prevTime = jiffies ;
+
             pGi->Timer.expires = jiffies + SAR_TIMEOUT;
             add_timer(&pGi->Timer);
 
@@ -3795,6 +4081,7 @@ static int DoTogglePortDataStatusReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 {
 	UINT32 i ;
 	PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo ;
+   UINT32 dmaSize ;
 
 	local_bh_disable();
 	for( i = 0; i < MAX_DEV_CTXS; i++ )
@@ -3804,17 +4091,32 @@ static int DoTogglePortDataStatusReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 		if ((pDevCtx != NULL) && (pDevCtx->ulHdrType == HT_PTM)) {
 
 			spin_lock(&pGi->xtmlock_tx);
-			if (pTpdsc->ulPortDataStatus == XTMRT_CMD_PORT_DATA_STATUS_ENABLED)
+         /* For the US direction */
+			if (pTpdsc->ulPortDataUsStatus == XTMRT_CMD_PORT_DATA_STATUS_ENABLED)
 				pDevCtx->ulPortDataMask |= (0x1 << pTpdsc->ulPortId) ;
 			else
 				pDevCtx->ulPortDataMask &= ~(0x1 << pTpdsc->ulPortId) ;
 			spin_unlock(&pGi->xtmlock_tx);
 			//printk ("PDM2=%x\n", (unsigned int) pDevCtx->ulPortDataMask) ;
 			spin_lock (&pGi->xtmlock_rx_bond) ;
-			bcmxtmrt_ptmbond_handle_port_status_change (&pGi->ptmBondInfo,
-					((pTpdsc->ulPortDataStatus == XTMRT_CMD_PORT_DATA_STATUS_ENABLED) ? LINK_UP :
-					 LINK_DOWN),
-					pDevCtx->ulPortDataMask) ;
+         dmaSize = bcmPktDma_XtmRecv_RingSize (&pGi->rxdma[0]->pktDmaRxInfo) ; /* Rx channel 0 */
+         /* For the DS direction */
+         if (pTpdsc->ulPortDataDsStatus == XTMRT_CMD_PORT_DATA_STATUS_DISABLED) {
+             if (pTpdsc->ulPortDataUsStatus == XTMRT_CMD_PORT_DATA_STATUS_DISABLED) {
+                bcmxtmrt_ptmbond_handle_port_status_change (pDevCtx, &pGi->ptmBondInfo,
+                                  LINK_DOWN, dmaSize) ;
+             }
+             else {
+                bcmxtmrt_ptmbond_handle_port_status_change (pDevCtx, &pGi->ptmBondInfo,
+                                  LINK_DS_DOWN, dmaSize) ;
+             }
+         }
+         else {
+            bcmxtmrt_ptmbond_handle_port_status_change (pDevCtx, &pGi->ptmBondInfo,
+                  ((pTpdsc->ulPortDataUsStatus == XTMRT_CMD_PORT_DATA_STATUS_ENABLED) ? LINK_UP :
+                   LINK_DOWN), dmaSize) ;
+         }
+
 			spin_unlock (&pGi->xtmlock_rx_bond) ;
 
 			break ;
@@ -3869,78 +4171,65 @@ void xtmDmaStatus(int channel, BcmPktDma_XtmTxDma *txdma)
  *                empty, clearing state ram and free memory allocated for it.
  * Returns      : None.
  ***************************************************************************/
-static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma,
-    volatile DmaStateRam *pStRam)
+static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma)
 {
-    PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-    UINT32 j, ulIdx, txAddr;
-    UINT32 txSource, rxChannel;
-    pNBuff_t nbuff_reclaim_p;
-    UINT32 ulPtmPrioIdx ;
+    UINT32 j;
+    UINT32 ulIdx;
+    UINT32 ulPtmPrioIdx = txdma->ulPtmPriority ? txdma->ulPtmPriority - PTM_PRI_LOW : 0;
+    volatile DmaStateRam *pStRam   = txdma->txStateRam ;
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-      /* Add a variable to confirm that the 4ke tx disable is complete - May 2010 */
-    pHostPsmGbl(txdma->fapIdx)->XtmTxDownFlags[txdma->ulDmaIndex] = 0;
+    volatile fap4kePsm_global_t * pPsmGbl = (volatile fap4kePsm_global_t *)pHostPsmGbl(txdma->fapIdx);
+    
+    /* Add a variable to confirm that the 4ke tx disable is complete - May 2010 */
+    pPsmGbl->XtmTxDownFlags[txdma->ulDmaIndex] = 0;
 #endif
-
-    ulPtmPrioIdx = txdma->ulPtmPriority ? txdma->ulPtmPriority - PTM_PRI_LOW : 0 ;
+    
+#if defined(CONFIG_BCM96368)
     bcmPktDma_XtmTxDisable((BcmPktDma_LocalXtmTxDma *)txdma, TXDMATYPE(pDevCtx),
-          bcmxtmrt_swsched_disable_swdma, ulPtmPrioIdx);
-
-    /* Wait until iuDMA/SwScheduler is really disabled (esp. when the disable is done by FAP) */
-    for (j = 0; (j < 20000) && ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE); j++) {
-       /* Increase the wait of the outer loop to 20000 from 2000 as XTM tx of */
-       /* large packets in CBR mode with peak cell rate of 48 is slow - Dec 2010 */
-       udelay(10000);
+                           bcmxtmrt_swsched_disable_swdma, ulPtmPrioIdx);
+#else
+    bcmPktDma_XtmTxDisable((BcmPktDma_LocalXtmTxDma *)txdma, TXDMATYPE(pDevCtx),
+                           NULL, ulPtmPrioIdx);
+#endif
+    
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    /* More delay required to ensure FAP has completed the XTM Force Free of the tx BDs */
+    for (j = 0; (j < 12000) && (pPsmGbl->XtmTxDownFlags[txdma->ulDmaIndex] == 0); j++)
+       mdelay(5);
+#else
+    /* More delay required to ensure SWSCHEDULER has completed the XTM Force Free of the tx BDs */
+    for (j = 0; (j < 1000) && ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE); j++) {
+       mdelay (5) ;
     }
+#endif
+    
+    freeXmitPkts (pDevCtx, txdma, XTMFREE_FORCE_FREE);
 
     if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
-        printk("XTM Tx ch %d NOT disabled. Fatal\n", (int)txdma->ulDmaIndex);
+       printk("HOST XTM tx ch %d disable FAILED. FATAL!!!!!!!!!!!\n", (int)txdma->ulDmaIndex);
     else
-    {
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-        volatile fap4kePsm_global_t * pPsmGbl = (volatile fap4kePsm_global_t *)pHostPsmGbl(txdma->fapIdx);
-
-        /* More delay required to ensure FAP has completed the XTM Force Free of the tx BDs */
-        for (j = 0; (j < 2000) && (pPsmGbl->XtmTxDownFlags[txdma->ulDmaIndex] == 0); j++)
-        {
-            udelay(5000);
-        }
-        if(j < 2000)
-#endif
-        printk("HOST XTM Tx ch %d down success\n", (int)txdma->ulDmaIndex);
-    }
-
+       printk("HOST XTM tx ch %d disabled.\n", (int)txdma->ulDmaIndex);
+    
     ulIdx = SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex;
 
-    pStRam[ulIdx].baseDescPtr = 0;
-    pStRam[ulIdx].state_data = 0;
-    pStRam[ulIdx].desc_len_status = 0;
-    pStRam[ulIdx].desc_base_bufptr = 0;
+    pStRam->baseDescPtr      = 0;
+    pStRam->state_data       = 0;
+    pStRam->desc_len_status  = 0;
+    pStRam->desc_base_bufptr = 0;
 
-    /* Free transmitted packets. */
-    for (j = 0; j < txdma->ulQueueSize; j++)
-    {
-        if (bcmPktDma_XtmForceFreeXmitBufGet((BcmPktDma_LocalXtmTxDma *)txdma,
-            (uint32 *)&nbuff_reclaim_p, &txSource, &txAddr, &rxChannel,
-            TXDMATYPE(pDevCtx), 0x0))
-        {
-            if (nbuff_reclaim_p != PNBUFF_NULL)
-            {
-                spin_unlock_bh(&pGi->xtmlock_tx);
-                nbuff_free(nbuff_reclaim_p);
-                spin_lock_bh(&pGi->xtmlock_tx);
-            }
-        }
-    }
+    txdma->txStateRam = NULL ;
 
     /* Uninitialize the SW Scheduler for this SW DMA fully */
-    if (TXDMATYPE(pDevCtx)==XTM_SW_DMA)
+    if (TXDMATYPE(pDevCtx)==XTM_SW_DMA) {
+#if defined(CONFIG_BCM96368)
        bcmxtmrt_swsched_unset_swdma (ulPtmPrioIdx, (BcmPktDma_XtmTxDma *) txdma) ;
+#endif
+    }
 
     /* Added to match impl1 - May 2010 */
     txdma->txFreeBds = txdma->ulQueueSize = 0;
-    txdma->ulNumTxBufsQdOne = 0;
+    //txdma->ulNumTxBufsQdOne = 0;   Managed from within PktDma library.
 
 #if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
     //xtmDmaStatus(txdma->ulDmaIndex, txdma);
@@ -3950,11 +4239,51 @@ static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_Xt
     /* remove the tx bd ring */
     if (txdma->txBdsBase)
     {
-        kfree((void*)txdma->txBdsBase);
-        txdma->txBdsBase = txdma->txBds = NULL;
+       kfree((void*)txdma->txBdsBase);
+       txdma->txBdsBase = txdma->txBds = NULL;
     }
 #endif
-}
+}  /* ShutdownTxQueue() */
+
+static void freeXmitPkts (PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma,
+                          int forceFree)
+{
+   int ret ;
+   PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
+   UINT32 txAddr;
+   UINT32 txSource, rxChannel;
+   pNBuff_t nbuff_reclaim_p;
+
+   /* Free transmitted packets. */
+   while (1)
+   {
+      if (forceFree)
+         ret = bcmPktDma_XtmForceFreeXmitBufGet((BcmPktDma_LocalXtmTxDma *)txdma,
+                  (uint32 *)&nbuff_reclaim_p, &txSource, &txAddr, &rxChannel,
+                  TXDMATYPE(pDevCtx), 0x0) ;
+      else
+         ret = bcmPktDma_XtmFreeXmitBufGet((BcmPktDma_LocalXtmTxDma *)txdma,
+                  (uint32 *)&nbuff_reclaim_p, &txSource, &txAddr, &rxChannel,
+                  TXDMATYPE(pDevCtx), 0x0) ;
+
+      if (!ret)
+         break ;
+      else {
+         if (nbuff_reclaim_p != PNBUFF_NULL) {
+            spin_unlock_bh(&pGi->xtmlock_tx);
+            nbuff_free(nbuff_reclaim_p);
+            spin_lock_bh(&pGi->xtmlock_tx);
+         }
+      }
+   } /* while 1 */
+   
+#if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+   if(forceFree && (txdma->ulNumTxBufsQdOne > 0))
+      printk("HOST XTM tx ch %d force free failed. Remaining queue len=%d\n",
+             (int)txdma->ulDmaIndex, (int)txdma->ulNumTxBufsQdOne);
+#endif             
+      
+}  /* freeXmitPkts() */
 
 /***************************************************************************
  * Function Name: FlushdownTxQueue
@@ -3964,45 +4293,36 @@ static void ShutdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_Xt
  ***************************************************************************/
 static void FlushdownTxQueue(PBCMXTMRT_DEV_CONTEXT pDevCtx, volatile BcmPktDma_XtmTxDma *txdma)
 {
-   PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-   UINT32 j, txAddr;
-   UINT32 txSource, rxChannel;
-   pNBuff_t nbuff_reclaim_p;
+   UINT32 j;
    UINT32 ulPtmPrioIdx ;
+   int flushSuccess = 1 ;
 
    ulPtmPrioIdx = txdma->ulPtmPriority ? txdma->ulPtmPriority - PTM_PRI_LOW : 0 ;
+#if defined(CONFIG_BCM96368)
    bcmPktDma_XtmTxDisable((BcmPktDma_LocalXtmTxDma *)txdma, TXDMATYPE(pDevCtx),
          bcmxtmrt_swsched_flush_swdma, ulPtmPrioIdx);
+#else
+   bcmPktDma_XtmTxDisable((BcmPktDma_LocalXtmTxDma *)txdma, TXDMATYPE(pDevCtx),
+         NULL, ulPtmPrioIdx);
+#endif
 
    for (j = 0; (j < 5000) && ((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE); j++) {
-      udelay (10000) ;
+      udelay (1000) ;
    }
 
-   if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
+   if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE) {
       printk("XTM Tx ch %d NOT flushed. Fatal\n", (int)txdma->ulDmaIndex);
+      freeXmitPkts (pDevCtx, txdma, flushSuccess) ;
+   }
    else
    {
       printk("HOST XTM Tx ch %d Flush success\n", (int)txdma->ulDmaIndex);
-   }
-
-   /* Free transmitted packets. */
-   for (j = 0; j < txdma->ulQueueSize; j++)
-   {
-      if (bcmPktDma_XtmFreeXmitBufGet((BcmPktDma_LocalXtmTxDma *)txdma,
-               (uint32 *)&nbuff_reclaim_p, &txSource, &txAddr, &rxChannel,
-               TXDMATYPE(pDevCtx), 0x0))
-      {
-         if (nbuff_reclaim_p != PNBUFF_NULL)
-         {
-            spin_unlock_bh(&pGi->xtmlock_tx);
-            nbuff_free(nbuff_reclaim_p);
-            spin_lock_bh(&pGi->xtmlock_tx);
-         }
-      }
+      freeXmitPkts (pDevCtx, txdma, flushSuccess) ;
    }
 
    bcmPktDma_XtmTxEnable((BcmPktDma_LocalXtmTxDma *)txdma, NULL, TXDMATYPE(pDevCtx)) ;
-}
+   
+}  /* FlushdownTxQueue() */
 
 /***************************************************************************
  * Function Name: DoLinkDownTx
@@ -4015,10 +4335,7 @@ static int DoLinkDownTx( PBCMXTMRT_DEV_CONTEXT pDevCtx,
                          PXTMRT_LINK_STATUS_CHANGE pLsc )
 {
     int nRet = 0;
-    volatile DmaRegs *pDmaCtrl = TXDMACTRL(pDevCtx);
-    volatile DmaStateRam  *pStRam;
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-    volatile BcmPktDma_XtmTxDma  *txdma;
     UINT32 i, ulTxQs;
 
     BCM_XTM_DEBUG("DoLinkDownTx\n");
@@ -4027,16 +4344,10 @@ static int DoLinkDownTx( PBCMXTMRT_DEV_CONTEXT pDevCtx,
        /* Disable transmit DMA. */
        pDevCtx->ulLinkState = LINK_DOWN;
 
-       pStRam = pDmaCtrl->stram.s;
        for (i = 0; i < pDevCtx->ulTxQInfosSize; i++)
-       {
-          txdma = pDevCtx->txdma[i];
-          ShutdownTxQueue(pDevCtx, txdma, pStRam);
-       }
+          ShutdownTxQueue(pDevCtx, pDevCtx->txdma[i]);
 
        /* Zero transmit related data structures. */
-       pDevCtx->ulTxQInfosSize = 0;
-
        if (pDevCtx->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED)
           DoUnsetTxHwQueues () ;
 
@@ -4049,6 +4360,7 @@ static int DoLinkDownTx( PBCMXTMRT_DEV_CONTEXT pDevCtx,
               pDevCtx->txdma[i] = NULL;
            }
        }
+       pDevCtx->ulTxQInfosSize = 0;
 
        /* Zero out list of priorities - Apr 2010 */
        memset(pDevCtx->pTxPriorities, 0x00, sizeof(pDevCtx->pTxPriorities));
@@ -4083,10 +4395,8 @@ static int DoLinkDownTx( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         */
        for (i = 0; i < pDevCtx->ulTxQInfosSize; i++)
        {
-          if (TXDMATYPE(pDevCtx)==XTM_SW_DMA) {
-            txdma = pDevCtx->txdma[i];
-            FlushdownTxQueue(pDevCtx, txdma) ;
-          }
+          if (TXDMATYPE(pDevCtx)==XTM_SW_DMA)
+             FlushdownTxQueue(pDevCtx, pDevCtx->txdma[i]) ;
        }
     }
 
@@ -4112,7 +4422,7 @@ static int DoSetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 
     local_bh_enable();  // needed to avoid kernel error
     pDevCtx->txdma[pDevCtx->ulTxQInfosSize] = txdma =
-       (BcmPktDma_XtmTxDma *) (kzalloc(sizeof(BcmPktDma_XtmTxDma), GFP_KERNEL));
+       (BcmPktDma_XtmTxDma *) (kzalloc(sizeof(BcmPktDma_XtmTxDma), GFP_ATOMIC));
     local_bh_disable();
 
     if (pDevCtx->txdma[pDevCtx->ulTxQInfosSize] == NULL)
@@ -4181,11 +4491,10 @@ static int DoSetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         txdma->txDma->cfg       = 0;
         txdma->txDma->maxBurst  = SAR_DMA_MAX_BURST_LENGTH;
         txdma->txDma->intMask   = 0;   /* mask all ints */
+        txdma->txStateRam = (volatile DmaStateRam *) &pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex] ;
 
-        memset((UINT8 *)&pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex],
-                0x00, sizeof(DmaStateRam));
-        pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex].baseDescPtr =
-                (UINT32) VIRT_TO_PHY(txdma->txBds);
+        memset ((UINT8 *)txdma->txStateRam, 0x00, sizeof(DmaStateRam));
+        txdma->txStateRam->baseDescPtr = (UINT32) VIRT_TO_PHY(txdma->txBds);
 
         txdma->txBds[txdma->ulQueueSize - 1].status |= DMA_WRAP;
         txdma->txFreeBds = txdma->ulQueueSize;
@@ -4196,15 +4505,18 @@ static int DoSetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
                               PTM_FLOW_PRI_HIGH : PTM_FLOW_PRI_LOW;
 
         pDevCtx->pTxPriorities[ulPtmPrioIdx][ulPort][txdma->ulSubPriority] = txdma;
-        pDevCtx->pTxQids[pTxQId->ulQosQId] = txdma;
+        pDevCtx->pTxQids[pTxQId->usQosQId] = txdma;
 
         if (pDevCtx->pHighestPrio == NULL ||
             pDevCtx->pHighestPrio->ulSubPriority < txdma->ulSubPriority)
            pDevCtx->pHighestPrio = txdma;
 
         /* Set it for the scheduler context as well */
-        if (TXDMATYPE(pDevCtx) == XTM_SW_DMA)
+        if (TXDMATYPE(pDevCtx) == XTM_SW_DMA) {
+#if defined(CONFIG_BCM96368)
             bcmxtmrt_swsched_set_swdma (ulPtmPrioIdx, txdma) ;
+#endif
+        }
 
         /* Count the total number of transmit queues used across all device
          * interfaces.
@@ -4255,14 +4567,17 @@ static int DoSetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
  * Returns      : 0 if successful or error status
  ***************************************************************************/
 static int DoUnsetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
-    PXTMRT_TRANSMIT_QUEUE_ID pTxQId )
+                           PXTMRT_TRANSMIT_QUEUE_ID pTxQId )
 {
     int nRet = 0;
     UINT32 i, j;
     BcmPktDma_XtmTxDma  *txdma;
+    PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
 
     BCM_XTM_DEBUG("DoUnsetTxQueue\n");
 
+    spin_lock_bh(&pGi->xtmlock_tx);
+    
     for (i = 0; i < pDevCtx->ulTxQInfosSize; i++)
     {
         txdma = pDevCtx->txdma[i];
@@ -4270,30 +4585,37 @@ static int DoUnsetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         if( txdma && pTxQId->ulQueueIndex == txdma->ulDmaIndex )
         {
             UINT32 ulPort = PORTID_TO_PORT(pTxQId->ulPortId);
-            PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-            volatile DmaRegs *pDmaCtrl = TXDMACTRL(pDevCtx);
-            volatile DmaStateRam *pStRam = pDmaCtrl->stram.s;
             UINT32 ulTxQs;
             UINT32 ulPtmPrioIdx = PTM_FLOW_PRI_LOW;
 
-            ShutdownTxQueue(pDevCtx, txdma, pStRam);
+            ShutdownTxQueue(pDevCtx, txdma);
 
             if ((pDevCtx->Addr.ulTrafficType == TRAFFIC_TYPE_PTM) ||
                 (pDevCtx->Addr.ulTrafficType == TRAFFIC_TYPE_PTM_BONDED))
                ulPtmPrioIdx = (txdma->ulPtmPriority == PTM_PRI_HIGH)? PTM_FLOW_PRI_HIGH : PTM_FLOW_PRI_LOW;
 
             pDevCtx->pTxPriorities[ulPtmPrioIdx][ulPort][txdma->ulSubPriority] = NULL;
-            pDevCtx->pTxQids[pTxQId->ulQosQId] = NULL;
+            pDevCtx->pTxQids[pTxQId->usQosQId] = NULL;
 
             if (pDevCtx->pHighestPrio == txdma)
                pDevCtx->pHighestPrio = NULL;
 
             /* Shift remaining array elements down by one element. */
             memmove(&pDevCtx->txdma[i], &pDevCtx->txdma[i + 1],
-                (pDevCtx->ulTxQInfosSize - i - 1) * sizeof(txdma));
+                    (pDevCtx->ulTxQInfosSize - i - 1) * sizeof(txdma));
             pDevCtx->ulTxQInfosSize--;
 
             kfree((void*)txdma);
+
+            /* Find the highest subpriority dma */
+            for (j = 0, txdma = pDevCtx->txdma[j];
+                 j < pDevCtx->ulTxQInfosSize;
+                 j++, txdma++)
+            {
+                if (pDevCtx->pHighestPrio == NULL ||
+                    pDevCtx->pHighestPrio->ulSubPriority < txdma->ulSubPriority)
+                    pDevCtx->pHighestPrio = txdma;
+            }
 
             /* Count the total number of transmit queues used across all device
              * interfaces.
@@ -4307,17 +4629,9 @@ static int DoUnsetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
         }
     }
 
-    /* Find the highest subpriority dma */
-    for (i = 0, txdma = pDevCtx->txdma[i];
-         i < pDevCtx->ulTxQInfosSize;
-         i++, txdma++)
-    {
-       if (pDevCtx->pHighestPrio == NULL ||
-           pDevCtx->pHighestPrio->ulSubPriority < txdma->ulSubPriority)
-          pDevCtx->pHighestPrio = txdma;
-    }
-
+    spin_unlock_bh(&pGi->xtmlock_tx);
     return( nRet );
+    
 } /* DoUnsetTxQueue */
 
 
@@ -4422,7 +4736,7 @@ static int DoDeleteDeviceReq( PBCMXTMRT_DEV_CONTEXT pDevCtx )
 
     if ((pDevCtx != NULL) && (pDevCtx->ulTrafficType == TRAFFIC_TYPE_PTM_BONDED)) {
        spin_lock (&pGi->xtmlock_rx_bond);
-       bcmxtmrt_ptmbond_tick (&pGi->ptmBondInfo, 0) ;
+       bcmxtmrt_ptmbond_tick (pDevCtx, &pGi->ptmBondInfo, 0) ;
        spin_unlock (&pGi->xtmlock_rx_bond);
     }
 
@@ -4490,6 +4804,7 @@ static int DoGetNetDevTxChannel( PXTMRT_NETDEV_TXCHANNEL pParm )
         * ALL SW Scheduler functions for BCM6368 PTM Bonding mode START here *
         *********************************************************************/
 
+#if defined(CONFIG_BCM96368)
 static void bcmxtmrt_swsched_set_swdma (UINT32 ulPtmPrioIdx, BcmPktDma_XtmTxDma  *txSwdma)
 {
    UINT8 *pu8SubPrioBitMap ;
@@ -4550,17 +4865,37 @@ static unsigned int bcmxtmrt_swsched_timer_int(unsigned int i)
   return (IRQ_HANDLED) ;
 }
 
-static int bcmxtmrt_compute_us_sched_timer_divpktsize (UINT32 usRate)
+static int bcmxtmrt_compute_us_sched_timer_divpktsize (UINT32 usRate, UINT32 dsRate)
 {
    int divPktSize ;
-
    UINT32 oneMbps = 1024*1024 ;
-   if (usRate <= 20*oneMbps)
-      divPktSize = 64 ;
-   else if ((usRate > 20*oneMbps) && (usRate <= 30*oneMbps))
-      divPktSize = 96 ;
-   else
+
+#if 1
+   if (dsRate <= 80*oneMbps) {
+
+       if (usRate <= 8*oneMbps)
+      divPktSize = 60 ;
+       else if ((usRate > 8*oneMbps) && (usRate <= 20*oneMbps))
       divPktSize = 128 ;
+   else if ((usRate > 20*oneMbps) && (usRate <= 30*oneMbps))
+      divPktSize = 192 ;
+   else
+      divPktSize = 256 ;
+   }
+   else {
+       if (usRate <= 15*oneMbps)
+      divPktSize = 128 ;
+       else if ((usRate > 15*oneMbps) && (usRate <= 30*oneMbps))
+           divPktSize = 192 ;
+       else
+           divPktSize = 256 ;
+   }
+#else
+       if (usRate <= 30*oneMbps)
+           divPktSize = 192 ;
+       else
+           divPktSize = 256 ;
+#endif
 
    return (divPktSize) ;
 }
@@ -4569,12 +4904,13 @@ static int bcmxtmrt_init_swsched_timer (void (*cb)(PBCMXTMRT_GLOBAL_INFO cb_data
        PBCMXTMRT_GLOBAL_INFO pGi, int timerInit)
 {
   int k = 0, divPktSize ;
-  UINT32 usTotalRate = 0, timerValueinUSecs = 1000, prevUSecs ;
+  UINT32 usTotalRate = 0, dsTotalRate = 0, timerValueinUSecs = 1000, prevUSecs ;
   PBCMXTMRT_DEV_CONTEXT pDevCtx = pGi->pDevCtxs[0] ;
   char devname[16];
 
   if (pDevCtx != NULL) {
      usTotalRate = pDevCtx->ulLinkUsRate[0] + pDevCtx->ulLinkUsRate[1] ;
+     dsTotalRate = pDevCtx->ulLinkDsRate ;
   }
 
   if ((timerInit == XTM_SW_SCHED_TIMER_INIT) && (SW_SCHED_TIMERCTL & TIMERENABLE) == 0) {
@@ -4582,7 +4918,7 @@ static int bcmxtmrt_init_swsched_timer (void (*cb)(PBCMXTMRT_GLOBAL_INFO cb_data
      /* Registering IRQ */
      sprintf(devname, "bcm_bondschedT") ;
      k = BcmHalMapInterruptEx((FN_HANDLER) bcmxtmrt_swsched_timer_int, timerValueinUSecs,
-                              INTERRUPT_ID_TIMER, devname, INTR_REARM_NO, INTR_AFFINITY_TP1_IF_POSSIBLE) ;
+                              INTERRUPT_ID_TIMER, devname, INTR_REARM_NO, INTR_AFFINITY_TP1_ONLY) ;
      if (k == -1)
         goto _End ;
 
@@ -4593,7 +4929,12 @@ static int bcmxtmrt_init_swsched_timer (void (*cb)(PBCMXTMRT_GLOBAL_INFO cb_data
 
      if (usTotalRate != 0) {
 
-        divPktSize = bcmxtmrt_compute_us_sched_timer_divpktsize (usTotalRate) ;
+#if 0
+        usTotalRate = usTotalRate+(usTotalRate*10/100) ;  /* extra credit of 10% times the total US rate, as the
+                                                         scheduler has to work fast enough more than the avail
+                                                         rate */
+#endif
+        divPktSize = bcmxtmrt_compute_us_sched_timer_divpktsize (usTotalRate, dsTotalRate) ;
 
         /* Enabling MIPS interrupt for sw sched timer and clearing any previous interrupt */
         TIMER->TimerMask |= SW_SCHED_TIMEREN ;
@@ -4637,25 +4978,21 @@ static void bcmxtmrt_uninit_swsched_timer ()
 }
 
 /***************************************************************************
- * Function Name: bcmxtmrt_sw_sched_init
+ * Function Name: bcmxtmrt_sw_sched_initOrReset
  * Description  : Initializes the SW scheduler for BCM6368 PTM bonding mode.
  * Returns      : 0 if successful or error status
  ***************************************************************************/
-static int bcmxtmrt_sw_sched_init ( PBCMXTMRT_GLOBAL_INFO pGi )
+static void bcmxtmrt_sw_sched_initOrReset ( PBCMXTMRT_GLOBAL_INFO pGi )
 {
-   int nRet = 0 ;
    XtmRtTxSchedContext *pTxSchedCtxt = &pGi->txSchedCtxt ;
 
-   //printk ("bcmxtmrt: bcmxtmrt_sw_sched_init \n");
+   //printk ("bcmxtmrt: bcmxtmrt_sw_sched_initOrReset \n");
    memset (pTxSchedCtxt, 0, sizeof (XtmRtTxSchedContext)) ;
    pTxSchedCtxt->rrVisitCount[PTM_PRI_LOW-1] =
    pTxSchedCtxt->rrVisitCount[PTM_PRI_HIGH-1] = MAX_SUB_PRIORITIES ;
-
-   /* start the HW timer for the scheduler */
-   nRet = bcmxtmrt_init_swsched_timer (bcmxtmrt_swscheduler, pGi, XTM_SW_SCHED_TIMER_INIT) ;
-
-   return (nRet) ;
+	return;
 }
+#endif
 
 /***************************************************************************
  * Function Name: DoSetTxHwQueue
@@ -4711,13 +5048,14 @@ static int DoSetTxHwQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
    /* pKeyPtr, pTxSource, pTxAddress now relative to txBds - Apr 2010 */
    txdma->txRecycle = (BcmPktDma_txRecycle_t *)((uint32)txdma->txBds + (ulQueueSize * sizeof(DmaDesc)));
    txdma->txRecycle = (BcmPktDma_txRecycle_t *)NONCACHE_TO_CACHE(txdma->txRecycle);
-   //printk("XTM Init: %d tx BDs at 0x%x\n", (int)ulQueueSize, (unsigned int)txdma->txBds);
+   printk("XTM Init: %d tx BDs at 0x%x\n", (int)ulQueueSize, (unsigned int)txdma->txBds);
 
    ulPort = PORTID_TO_PORT(pTxQId->ulPortId);
 
    if (ulPort < MAX_PHY_PORTS) {
 
-      volatile DmaStateRam *pStRam = pGi->dmaCtrl->stram.s;
+      volatile DmaRegs *pDmaCtrl = pGi->dmaCtrl ;
+      volatile DmaStateRam *pStRam = pDmaCtrl->stram.s;
 
       txdma->ulPort = ulPort;
       txdma->ulPtmPriority = pTxQId->ulPtmPriority;
@@ -4731,12 +5069,10 @@ static int DoSetTxHwQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
       txdma->txDma->cfg = 0;
       txdma->txDma->maxBurst = SAR_DMA_MAX_BURST_LENGTH;
       txdma->txDma->intMask = 0;   /* mask all ints */
+      txdma->txStateRam = (volatile DmaStateRam *) &pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex] ;
 
-      memset((UINT8 *)&pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex],
-            0x00, sizeof(DmaStateRam));
-
-      pStRam[SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex].baseDescPtr =
-         (UINT32) VIRT_TO_PHY(txdma->txBds);
+      memset((UINT8 *)txdma->txStateRam, 0x00, sizeof(DmaStateRam));
+      txdma->txStateRam->baseDescPtr = (UINT32) VIRT_TO_PHY(txdma->txBds);
 
       txdma->txBds[txdma->ulQueueSize - 1].status |= DMA_WRAP;
       txdma->txFreeBds = txdma->ulQueueSize;
@@ -4784,7 +5120,7 @@ static int DoUnsetTxHwQueues ( )
     UINT32 i ;
     BcmPktDma_XtmTxDma  *txdma;
 
-    BCM_XTM_DEBUG("DoUnsetTxQueues\n");
+    BCM_XTM_DEBUG("DoUnsetTxHwQueues\n");
 
     if (pTxSchedCtxt->ulSwTxQInfosSize == 0) {
 
@@ -4794,26 +5130,30 @@ static int DoUnsetTxHwQueues ( )
 
        for (i = 0; i < ulHwQueues; i++) {
 
-          volatile DmaStateRam *pStRam = pGi->dmaCtrl->stram.s;
+          volatile DmaStateRam *pStRam ;
+
           txdma = &pTxSchedCtxt->txHwdma[i] ;
+          pStRam   = txdma->txStateRam ;
 
           /* ShutdownTxQueue limited functionality here */
           bcmPktDma_XtmTxDisable(txdma, XTM_HW_DMA, NULL, 0) ;
 
-          if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE)
-             printk("XTM HW Tx ch %d NOT disabled\n", (int)txdma->ulDmaIndex);
+          if((txdma->txDma->cfg & DMA_ENABLE) == DMA_ENABLE) {
+             printk("XTM HW Tx ch %d NOT disabled ALARM\n", (int)txdma->ulDmaIndex);
+             printk("XTM HW Tx ch %d Force disabled \n", (int)txdma->ulDmaIndex);
+          }
           else
              printk("HOST XTM HW Tx ch %d down success\n", (int)txdma->ulDmaIndex);
 
           ulIdx = SAR_TX_DMA_BASE_CHAN + txdma->ulDmaIndex;
 
-          pStRam[ulIdx].baseDescPtr = 0;
-          pStRam[ulIdx].state_data = 0;
-          pStRam[ulIdx].desc_len_status = 0;
-          pStRam[ulIdx].desc_base_bufptr = 0;
+          pStRam->baseDescPtr = 0;
+          pStRam->state_data = 0;
+          pStRam->desc_len_status = 0;
+          pStRam->desc_base_bufptr = 0;
 
           txdma->txFreeBds = txdma->ulQueueSize = 0;
-          txdma->ulNumTxBufsQdOne = 0;
+          //txdma->ulNumTxBufsQdOne = 0;   Managed from within PktDma Library.
 
           /* remove the tx bd ring */
           if (txdma->txBdsBase)
@@ -4826,8 +5166,9 @@ static int DoUnsetTxHwQueues ( )
 #endif
 
     return( nRet );
-} /* DoUnsetTxQueue */
+} /* DoUnsetTxHwQueues */
 
+#if defined(CONFIG_BCM96368)
 inline static UINT32 bcmxtmrt_swsched_getxmit_len (BcmPktDma_XtmTxDma *txSwdma)
 {
    volatile DmaDesc    *txSwBds ;
@@ -4889,6 +5230,8 @@ static void bcmxtmrt_swsched_recycle (XtmRtTxSchedContext *pXtmTxSchedCtxt)
 
       /* Recycle the channel buffers first */
 
+      if (txdma->txFreeBds < txdma->ulQueueSize) {
+
       while (bcmPktDma_XtmFreeXmitBufGet((BcmPktDma_XtmTxDma *)txdma,(uint32 *)&key,
                &txSource, &txAddr, &rxChannel, XTM_HW_DMA, 0x1) == TRUE)
       {
@@ -4896,6 +5239,7 @@ static void bcmxtmrt_swsched_recycle (XtmRtTxSchedContext *pXtmTxSchedCtxt)
          txBdIndex    = XTM_SW_CHANNEL_INDEX(key) ;
          bcmxtmrt_swsched_swdma_bd_free(pXtmTxSchedCtxt, txSwdmaIndex, txBdIndex) ;
       } /* Clean for channel */
+      }
    } /*for channel */
 }
 
@@ -5029,6 +5373,7 @@ static void bcmxtmrt_swscheduler ( PBCMXTMRT_GLOBAL_INFO pGi )
       }
    }
 }
+#endif
 
         /*********************************************************************
         *  ALL SW Scheduler functions for BCM6368 PTM Bonding mode END here  *
@@ -5048,7 +5393,9 @@ static int bcmxtmrt_add_proc_files( void )
     create_proc_read_entry("driver/xtm/rxdmainfo",  0, NULL, ProcDmaRxInfo,  0);
     create_proc_read_entry("driver/xtm/rxbondctrs", 0, NULL, ProcRxBondCtrs, 0);
     create_proc_read_entry("driver/xtm/txbondinfo", 0, NULL, ProcTxBondInfo, 0);
+#if defined(CONFIG_BCM96368)
     create_proc_read_entry("driver/xtm/txschedinfo", 0, NULL, ProcTxSchedInfo, 0);
+#endif
 
 #ifdef PTM_BONDING_DEBUG
     create_proc_read_entry("driver/xtm/rxbondseq0", 0, NULL, ProcRxBondSeq0, 0);
@@ -5162,6 +5509,7 @@ static int ProcDmaRxInfo(char *page, char **start, off_t off, int cnt,
     return( sz );
 } /* ProcDmaRxInfo */
 
+#if defined(CONFIG_BCM96368)
 /***************************************************************************
  * Function Name: ProcTxSchedInfo
  * Description  : Displays information about transmit SW Scheduler.
@@ -5189,30 +5537,75 @@ static int ProcTxSchedInfo(char *page, char **start, off_t off, int cnt,
     *eof = 1;
     return( sz );
 } /* ProcTxSchedInfo */
+#endif
 
 /***************************************************************************
  * Function Name: bcmxtmrt_update_hw_stats
- * Description  : Update the XTMRT transmit counters if appropriate for the
- *                flow. This flows through to the 'ifconfig' counts
+ * Description  : Update the XTMRT transmit and receive counters from flow 
+ *                hardware if appropriate. This flows through to
+ *                the 'ifconfig' counts.
  * Returns      : None
  ***************************************************************************/
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-void bcmxtmrt_update_hw_stats(struct net_device *txDev_p, unsigned int hits, unsigned int octets)
+void bcmxtmrt_update_hw_stats(Blog_t *blog_p, unsigned int hits, unsigned int octets)
 {
     PBCMXTMRT_DEV_CONTEXT pDevCtx;
+    struct net_device *dev_p;
+
+ /* For non-FAP based platforms - upstream packet always goes through the XTM driver
+   i.e. XTM driver always counts the TX packets even for the accelerated flows by CMF 
+   - so TX should not be counted here */
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    if(blog_p->tx.info.bmap.BCM_XPHY)
+    {
+        dev_p = (struct net_device *) blog_p->tx.dev_p;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
-    pDevCtx = netdev_priv(txDev_p);
+        pDevCtx = netdev_priv(dev_p);
 #else
-    pDevCtx = txDev_p->priv;
+        pDevCtx = dev_p->priv;
 #endif
-    /* Adjust xmit packet counts for flows that tx to XTM */
-    pDevCtx->DevStats.tx_packets += hits;
+        /* If we have good pointers... */
+        if(dev_p != NULL && pDevCtx != NULL)
+        {
+            /* Adjust xmit packet counts for flows that tx to XTM */
+            pDevCtx->DevStats.tx_packets += hits;
+            pDevCtx->DevStats.tx_bytes += octets;
+        
+            /* Now, adjust multicast counts if this is a multicast flow. */
+            if (blog_p->rx.info.multicast) 
+            {
+                pDevCtx->DevStats.tx_multicast_packets += hits;
+                pDevCtx->DevStats.tx_multicast_bytes += octets;
+            }
+        }
+    }
+    else 
+#endif /* FAP */
+    if(blog_p->rx.info.bmap.BCM_XPHY)
+    {
+        dev_p = (struct net_device *) blog_p->rx.dev_p;
 
-    /* Transmitted bytes are counted in hardware. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
+        pDevCtx = netdev_priv(dev_p);
+#else
+        pDevCtx = dev_p->priv;
+#endif
 
+        /* If we have good pointers... */
+        if(dev_p != NULL && pDevCtx != NULL)
+        {
+            /* Adjust receive packet counts for flows that rx from XTM */
+            pDevCtx->DevStats.rx_packets += hits;
+            pDevCtx->DevStats.rx_bytes += octets;
+            
+            if (blog_p->rx.info.multicast) 
+            {
+                pDevCtx->DevStats.multicast += hits;
+                pDevCtx->DevStats.rx_multicast_bytes += octets;
+            }
+        }
+    }
 }
-#endif
 
 /***************************************************************************
  * MACRO to call driver initialization and cleanup functions.
@@ -5222,9 +5615,7 @@ module_exit(bcmxtmrt_cleanup);
 MODULE_LICENSE("Proprietary");
 
 EXPORT_SYMBOL(bcmxtmrt_request);
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
 EXPORT_SYMBOL(bcmxtmrt_update_hw_stats);
-#endif
 
 
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
@@ -5278,40 +5669,15 @@ static void xtm_rx_set_iq_thresh( int chnl )
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
     BcmPktDma_XtmRxDma *rxdma = &pGi->rxdma[chnl]->pktDmaRxInfo;
 
-#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-    xtm_set_iq_thresh_dqm(chnl,
-                xtm_rx_dqm_iq_thresh[chnl].loThresh,
-                xtm_rx_dqm_iq_thresh[chnl].hiThresh);
-
-        bcmPktDma_XtmSetIqDqmThresh(rxdma,
-                    xtm_rx_dqm_iq_thresh[chnl].loThresh,
-                    xtm_rx_dqm_iq_thresh[chnl].hiThresh);
-#endif
+    BCM_XTM_DEBUG("Xtm: chan=%d iqLoThresh=%d iqHiThresh=%d\n",
+        chnl, (int) rxdma->iqLoThresh, (int) rxdma->iqHiThresh );
 
     bcmPktDma_XtmSetIqThresh(rxdma,
                 xtm_rx_dma_iq_thresh[chnl].loThresh,
                 xtm_rx_dma_iq_thresh[chnl].hiThresh);
-
-    BCM_XTM_DEBUG("Xtm: chan=%d iqLoThresh=%d iqHiThresh=%d\n",
-        chnl, (int) rxdma->iqLoThresh, (int) rxdma->iqHiThresh );
 }
 
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-/* configure XTM IQ thresholds for DQM */
-void xtm_set_iq_thresh_dqm(int channel, uint16 loThresh, uint16 hiThresh)
-{
-    PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
-    BcmPktDma_XtmRxDma *rxdma = &pGi->rxdma[channel]->pktDmaRxInfo;
-
-    rxdma->iqLoThreshDqm = loThresh;
-    rxdma->iqHiThreshDqm = hiThresh;
-    rxdma->iqDroppedDqm  = 0;
-    BCM_XTM_DEBUG("XTM: DQM Chnl=%d IQ Thresh lo=%d hi=%d\n",
-               channel, (int) rxdma->iqLoThreshDqm,
-               (int) rxdma->iqHiThreshDqm );
-}
-
-
 /* Update CPU congestion status based on the DQM IQ thresholds */
 void xtm_iq_dqm_update_cong_status( int chnl )
 {
@@ -5359,8 +5725,7 @@ void xtm_iq_dqm_status(void)
         else
             iqDepth = iqos_fap_xtmRxDqmQueue_hook_g( chnl );
 
-
-        printk("    XTM  %4d %5d %5d %5d %10u %8x\n",
+        printk("[DQM ] XTM  %4d %5d %5d %5d %10u %8x\n",
                chnl,
                (int) rxdma->iqLoThreshDqm,
                (int) rxdma->iqHiThreshDqm,
@@ -5440,7 +5805,7 @@ void xtm_iq_status(void)
         if (g_Xtm_rx_iudma_ownership[chnl] != HOST_OWNED) continue;
 #endif
 
-        printk("    XTM  %4d %5d %5d %5d %10u %8x\n",
+        printk("[HOST] XTM  %4d %5d %5d %5d %10u %8x\n",
                chnl,
                (int) rxdma->iqLoThresh,
                (int) rxdma->iqHiThresh,
@@ -5518,8 +5883,7 @@ void xtm_bpm_status(void)
     {
         PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
         BcmPktDma_XtmRxDma *pktDmaRxInfo_p = &pGi->rxdma[chnl]->pktDmaRxInfo;
-
-        printk("    XTM  %4d %10u %6d %10u %6d %7d %4d %4d\n",
+        printk("[HOST] XTM  %4d %10u %6d %10u %6d %7d %4d %4d\n",
                chnl, (uint32_t) pktDmaRxInfo_p->alloc,
                (pktDmaRxInfo_p->numRxBds - pktDmaRxInfo_p->rxAssignedBds),
                (uint32_t) pktDmaRxInfo_p->free, 0,

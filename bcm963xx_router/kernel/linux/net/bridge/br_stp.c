@@ -35,6 +35,10 @@ void br_log_state(const struct net_bridge_port *p)
 		p->br->dev->name, p->port_no, p->dev->name,
 		br_port_state_names[p->state]);
 
+#if defined(CONFIG_MIPS_BRCM)
+	br_stp_notify_state_port(p);
+#endif
+
 }
 
 /* called under bridge lock */

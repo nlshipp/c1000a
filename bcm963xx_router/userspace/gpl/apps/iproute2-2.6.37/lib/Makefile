@@ -16,4 +16,3 @@ install:
 
 clean:
 	rm -f $(NLOBJ) $(UTILOBJ) $(ADDLIB) libnetlink.a libipr2util.a
-

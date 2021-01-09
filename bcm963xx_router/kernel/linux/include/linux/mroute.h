@@ -240,7 +240,7 @@ void mfc_net_set(struct mfc_cache *mfc, struct net *net)
 #define MFC_LINES		64
 
 #ifdef __BIG_ENDIAN
-#define MFC_HASH(a,b,c)	((((((__force u32)(__be32)a)>>24)^(((__force u32)(__be32)b)>>26))+(c))&(MFC_LINES-1))
+#define MFC_HASH(a,b)	(((((__force u32)(__be32)a)>>24)^(((__force u32)(__be32)b)>>26))&(MFC_LINES-1))
 #else
 #define MFC_HASH(a,b)	((((__force u32)(__be32)a)^(((__force u32)(__be32)b)>>2))&(MFC_LINES-1))
 #endif		

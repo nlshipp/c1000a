@@ -1,0 +1,550 @@
+make version is 3.81
+kernel version is 2.6.43.8-1.fc15.i686.PAE
+shell is /bin/sh.  Bash version is 4.2.10(1)-release
+CFFF=shared/opensource/include/bcm963xx/AEI_productinfo.h
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/etc
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/bin
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib
+cd /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux; make -j 1
+make[1]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+find . -lname "*" -name "bcm963268" -print -exec rm -f "{}" ";"
+./broadcom/char/pwrmngt/bcm963268
+./broadcom/char/p8021ag/bcm963268
+./broadcom/char/pktflow/bcm963268
+./broadcom/char/xtmcfg/bcm963268
+./broadcom/char/vlan/bcm963268
+./broadcom/char/fap/bcm963268
+./broadcom/char/watchdog/bcm963268
+./broadcom/char/endpoint/bcm963268
+./broadcom/char/bpm/bcm963268
+./broadcom/char/arl/bcm963268
+./broadcom/char/adsl/bcm963268
+./broadcom/char/ingqos/bcm963268
+./broadcom/char/chipinfo/bcm963268
+./broadcom/net/usb/bcm963268
+./broadcom/net/wl/bcm963268
+./opensource/char/board/bcm963xx/bcm963268
+./opensource/char/serial/bcm963268
+./opensource/char/spudd/bcm963268
+./opensource/net/enet/bcm963268
+./opensource/net/xtmrt/bcm963268
+./opensource/net/lib/pktdma/bcm963268
+/bin/sh -c " ln -sn impl1 opensource/char/board/bcm963xx/bcm963268; ln -sn impl1 broadcom/char/chipinfo//bcm963268; ln -sn impl1 opensource/char/serial/bcm963268; ln -sn impl1 broadcom/char/pktflow/bcm963268; ln -sn impl1 broadcom/char/fap/bcm963268; ln -sn impl1 opensource/net/lib/pktdma/bcm963268; ln -sn impl4 opensource/net/xtmrt/bcm963268; ln -sn impl2 broadcom/char/xtmcfg/bcm963268; ln -sn impl1 broadcom/char/adsl/bcm963268; ln -sn impl1 broadcom/char/endpoint/bcm963268; ln -sn impl1 broadcom/char/p8021ag/bcm963268; ln -sn impl4 opensource/net/enet/bcm963268; ln -sn impl1 broadcom/char/vlan/bcm963268; ln -sn impl3 broadcom/net/usb/bcm963268; ln -sn impl14 broadcom/net/wl/bcm963268; ln -sn impl2 opensource/char/spudd/bcm963268; ln -sn impl1 broadcom/char/pwrmngt/bcm963268; ln -sn impl1 broadcom/char/watchdog/bcm963268; ln -sn impl1 broadcom/char/ingqos/bcm963268; ln -sn impl1 broadcom/char/bpm/bcm963268; ln -sn impl1 broadcom/char/arl/bcm963268;"
+  CHK     include/linux/version.h
+  CHK     include/linux/utsrelease.h
+  SYMLINK include/asm -> include/asm-mips
+  CALL    scripts/checksyscalls.sh
+  CC      init/main.o
+  CHK     include/linux/compile.h
+  CC      init/version.o
+  CC      init/do_mounts.o
+  LD      init/mounts.o
+  CC      init/noinitramfs.o
+  CC      init/calibrate.o
+  LD      init/built-in.o
+  CC      arch/mips/bcm963xx/setup.o
+  LD      arch/mips/bcm963xx/built-in.o
+  LD      /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/built-in.o
+  CC      lib/bcd.o
+  CC      lib/div64.o
+  CC      lib/sort.o
+  CC      lib/parser.o
+  CC      lib/halfmd4.o
+  CC      lib/debug_locks.o
+  CC      lib/random32.o
+  CC      lib/bust_spinlocks.o
+  CC      lib/hexdump.o
+  CC      lib/kasprintf.o
+  CC      lib/bitmap.o
+  CC      lib/scatterlist.o
+  CC      lib/string_helpers.o
+  CC      lib/iomap_copy.o
+  CC      lib/devres.o
+  CC      lib/find_last_bit.o
+  CC      lib/hweight.o
+  CC      lib/kernel_lock.o
+  CC      lib/bitrev.o
+  CC      lib/crc-ccitt.o
+  CC      lib/crc32.o
+  CC      lib/zlib_deflate/deflate.o
+  CC      lib/zlib_deflate/deftree.o
+  CC      lib/zlib_deflate/deflate_syms.o
+  LD      lib/zlib_deflate/zlib_deflate.o
+  LD      lib/zlib_deflate/built-in.o
+  CC      lib/zlib_inflate/inffast.o
+  CC      lib/zlib_inflate/inflate.o
+  CC      lib/zlib_inflate/infutil.o
+  CC      lib/zlib_inflate/inftrees.o
+  CC      lib/zlib_inflate/inflate_syms.o
+  LD      lib/zlib_inflate/zlib_inflate.o
+  LD      lib/zlib_inflate/built-in.o
+  CC      lib/percpu_counter.o
+  CC      lib/nlattr.o
+  LD      lib/built-in.o
+  CC      lib/argv_split.o
+  CC      lib/cmdline.o
+  CC      lib/cpumask.o
+  CC      lib/ctype.o
+  CC      lib/dec_and_lock.o
+  CC      lib/decompress.o
+  CC      lib/dump_stack.o
+  CC      lib/extable.o
+  CC      lib/find_next_bit.o
+  CC      lib/idr.o
+  CC      lib/int_sqrt.o
+  CC      lib/ioremap.o
+  CC      lib/irq_regs.o
+  CC      lib/is_single_threaded.o
+  CC      lib/klist.o
+  CC      lib/kobject.o
+  CC      lib/kobject_uevent.o
+  CC      lib/kref.o
+  CC      lib/plist.o
+  CC      lib/prio_heap.o
+  CC      lib/prio_tree.o
+  CC      lib/proportions.o
+  CC      lib/radix-tree.o
+  CC      lib/ratelimit.o
+  CC      lib/rbtree.o
+  CC      lib/reciprocal_div.o
+  CC      lib/rwsem-spinlock.o
+  CC      lib/sha1.o
+  CC      lib/show_mem.o
+  CC      lib/string.o
+  CC      lib/vsprintf.o
+  AR      lib/lib.a
+  LD      vmlinux.o
+  MODPOST vmlinux.o
+  GEN     .version
+  CC      init/main.o
+  CHK     include/linux/compile.h
+  UPD     include/linux/compile.h
+  CC      init/version.o
+  CC      init/do_mounts.o
+  LD      init/mounts.o
+  CC      init/noinitramfs.o
+  CC      init/calibrate.o
+  LD      init/built-in.o
+  LD      .tmp_vmlinux1
+  KSYM    .tmp_kallsyms1.S
+  AS      .tmp_kallsyms1.o
+  LD      .tmp_vmlinux2
+  KSYM    .tmp_kallsyms2.S
+  AS      .tmp_kallsyms2.o
+  LD      vmlinux
+  SYSMAP  System.map
+  SYSMAP  .tmp_System.map
+#@awk '!x[$0]++' /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/init/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/usr/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/bcm963xx/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/bcm963xx/ktools/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/kernel/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/mm/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/math-emu/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/kernel/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/mm/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/fs/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/ipc/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/security/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/crypto/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/block/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/drivers/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/sound/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/firmware/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/pci/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/boardparms/bcm963xx/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/spi/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/flash/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/utils/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/net/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/lib/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/fw/lib/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/lib/modules.order > /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/modules.order
+  Building modules, stage 2.
+  MODPOST 67 modules
+make[1]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+find bcmdrivers/broadcom/char/endpoint/ \( -name '*.o' -o -name '*.a' -o -name '*.lib' -o -name '*.ko' -o -name '*.cmd' -o -name '.*.cmd' -o -name '*.c' -o -name '*.mod' \) -print -exec rm -f "{}" ";"
+bcmdrivers/broadcom/char/endpoint/impl1/.endpointdd.o.cmd
+bcmdrivers/broadcom/char/endpoint/impl1/endpointdd.mod.o
+bcmdrivers/broadcom/char/endpoint/impl1/.endpointdd.mod.o.cmd
+bcmdrivers/broadcom/char/endpoint/impl1/built-in.o
+bcmdrivers/broadcom/char/endpoint/impl1/endpointdd_dep.o
+bcmdrivers/broadcom/char/endpoint/impl1/endpointdd.o
+bcmdrivers/broadcom/char/endpoint/impl1/endpointdd.ko
+bcmdrivers/broadcom/char/endpoint/impl1/endpointdd.mod.c
+bcmdrivers/broadcom/char/endpoint/impl1/.endpointdd.ko.cmd
+bcmdrivers/broadcom/char/endpoint/impl1/.built-in.o.cmd
+rm -rf kernel/linux/.tmp_versions/endpointdd.mod
+rm -rf kernel/linux/arch/mips/defconfig
+rm -rf kernel/linux/include/config/bcm/endpoint/
+find kernel/linux/lib/ -name '*.o' -print -exec rm -f "{}" ";"
+kernel/linux/lib/cmdline.o
+kernel/linux/lib/rwsem-spinlock.o
+kernel/linux/lib/div64.o
+kernel/linux/lib/kasprintf.o
+kernel/linux/lib/int_sqrt.o
+kernel/linux/lib/bitrev.o
+kernel/linux/lib/parser.o
+kernel/linux/lib/idr.o
+kernel/linux/lib/prio_heap.o
+kernel/linux/lib/ioremap.o
+kernel/linux/lib/kref.o
+kernel/linux/lib/extable.o
+kernel/linux/lib/sort.o
+kernel/linux/lib/ratelimit.o
+kernel/linux/lib/kernel_lock.o
+kernel/linux/lib/string_helpers.o
+kernel/linux/lib/halfmd4.o
+kernel/linux/lib/dec_and_lock.o
+kernel/linux/lib/nlattr.o
+kernel/linux/lib/kobject.o
+kernel/linux/lib/zlib_inflate/infutil.o
+kernel/linux/lib/zlib_inflate/inflate.o
+kernel/linux/lib/zlib_inflate/inffast.o
+kernel/linux/lib/zlib_inflate/built-in.o
+kernel/linux/lib/zlib_inflate/zlib_inflate.o
+kernel/linux/lib/zlib_inflate/inftrees.o
+kernel/linux/lib/zlib_inflate/inflate_syms.o
+kernel/linux/lib/plist.o
+kernel/linux/lib/random32.o
+kernel/linux/lib/decompress.o
+kernel/linux/lib/hexdump.o
+kernel/linux/lib/scatterlist.o
+kernel/linux/lib/bcd.o
+kernel/linux/lib/vsprintf.o
+kernel/linux/lib/bust_spinlocks.o
+kernel/linux/lib/built-in.o
+kernel/linux/lib/bitmap.o
+kernel/linux/lib/irq_regs.o
+kernel/linux/lib/kobject_uevent.o
+kernel/linux/lib/crc-ccitt.o
+kernel/linux/lib/hweight.o
+kernel/linux/lib/is_single_threaded.o
+kernel/linux/lib/percpu_counter.o
+kernel/linux/lib/sha1.o
+kernel/linux/lib/ctype.o
+kernel/linux/lib/prio_tree.o
+kernel/linux/lib/show_mem.o
+kernel/linux/lib/reciprocal_div.o
+kernel/linux/lib/cpumask.o
+kernel/linux/lib/find_last_bit.o
+kernel/linux/lib/debug_locks.o
+kernel/linux/lib/rbtree.o
+kernel/linux/lib/crc32.o
+kernel/linux/lib/argv_split.o
+kernel/linux/lib/zlib_deflate/deftree.o
+kernel/linux/lib/zlib_deflate/zlib_deflate.o
+kernel/linux/lib/zlib_deflate/deflate.o
+kernel/linux/lib/zlib_deflate/built-in.o
+kernel/linux/lib/zlib_deflate/deflate_syms.o
+kernel/linux/lib/dump_stack.o
+kernel/linux/lib/find_next_bit.o
+kernel/linux/lib/radix-tree.o
+kernel/linux/lib/proportions.o
+kernel/linux/lib/devres.o
+kernel/linux/lib/string.o
+kernel/linux/lib/klist.o
+kernel/linux/lib/iomap_copy.o
+find kernel/linux/lib/ -name '*.lib' -print -exec rm -f "{}" ";"
+cd /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux; make modules && make modules_install
+make[1]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+  CHK     include/linux/version.h
+  CHK     include/linux/utsrelease.h
+  SYMLINK include/asm -> include/asm-mips
+  CALL    scripts/checksyscalls.sh
+find . -lname "*" -name "bcm963268" -print -exec rm -f "{}" ";"
+./broadcom/char/pwrmngt/bcm963268
+./broadcom/char/p8021ag/bcm963268
+./broadcom/char/pktflow/bcm963268
+./broadcom/char/xtmcfg/bcm963268
+./broadcom/char/vlan/bcm963268
+./broadcom/char/fap/bcm963268
+./broadcom/char/watchdog/bcm963268
+./broadcom/char/endpoint/bcm963268
+./broadcom/char/bpm/bcm963268
+./broadcom/char/arl/bcm963268
+./broadcom/char/adsl/bcm963268
+./broadcom/char/ingqos/bcm963268
+./broadcom/char/chipinfo/bcm963268
+./broadcom/net/usb/bcm963268
+./broadcom/net/wl/bcm963268
+./opensource/char/board/bcm963xx/bcm963268
+./opensource/char/serial/bcm963268
+./opensource/char/spudd/bcm963268
+./opensource/net/enet/bcm963268
+./opensource/net/xtmrt/bcm963268
+./opensource/net/lib/pktdma/bcm963268
+/bin/sh -c " ln -sn impl1 opensource/char/board/bcm963xx/bcm963268; ln -sn impl1 broadcom/char/chipinfo//bcm963268; ln -sn impl1 opensource/char/serial/bcm963268; ln -sn impl1 broadcom/char/pktflow/bcm963268; ln -sn impl1 broadcom/char/fap/bcm963268; ln -sn impl1 opensource/net/lib/pktdma/bcm963268; ln -sn impl4 opensource/net/xtmrt/bcm963268; ln -sn impl2 broadcom/char/xtmcfg/bcm963268; ln -sn impl1 broadcom/char/adsl/bcm963268; ln -sn impl1 broadcom/char/endpoint/bcm963268; ln -sn impl1 broadcom/char/p8021ag/bcm963268; ln -sn impl4 opensource/net/enet/bcm963268; ln -sn impl1 broadcom/char/vlan/bcm963268; ln -sn impl3 broadcom/net/usb/bcm963268; ln -sn impl14 broadcom/net/wl/bcm963268; ln -sn impl2 opensource/char/spudd/bcm963268; ln -sn impl1 broadcom/char/pwrmngt/bcm963268; ln -sn impl1 broadcom/char/watchdog/bcm963268; ln -sn impl1 broadcom/char/ingqos/bcm963268; ln -sn impl1 broadcom/char/bpm/bcm963268; ln -sn impl1 broadcom/char/arl/bcm963268;"
+cp /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd963268BGW.o_save /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd_dep.o
+  LD [M]  /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd.o
+#@awk '!x[$0]++' /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/init/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/usr/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/bcm963xx/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/bcm963xx/ktools/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/kernel/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/mm/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/math-emu/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/kernel/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/mm/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/fs/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/ipc/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/security/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/crypto/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/block/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/drivers/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/sound/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/firmware/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/pci/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/boardparms/bcm963xx/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/spi/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/flash/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux//home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/utils/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/net/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/lib/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/fw/lib/modules.order /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/arch/mips/lib/modules.order > /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux/modules.order
+  Building modules, stage 2.
+  MODPOST 67 modules
+  CC      /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd.mod.o
+  LD [M]  /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd.ko
+make[1]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+make[1]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/adsl/bcm963268/adsldd.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/arl/bcm963268/bcmarl.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/bpm/bcm963268/bcm_bpm.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/chipinfo//bcm963268/chipinfo.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/endpoint/bcm963268/endpointdd.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/fap/bcm963268/bcmfap.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/ingqos/bcm963268/bcm_ingqos.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/p8021ag/bcm963268/p8021ag.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/pktflow/bcm963268/pktflow.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/pwrmngt/bcm963268/pwrmngtd.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/vlan/bcm963268/bcmvlan.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/watchdog/bcm963268/bcm96368wdt.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/char/xtmcfg/bcm963268/bcmxtmcfg.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/net/usb/bcm963268/bcm_usb.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/net/wl/bcm963268/wl.ko
+  INSTALL /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/opensource/net/enet/bcm963268/bcm_enet.ko
+  INSTALL crypto/ecb.ko
+  INSTALL crypto/pcbc.ko
+  INSTALL drivers/scsi/scsi_wait_scan.ko
+  INSTALL net/ipv4/netfilter/ip_tables.ko
+  INSTALL net/ipv4/netfilter/ipt_IP.ko
+  INSTALL net/ipv4/netfilter/ipt_LOG.ko
+  INSTALL net/ipv4/netfilter/ipt_MASQUERADE.ko
+  INSTALL net/ipv4/netfilter/ipt_REDIRECT.ko
+  INSTALL net/ipv4/netfilter/iptable_filter.ko
+  INSTALL net/ipv4/netfilter/iptable_mangle.ko
+  INSTALL net/ipv4/netfilter/iptable_nat.ko
+  INSTALL net/ipv4/netfilter/nf_conntrack_ipv4.ko
+  INSTALL net/ipv4/netfilter/nf_defrag_ipv4.ko
+  INSTALL net/ipv4/netfilter/nf_nat.ko
+  INSTALL net/ipv4/netfilter/nf_nat_ftp.ko
+  INSTALL net/ipv4/netfilter/nf_nat_h323.ko
+  INSTALL net/ipv4/netfilter/nf_nat_irc.ko
+  INSTALL net/ipv4/netfilter/nf_nat_pptp.ko
+  INSTALL net/ipv4/netfilter/nf_nat_proto_gre.ko
+  INSTALL net/ipv4/netfilter/nf_nat_pt.ko
+  INSTALL net/ipv4/netfilter/nf_nat_rtsp.ko
+  INSTALL net/ipv4/netfilter/nf_nat_sip.ko
+  INSTALL net/ipv4/netfilter/nf_nat_tftp.ko
+  INSTALL net/ipv6/netfilter/ip6_queue.ko
+  INSTALL net/ipv6/netfilter/ip6_tables.ko
+  INSTALL net/ipv6/netfilter/ip6t_LOG.ko
+  INSTALL net/ipv6/netfilter/ip6t_REJECT.ko
+  INSTALL net/ipv6/netfilter/ip6table_filter.ko
+  INSTALL net/ipv6/netfilter/ip6table_mangle.ko
+  INSTALL net/ipv6/netfilter/ip6table_raw.ko
+  INSTALL net/ipv6/netfilter/nf_conntrack_ipv6.ko
+  INSTALL net/netfilter/nf_conntrack.ko
+  INSTALL net/netfilter/nf_conntrack_ftp.ko
+  INSTALL net/netfilter/nf_conntrack_h323.ko
+  INSTALL net/netfilter/nf_conntrack_irc.ko
+  INSTALL net/netfilter/nf_conntrack_pptp.ko
+  INSTALL net/netfilter/nf_conntrack_proto_gre.ko
+  INSTALL net/netfilter/nf_conntrack_rtsp.ko
+  INSTALL net/netfilter/nf_conntrack_sip.ko
+  INSTALL net/netfilter/nf_conntrack_tftp.ko
+  INSTALL net/netfilter/nfnetlink.ko
+  INSTALL net/netfilter/nfnetlink_queue.ko
+  INSTALL net/netfilter/xt_DSCP.ko
+  INSTALL net/netfilter/xt_MARK.ko
+  INSTALL net/netfilter/xt_SKIPLOG.ko
+  INSTALL net/netfilter/xt_TCPMSS.ko
+  INSTALL net/netfilter/xt_dscp.ko
+  INSTALL net/netfilter/xt_limit.ko
+  INSTALL net/netfilter/xt_mac.ko
+  INSTALL net/netfilter/xt_mark.ko
+  INSTALL net/netfilter/xt_state.ko
+make[1]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/kernel/linux'
+make -C data-model
+make[1]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/data-model'
+make[1]: Nothing to be done for `all'.
+make[1]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/data-model'
+make -C userspace
+make[1]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace'
+make -C public/include
+make[2]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/include'
+make[2]: Nothing to be done for `all'.
+make[2]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/include'
+make -j 1 -C public/libs
+make[2]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs'
+(tar xkfj openssl.tar.bz2 2> /dev/null || true)
+make -j 1 -C openssl all
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+making all in crypto...
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto'
+making all in crypto/objects...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/objects'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/objects'
+making all in crypto/md2...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/md2'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/md2'
+making all in crypto/md5...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/md5'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/md5'
+making all in crypto/sha...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/sha'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/sha'
+making all in crypto/hmac...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/hmac'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/hmac'
+making all in crypto/des...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/des'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/des'
+making all in crypto/dh...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/dh'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/dh'
+making all in crypto/bn...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/bn'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/bn'
+making all in crypto/rsa...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rsa'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rsa'
+making all in crypto/dso...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/dso'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/dso'
+making all in crypto/buffer...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/buffer'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/buffer'
+making all in crypto/stack...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/stack'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/stack'
+making all in crypto/rand...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rand'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rand'
+making all in crypto/err...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/err'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/err'
+making all in crypto/evp...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/evp'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/evp'
+making all in crypto/asn1...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/asn1'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/asn1'
+making all in crypto/pem...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pem'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pem'
+making all in crypto/x509...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/x509'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/x509'
+making all in crypto/lhash...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/lhash'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/lhash'
+making all in crypto/bio...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/bio'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/bio'
+making all in crypto/txt_db...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/txt_db'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/txt_db'
+making all in crypto/x509v3...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/x509v3'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/x509v3'
+making all in crypto/conf...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/conf'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/conf'
+making all in crypto/pkcs7...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pkcs7'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pkcs7'
+making all in crypto/pkcs12...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pkcs12'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/pkcs12'
+making all in crypto/comp...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/comp'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/comp'
+making all in crypto/ui...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/ui'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/ui'
+making all in crypto/rc4...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rc4'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rc4'
+making all in crypto/rc5...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rc5'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/rc5'
+making all in crypto/engine...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/engine'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/engine'
+making all in crypto/aes...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/aes'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/aes'
+making all in crypto/ocsp...
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/ocsp'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto/ocsp'
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make[5]: `libcrypto.so.0.9.7' is up to date.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/crypto'
+making all in fips...
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/fips'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/fips'
+making all in ssl...
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/ssl'
+if [ -n "libcrypto.so.0.9.7 libssl.so.0.9.7" ]; then \
+		(cd ..; make libssl.so.0.9.7); \
+	fi
+make[5]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make[5]: `libssl.so.0.9.7' is up to date.
+make[5]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/ssl'
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+making all in apps...
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/apps'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/apps'
+making all in tools...
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/tools'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl/tools'
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+make -j 1 -C openssl install
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/bin
+install -m 755 apps/openssl /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/bin
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+install -m 755 libssl.so.0.9.7 /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+(cd /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public; rm -f libssl.so; ln -s libssl.so.0.9.7 libssl.so)
+install -m 755 libcrypto.so.0.9.7 /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+(cd /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public; rm -f libcrypto.so; ln -s libcrypto.so.0.9.7 libcrypto.so)
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/openssl'
+ln -sf libpcap libpcap-1.1.1 
+(tar xkz -f libpcap.tar.gz 2> /dev/null || true)
+rm -f libpcap-1.1.1
+make -C libpcap libpcap.a
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/libpcap'
+make[3]: `libpcap.a' is up to date.
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/libpcap'
+make -C cms_boardctl
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_boardctl'
+make -C linux
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_boardctl/linux'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_boardctl/linux'
+/opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/bin/mips-linux-uclibc-gcc -shared -Wl,--whole-archive,-soname,libcms_boardctl.so -o libcms_boardctl.so  linux/oal.a -Wl,--no-whole-archive
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+install -m 755 libcms_boardctl.so /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_boardctl'
+make -C cms_msg
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_msg'
+make -C linux
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_msg/linux'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_msg/linux'
+/opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/bin/mips-linux-uclibc-gcc -shared -Wl,--whole-archive,-soname,libcms_msg.so -o libcms_msg.so msg.o linux/oal.a -Wl,--no-whole-archive
+mkdir -p /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+install -m 755 libcms_msg.so /home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/targets/963268BGW/fs.install/lib/public
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_msg'
+make -C cms_util
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util'
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util'
+make[3]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util'
+make -C linux
+make[4]: Entering directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util/linux'
+make[4]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util/linux'
+for dir in ; do \
+		make -C $dir; \
+	done
+/opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/bin/mips-linux-uclibc-gcc  -DCMS_LOG3  -DLINUX  -Wall -Dmips -g -fPIC -DMDM_SHARED_MEM -DCMS_MEM_DEBUG -DDMP_BASELINE_1 -DDMP_X_BROADCOM_COM_BASELINE_1 -DDMP_ETHERNETLAN_1 -DDMP_DEVICEASSOCIATION_1 -DDMP_QOS_1 -DDMP_X_BROADCOM_COM_QOS_1 -DDMP_QOSDYNAMICFLOW_1 -DDMP_IPPING_1 -DDMP_X_BROADCOM_COM_DEBUG_1 -DDMP_X_BROADCOM_COM_SECURITY_1 -DDMP_ADSLWAN_1 -DDMP_X_BROADCOM_COM_ADSLWAN_1  -DDMP_X_BROADCOM_COM_XTMSTATS_1 -DDMP_DSLDIAGNOSTICS_1 -DSUPPORT_DSL_BONDING -DDMP_X_BROADCOM_COM_DSLBONDING_1 -DSUPPORT_MULTI_PHY -DSUPPORT_DSL_BONDING5B -DSUPPORT_DSL_BONDING -DDMP_X_BROADCOM_COM_DSLBONDING_1 -DDMP_VDSL2WAN_1 -DDMP_X_BROADCOM_COM_VDSL2WAN_1 -DDMP_X_BROADCOM_COM_ATMWAN_1 -DDMP_ATMLOOPBACK_1 -DDMP_X_BROADCOM_COM_ATMLOOPBACK_1  -DDMP_PTMWAN_1 -DDMP_X_BROADCOM_COM_PTMWAN_1 -DSUPPORT_ETHWAN -DDMP_ETHERNETWAN_1 -DSUPPORT_FAPCTL -DSUPPORT_TR64C -DDMP_X_BROADCOM_COM_TR64_1 -DSUPPORT_TR69C -DDMP_SELFTESTDIAG_1 -DDMP_PERIODICSTATSBASE_1 -DDMP_PERIODICSTATSADV_1 -DDMP_UPNPDEV_1 -DDMP_UPNPDISCBASIC_1 -DDMP_UPNPDISCADV_1 -DDMP_USER_1 -DDMP_SIMPLEFIREWALL_1 -DDMP_MEMORYSTATUS_1 -DDMP_PROCESSSTATUS_1 -DDMP_DOWNLOAD_1 -DDMP_UPLOAD_1 -DDMP_UDPECHO_1 -DSUPPORT_HTTPD -DSUPPORT_QUICKSETUP -DDMP_X_BROADCOM_COM_QUICKSETUP_1 -DSUPPORT_HTTPD -DSUPPORT_HTTPD_SSL -DSUPPORT_CLI_CMD -DCLI_CMD_EDIT -DSUPPORT_CONSOLED -DSUPPORT_TELNETD -DSUPPORT_SSHD -DSUPPORT_EBTABLES -DSUPPORT_TOD -DDMP_X_BROADCOM_COM_ACCESSTIMERESTRICTION_1 -DSUPPORT_URLFILTER -DSUPPORT_POLICYROUTING -DSUPPORT_UPNP -DDMP_X_BROADCOM_COM_UPNP_1 -DSUPPORT_DDNSD -DDMP_X_BROADCOM_COM_DYNAMICDNS_1 -DSUPPORT_DNSPROXY -DDMP_X_BROADCOM_COM_DNSPROXY_1 -DSUPPORT_DNSPROXYWITHPROBE -DDMP_X_BROADCOM_COM_DNSPROXY_1 -DSUPPORT_IPP -DDMP_X_BROADCOM_COM_IPPRINTING_1 -DSUPPORT_DSLDIAGD -DSUPPORT_SNTP -DDMP_TIME_1 -DSUPPORT_UDHCP -DSUPPORT_P8021AG -DDMP_X_BROADCOM_COM_P8021AG_1 -DSUPPORT_SPUCTL  -DSUPPORT_PWRMNGT -DDMP_X_BROADCOM_COM_PWRMNGT_1 -DSUPPORT_HOSTMIPS_PWRSAVE -DSUPPORT_ETH_PWRSAVE -DDMP_CAPTIVEPORTAL_1 -DSUPPORT_STORAGESERVICE -DDMP_STORAGESERVICE_1 -DDMP_X_BROADCOM_COM_MCAST_1 -DSUPPORT_IGMP -DDMP_X_BROADCOM_COM_IGMP_1 -DDMP_TRACEROUTE_1 -DDMP_WIFIWPS_1 -DSUPPORT_PPTP -DSUPPORT_SIP -DSUPPORT_PORT_MAP -DDMP_BRIDGING_1  -DSUPPORT_WANVLANMUX -DDMP_USBLAN_1 -DSUPPORT_RATE_LIMIT -DSUPPORT_DEBUG_TOOLS -DCMS_BRCM_GMAC -DSUPPORT_CERT -DDMP_X_BROADCOM_COM_DIGITALCERTIFICATES_1 -DSUPPORT_RIP -DCOMPRESSED_CONFIG_FILE -DCMS_CONFIG_COMPAT -DCMS_CONFIG_IGNORE_UNRECOGNIZED -DAEI_CMS_CONFIG_IGNORE_UNRECOGNIZED -DDMP_WIFILAN_1  -DDMP_WIFIWMM_1 -DDMP_X_BROADCOM_COM_WIFILAN_1 -DDMP_TR98IPV6_1 -DCHIP_63268	-DCONFIG_BCM963268 -DBRCM_CMS_BUILD -DCONFIG_BCM_MAX_GEM_PORTS=32 -DAEI_CONTROL_TRACEROUTE6=1 -DAEI_CONTROL_PING6=1 -DAEI_CONTROL_NUD_IPV6=1 -DACTION_TEC_IPV6_CODE_FOR_IOT=1 -DAEI_CONTROL_LAYER=1 -DAEI_SUPPORT_6RD=1 -DAEI_CONTROL_TR143_IPV6=1 -DAEI_CONTROL_TR98_IPV6=1 -DAEI_SUPPORT_IPV6_STATICROUTE=1 -DAEI_SUPPORT_PHYTYPE_IFNAME_CHANGE=1 -DAEI_MSG_L3INTERFACE_FOR_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_NCS=1 -DAEI_VDSL_CUSTOMER_QWEST=1 -DAEI_VDSL_WAN_ETH=1 -DAEI_VDSL_CUSTOMER_QWEST_Q1000=1 -DAEI_VDSL_MYNETWORK=1 -DAEI_VDSL_TR157=1 -DAEI_VDSL_TR143=1 -DAEI_VDSL_QOS_VLANCTL=1 -DAEI_VDSL_STATS_DIAG=1 -DAEI_UPNP_NAT_FEATURE=1 -DAEI_FULLPATH_IDENTIFY_DEFAULT_WAN=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_CGI_VALIDATE_FEATURE=1 -DAEI_VDSL_DNS_CACHE=1 -DAEI_QWEST_AUTO_SELECT_FEATURE=1 -DAEI_VDSL_HPNA=1 -DAEI_VDSL_WT107=1 -DAEI_VDSL_SMARTLED=1 -DAEI_VDSL_TOOLBOX=1 -DAEI_VDSL_EXTSW_DEBUG=1 -DAEI_VDSL_GLOBAL_SINGLE_FIREWALL=1 -DAEI_VDSL_UPGRADE_HISTORY_SPAD=1 -DAEI_VDSL_TR098_QWEST=1 -DDMP_CAPTIVEPORTAL_1=1 -DSUPPORT_BACKUP_PSI=1 -DAEI_VDSL_CAPTIVE_PAGES=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_VDSL_WAN_AUTO_DETECT_ONE_PHY=1 -DAEI_VDSL_DETECT_WAN_PVC=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY=1 -DAEI_SUPPORT_WIRELESSSCHEDULE=1 -DAEI_LOG_FIREWALL_DROP=1 -DAEI_VDSL_WEBSITE_BLOCK=1 -DAEI_PREVENT_DNS_REBIND=1 -DAEI_TWO_IN_ONE_FIRMWARE=1 -DAEI_VDSL_CUSTOMER_WEBACTIVELOG_SWITCH=1 -DAEI_WLAN_URL_REDIRECT=1 -DAEI_VDSL_CUSTOMER_DHCP_WAN_OPTION60=1 -DAEI_VDSL_CUSTOMER_DHCPFORCERENEW=1 -DAEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD=1 -DAEI_VER2_DUAL_IMAGE=1 -DAEI_VDSL_POWERSAVE=1 -DAEI_VDSL_CUSTOMER_GINP_PHY=1 -DAEI_VDSL_ADSL_BONDING_AUTODETECT=1 -DAEI_63168_CHIP=1 -DAEI_CONFIG_JFFS=1 -DAEI_NAND_IMG_CHECK=1 -DAEI_VDSL_MEDIASEARCH_MOD=1 -DAEI_VDSL_XDSL_PRIO=1 -DAEI_VDSL_WAN_CONVERT_LAN=1 -DAEI_VDSL_SW_WAN_ETH_LED=1 -DAEI_VDSL_FUNCTION_UPNP_MOD=1 -DAEI_VOIP_LED=1 -DAEI_CMS_LOG_DEBUG=1 -DAEI_VDSL_CHECK_FLASH_ID=1 -DAEI_VDSL_FIX_EXT_AFE_SINGLE_LINE=1 -DAEI_ADSL_SINGLE_LINE_AUTOPHY_PATCH=1 -DAEI_VDSL_RESTART_SSK=1 -DAEI_VDSL_ACTIVE_WAN=1 -DAEI_VDSL_PASSWORD_ENCRYPTION=1 -DAEI_VDSL_CUSTOMER_NTPV4=1 -DAEI_VDSL_WPS_AP_PIN=1 -DAEI_VDSL_IOCTL_IFSTATS=1 -DAEI_VDSL_DEBUG_NVRAM=1 -DAEI_HOSTNAME_V6=1 -DAEI_DPROXY_V4_AND_V6=1 -DAEI_VDSL_WAN_ETHER_LINK_PATCH=1 -DAEI_ARPING_STATIC_WAN_SERVICE=1 -DAEI_COVERITY_FIX=1 -DAEI_ABBA_FIX=1  -DDMP_TAENDPOINT_1 -DVOXXXLOAD -DVOIPLOAD -DDMP_ENDPOINT_1 -DSIPLOAD -DSIP_CMGR_CCTRL -DDMP_SIPENDPOINT_1 -DDMP_X_BROADCOM_COM_PSTNENDPOINT_1 -DDMP_X_BROADCOM_COM_DECTENDPOINT_1 -DDMP_X_BROADCOM_COM_DECTD_1 -DNUM_FXO_CHANNELS=1 -DNUM_CHANNELS=3+0 -DNUM_IDECT_CHANNELS=0 -DNUM_EDECT_CHANNELS=0 -DAEI_CONTROL_TRACEROUTE6=1 -DAEI_CONTROL_PING6=1 -DAEI_CONTROL_NUD_IPV6=1 -DACTION_TEC_IPV6_CODE_FOR_IOT=1 -DAEI_CONTROL_LAYER=1 -DAEI_SUPPORT_6RD=1 -DAEI_CONTROL_TR143_IPV6=1 -DAEI_CONTROL_TR98_IPV6=1 -DAEI_SUPPORT_IPV6_STATICROUTE=1 -DAEI_SUPPORT_PHYTYPE_IFNAME_CHANGE=1 -DAEI_MSG_L3INTERFACE_FOR_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_NCS=1 -DAEI_VDSL_CUSTOMER_QWEST=1 -DAEI_VDSL_WAN_ETH=1 -DAEI_VDSL_CUSTOMER_QWEST_Q1000=1 -DAEI_VDSL_MYNETWORK=1 -DAEI_VDSL_TR157=1 -DAEI_VDSL_TR143=1 -DAEI_VDSL_QOS_VLANCTL=1 -DAEI_VDSL_STATS_DIAG=1 -DAEI_UPNP_NAT_FEATURE=1 -DAEI_FULLPATH_IDENTIFY_DEFAULT_WAN=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_CGI_VALIDATE_FEATURE=1 -DAEI_VDSL_DNS_CACHE=1 -DAEI_QWEST_AUTO_SELECT_FEATURE=1 -DAEI_VDSL_HPNA=1 -DAEI_VDSL_WT107=1 -DAEI_VDSL_SMARTLED=1 -DAEI_VDSL_TOOLBOX=1 -DAEI_VDSL_EXTSW_DEBUG=1 -DAEI_VDSL_GLOBAL_SINGLE_FIREWALL=1 -DAEI_VDSL_UPGRADE_HISTORY_SPAD=1 -DAEI_VDSL_TR098_QWEST=1 -DDMP_CAPTIVEPORTAL_1=1 -DSUPPORT_BACKUP_PSI=1 -DAEI_VDSL_CAPTIVE_PAGES=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_VDSL_WAN_AUTO_DETECT_ONE_PHY=1 -DAEI_VDSL_DETECT_WAN_PVC=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY=1 -DAEI_SUPPORT_WIRELESSSCHEDULE=1 -DAEI_LOG_FIREWALL_DROP=1 -DAEI_VDSL_WEBSITE_BLOCK=1 -DAEI_PREVENT_DNS_REBIND=1 -DAEI_TWO_IN_ONE_FIRMWARE=1 -DAEI_VDSL_CUSTOMER_WEBACTIVELOG_SWITCH=1 -DAEI_WLAN_URL_REDIRECT=1 -DAEI_VDSL_CUSTOMER_DHCP_WAN_OPTION60=1 -DAEI_VDSL_CUSTOMER_DHCPFORCERENEW=1 -DAEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD=1 -DAEI_VER2_DUAL_IMAGE=1 -DAEI_VDSL_POWERSAVE=1 -DAEI_VDSL_CUSTOMER_GINP_PHY=1 -DAEI_VDSL_ADSL_BONDING_AUTODETECT=1 -DAEI_63168_CHIP=1 -DAEI_CONFIG_JFFS=1 -DAEI_NAND_IMG_CHECK=1 -DAEI_VDSL_MEDIASEARCH_MOD=1 -DAEI_VDSL_XDSL_PRIO=1 -DAEI_VDSL_WAN_CONVERT_LAN=1 -DAEI_VDSL_SW_WAN_ETH_LED=1 -DAEI_VDSL_FUNCTION_UPNP_MOD=1 -DAEI_VOIP_LED=1 -DAEI_CMS_LOG_DEBUG=1 -DAEI_VDSL_CHECK_FLASH_ID=1 -DAEI_VDSL_FIX_EXT_AFE_SINGLE_LINE=1 -DAEI_ADSL_SINGLE_LINE_AUTOPHY_PATCH=1 -DAEI_VDSL_RESTART_SSK=1 -DAEI_VDSL_ACTIVE_WAN=1 -DAEI_VDSL_PASSWORD_ENCRYPTION=1 -DAEI_VDSL_CUSTOMER_NTPV4=1 -DAEI_VDSL_WPS_AP_PIN=1 -DAEI_VDSL_IOCTL_IFSTATS=1 -DAEI_VDSL_DEBUG_NVRAM=1 -DAEI_HOSTNAME_V6=1 -DAEI_DPROXY_V4_AND_V6=1 -DAEI_VDSL_WAN_ETHER_LINK_PATCH=1 -DAEI_ARPING_STATIC_WAN_SERVICE=1 -DAEI_COVERITY_FIX=1 -DAEI_ABBA_FIX=1  -DAEI_CONTROL_TRACEROUTE6=1 -DAEI_CONTROL_PING6=1 -DAEI_CONTROL_NUD_IPV6=1 -DACTION_TEC_IPV6_CODE_FOR_IOT=1 -DAEI_CONTROL_LAYER=1 -DAEI_SUPPORT_6RD=1 -DAEI_CONTROL_TR143_IPV6=1 -DAEI_CONTROL_TR98_IPV6=1 -DAEI_SUPPORT_IPV6_STATICROUTE=1 -DAEI_SUPPORT_PHYTYPE_IFNAME_CHANGE=1 -DAEI_MSG_L3INTERFACE_FOR_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_NCS=1 -DAEI_VDSL_CUSTOMER_QWEST=1 -DAEI_VDSL_WAN_ETH=1 -DAEI_VDSL_CUSTOMER_QWEST_Q1000=1 -DAEI_VDSL_MYNETWORK=1 -DAEI_VDSL_TR157=1 -DAEI_VDSL_TR143=1 -DAEI_VDSL_QOS_VLANCTL=1 -DAEI_VDSL_STATS_DIAG=1 -DAEI_UPNP_NAT_FEATURE=1 -DAEI_FULLPATH_IDENTIFY_DEFAULT_WAN=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_CGI_VALIDATE_FEATURE=1 -DAEI_VDSL_DNS_CACHE=1 -DAEI_QWEST_AUTO_SELECT_FEATURE=1 -DAEI_VDSL_HPNA=1 -DAEI_VDSL_WT107=1 -DAEI_VDSL_SMARTLED=1 -DAEI_VDSL_TOOLBOX=1 -DAEI_VDSL_EXTSW_DEBUG=1 -DAEI_VDSL_GLOBAL_SINGLE_FIREWALL=1 -DAEI_VDSL_UPGRADE_HISTORY_SPAD=1 -DAEI_VDSL_TR098_QWEST=1 -DDMP_CAPTIVEPORTAL_1=1 -DSUPPORT_BACKUP_PSI=1 -DAEI_VDSL_CAPTIVE_PAGES=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_VDSL_WAN_AUTO_DETECT_ONE_PHY=1 -DAEI_VDSL_DETECT_WAN_PVC=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY=1 -DAEI_SUPPORT_WIRELESSSCHEDULE=1 -DAEI_LOG_FIREWALL_DROP=1 -DAEI_VDSL_WEBSITE_BLOCK=1 -DAEI_PREVENT_DNS_REBIND=1 -DAEI_TWO_IN_ONE_FIRMWARE=1 -DAEI_VDSL_CUSTOMER_WEBACTIVELOG_SWITCH=1 -DAEI_WLAN_URL_REDIRECT=1 -DAEI_VDSL_CUSTOMER_DHCP_WAN_OPTION60=1 -DAEI_VDSL_CUSTOMER_DHCPFORCERENEW=1 -DAEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD=1 -DAEI_VER2_DUAL_IMAGE=1 -DAEI_VDSL_POWERSAVE=1 -DAEI_VDSL_CUSTOMER_GINP_PHY=1 -DAEI_VDSL_ADSL_BONDING_AUTODETECT=1 -DAEI_63168_CHIP=1 -DAEI_CONFIG_JFFS=1 -DAEI_NAND_IMG_CHECK=1 -DAEI_VDSL_MEDIASEARCH_MOD=1 -DAEI_VDSL_XDSL_PRIO=1 -DAEI_VDSL_WAN_CONVERT_LAN=1 -DAEI_VDSL_SW_WAN_ETH_LED=1 -DAEI_VDSL_FUNCTION_UPNP_MOD=1 -DAEI_VOIP_LED=1 -DAEI_CMS_LOG_DEBUG=1 -DAEI_VDSL_CHECK_FLASH_ID=1 -DAEI_VDSL_FIX_EXT_AFE_SINGLE_LINE=1 -DAEI_ADSL_SINGLE_LINE_AUTOPHY_PATCH=1 -DAEI_VDSL_RESTART_SSK=1 -DAEI_VDSL_ACTIVE_WAN=1 -DAEI_VDSL_PASSWORD_ENCRYPTION=1 -DAEI_VDSL_CUSTOMER_NTPV4=1 -DAEI_VDSL_WPS_AP_PIN=1 -DAEI_VDSL_IOCTL_IFSTATS=1 -DAEI_VDSL_DEBUG_NVRAM=1 -DAEI_HOSTNAME_V6=1 -DAEI_DPROXY_V4_AND_V6=1 -DAEI_VDSL_WAN_ETHER_LINK_PATCH=1 -DAEI_ARPING_STATIC_WAN_SERVICE=1 -DAEI_COVERITY_FIX=1 -DAEI_ABBA_FIX=1  -Werror -Wfatal-errors -I. -I/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/include -I/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/include/linux -I/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/shared/opensource/include/bcm963xx -I/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/bcmdrivers/broadcom/include/bcm963xx  -DBRCM_WLAN -DWIRELESS -I/opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/include -L/opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/lib -Werror=return-type -Werror=uninitialized -Werror=frame-larger-than=1024 -I./userspace/private/apps/ctl_layer/include -DBRCM_CHIP_HEX=0x63268 -DDMP_TAENDPOINT_1 -DVOXXXLOAD -DVOIPLOAD -DDMP_ENDPOINT_1 -DSIPLOAD -DSIP_CMGR_CCTRL -DDMP_SIPENDPOINT_1 -DDMP_X_BROADCOM_COM_PSTNENDPOINT_1 -DDMP_X_BROADCOM_COM_DECTENDPOINT_1 -DDMP_X_BROADCOM_COM_DECTD_1 -DNUM_FXO_CHANNELS=1 -DNUM_CHANNELS=3+0 -DNUM_IDECT_CHANNELS=0 -DNUM_EDECT_CHANNELS=0 -DAEI_CONTROL_TRACEROUTE6=1 -DAEI_CONTROL_PING6=1 -DAEI_CONTROL_NUD_IPV6=1 -DACTION_TEC_IPV6_CODE_FOR_IOT=1 -DAEI_CONTROL_LAYER=1 -DAEI_SUPPORT_6RD=1 -DAEI_CONTROL_TR143_IPV6=1 -DAEI_CONTROL_TR98_IPV6=1 -DAEI_SUPPORT_IPV6_STATICROUTE=1 -DAEI_SUPPORT_PHYTYPE_IFNAME_CHANGE=1 -DAEI_MSG_L3INTERFACE_FOR_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_NCS=1 -DAEI_VDSL_CUSTOMER_QWEST=1 -DAEI_VDSL_WAN_ETH=1 -DAEI_VDSL_CUSTOMER_QWEST_Q1000=1 -DAEI_VDSL_MYNETWORK=1 -DAEI_VDSL_TR157=1 -DAEI_VDSL_TR143=1 -DAEI_VDSL_QOS_VLANCTL=1 -DAEI_VDSL_STATS_DIAG=1 -DAEI_UPNP_NAT_FEATURE=1 -DAEI_FULLPATH_IDENTIFY_DEFAULT_WAN=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_CGI_VALIDATE_FEATURE=1 -DAEI_VDSL_DNS_CACHE=1 -DAEI_QWEST_AUTO_SELECT_FEATURE=1 -DAEI_VDSL_HPNA=1 -DAEI_VDSL_WT107=1 -DAEI_VDSL_SMARTLED=1 -DAEI_VDSL_TOOLBOX=1 -DAEI_VDSL_EXTSW_DEBUG=1 -DAEI_VDSL_GLOBAL_SINGLE_FIREWALL=1 -DAEI_VDSL_UPGRADE_HISTORY_SPAD=1 -DAEI_VDSL_TR098_QWEST=1 -DDMP_CAPTIVEPORTAL_1=1 -DSUPPORT_BACKUP_PSI=1 -DAEI_VDSL_CAPTIVE_PAGES=1 -DAEI_VDSL_DETECT_WAN_SERVICE=1 -DAEI_VDSL_WAN_AUTO_DETECT_ONE_PHY=1 -DAEI_VDSL_DETECT_WAN_PVC=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A=1 -DAEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY=1 -DAEI_SUPPORT_WIRELESSSCHEDULE=1 -DAEI_LOG_FIREWALL_DROP=1 -DAEI_VDSL_WEBSITE_BLOCK=1 -DAEI_PREVENT_DNS_REBIND=1 -DAEI_TWO_IN_ONE_FIRMWARE=1 -DAEI_VDSL_CUSTOMER_WEBACTIVELOG_SWITCH=1 -DAEI_WLAN_URL_REDIRECT=1 -DAEI_VDSL_CUSTOMER_DHCP_WAN_OPTION60=1 -DAEI_VDSL_CUSTOMER_DHCPFORCERENEW=1 -DAEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD=1 -DAEI_VER2_DUAL_IMAGE=1 -DAEI_VDSL_POWERSAVE=1 -DAEI_VDSL_CUSTOMER_GINP_PHY=1 -DAEI_VDSL_ADSL_BONDING_AUTODETECT=1 -DAEI_63168_CHIP=1 -DAEI_CONFIG_JFFS=1 -DAEI_NAND_IMG_CHECK=1 -DAEI_VDSL_MEDIASEARCH_MOD=1 -DAEI_VDSL_XDSL_PRIO=1 -DAEI_VDSL_WAN_CONVERT_LAN=1 -DAEI_VDSL_SW_WAN_ETH_LED=1 -DAEI_VDSL_FUNCTION_UPNP_MOD=1 -DAEI_VOIP_LED=1 -DAEI_CMS_LOG_DEBUG=1 -DAEI_VDSL_CHECK_FLASH_ID=1 -DAEI_VDSL_FIX_EXT_AFE_SINGLE_LINE=1 -DAEI_ADSL_SINGLE_LINE_AUTOPHY_PATCH=1 -DAEI_VDSL_RESTART_SSK=1 -DAEI_VDSL_ACTIVE_WAN=1 -DAEI_VDSL_PASSWORD_ENCRYPTION=1 -DAEI_VDSL_CUSTOMER_NTPV4=1 -DAEI_VDSL_WPS_AP_PIN=1 -DAEI_VDSL_IOCTL_IFSTATS=1 -DAEI_VDSL_DEBUG_NVRAM=1 -DAEI_HOSTNAME_V6=1 -DAEI_DPROXY_V4_AND_V6=1 -DAEI_VDSL_WAN_ETHER_LINK_PATCH=1 -DAEI_ARPING_STATIC_WAN_SERVICE=1 -DAEI_COVERITY_FIX=1 -DAEI_ABBA_FIX=1    -c -o image.o image.c
+make[3]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs/cms_util'
+make[2]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace/public/libs'
+make[1]: Leaving directory `/home/xxia/sdk1207/GPL/C2000A_2/sdk1204/bcm963xx/release/out/bcm963xx_CAC002-31.30L.74_consumer/userspace'

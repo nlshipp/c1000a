@@ -20,10 +20,14 @@
 #include <linux/igmp.h>
 #include <linux/in.h>
 #include <linux/blog.h>
+#include <linux/ktime.h>
 #endif
 
 #define BR_HASH_BITS 8
 #define BR_HASH_SIZE (1 << BR_HASH_BITS)
+
+#define BR_IGMP_HASH_SIZE BR_HASH_SIZE
+#define BR_MLD_HASH_SIZE BR_HASH_SIZE
 
 #define BR_HOLD_TIME (1*HZ)
 
@@ -64,6 +68,21 @@ struct net_bridge_fdb_entry
 	unsigned char			is_static;
 };
 
+#if defined(CONFIG_MIPS_BRCM)
+struct br_blog_rule_id
+{
+   u32                     id;
+   struct br_blog_rule_id *next_p;
+};
+
+struct br_flow_path
+{
+   struct net_device       *rxDev_p;   ////*txDev_p;
+   struct br_blog_rule_id  *blogRuleId_p;
+   struct br_flow_path     *next_p;
+};
+#endif
+
 struct net_bridge_port
 {
 	struct net_bridge		*br;
@@ -81,8 +100,11 @@ struct net_bridge_port
 	bridge_id               designated_bridge;
 	u32                     path_cost;
 	u32                     designated_cost;
-#if defined(CONFIG_MIPS_BRCM) && (defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP))
-	int                     dirty;
+#if defined(CONFIG_MIPS_BRCM) /* && (defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)) */
+#if defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)
+	int                  dirty;
+#endif
+   struct br_flow_path  *flowPath_p;
 #endif
 	struct timer_list		forward_delay_timer;
 	struct timer_list		hold_timer;
@@ -115,21 +137,28 @@ struct net_bridge
 	int                     num_fdb_entries;
 #endif /* CONFIG_MIPS_BRCM */
 
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
-	struct list_head		mc_list;
+#if defined(CONFIG_MIPS_BRCM)
+#if defined(CONFIG_BR_IGMP_SNOOP)
 	struct timer_list 		igmp_timer;
 	int                     igmp_proxy;
 	int                     igmp_snooping;
 	spinlock_t              mcl_lock;
+   struct hlist_head       mc_hash[BR_IGMP_HASH_SIZE];
 	int                     start_timer;
+#endif
+   /* for igmp packet rate limit */
+   unsigned int            igmp_rate_limit;
+   unsigned int            igmp_rate_bucket;
+   ktime_t                 igmp_rate_last_packet;
+   unsigned int            igmp_rate_rem_time;
 #endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
-	struct list_head		mld_mc_list;
 	struct timer_list 		mld_timer;
 	int                     mld_proxy;
 	int                     mld_snooping;
 	spinlock_t              mld_mcl_lock;
+    struct hlist_head       mld_mc_hash[BR_MLD_HASH_SIZE];
 	int                     mld_start_timer;
 #endif
 
@@ -265,7 +294,7 @@ extern void br_stp_disable_bridge(struct net_bridge *br);
 extern void br_stp_set_enabled(struct net_bridge *br, unsigned long val);
 extern void br_stp_enable_port(struct net_bridge_port *p);
 extern void br_stp_disable_port(struct net_bridge_port *p);
-extern void br_stp_recalculate_bridge_id(struct net_bridge *br);
+extern bool br_stp_recalculate_bridge_id(struct net_bridge *br);
 extern void br_stp_change_bridge_id(struct net_bridge *br, const unsigned char *a);
 extern void br_stp_set_bridge_priority(struct net_bridge *br,
 				       u16 newprio);
@@ -311,5 +340,12 @@ extern void br_sysfs_delbr(struct net_device *dev);
 #define br_sysfs_addbr(dev)	(0)
 #define br_sysfs_delbr(dev)	do { } while(0)
 #endif /* CONFIG_SYSFS */
+
+
+#if defined(CONFIG_MIPS_BRCM)
+/* br_notifier.c */
+extern void br_stp_notify_state_port(const struct net_bridge_port *p);
+extern void br_stp_notify_state_bridge(const struct net_bridge *br);
+#endif
 
 #endif

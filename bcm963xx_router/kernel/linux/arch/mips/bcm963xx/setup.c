@@ -51,6 +51,7 @@ extern unsigned long getMemorySize(void);
 extern irqreturn_t brcm_timer_interrupt(int irq, void *dev_id);
 
 #include <bcm_map_part.h>
+#include <bcm_cpu.h>
 #include <bcm_intr.h>
 #include <board.h>
 #include <boardparms.h>
@@ -71,6 +72,8 @@ extern irqreturn_t brcm_timer_interrupt(int irq, void *dev_id);
 #if defined(CONFIG_BCM96816)
 #include "bcmSpiRes.h"
 #endif
+
+#include "shared_utils.h"
 
 #if 1
 
@@ -118,14 +121,28 @@ EXPORT_SYMBOL(_ZdaPv);
 #endif
 
 
+
 void __init plat_mem_setup(void)
 {
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     add_memory_region(0, (getMemorySize()), BOOT_MEM_RAM);
 #else
     printk("DSL SDRAM reserved: 0x%x\n", ADSL_SDRAM_IMAGE_SIZE);
     add_memory_region(0, (getMemorySize() - ADSL_SDRAM_IMAGE_SIZE), BOOT_MEM_RAM);
 #endif
+
+    {
+        volatile unsigned long *cr;
+        uint32 mipsBaseAddr = MIPS_BASE;
+
+        cr = (void *)(mipsBaseAddr + MIPS_RAC_CR0);
+        *cr = *cr | RAC_D | RAC_PF_D;
+
+#if defined(MIPS_RAC_CR1)
+        cr = (void *)(mipsBaseAddr + MIPS_RAC_CR1);
+        *cr = *cr | RAC_D | RAC_PF_D;
+#endif        
+    }
 }
 
 
@@ -154,12 +171,22 @@ static void brcm_machine_restart(char *command)
     kerSysMipsSoftReset();
 }
 
+extern void stop_other_cpu(void);  // in arch/mips/kernel/smp.c
+
 static void brcm_machine_halt(void)
 {
+    /*
+     * we don't support power off yet.  This halt will cause both CPU's to
+     * spin in a while(1) loop with interrupts disabled.  (Used for gathering
+     * wlan debug dump via JTAG)
+     */
+#if defined(CONFIG_SMP)
+    stop_other_cpu();
+#endif
     printk("System halted\n");
+    local_irq_disable();
     while (1);
 }
-
 #if defined(CONFIG_PCI) && (defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816))
 static void mpi_SetLocalPciConfigReg(uint32 reg, uint32 value)
 {
@@ -175,7 +202,7 @@ static uint32 mpi_GetLocalPciConfigReg(uint32 reg)
     return MPI->pcicfgdata;
 }
 
-#if !defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96816) && !defined(CONFIG_BCM96818)
 /*
  * mpi_ResetPcCard: Set/Reset the PcCard
  */
@@ -541,39 +568,155 @@ EXPORT_SYMBOL(mpi_init);
 #endif
 
 #if defined(CONFIG_PCI)
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268)
+#if defined(PCIEH)
 static void pcie_init(void)
 {
-    /* pcie clock enable*/
+/* ubus2 pcie architecture*/
+#if defined(UBUS2_PCIE)
+#if defined(CONFIG_BCM96318)
+    PERF->blkEnables |= PCIE_CLK_EN;
+    PERF->blkEnables |= PCIE25_CLK_EN;
+    PERF->blkEnablesUbus |= PCIE_UBUS_CLK_EN;
+    /*
+     * SOFT_RST_PCIE_EXT is the software equivalent of a power-on or push-button reset, clears PCIe sticky bits, 
+     * Hard Reset registers, and SerDes MDIO Registers, and because of this is only appropriate to assert in RC mode.
+     * SOFT_RST_PCIE_HARD (hard reset) is also available. It is directly equivalent to the device hard reset to PCIe, and should not be required
+     */
+    PERF->softResetB &= ~(SOFT_RST_PCIE_EXT |SOFT_RST_PCIE|SOFT_RST_PCIE_CORE);
+    mdelay(10);		
+    PERF->softResetB |= (SOFT_RST_PCIE_EXT);
+    mdelay(10);
+    PERF->softResetB |= SOFT_RST_PCIE;
+    mdelay(10);
+    // optional serdes initialization de-asserts
+    PCIEH_MISC_HARD_REGS->hard_pcie_hard_debug &= ~PCIE_MISC_HARD_PCIE_HARD_DEBUG_SERDES_IDDQ;
+    mdelay(10);
+    PERF->softResetB |= SOFT_RST_PCIE_CORE;
+    mdelay(10);	
+#endif
+	
+/* ubus1 pcie architecture*/
+#else
     PERF->blkEnables |= PCIE_CLK_EN;
 
     /* pcie serdes enable */
-#if defined(CONFIG_BCM96816)   
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) 
     GPIO->SerdesCtl |= (SERDES_PCIE_ENABLE|SERDES_PCIE_EXD_ENABLE);
 #endif
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     MISC->miscSerdesCtrl |= (SERDES_PCIE_ENABLE|SERDES_PCIE_EXD_ENABLE);
 #endif    
 
     /* reset pcie and ext device */
     PERF->softResetB &= ~(SOFT_RST_PCIE|SOFT_RST_PCIE_EXT|SOFT_RST_PCIE_CORE);
 
-#if defined(CONFIG_BCM96328)  || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328)  || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
     PERF->softResetB &= ~SOFT_RST_PCIE_HARD;
-#endif
+    mdelay(10);
    
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268)
     PERF->softResetB |= SOFT_RST_PCIE_HARD;
 #endif
+
     mdelay(10);
     
     PERF->softResetB |= (SOFT_RST_PCIE|SOFT_RST_PCIE_CORE);
     mdelay(10);
     PERF->softResetB |= (SOFT_RST_PCIE_EXT);
+
+#endif 	
     /* this is a critical delay */
-    mdelay(200);
+    mdelay(200);    
 }
 #endif
+#endif
+
+#if defined(CONFIG_BCM96318) /* For 6318 for now but can be used for other chip if need */
+/*  *********************************************************************
+    *  setPinMuxGpio()
+    *
+    *  Set pin mux to GPIO function
+    *
+    *  Input parameters:
+    *      unsigned short gpio pin number
+    *
+    *  Return value:
+    *      nothing
+    ********************************************************************* */
+static void setPinMuxGpio(unsigned short gpio)
+{
+	uint32 reg, shift;
+	volatile uint32* pinMuxSel;
+
+	/* on 6318 device, gpio 13 to 41 pin is not default to gpio function. must change
+    * the pinmux to gpio function
+    */
+	gpio = gpio&BP_GPIO_NUM_MASK;
+	if( gpio >= 13 && gpio <= 41 )
+	{
+        /* set the pad control to gpio */
+		reg = GPIO->PadControl[gpio>>3];
+		shift = (gpio&0x7)<<2;
+		reg &= ~(PAD_CTRL_GPIO0_MASK<<shift);
+		reg |= (PAD_CTRL_GPIO<<shift);
+		GPIO->PadControl[gpio>>3] = reg;
+
+		/* set pin mux to gpio */
+		pinMuxSel = &GPIO->PinMuxSel0;
+		pinMuxSel += gpio>>4;
+		reg = *pinMuxSel;
+		shift = (gpio&0xf)<<1;
+		reg &= ~(PINMUX_SEL_GPIO0_MASK<<shift);
+		reg |= (PINMUX_SEL_GPIO<<shift);
+		*pinMuxSel = reg;
+	}
+
+	return;
+}
+
+/*  *********************************************************************
+    *  initGpioPinMux()
+    *
+    *  Initialize the gpio pin mux register setting. On some chip like 6318, Certain
+    *  gpio pin are muxed with other function and  are not default to gpio. so init
+    *  code needs to set the mux to gpio if they are used by led or gpio boardparm
+    *
+    *
+    *  Input parameters: none
+    *
+    *  Return value:
+    *      nothing
+    ********************************************************************* */
+static void initGpioPinMux(void)
+{
+    int i = 0, rc;
+    unsigned short gpio;
+
+    /* walk through all the led bp */
+    for(;;)
+    {
+     	rc = BpGetLedGpio(i, &gpio);
+       	if( rc == BP_MAX_ITEM_EXCEEDED )
+       		break;
+       	else if( rc == BP_SUCCESS )
+       		setPinMuxGpio(gpio);
+       	i++;
+     }
+
+    /* walk through all the gpio bp */
+    i = 0;
+    for(;;)
+    {
+      	rc = BpGetGpioGpio(i, &gpio);
+       	if( rc == BP_MAX_ITEM_EXCEEDED )
+       		break;
+       	else if( rc == BP_SUCCESS )
+       		setPinMuxGpio(gpio);
+       	i++;
+    }
+
+    return;
+}
 #endif
 
 #if defined(CONFIG_BCM96368)
@@ -642,6 +785,13 @@ static int __init bcm6368_hw_init(void)
             /* Enable SPI Slave Select as Output Pins */            
             /* GPIO 28 is SS2, GPIO 29 is SS3 */            
             GPIO->GPIODir |= (GPIO_MODE_SPI_SSN2 | GPIO_MODE_SPI_SSN3);        
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_USB_LED) {
+            /* Enable Overlay for USB LED Pin */
+            GPIO->GPIOMode |= GPIO_MODE_USBD_LED;
+            /* Enable USB LED pin as Output Pin */
+            GPIO->GPIODir |= GPIO_MODE_USBD_LED;
         }
 
 #if defined(CONFIG_PCI)
@@ -818,6 +968,13 @@ static int __init bcm6816_hw_init(void)
             GPIO->GPIODir |= GPIO_MODE_MOCA_LED;
         }
 
+        if (GPIOOverlays & BP_OVERLAY_USB_LED) {
+            /* Enable Overlay for USB LED Pin */
+            GPIO->GPIOMode |= GPIO_MODE_USBD_LED;
+            /* Enable USB LED pin as Output Pin */
+            GPIO->GPIODir |= GPIO_MODE_USBD_LED;
+        }
+
 #if defined(CONFIG_BCM_GPON_FPGA)
         /* Initialize GPON FPGA (before PCI is initialized) */
         reset_gpon_fpga();
@@ -891,13 +1048,217 @@ static int __init bcm6816_hw_init(void)
 }
 #define bcm63xx_specific_hw_init() bcm6816_hw_init()
 
+
+#elif defined(CONFIG_BCM96818)
+static int __init bcm6818_hw_init(void)
+{
+    unsigned long GPIOOverlays;
+    int pincompat = 0;
+    unsigned short gpio;
+
+    pincompat = UtilGetChipIsPinCompatible();
+
+    /* Enable SPI interface and GPON MAC*/
+    {
+        /* Check if this is BHR */
+        unsigned char portInfo6829;
+        if ( (BP_SUCCESS == BpGet6829PortInfo(&portInfo6829)) &&
+             (0 != portInfo6829))
+        {
+            /* BHR only needs SPI and GPON Serdes clock */
+            PERF->blkEnables |= SPI_CLK_EN | GPON_SER_CLK_EN;
+        }
+        else
+        {
+            PERF->blkEnables |= SPI_CLK_EN | GPON_CLK_EN | GPON_SER_CLK_EN;
+        }
+    }
+
+    udelay(500);
+
+    GPIO->GPIOMode = 0;
+
+    if( BpGetGPIOverlays(&GPIOOverlays) == BP_SUCCESS ) {
+
+        if (GPIOOverlays & BP_OVERLAY_GPON_TX_EN_L) {
+            if(pincompat)
+            {
+        	    GPIO->GPIOMode |= COMPAT_GPIO_MODE_GPON_TX_EN_L;
+        	    GPIO->GPIODir |= COMPAT_GPIO_MODE_GPON_TX_EN_L;
+            }
+            else
+            {
+        	    GPIO->GPIOMode |= GPIO_MODE_GPON_TX_EN_L;
+        	    GPIO->GPIODir |= GPIO_MODE_GPON_TX_EN_L;
+            }
+        }
+        else {
+            if(pincompat)
+            {
+                GPIO->GPIODir |= COMPAT_GPIO_MODE_GPON_TX_EN_L;
+                GPIO->GPIOio |= COMPAT_GPIO_MODE_GPON_TX_EN_L; /*Take optics out of reset*/
+            }
+            else
+            {
+                GPIO->GPIODir |= GPIO_MODE_GPON_TX_EN_L;
+                GPIO->GPIOio |= GPIO_MODE_GPON_TX_EN_L; /*Take optics out of reset*/
+            }
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_GPHY_LED_0) {
+            GPIO->GPIOMode |= GPIO_MODE_GPHY0_LED;
+            GPIO->GPIODir |= GPIO_MODE_GPHY0_LED;
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_GPHY_LED_1) {
+            GPIO->GPIOMode |= GPIO_MODE_GPHY1_LED;
+            GPIO->GPIODir |= GPIO_MODE_GPHY1_LED;
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_SERIAL_LEDS) {
+            if (pincompat) {
+                GPIO->GPIOMode |= (COMPAT_GPIO_MODE_SERIAL_LED_CLK | COMPAT_GPIO_MODE_SERIAL_LED_DATA);
+                GPIO->GPIODir |= (COMPAT_GPIO_MODE_SERIAL_LED_CLK | COMPAT_GPIO_MODE_SERIAL_LED_DATA);
+            }
+            else
+            {
+                GPIO->GPIOMode |= (GPIO_MODE_SERIAL_LED_CLK | GPIO_MODE_SERIAL_LED_DATA);
+                GPIO->GPIODir |= (GPIO_MODE_SERIAL_LED_CLK | GPIO_MODE_SERIAL_LED_DATA);
+            }
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_USB_LED) {
+            /* Enable Overlay for USB LED Pin */
+            GPIO->GPIOMode |= GPIO_MODE_USBD_LED;
+            /* Enable USB LED pin as Output Pin */
+            GPIO->GPIODir |= GPIO_MODE_USBD_LED;
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_SPI_SSB2_EXT_CS) {                                          
+            GPIO->GPIOMode |= GPIO_MODE_SPI_SSN2;    
+        } 
+        
+        if (GPIOOverlays & BP_OVERLAY_SPI_SSB3_EXT_CS) {  
+            if (pincompat){                                       
+                GPIO->GPIOMode |= COMPAT_GPIO_MODE_SPI_SSN3;                           
+            }
+            else {                              
+                GPIO->GPIOMode |= GPIO_MODE_SPI_SSN3;
+            }
+        } 
+        
+        if (GPIOOverlays & BP_OVERLAY_HS_SPI_SSB4_EXT_CS) {  
+            GPIO->GPIOMode |= GPIO_MODE_SPI_SSN4; 
+        } 
+        
+        if (GPIOOverlays & BP_OVERLAY_HS_SPI_SSB5_EXT_CS) {  
+            GPIO->GPIOMode |= GPIO_MODE_SPI_SSN5; 
+        }        
+
+#if defined(CONFIG_PCI)
+        pcie_init();
+#endif
+    }
+
+    /* UART2 - SDIN and SDOUT are separate for flexibility */
+    {
+        unsigned short Uart2Sdin;
+        unsigned short Uart2Sdout;
+        if (BpGetUart2SdinGpio(&Uart2Sdin) == BP_SUCCESS) {
+            switch (Uart2Sdin & BP_GPIO_NUM_MASK) {
+            case (BP_GPIO_30_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOBaseMode |= (EN_UART2_OVER_GPIO);
+                GPIO->GPIODir      &= ~(GPIO_30_UART2_SIN);
+                break;
+            }
+        }
+        if (BpGetUart2SdoutGpio(&Uart2Sdout) == BP_SUCCESS) {
+            switch (Uart2Sdout & BP_GPIO_NUM_MASK) {
+            case (BP_GPIO_31_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOBaseMode |= (EN_UART2_OVER_GPIO); 
+                GPIO->GPIODir      |= GPIO_31_UART2_SDOUT;  
+                break;
+            case (BP_GPIO_27_AH & BP_GPIO_NUM_MASK):
+                /* GPIO 27 only for non pin compatible 6818 device */
+            	if(!pincompat)
+            	{
+                    GPIO->GPIOMode |= (GPIO_MODE_SDOUT);
+                    GPIO->GPIODir  |= GPIO_27_UART2_SDOUT;
+                    GPIO->GPIOBaseMode &= ~(EN_6828_REMAP);
+            	}
+                break;
+            case (BP_GPIO_3_AH & BP_GPIO_NUM_MASK):
+                /* GPIO 3 only for pin compatible 6818 device */
+                if(pincompat)
+                {
+                    GPIO->GPIOMode |= (COMPAT_GPIO_MODE_SDOUT);
+                    GPIO->GPIODir  |= GPIO_3_UART2_SDOUT;
+                }
+                break;
+            }
+        }
+    }
+
+
+    
+#if defined(CONFIG_USB)
+    PERF->blkEnables |= USBH_CLK_EN;
+    PERF->softResetB |= SOFT_RST_USBH;
+    // TIMER->ClkRstCtl |= USB_REF_CLKEN;
+    MISC->miscIddqCtrl &= ~MISC_IDDQ_CTRL_USBH;
+    mdelay(100);
+    USBH->SwapControl = EHCI_ENDIAN_SWAP | OHCI_ENDIAN_SWAP;
+    USBH->Setup |= USBH_IOC;
+    USBH->PllControl1 &= ~(PLLC_PLL_IDDQ_PWRDN | PLLC_PLL_PWRDN_DELAY);
+#else
+    MISC->miscIddqCtrl |= MISC_IDDQ_CTRL_USBH;
+    PERF->blkEnables &= ~USBH_CLK_EN;
+#endif
+
+
+
+    // determine we need to setup MII over GPIO for 6818
+    {
+    unsigned long
+        Flag = 0;
+           
+        BpGetMiiOverGpioFlag(&Flag);
+    
+        if (TRUE == Flag)
+        {                    
+            // set basemode for MII to robosw
+            GPIO->GPIOBaseMode |= EN_MII_OVER_GPIO;
+            
+            //set pins for output direction 
+            GPIO->GPIODir |= GPIO_MII_OVER_GPIO_OUTPUTS;
+
+            //clear pins for input direction 
+            GPIO->GPIODir &= ~(GPIO_MII_OVER_GPIO_INPUTS); 
+        }   
+    }
+
+    /* some 6818 board has the optical module reset pin connect to GPIO and requir sw
+     * to pull it out of reset
+     */
+    if ( BpGetLaserResetGpio(&gpio) == BP_SUCCESS ) {
+        kerSysSetGpioState(gpio, kGpioInactive);
+    }
+    return 0;
+}
+#define bcm63xx_specific_hw_init() bcm6818_hw_init()
+
 #elif defined(CONFIG_BCM96362)
 
 static int __init bcm6362_hw_init(void)
 {
-    unsigned long GPIOOverlays;
+    unsigned long GPIOOverlays, DeviceOptions = 0;
     unsigned short gpio;
     
+    if( BpGetDeviceOptions(&DeviceOptions) == BP_SUCCESS ) {
+        if(DeviceOptions&BP_DEVICE_OPTION_DISABLE_LED_INVERSION)
+            MISC->miscLed_inv = 0;
+    }
+
     /* Set LED blink rate for activity LEDs to 80mS */
     LED->ledInit &= ~LED_FAST_INTV_MASK;
     LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
@@ -1016,8 +1377,13 @@ static int __init bcm6362_hw_init(void)
 
 static int __init bcm6328_hw_init(void)
 {
-    unsigned long GPIOOverlays;
+    unsigned long GPIOOverlays, DeviceOptions = 0;
     unsigned short gpio;
+
+    if( BpGetDeviceOptions(&DeviceOptions) == BP_SUCCESS ) {
+        if(DeviceOptions&BP_DEVICE_OPTION_DISABLE_LED_INVERSION)
+            MISC->miscLedXorReg = 0;
+    }
 
     /* Set LED blink rate for activity LEDs to 80mS */
     LED->ledInit &= ~LED_FAST_INTV_MASK;
@@ -1117,7 +1483,7 @@ static int __init bcm6328_hw_init(void)
 #elif defined(CONFIG_BCM963268)
 
 int map_63268_vdsl_override(int val) {
-    switch (val & BP_GPIO_NUM_MASK) {
+    switch (val & ~BP_ACTIVE_MASK) {
         case (BP_GPIO_10_AH & BP_GPIO_NUM_MASK):
         case (BP_GPIO_11_AH & BP_GPIO_NUM_MASK):
 	    return(GPIO_BASE_VDSL_PHY_OVERRIDE_0);
@@ -1135,11 +1501,23 @@ int map_63268_vdsl_override(int val) {
     }
 }
 
+int map_63268_misc_misc_override(int val) {
+    switch (val & ~BP_ACTIVE_MASK) {
+        case (BP_GPIO_8_AH & BP_GPIO_NUM_MASK):
+	    return(MISC_MISC_DSL_GPIO_8_OVERRIDE);
+        case (BP_GPIO_9_AH & BP_GPIO_NUM_MASK):
+	    return(MISC_MISC_DSL_GPIO_9_OVERRIDE);
+        default:
+            return(0);
+    }
+}
+
 static int __init bcm63268_hw_init(void)
 {
-    unsigned long GPIOOverlays;
+    unsigned long GPIOOverlays, DeviceOptions = 0;
     unsigned short gpio;
     ETHERNET_MAC_INFO EnetInfo[BP_MAX_ENET_MACS];
+    unsigned char vreg1p8;
 #if defined(CONFIG_BCM_1V2REG_AUTO_SHUTDOWN)
     uint32 startCount, endCount;
     int diff; 
@@ -1175,6 +1553,11 @@ static int __init bcm63268_hw_init(void)
 				| MISC_IDDQ_CTRL_VDSL_MIPS);
     }
 
+    if( BpGetDeviceOptions(&DeviceOptions) == BP_SUCCESS ) {
+        if(DeviceOptions&BP_DEVICE_OPTION_DISABLE_LED_INVERSION)
+            MISC->miscLed_inv = 0;
+    }
+
     /* Set LED blink rate for activity LEDs to 80mS */
     LED->ledInit &= ~LED_FAST_INTV_MASK;
     LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
@@ -1200,8 +1583,11 @@ static int __init bcm63268_hw_init(void)
     }
     if (EnetInfo[0].sw.port_map & (1 << 3)) {
         LED->ledHWDis &= ~(1 << LED_GPHY0_ACT);
+/*In Actiontec 63268 Chip, GPIO 0/1 is used for Internet LED , not for GPHY speed LED*/
+#ifndef AEI_63168_CHIP
         LED->ledHWDis &= ~(1 << LED_GPHY0_SPD0);
         LED->ledHWDis &= ~(1 << LED_GPHY0_SPD1);
+#endif
         LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD0) << LED_0_LINK_SHIFT);
         LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD1) << LED_1_LINK_SHIFT);
         GPIO->RoboSWLEDControl |= LED_BICOLOR_SPD;
@@ -1271,20 +1657,35 @@ static int __init bcm63268_hw_init(void)
             unsigned short IntLdPwr = 0xffff;
             unsigned short ExtLdMode = 0xffff;
             unsigned short ExtLdPwr = 0xffff;
+            unsigned short ExtLdClk = 0xffff;
+            unsigned short ExtLdData = 0xffff;
+            unsigned long ul;
             int ExplicitLdControl ;
-            ExplicitLdControl = (BpGetIntAFELDModeGpio(&IntLdMode) == BP_SUCCESS);
-            ExplicitLdControl = ExplicitLdControl ||  (BpGetIntAFELDPwrGpio(&IntLdPwr) == BP_SUCCESS);
-            ExplicitLdControl = ExplicitLdControl ||  (BpGetExtAFELDModeGpio(&ExtLdMode) == BP_SUCCESS);
-            ExplicitLdControl = ExplicitLdControl ||  (BpGetExtAFELDPwrGpio(&ExtLdPwr) == BP_SUCCESS);
-
-            if (!ExplicitLdControl) {
+            ExplicitLdControl = (BpGetIntAFELDModeGpio(&IntLdMode) == BP_SUCCESS) ? 1 : 0;
+            ExplicitLdControl = ExplicitLdControl + ((BpGetIntAFELDPwrGpio(&IntLdPwr) == BP_SUCCESS) ? 1 : 0);
+            ExplicitLdControl = ExplicitLdControl + ((BpGetExtAFELDModeGpio(&ExtLdMode) == BP_SUCCESS) ? 1 : 0);
+            ExplicitLdControl = ExplicitLdControl + ((BpGetExtAFELDPwrGpio(&ExtLdPwr) == BP_SUCCESS) ? 1 : 0);
+            ExplicitLdControl = ExplicitLdControl + ((BpGetExtAFELDClkGpio(&ExtLdClk) == BP_SUCCESS) ? 1 : 0);
+            ExplicitLdControl = ExplicitLdControl + ((BpGetExtAFELDDataGpio(&ExtLdData) == BP_SUCCESS) ? 1 : 0);
+            if (ExplicitLdControl == 0) {
                 /* default if boardparms doesn't specify a subset */
                 GPIO->GPIOBaseMode |= GPIO_BASE_VDSL_PHY_OVERRIDE_0  | GPIO_BASE_VDSL_PHY_OVERRIDE_1;
             } else {
                 GPIO->GPIOBaseMode |= map_63268_vdsl_override(IntLdMode) 
                     |  map_63268_vdsl_override(IntLdPwr) 
-                    | map_63268_vdsl_override(ExtLdMode)
-                    |  map_63268_vdsl_override(ExtLdPwr) ;
+                    |  map_63268_vdsl_override(ExtLdMode)
+                    |  map_63268_vdsl_override(ExtLdPwr)
+                    |  map_63268_vdsl_override(ExtLdClk)
+                    |  map_63268_vdsl_override(ExtLdData) ;
+                ul = map_63268_misc_misc_override(IntLdMode) 
+                    |  map_63268_misc_misc_override(IntLdPwr) 
+                    |  map_63268_misc_misc_override(ExtLdMode)
+                    |  map_63268_misc_misc_override(ExtLdPwr)
+                    |  map_63268_misc_misc_override(ExtLdClk)
+                    |  map_63268_misc_misc_override(ExtLdData) ;
+		if (ul != 0) {
+			MISC->miscMisc_ctrl |= ul;
+  		}
             } 
         }
 
@@ -1312,9 +1713,17 @@ static int __init bcm63268_hw_init(void)
     }
 
     {
-        unsigned short EphyBaseAddr;
-        if( BpGetEphyBaseAddress(&EphyBaseAddr) == BP_SUCCESS ) {
-            GPIO->RoboswEphyCtrl |= ((EphyBaseAddr >>3) & 0x3) << EPHY_PHYAD_BASE_ADDR_SHIFT;
+        unsigned short PhyBaseAddr;
+        /* clear the base address first. hw does not clear upon soft reset*/
+        GPIO->RoboswEphyCtrl &= ~EPHY_PHYAD_BASE_ADDR_MASK;
+        if( BpGetEphyBaseAddress(&PhyBaseAddr) == BP_SUCCESS ) {
+            GPIO->RoboswEphyCtrl |= ((PhyBaseAddr >>3) & 0x3) << EPHY_PHYAD_BASE_ADDR_SHIFT;
+        }
+
+        /* clear the base address first. hw does not clear upon soft reset*/
+        GPIO->RoboswGphyCtrl &= ~GPHY_PHYAD_BASE_ADDR_MASK;
+        if( BpGetGphyBaseAddress(&PhyBaseAddr) == BP_SUCCESS ) {
+            GPIO->RoboswGphyCtrl |= ((PhyBaseAddr >>3) & 0x3) << GPHY_PHYAD_BASE_ADDR_SHIFT;
         }
     }
 
@@ -1419,10 +1828,430 @@ static int __init bcm63268_hw_init(void)
     printk("Internal 1P2 VREG is forced to remain enabled\n");
 #endif
 
+    if ( BpGetVreg1P8(&vreg1p8) == BP_SUCCESS ) {
+        if (vreg1p8 == BP_VREG_EXTERNAL) {
+            printk("Internal 1P8 VREG is forced by boardparms to be shutdown\n");
+            MISC->miscVregCtrl0 |= MISC_VREG_CONTROL0_REG_RESET_B | MISC_VREG_CONTROL0_POWER_DOWN_2;
+        }
+    }	
+
+    if ( BpGetFemtoResetGpio(&gpio) == BP_SUCCESS ) {
+        kerSysSetGpioState(gpio, kGpioActive);
+    }	
     return 0;
 }
 
 #define bcm63xx_specific_hw_init() bcm63268_hw_init()
+
+#elif defined(CONFIG_BCM96318)
+
+static int __init bcm6318_hw_init(void)
+{
+    ETHERNET_MAC_INFO EnetInfo[BP_MAX_ENET_MACS];
+    unsigned long GPIOOverlays;
+    unsigned short gpio;
+    unsigned short SerialMuxSel;
+    
+    /* Set LED blink rate for activity LEDs to 80mS */
+    LED->ledInit &= ~LED_FAST_INTV_MASK;
+    LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
+
+
+    BpGetEthernetMacInfo(EnetInfo, BP_MAX_ENET_MACS);
+
+
+#if defined(CONFIG_USB)
+    PERF->blkEnables |= USBH_CLK_EN;
+    mdelay(100);
+    USBH->PllControl1 |= PLLC_PLL_SUSPEND_EN;  
+    USBH->SwapControl = EHCI_ENDIAN_SWAP | OHCI_ENDIAN_SWAP;
+    USBH->Setup |= USBH_IOC;
+    USBH->Setup &= ~USBH_IPP;
+    USBH->PllControl1 &= ~(PLLC_PLL_IDDQ_PWRDN);
+    GPIO->PinMuxSel0 &= ~(PINMUX_SEL_GPIO13_MASK << PINMUX_SEL_GPIO13_SHIFT);
+    GPIO->PinMuxSel0 |= (PINMUX_SEL_USB_PWRON << PINMUX_SEL_GPIO13_SHIFT);  
+    
+#else
+    PLL_PWR->PllPwrControlIddqCtrl |= IDDQ_USB;
+    PERF->blkEnables &= ~USBH_CLK_EN;
+#endif
+
+
+#if defined(CONFIG_PCI)
+    /* enable PCIE */
+    pcie_init();
+#endif   
+
+    /* set any in use led/gpio pin mux to gpio function */
+    initGpioPinMux();
+
+    /* Start with all HW LEDs disabled */
+    LED->ledHWDis |= 0xFFFFFF;
+    LED->ledMode = 0;
+
+    /* Enable HW to drive LEDs for Ethernet ports in use */
+    if (EnetInfo[0].sw.port_map & (1 << 0)) {
+        LED->ledHWDis &= ~(1 << EPHY0_SPD_LED);
+        LED->ledHWDis &= ~(1 << EPHY0_ACT_LED);
+        /* set up link and speed mapping */
+        LED->ledLinkActSelLow |= ((1<<(EPHY0_ACT_LED-4))<<LED_0_LINK_SHIFT);
+        LED->ledLinkActSelHigh |= ((1<<(EPHY0_ACT_LED-4))<<LED_0_LINK_SHIFT);
+        /* workaround for hw which invert the active low to active high */
+        LED->ledXorReg |= (1 << EPHY0_SPD_LED);
+        LED->ledXorReg |= (1 << EPHY0_ACT_LED);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 1)) {
+        LED->ledHWDis &= ~(1 << EPHY1_SPD_LED);
+        LED->ledHWDis &= ~(1 << EPHY1_ACT_LED);
+        LED->ledLinkActSelLow |= ((1<<(EPHY1_ACT_LED-4))<<LED_1_LINK_SHIFT);
+        LED->ledLinkActSelHigh |= ((1<<(EPHY1_ACT_LED-4))<<LED_1_LINK_SHIFT);
+        LED->ledXorReg |= (1 << EPHY1_SPD_LED);
+        LED->ledXorReg |= (1 << EPHY1_ACT_LED);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 2)) {
+        LED->ledHWDis &= ~(1 << EPHY2_SPD_LED);
+        LED->ledHWDis &= ~(1 << EPHY2_ACT_LED);
+        LED->ledLinkActSelLow |= ((1<<(EPHY2_ACT_LED-4))<<LED_2_LINK_SHIFT);
+        LED->ledLinkActSelHigh |= ((1<<(EPHY2_ACT_LED-4))<<LED_2_LINK_SHIFT);
+        LED->ledXorReg |= (1 << EPHY2_SPD_LED);
+        LED->ledXorReg |= (1 << EPHY2_ACT_LED);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 3)) {
+        LED->ledHWDis &= ~(1 << EPHY3_SPD_LED);
+        LED->ledHWDis &= ~(1 << EPHY3_ACT_LED);
+        LED->ledLinkActSelLow |= ((1<<(EPHY3_ACT_LED-4))<<LED_3_LINK_SHIFT);
+        LED->ledLinkActSelHigh |= ((1<<(EPHY3_ACT_LED-4))<<LED_3_LINK_SHIFT);
+        LED->ledXorReg |= (1 << EPHY3_SPD_LED);
+        LED->ledXorReg |= (1 << EPHY3_ACT_LED);
+    }
+
+    if( BpGetGPIOverlays(&GPIOOverlays) == BP_SUCCESS ) 
+    {      
+        if (GPIOOverlays & BP_OVERLAY_SERIAL_LEDS) {
+            GPIO->GPIOMode |= (1 << SERIAL_LED_DATA);
+            GPIO->GPIOMode |= (1 << SERIAL_LED_CLK);
+            LED->ledSerialMuxSelect = 0x0;
+            if( BpGetSerialLEDMuxSel(&SerialMuxSel) == BP_SUCCESS )
+            {
+                if( SerialMuxSel == (BP_SERIAL_MUX_SEL_GROUP0|BP_SERIAL_MUX_SEL_GROUP2) )
+                     LED->ledSerialMuxSelect = 0xff;
+        	    /* otherwise either non supported combination or default 8 to 23 LED*/
+            }
+
+
+            /* For default Serial MUX selection, XOR workaround is not needed for EPHY 3 SPD and ACT
+        	 * as EPHY 3 LED function is not available anyway. Otherwise, serial data/clk will be inverted too.
+        	 * But for non default Serial MUX selection, we need it to make all EPHY LINK/SPD LED work.
+        	 * However LED 16 to 23 are inverted too. Will fix in next hw revision */
+            if( LED->ledSerialMuxSelect == 0x0 )
+            {
+                LED->ledXorReg &= ~(1 << SERIAL_LED_DATA);
+                LED->ledXorReg &= ~(1 << SERIAL_LED_CLK);
+                LED->ledInit |= (LED_SERIAL_LED_EN|LED_SERIAL_LED_MUX_SEL);
+        	}
+            else
+                LED->ledInit |= (LED_SERIAL_LED_EN|LED_SERIAL_LED_MUX_SEL|LEDSERIAL_LED_CLK_NPOL);
+        }
+
+        /* Enable LED controller to drive GPIO */
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_0) {
+            GPIO->GPIOMode |= (1 << EPHY0_SPD_LED);
+            GPIO->GPIOMode |= (1 << EPHY0_ACT_LED);
+        }
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_1) {
+            GPIO->GPIOMode |= (1 << EPHY1_SPD_LED);
+            GPIO->GPIOMode |= (1 << EPHY1_ACT_LED);
+		}
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_2) {
+            GPIO->GPIOMode |= (1 << EPHY2_SPD_LED);
+            GPIO->GPIOMode |= (1 << EPHY2_ACT_LED);
+        }
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_3) {
+            GPIO->GPIOMode |= (1 << EPHY3_SPD_LED);
+            GPIO->GPIOMode |= (1 << EPHY3_ACT_LED);
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_USB_DEVICE) {
+            LED->ledHWDis &= ~(1 << USB_ACT_LED);
+        }
+        if (GPIOOverlays & BP_OVERLAY_USB_LED) {
+            GPIO->GPIOMode |= (1 << USB_ACT_LED);
+        }
+
+        if ( BpGetWanDataLedGpio(&gpio) == BP_SUCCESS ) {
+            if ((gpio & BP_GPIO_NUM_MASK) == INET_ACT_LED) {
+            	/* WAN Data LED must be LED 8 */
+                if (!(gpio & BP_GPIO_SERIAL)) {
+                    /* If LED is not serial, enable corresponding GPIO */
+                    GPIO->GPIOMode |= GPIO_NUM_TO_MASK(gpio);
+                }
+            }
+        }
+    }
+    
+    return 0;
+}
+
+#define bcm63xx_specific_hw_init() bcm6318_hw_init()
+
+
+#elif defined(CONFIG_BCM96828)
+
+// Define sizes of memory that needs to be allocated for use by the HSI block
+#define HSI_RDMBOX_SZ (16*1024)		// Read DMA mailbox for Hornet to read messages pushed by MIPS
+#define HSI_WRMBOX_SZ (16*1024)		// Write DMA mailbox for MIPS to read messages pushed by Hornet
+#define HSI_FLASH_SZ (1024*1024)	// Simulated flash for the EPON MAC processor
+#define HSI_WRDMA_SZ (16*1024)		// Region for write DMA from EPON MAC processor
+
+static int __init bcm6828_hw_init(void)
+{
+    unsigned long GPIOOverlays, DeviceOptions = 0;
+    ETHERNET_MAC_INFO EnetInfo[BP_MAX_ENET_MACS];
+    void *pvVirtEponMacMemRegion;	// Pointer in virtual memory to EPON MAC strucutures
+    void *pvPhyEponMacMemRegion;	// Pointer in physical memory to EPON MAC strucutures
+    uint32 u32TmpPerfSoftResetB;	// Working variable used in soft reset of EPON MAC
+
+    /* Turn off test bus */
+    PERF->blkEnables &= ~TBUS_CLK_EN;
+
+    if( BpGetDeviceOptions(&DeviceOptions) == BP_SUCCESS ) {
+        if(DeviceOptions&BP_DEVICE_OPTION_DISABLE_LED_INVERSION)
+            MISC->miscLed_inv = 0;
+    }
+
+    /* Set LED blink rate for activity LEDs to 80mS */
+    LED->ledInit &= ~LED_FAST_INTV_MASK;
+    LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
+
+    /* Start with all HW LEDs disabled */
+    LED->ledHWDis |= 0xFFFFFF;
+
+    BpGetEthernetMacInfo(EnetInfo, BP_MAX_ENET_MACS);
+
+    /* Enable HW to drive LEDs for Ethernet ports in use */
+    if (EnetInfo[0].sw.port_map & (1 << 0)) {
+        LED->ledHWDis &= ~(1 << LED_EPHY0_ACT);
+        LED->ledHWDis &= ~(1 << LED_EPHY0_SPD);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 1)) {
+        LED->ledHWDis &= ~(1 << LED_EPHY1_ACT);
+        LED->ledHWDis &= ~(1 << LED_EPHY1_SPD);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 2)) {
+        LED->ledHWDis &= ~(1 << LED_GPHY0_ACT);
+        LED->ledHWDis &= ~(1 << LED_GPHY0_SPD0);
+        LED->ledHWDis &= ~(1 << LED_GPHY0_SPD1);
+        GPIO->RoboSWLEDControl |= LED_BICOLOR_SPD;
+        LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD0) << LED_0_LINK_SHIFT);
+        LED->ledLinkActSelLow |= ((1 << LED_GPHY0_SPD1) << LED_1_LINK_SHIFT);
+    }
+    if (EnetInfo[0].sw.port_map & (1 << 3)) {
+        LED->ledHWDis &= ~(1 << LED_GPHY1_ACT);
+        LED->ledHWDis &= ~(1 << LED_GPHY1_SPD0);
+        LED->ledHWDis &= ~(1 << LED_GPHY1_SPD1);
+        GPIO->RoboSWLEDControl |= LED_BICOLOR_SPD;
+    }
+
+    /* UART2 - SDIN and SDOUT are separate for flexibility */
+    {
+        unsigned short Uart2Sdin;
+        unsigned short Uart2Sdout;
+        if (BpGetUart2SdinGpio(&Uart2Sdin) == BP_SUCCESS) {
+            switch (Uart2Sdin & BP_GPIO_NUM_MASK) {
+            case (BP_GPIO_14_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOMode |= (GPIO_MODE_UART2_SDIN);
+                break;
+            case (BP_GPIO_26_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOMode |= (GPIO_MODE_UART2_SDIN2);
+                break;
+            }
+        }
+        if (BpGetUart2SdoutGpio(&Uart2Sdout) == BP_SUCCESS) {
+            switch (Uart2Sdout & BP_GPIO_NUM_MASK) {
+            case (BP_GPIO_15_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOMode |= (GPIO_MODE_UART2_SDOUT);
+                break;
+            case (BP_GPIO_27_AH & BP_GPIO_NUM_MASK):
+                GPIO->GPIOMode |= (GPIO_MODE_UART2_SDOUT2);
+                break;
+            }
+        }
+    }
+
+    if( BpGetGPIOverlays(&GPIOOverlays) == BP_SUCCESS ) {
+        if (GPIOOverlays & BP_OVERLAY_SERIAL_LEDS) {
+            GPIO->GPIOMode |= (GPIO_MODE_SERIAL_LED_CLK | GPIO_MODE_SERIAL_LED_DATA);
+            LED->ledInit |= LED_SERIAL_LED_EN;
+        }
+        /* Enable LED controller to drive GPIO when LEDs are connected to GPIO pins */
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_0) {
+            GPIO->LEDCtrl |= (1 << LED_EPHY0_ACT);
+            GPIO->LEDCtrl |= (1 << LED_EPHY0_SPD);
+        }
+        if (GPIOOverlays & BP_OVERLAY_EPHY_LED_1) {
+            GPIO->LEDCtrl |= (1 << LED_EPHY1_ACT);
+            GPIO->LEDCtrl |= (1 << LED_EPHY1_SPD);
+        }
+        if (GPIOOverlays & BP_OVERLAY_GPHY_LED_0) {
+            GPIO->LEDCtrl |= (1 << LED_GPHY0_ACT);
+            GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD0);
+            GPIO->LEDCtrl |= (1 << LED_GPHY0_SPD1);
+        }
+        if (GPIOOverlays & BP_OVERLAY_GPHY_LED_1) {
+            GPIO->LEDCtrl |= (1 << LED_GPHY1_ACT);
+            GPIO->LEDCtrl |= (1 << LED_GPHY1_SPD0);
+            GPIO->LEDCtrl |= (1 << LED_GPHY1_SPD1);
+        }
+     
+        /* Enable PCIe CLKREQ signal */
+        if (GPIOOverlays & BP_OVERLAY_PCIE_CLKREQ) {
+            GPIO->GPIOMode |= GPIO_MODE_PCIE_CLKREQ_B;
+        }
+
+        if (GPIOOverlays & BP_OVERLAY_USB_LED) {
+            LED->ledHWDis &= ~(1 << LED_USB_ACT);
+        }
+
+        /* Enable HS SPI SS Pins */
+        if (GPIOOverlays & BP_OVERLAY_HS_SPI_SSB2_EXT_CS) {
+             GPIO->GPIOMode |= GPIO_MODE_HS_SPI_SS_2;
+        }
+        if (GPIOOverlays & BP_OVERLAY_HS_SPI_SSB3_EXT_CS) {
+             GPIO->GPIOMode |= GPIO_MODE_HS_SPI_SS_3;
+        }
+        if (GPIOOverlays & BP_OVERLAY_HS_SPI_SSB4_EXT_CS) {
+             GPIO->GPIOMode |= GPIO_MODE_HS_SPI_SS_4;
+        }        
+    }
+
+    {
+        uint32 nonperiph_gpio_ctrl_map;
+        if( BpGetNonPeriphGpioMap(&nonperiph_gpio_ctrl_map) == BP_SUCCESS ) {
+            uint32 epon_ctrl_map, apm_ctrl_map;
+            /* 1=Periph Ctrl; 0=EPON control. Make sure the non periph bits are set to 0 and other bits are set to 1. */
+            epon_ctrl_map = (nonperiph_gpio_ctrl_map >> EPON_PERIPH_GPIO_S) & EPON_PERIPH_GPIO_M;
+            GPIO->GPIOCtrl |= (GPIO_EPON_PERIPH_CTRL_M << GPIO_EPON_PERIPH_CTRL_S);
+            GPIO->GPIOCtrl &= ~(epon_ctrl_map << GPIO_EPON_PERIPH_CTRL_S);
+            /* 0=Periph Ctrl; 1=APM control. Make sure the non periph bits are set to 1 */
+            apm_ctrl_map = (nonperiph_gpio_ctrl_map >> APM_PERIPH_GPIO_S) & APM_PERIPH_GPIO_M;
+            GPIO->GPIOCtrl &= ~(GPIO_APM_PERIPH_CTRL_M << GPIO_APM_PERIPH_CTRL_S);
+            GPIO->GPIOCtrl |= (apm_ctrl_map << GPIO_APM_PERIPH_CTRL_S);
+        }
+    }
+
+#if defined(CONFIG_USB)
+    PERF->blkEnables |= USBH_CLK_EN;
+    PERF->softResetB |= SOFT_RST_USBH;
+    TIMER->ClkRstCtl |= USB_REF_CLKEN;
+    MISC->miscIddqCtrl &= ~MISC_IDDQ_CTRL_USBH;
+    mdelay(100);
+    USBH->SwapControl = EHCI_ENDIAN_SWAP | OHCI_ENDIAN_SWAP;
+    USBH->Setup |= USBH_IOC;
+    USBH->PllControl1 &= ~(PLLC_PLL_IDDQ_PWRDN | PLLC_PLL_PWRDN_DELAY);
+#else
+    MISC->miscIddqCtrl |= MISC_IDDQ_CTRL_USBH;
+    PERF->blkEnables &= ~USBH_CLK_EN;
+#endif
+
+#if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    PERF->blkEnables &= ~FAP0_CLK_EN;
+    PERF->blkEnables &= ~FAP1_CLK_EN;
+#endif
+
+#if defined(CONFIG_PCI)
+    /* enable PCIE */
+    pcie_init();
+#endif    
+
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+    /* Enable power savings from DDR pads on this chip when DDR goes in Self-Refresh mode */
+    DDR->PhyControl.IDLE_PAD_CONTROL = 0x00000172;
+    DDR->PhyByteLane0Control.IDLE_PAD_CONTROL = 0x000fffff;
+    DDR->PhyByteLane1Control.IDLE_PAD_CONTROL = 0x000fffff;
+#endif
+
+    // Now, do a soft reset of the EPON MAC processor
+    u32TmpPerfSoftResetB = PERF->softResetB;
+    u32TmpPerfSoftResetB = u32TmpPerfSoftResetB | SOFT_RST_EPON;
+    PERF->softResetB = u32TmpPerfSoftResetB;
+    u32TmpPerfSoftResetB = PERF->softResetB;  // Read it back in to force register write
+
+    // Get a DMA friendly memory region big enough to serve the HSI block needs:
+	//	1) Read DMA mailbox for Hornet to read messages pushed by MIPS
+	//	2) Write DMA mailbox for MIPS to read messages pushed by Hornet
+	//	3) Simulated flash for the EPON MAC processor
+    pvVirtEponMacMemRegion = (void *)__get_dma_pages(GFP_KERNEL, get_order(HSI_RDMBOX_SZ + HSI_WRMBOX_SZ + HSI_FLASH_SZ + HSI_WRDMA_SZ));
+    
+	// Did it work?
+	if (pvVirtEponMacMemRegion == 0)
+    {
+        printk("ERROR: Unable to allocate RAM for EPON MAC flash or mailboxes.\n");
+        HSIBASEREG->HsiMboxRdAddrOffset = (uint32) -1;
+        HSIBASEREG->HsiMailboxRdDmaSize = 0;
+        HSIBASEREG->HsiMboxWrAddrOffset = (uint32) -1;
+        HSIBASEREG->HsiHornetSpiAddrOffset = (uint32) -1;
+    }
+    else
+    {	
+		// Now that we have the virtual memory for the EPON MAC data, 
+		// convert the pointer to physical addressing so the hardware can use it for DMA.
+		pvPhyEponMacMemRegion = (void *)VIRT_TO_PHY(pvVirtEponMacMemRegion);
+			
+        // Now set the physical addresses of allocated memory regions to the HSI registers.
+        HSIBASEREG->HsiMboxRdAddrOffset = (uint32) pvPhyEponMacMemRegion;
+        HSIBASEREG->HsiMboxWrAddrOffset = (uint32) pvPhyEponMacMemRegion + HSI_RDMBOX_SZ;
+        HSIBASEREG->HsiHornetSpiAddrOffset = (uint32) pvPhyEponMacMemRegion + HSI_RDMBOX_SZ + HSI_WRMBOX_SZ;
+		
+		// Set mailbox size
+        HSIBASEREG->HsiMailboxRdDmaSize = HSI_RDMBOX_SZ;		
+    }
+    return 0;
+}
+
+#define bcm63xx_specific_hw_init() bcm6828_hw_init()
+
+#elif defined(CONFIG_BCM96318)
+
+static int __init bcm6318_hw_init(void)
+{
+    ETHERNET_MAC_INFO EnetInfo[BP_MAX_ENET_MACS];
+    
+    /* Turn off test bus */
+    PERF->blkEnables &= ~TESTBUS_CLK_EN;
+
+    /* Set LED blink rate for activity LEDs to 80mS */
+    LED->ledInit &= ~LED_FAST_INTV_MASK;
+    LED->ledInit |= (LED_INTERVAL_20MS * 4) << LED_FAST_INTV_SHIFT;
+
+    /* Start with all HW LEDs disabled */
+    LED->ledHWDis |= 0xFFFFFF;
+
+    BpGetEthernetMacInfo(EnetInfo, BP_MAX_ENET_MACS);
+
+
+#if defined(CONFIG_USB)
+    PERF->blkEnables |= USBH_CLK_EN;
+    PERF->softResetB |= SOFT_RST_USBH;
+    TIMER->ClkRstCtl |= USB_REF_CLKEN;
+    mdelay(100);
+    USBH->SwapControl = EHCI_ENDIAN_SWAP | OHCI_ENDIAN_SWAP;
+    USBH->Setup |= USBH_IOC;
+    USBH->PllControl1 &= ~(PLLC_PLL_IDDQ_PWRDN | PLLC_PLL_PWRDN_DELAY);
+#else
+    PERF->blkEnables &= ~USBH_CLK_EN;
+#endif
+
+#if defined(CONFIG_PCI)
+    /* enable PCIE */
+    pcie_init();
+#endif    
+
+    return 0;
+}
+
+#define bcm63xx_specific_hw_init() bcm6318_hw_init()
+
+
 
 #endif
 
@@ -1483,10 +2312,17 @@ unsigned long getMemorySize(void)
     size <<= 2;
 
     return( size );
-#elif defined(CONFIG_BCM96816) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328)
+#elif defined(CONFIG_BCM96816) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96828)
     return (DDR->CSEND << 24);
+#elif defined(CONFIG_BCM96318) 
+    uint32 memCfg;
+
+    memCfg = MEMC->SDR_CFG;
+    memCfg = (memCfg&MEMC_SDRAM_SPACE_MASK)>>MEMC_SDRAM_SPACE_SHIFT;
+
+    return 1<<(memCfg+20);
 #else
-    return (MEMC->CSEND << 24);
+    return (((MEMC->CSEND > 16) ? 16 : MEMC->CSEND) << 24);
 #endif
 }
 
@@ -1522,3 +2358,28 @@ void __init allocDspModBuffers(void)
 #endif
 }
 
+#if defined(CONFIG_BCM_GPON_DDRO)
+/* Pointers to memory buffers allocated for the GPON DDR offload buffers */
+void *gpon_ddro_buffer;
+EXPORT_SYMBOL(gpon_ddro_buffer);
+void __init allocGponDDROBuffers(void);
+/*
+*****************************************************************************
+** FUNCTION:   allocGponDDROBuffers
+**
+** PURPOSE:    Allocates buffers for GPON DDR offload buffers
+**
+** PARAMETERS: None
+** RETURNS:    Nothing
+*****************************************************************************
+*/
+void __init allocGponDDROBuffers(void)
+{
+    printk("Allocating memory for GPON DDR offload buffers.\n");
+
+  gpon_ddro_buffer = (void*)alloc_bootmem(CONFIG_BCM_GPON_DDRO_SIZE * 1024);
+
+  printk("Allocated GPON DDRO memory - Address=0x%x SIZE=%dKB\n",
+         (unsigned int)gpon_ddro_buffer, CONFIG_BCM_GPON_DDRO_SIZE);
+}
+#endif /* defined(CONFIG_BCM_GPON_DDRO) */

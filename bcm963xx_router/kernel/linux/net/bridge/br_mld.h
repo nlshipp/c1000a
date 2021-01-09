@@ -16,12 +16,7 @@
 #define SNOOPING_BLOCKING_MODE 2
 
 #define TIMER_CHECK_TIMEOUT 10
-#define QUERY_TIMEOUT 130
 #define BR_MLD_MEMBERSHIP_TIMEOUT 260 /* RFC3810 */
-
-
-#define BRCTL_MLD_ENABLE_SNOOPING 23
-#define BRCTL_MLD_ENABLE_PROXY_MODE 24
 
 #define BR_MLD_MULTICAST_MAC_PREFIX 0x33
 
@@ -87,9 +82,9 @@ struct mld2_report {
 
 struct net_br_mld_mc_src_entry
 {
-	struct in6_addr		src;
-	unsigned long		tstamp;
-    int                 filt_mode;
+	struct in6_addr   src;
+	unsigned long     tstamp;
+	int               filt_mode;
 };
 
 struct net_br_mld_mc_rep_entry
@@ -100,23 +95,23 @@ struct net_br_mld_mc_rep_entry
 
 struct net_br_mld_mc_fdb_entry
 {
-	struct net_bridge_port *dst;
-	struct in6_addr         grp;
-	struct in6_addr         rep;
+	struct hlist_node              hlist;
+	struct net_bridge_port        *dst;
+	struct in6_addr                grp;
+	struct list_head               rep_list;
 	struct net_br_mld_mc_src_entry src_entry;
-	uint32_t                lan_tci; /* vlan id */
-	uint32_t                wan_tci; /* vlan id */
-    int                     num_tags;
-	unsigned char			is_local;
-	unsigned char			is_static;
-	unsigned long			tstamp;
-    char                    wan_name[IFNAMSIZ];
-    char                    lan_name[IFNAMSIZ];
+	uint32_t                       lan_tci; /* vlan id */
+	uint32_t                       wan_tci; /* vlan id */
+	int                            num_tags;
+	unsigned long                  tstamp;
+	char                           wan_name[IFNAMSIZ];
+	char                           lan_name[IFNAMSIZ];
+	char                           type;
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-	uint32_t                blog_idx;
+	uint32_t                       blog_idx;
+	char                           root;
 #endif
-	struct net_device      *from_dev;
-	struct list_head 		list;
+	struct net_device             *from_dev;
 };
 
 int br_mld_blog_rule_update(struct net_br_mld_mc_fdb_entry *mc_fdb, int wan_ops);
@@ -143,7 +138,6 @@ extern void br_mld_mc_fdb_remove_grp(struct net_bridge *br,
 extern void br_mld_mc_fdb_cleanup(struct net_bridge *br);
 
 int br_mld_mc_fdb_remove(struct net_device *from_dev,
-                        int wan_ops,
                         struct net_bridge *br, 
                         struct net_bridge_port *prt, 
                         struct in6_addr *grp, 
@@ -151,15 +145,26 @@ int br_mld_mc_fdb_remove(struct net_device *from_dev,
                         int mode, 
                         struct in6_addr *src);
 
-void br_mld_snooping_init(void);
+int br_mld_mc_fdb_update_bydev( struct net_bridge *br,
+                                struct net_device *dev );
 
 extern int br_mld_set_port_snooping(struct net_bridge_port *p,  void __user * userbuf);
 
 extern int br_mld_clear_port_snooping(struct net_bridge_port *p,  void __user * userbuf);
 
+int br_mld_process_if_change(struct net_bridge *br, struct net_device *ndev);
+
 struct net_br_mld_mc_fdb_entry *br_mld_mc_fdb_copy(struct net_bridge *br, 
                                      const struct net_br_mld_mc_fdb_entry *mld_fdb);
 void br_mld_mc_fdb_del_entry(struct net_bridge *br, 
                               struct net_br_mld_mc_fdb_entry *mld_fdb);
+int __init br_mld_snooping_init(void);
+void br_mld_snooping_fini(void);
+void br_mld_mc_rep_free(struct net_br_mld_mc_rep_entry *rep);
+void br_mld_mc_fdb_free(struct net_br_mld_mc_fdb_entry *mc_fdb);
+
+void br_mld_lan2lan_snooping_update(int val);
+int br_mld_get_lan2lan_snooping_info(void);
+void br_mld_wl_del_entry(struct net_bridge *br,struct net_br_mld_mc_fdb_entry *dst);
 #endif
 #endif /* _BR_MLD_H */

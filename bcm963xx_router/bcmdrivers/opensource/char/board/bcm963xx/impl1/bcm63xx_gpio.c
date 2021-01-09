@@ -1,5 +1,5 @@
 /*
-<:copyright-gpl
+<:copyright-BRCM:2002:GPL/GPL:standard
  Copyright 2010 Broadcom Corp. All Rights Reserved.
 
  This program is free software; you can distribute it and/or modify it
@@ -67,7 +67,7 @@ void kerSysSetGpioStateLocked(unsigned short bpGpio, GPIO_STATE_t state)
 
     kerSysSetGpioDirLocked(bpGpio);
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     /* Take over high GPIOs from WLAN block */
     if ((bpGpio & BP_GPIO_NUM_MASK) > 31)
         GPIO->GPIOCtrl |= GPIO_NUM_TO_MASK(bpGpio - 32);
@@ -111,7 +111,115 @@ void kerSysSetGpioDir(unsigned short bpGpio)
 }
 
 
+/* Set gpio direction to input. Parameter gpio is in boardparms.h format. */
+int kerSysSetGpioDirInput(unsigned bpGpio)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+  //  GPIO_TAKE_CONTROL(bpGpio & BP_GPIO_NUM_MASK);
+    GPIO->GPIODir &= ~GPIO_NUM_TO_MASK(bpGpio);
+    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+    return(0);
+}
+
+/* Return a gpio's value, 0 or 1. Parameter gpio is in boardparms.h format. */
+int kerSysGetGpioValue(unsigned bpGpio)
+{
+    return((int) ((GPIO->GPIOio & GPIO_NUM_TO_MASK(bpGpio)) >>
+        (bpGpio & BP_GPIO_NUM_MASK)));
+}
+
+
+#if defined(CONFIG_I2C_GPIO) && !defined(CONFIG_GPIOLIB)
+/* GPIO bit functions to support drivers/i2c/busses/i2c-gpio.c */
+
+#if defined(CONFIG_BCM96828)
+/* Assign GPIO to BCM6828 PERIPH block from EPON 8051. */
+#define EPON_GPIO_START             41
+#define GPIO_TAKE_CONTROL(G) \
+    do \
+    { \
+    if( (G) >= EPON_GPIO_START ) \
+    { \
+        GPIO->GPIOCtrl |= (GPIO_NUM_TO_MASK((G) - EPON_GPIO_START) << \
+            GPIO_EPON_PERIPH_CTRL_S); \
+    } \
+    } while(0)
+#else
+#define GPIO_TAKE_CONTROL(G) 
+#endif
+
+/* noop */
+int gpio_request(unsigned bpGpio, const char *label)
+{
+    return(0); /* success */
+}
+
+/* noop */
+void gpio_free(unsigned bpGpio)
+{
+}
+
+/* Assign a gpio's value. Parameter gpio is in boardparms.h format. */
+void gpio_set_value(unsigned bpGpio, int value)
+{
+    unsigned long flags;
+
+    /* value should be either 0 or 1 */
+    spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+    GPIO_TAKE_CONTROL(bpGpio & BP_GPIO_NUM_MASK);
+    if( value == 0 )
+        GPIO->GPIOio &= ~GPIO_NUM_TO_MASK(bpGpio);
+    else
+        if( value == 1 )
+            GPIO->GPIOio |= GPIO_NUM_TO_MASK(bpGpio);
+    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+}
+
+/* Set gpio direction to input. Parameter gpio is in boardparms.h format. */
+int gpio_direction_input(unsigned bpGpio)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+    GPIO_TAKE_CONTROL(bpGpio & BP_GPIO_NUM_MASK);
+    GPIO->GPIODir &= ~GPIO_NUM_TO_MASK(bpGpio);
+    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+    return(0);
+}
+
+/* Set gpio direction to output. Parameter gpio is in boardparms.h format. */
+int gpio_direction_output(unsigned bpGpio, int value)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+    GPIO_TAKE_CONTROL(bpGpio & BP_GPIO_NUM_MASK);
+    GPIO->GPIODir |= GPIO_NUM_TO_MASK(bpGpio);
+    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+    gpio_set_value(bpGpio, value);
+    return(0);
+}
+
+/* Return a gpio's value, 0 or 1. Parameter gpio is in boardparms.h format. */
+int gpio_get_value(unsigned bpGpio)
+{
+    unsigned long flags;
+
+    spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+    GPIO_TAKE_CONTROL(bpGpio & BP_GPIO_NUM_MASK);
+    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+    return((int) ((GPIO->GPIOio & GPIO_NUM_TO_MASK(bpGpio)) >>
+        (bpGpio & BP_GPIO_NUM_MASK)));
+}
+#endif
+
 EXPORT_SYMBOL(kerSysSetGpioState);
 EXPORT_SYMBOL(kerSysSetGpioStateLocked);
 EXPORT_SYMBOL(kerSysSetGpioDir);
 EXPORT_SYMBOL(kerSysSetGpioDirLocked);
+EXPORT_SYMBOL(kerSysSetGpioDirInput);
+EXPORT_SYMBOL(kerSysGetGpioValue);
+
+

@@ -1,7 +1,7 @@
 LIB  = libnfnetlink.a
 OBJS = iftable.o rtnl.o libnfnetlink.o 
 CFLAGS := -I../include $(BRCM_WERROR_CFLAGS)
-CFLAGS += $(ACTION_TEC_DFLAGS) 
+CFLAGS += $(ACTION_TEC_DFLAGS)
 all: $(LIB)
 
 clean: 

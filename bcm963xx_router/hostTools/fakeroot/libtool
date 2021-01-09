@@ -129,7 +129,7 @@ old_postuninstall_cmds=""
 LTCC="gcc"
 
 # LTCC compiler flags.
-LTCFLAGS="  -O2 -DGNU -I/home/xxia/sdk12/31.30.8/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk12/31.30.8/shared/opensource/include/bcm963xx -I."
+LTCFLAGS="  -O2 -DGNU -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/bcmdrivers/opensource/include/bcm963xx -I/home/xxia/sdk1207/C2000A_2/sdk1204/bcmcpe/shared/opensource/include/bcm963xx -I."
 
 # Take the output of nm and produce a listing of raw symbols and C names.
 global_symbol_pipe="sed -n -e 's/^.*[	 ]\\([ABCDGIRSTW][ABCDGIRSTW]*\\)[	 ][	 ]*\\([_A-Za-z][_A-Za-z0-9]*\\)\$/\\1 \\2 \\2/p'"
@@ -213,10 +213,10 @@ finish_eval=""
 hardcode_into_libs=yes
 
 # Compile-time system search path for libraries.
-sys_lib_search_path_spec="/usr/lib/gcc/i686-redhat-linux/4.6.0 /usr/lib /lib"
+sys_lib_search_path_spec="/usr/lib/gcc/i686-redhat-linux/4.6.3 /usr/lib /lib"
 
 # Run-time system search path for libraries.
-sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/lib/atlas /usr/lib/xulrunner-2 "
+sys_lib_dlsearch_path_spec="/lib /usr/lib /usr/lib/atlas /usr/lib/llvm /usr/lib/mysql /usr/lib/wine/ /usr/lib/xulrunner-2 "
 
 # Whether dlopen is supported.
 dlopen_support=unknown

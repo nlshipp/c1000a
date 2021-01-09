@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -97,7 +99,6 @@ typedef enum {
    EID_RIPD=35,
    EID_SNTP=36,
    EID_URLFILTERD=37,
-   EID_IGMP=38,
    EID_TRACERT=39,
    EID_PING=40,
    EID_DHCP6C=41,
@@ -106,7 +107,6 @@ typedef enum {
    EID_DNSPROXY=44,
    EID_IPPD=45,
    EID_FTP=46,
-   EID_MLD=47,
    EID_DSLDIAGD=48,
    EID_SOAPSERVER=49,
    EID_PWRCTL=50,
@@ -114,10 +114,10 @@ typedef enum {
    EID_L2TPD=52,
    EID_SAMBA=53,
    EID_PPTPD=54,
-   EID_LASERD=55,
    EID_DECT=56,
    EID_OMCID=60,
    EID_OMCIPMD=61,   
+   EID_RASTATUS6=62,
    EID_UNITTEST=90,
    EID_MISC=91,
    EID_WLWPS=93,
@@ -131,9 +131,15 @@ typedef enum {
    EID_OSGID=102,
    EID_BMUD=103,
    EID_BMUCTL=104,
+   EID_PLC_NVM=105,
+   EID_PLC_BOOT=106,
+   EID_MCPCTL=107,
+   EID_HOMEPLUGD=108,
+   EID_HOMEPLUGCTL=109,
 #if defined (AEI_VDSL_DETECT_WAN_SERVICE)
    EID_DETECT_WAN_SERVICE= 118,
-#endif   
+   EID_SET_DETECT_WAN_SERVICE= 125,
+#endif
 #ifdef DMP_DOWNLOAD_1
    EID_TR143_DLD=110,
 #endif
@@ -173,16 +179,28 @@ typedef enum {
 #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
    EID_LEDCTL=123,
 #endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+   EID_SAVESYSLOG=124,
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NTPV4)
+   EID_NTPV4=150,
+#endif
    EID_MODUPDTD=500,
    EID_MODUPDTV=501,
 #ifdef AEI_CONTROL_PING6
-    EID_PING6=502,    
+    EID_PING6=502,
 #endif
 #ifdef AEI_CONTROL_TRACEROUTE6
-    EID_TRACEROUTE6=503,    
+    EID_TRACEROUTE6=503,
 #endif
 #if defined(AEI_VDSL_CPU_SYSLOG)
     EID_CPULOGD=504,
+#endif
+#if defined(AEI_VDSL_CAPTIVE_PAGES)
+    EID_IPTABLES=505,
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    EID_VOICEPR=506,
 #endif
 EID_LAST=65535
 } CmsEntityId;
@@ -241,6 +259,7 @@ EID_LAST=65535
 #define NDA_ACCESS_RTD 			0x0001
 #endif
 
+
 /** List of all management entities other than tr69c.
  *
  * tr69c considers these management entities "subscriber" management entities.
@@ -266,6 +285,7 @@ EID_LAST=65535
                                 NDA_ACCESS_VODSL        | NDA_ACCESS_WLAN       | \
                                 NDA_ACCESS_DECTDBGD     | NDA_ACCESS_EPONAPP)
 #endif
+
 
 /** Entity is a server, which opens a socket and listens for requests.
  *

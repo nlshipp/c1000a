@@ -79,8 +79,8 @@ static void usage(void)
 
 	//fprintf(stderr, "SPI - security parameter index(default=0)\n");
 
- 	fprintf(stderr, "MODE := [ transport | tunnel | ro | beet ](default=transport)\n");
- 	//fprintf(stderr, "REQID - number(default=0)\n");
+	fprintf(stderr, "MODE := [ transport | tunnel | ro | beet ](default=transport)\n");
+	//fprintf(stderr, "REQID - number(default=0)\n");
 
 	fprintf(stderr, "FLAG-LIST := [ FLAG-LIST ] FLAG\n");
 	fprintf(stderr, "FLAG := [ noecn | decap-dscp | nopmtudisc | wildrecv | icmp | af-unspec ]\n");
@@ -1057,7 +1057,7 @@ int print_sadinfo(struct nlmsghdr *n, void *arg)
 				fprintf(fp,"BAD SAD length returned\n");
 				return -1;
 			}
-				
+
 			si = RTA_DATA(tb[XFRMA_SAD_HINFO]);
 			fprintf(fp," (buckets ");
 			fprintf(fp,"count %d", si->sadhcnt);

@@ -4,19 +4,25 @@
     Copyright (c) 2007 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
  
 :>
 */
@@ -69,12 +75,27 @@ int	bcmPktDma_XtmSelectRxIrq_Dqm(int channel)
 -------------------------------------------------------------------------- */
 void    bcmPktDma_XtmClrRxIrq_Dqm(BcmPktDma_LocalXtmRxDma * rxdma)
 {
-    uint32 qbit = 1 << (DQM_FAP2HOST_XTM0_RX_Q + rxdma->channel);
+#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
+    uint32 qbits = ((1 << DQM_FAP2HOST_XTM_RX_Q_LOW) |
+						(1 << DQM_FAP2HOST_XTM_RX_Q_HI));
+#else
+    uint32 qbits = 1 << (DQM_FAP2HOST_XTM_RX_Q_LOW);
+#endif
 
     //printk("\nbcmPktDma_XtmClrRxIrq_Dqm\n");
 
-    dqmClearNotEmptyIrqStsHost(rxdma->fapIdx, qbit);
-    dqmEnableNotEmptyIrqMskHost(rxdma->fapIdx, qbit);
+    dqmClearNotEmptyIrqStsHost(rxdma->fapIdx, qbits);
+    dqmEnableNotEmptyIrqMskHost(rxdma->fapIdx, qbits);
+}
+
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_XtmRecv_RingSize
+ Purpose: Return 0, not used.
+   Notes: None
+-------------------------------------------------------------------------- */
+uint32 bcmPktDma_XtmRecv_RingSize_Dqm(BcmPktDma_LocalXtmRxDma * rxdma)
+{
+    return 0 ;
 }
 
 /* --------------------------------------------------------------------------
@@ -84,7 +105,6 @@ void    bcmPktDma_XtmClrRxIrq_Dqm(BcmPktDma_LocalXtmRxDma * rxdma)
 -------------------------------------------------------------------------- */
 uint32 bcmPktDma_XtmRecv_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pBuf, int * pLen)
 {
-    uint32            dqm = DQM_FAP2HOST_XTM0_RX_Q + rxdma->channel;
     fapDqm_XtmRx_t    rx;
     DmaDesc           dmaDesc;
 
@@ -92,10 +112,26 @@ uint32 bcmPktDma_XtmRecv_Dqm(BcmPktDma_LocalXtmRxDma * rxdma, unsigned char **pB
 
     dmaDesc.word0 = 0;
 
-    if (dqmRecvAvailableHost(rxdma->fapIdx, dqm))
+#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
+    if (dqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_XTM_RX_Q_HI))
     {
-        dqmRecvMsgHost(rxdma->fapIdx, dqm, DQM_FAP2HOST_XTM_RX_Q_SIZE,
-                                      (DQMQueueDataReg_S *) &rx);
+        dqmRecvMsgHost(rxdma->fapIdx, DQM_FAP2HOST_XTM_RX_Q_HI,
+                DQM_FAP2HOST_XTM_RX_Q_SIZE, (DQMQueueDataReg_S *) &rx);
+
+        *pBuf         = (unsigned char *) rx.pBuf;
+        dmaDesc.word0 = rx.dmaWord0;
+        *pLen         = dmaDesc.length;
+
+        //printk("XtmRecv_Dqm pbuf: 0x%08lX len: %d dmaDesc.word0: 0x%08lX\n",
+        //          (long unsigned int)*pBuf, *pLen, dmaDesc.word0);
+    }
+    else if (dqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_XTM_RX_Q_LOW))
+#else
+    if (dqmRecvAvailableHost(rxdma->fapIdx, DQM_FAP2HOST_XTM_RX_Q_LOW))
+#endif
+    {
+        dqmRecvMsgHost(rxdma->fapIdx, DQM_FAP2HOST_XTM_RX_Q_LOW,
+						 DQM_FAP2HOST_XTM_RX_Q_SIZE, (DQMQueueDataReg_S *) &rx);
 
         *pBuf         = (unsigned char *) rx.pBuf;
         dmaDesc.word0 = rx.dmaWord0;
@@ -164,9 +200,9 @@ BOOL bcmPktDma_XtmFreeXmitBufGet_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 *pKe
     Name: bcmPktDma_XtmXmitAvailable
  Purpose: Determine if there are free resources for the xmit
 -------------------------------------------------------------------------- */
-int bcmPktDma_XtmXmitAvailable_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 dmaType)
+int bcmPktDma_XtmXmitAvailable_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 dmaType, uint32 dqm)
 {
-    return (dqmXmitAvailableHost(txdma->fapIdx, DQM_HOST2FAP_XTM_XMIT_Q));
+    return (dqmXmitAvailableHost(txdma->fapIdx, dqm));
 }
 
 /* --------------------------------------------------------------------------
@@ -178,7 +214,7 @@ int bcmPktDma_XtmXmitAvailable_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint32 dmaTyp
 -------------------------------------------------------------------------- */
 int bcmPktDma_XtmXmit_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint8 *pBuf, uint16 len, int bufSource,
                           uint16 dmaStatus, uint32 key,int param1,
-                          uint32 dmaType, uint32 noGlobalBufAccount)
+                          uint32 dmaType, uint32 noGlobalBufAccount, uint32 dqm)
 {
     fapDqm_XtmTx_t tx;
 
@@ -187,8 +223,18 @@ int bcmPktDma_XtmXmit_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint8 *pBuf, uint16 le
 
     // BCM_LOG_INFO(BCM_LOG_ID_FAP, "channel %d", txdma->ulDmaIndex);
 
+        /* Per chip limitation,
+     * max PTM frame size of 1984 + 4(FCS) = 1988 (6328/62/68)
+     * max PTM frame size of 1980 + 4(FCS) = 1984 (6318/268)
+     */
+    if (((dmaStatus & FSTAT_CT_MASK) == FSTAT_CT_PTM) && (len > PTM_MAX_TX_FRAME_LEN))
+    {
+        printk ("XtmDqm - PTM frame len=%u exceeds %u (max)", len, PTM_MAX_TX_FRAME_LEN);
+        return 0;   /* drop */
+    }        
+
     /* If there is space in the ETH_XMIT_Q, send the xmit request to the FAP */
-    if (dqmXmitAvailableHost(txdma->fapIdx, DQM_HOST2FAP_XTM_XMIT_Q))
+    if (dqmXmitAvailableHost(txdma->fapIdx, dqm))
     {
         tx.pBuf = pBuf;
         tx.source = bufSource;
@@ -198,7 +244,7 @@ int bcmPktDma_XtmXmit_Dqm(BcmPktDma_LocalXtmTxDma *txdma, uint8 *pBuf, uint16 le
         tx.dmaStatus = dmaStatus;
         tx.param1 = param1;
 
-        bcmPktDma_dqmXmitMsgHost(txdma->fapIdx, DQM_HOST2FAP_XTM_XMIT_Q,
+        bcmPktDma_dqmXmitMsgHost(txdma->fapIdx, dqm,
                                  DQM_HOST2FAP_XTM_XMIT_Q_SIZE,
                                 (DQMQueueDataReg_S *) &tx);
 
@@ -373,7 +419,16 @@ int	bcmPktDma_XtmInitTxChan_Dqm( uint32 bufDescrs,
     bcmPktDma_xmit2Fap(pXtmTxDma->fapIdx, FAP_MSG_DRV_XTM_INIT, &fapMsg);
 
     /* Wait a while for FAP receive */
-    udelay(500);
+    udelay(1000);
+
+    fapMsg.drvInit.cmd     = FAPMSG_CMD_INIT_TX_STATE;
+    fapMsg.drvInit.channel = pXtmTxDma->ulDmaIndex;
+    fapMsg.drvInit.drv     = FAPMSG_DRV_XTM;
+
+    fapMsg.drvInit.DmaStateRam = (uint32)(VIRT_TO_PHY(pXtmTxDma->txStateRam)|0xA0000000);
+
+    bcmPktDma_xmit2Fap(pXtmTxDma->fapIdx, FAP_MSG_DRV_XTM_INIT_STATE, &fapMsg);
+    udelay(1000);
 
     return 1;
 
@@ -420,7 +475,7 @@ int bcmPktDma_XtmLinkUp_Dqm(uint32 devId, uint32 matchId)
     return 1;
 }
 
-void bcm63xx_xtm_dqmhandler(unsigned long channel)
+void bcm63xx_xtm_dqmhandler(uint32 fapIdx, unsigned long channel)
 {
     int i;
     PBCMXTMRT_DEV_CONTEXT pDevCtx;
@@ -437,6 +492,11 @@ void bcm63xx_xtm_dqmhandler(unsigned long channel)
 #else
             netif_rx_schedule(pDevCtx->pDev);
 #endif
+            /* TBD:currently fap always sends channel number as zero, 
+             * because there is no 1-1 mapping between DQM's and iudma channels,
+             * also currently XTM uses only one channel(but initilizes 2). We dont
+             * see a need to pass channel number today, if its needed in future
+             * we have redesign/code */
 
             g_pXtmGlobalInfo->ulIntEnableMask |= 1 << channel;
         }
@@ -450,6 +510,10 @@ int	bcmPktDma_XtmSetIqThresh_Dqm( BcmPktDma_LocalXtmRxDma * rxdma,
                                   uint16 hiThresh)
 {
     xmit2FapMsg_t fapMsg;
+
+    rxdma->iqLoThreshDqm = loThresh;
+    rxdma->iqHiThreshDqm = hiThresh;
+    rxdma->iqDroppedDqm  = 0;
 
     fapMsg.threshInit.cmd     = FAPMSG_CMD_SET_IQ_THRESH;
     fapMsg.threshInit.channel = rxdma->channel;
@@ -518,11 +582,40 @@ int	bcmPktDma_XtmSetTxChanBpmThresh_Dqm( BcmPktDma_LocalXtmTxDma * txdma,
 }
 #endif
 
+void bcmPktDma_XtmGetStats_Dqm(uint8 vport, uint32 *rxDrop_p, uint32 *txDrop_p)
+{
+    *rxDrop_p = 0;
+    *txDrop_p = 0;
+
+    *rxDrop_p += pHostQsmGbl(FAP0_IDX)->xtm[vport].rxDropped;
+    *txDrop_p += pHostQsmGbl(FAP0_IDX)->xtm[vport].txDropped;
+
+#if NUM_FAPS > 1
+    *rxDrop_p += pHostQsmGbl(FAP1_IDX)->xtm[vport].rxDropped;
+    *txDrop_p += pHostQsmGbl(FAP1_IDX)->xtm[vport].txDropped;
+#endif
+}
+
+void bcmPktDma_XtmResetStats_Dqm(uint8 vport)
+{
+    xmit2FapMsg_t fapMsg;
+
+    fapMsg.stats.cmd     = FAPMSG_CMD_DRV_RESET_STATS;
+    fapMsg.stats.port    = vport;
+    fapMsg.stats.drv     = FAPMSG_DRV_XTM;
+
+    bcmPktDma_xmit2Fap(FAP0_IDX, FAP_MSG_STATS, &fapMsg);
+#if NUM_FAPS > 1
+    bcmPktDma_xmit2Fap(FAP1_IDX, FAP_MSG_STATS, &fapMsg);
+#endif
+}
+
 
 EXPORT_SYMBOL(bcm63xx_xtm_dqmhandler);
 
 EXPORT_SYMBOL(bcmPktDma_XtmSelectRxIrq_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmClrRxIrq_Dqm);
+EXPORT_SYMBOL(bcmPktDma_XtmRecv_RingSize_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmRecv_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmFreeRecvBuf_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmXmitAvailable_Dqm);
@@ -537,6 +630,7 @@ EXPORT_SYMBOL(bcmPktDma_XtmSetIqDqmThresh_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmSetRxChanBpmThresh_Dqm);
 EXPORT_SYMBOL(bcmPktDma_XtmSetTxChanBpmThresh_Dqm);
 #endif
-
+EXPORT_SYMBOL(bcmPktDma_XtmGetStats_Dqm);
+EXPORT_SYMBOL(bcmPktDma_XtmResetStats_Dqm);
 #endif   /* #ifndef CONFIG_BCM96816 */
 

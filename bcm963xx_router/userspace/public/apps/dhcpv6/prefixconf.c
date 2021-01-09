@@ -46,7 +46,6 @@
 #include <netinet6/nd6.h>
 #endif
 
-#include <signal.h>
 #include <errno.h>
 #include <syslog.h>
 #include <string.h>
@@ -123,10 +122,9 @@ static int add_ifprefix __P((struct siteprefix *,
 extern struct dhcp6_timer *client6_timo __P((void *));
 static int pd_ifaddrconf __P((ifaddrconf_cmd_t, struct dhcp6_ifprefix *ifpfx));
 
-#if 1 //brcm
+//brcm
 static void sendPrefixEventMessage __P((ifaddrconf_cmd_t, struct siteprefix *));
 extern Dhcp6cStateChangedMsgBody dhcp6cMsgBody;
-#endif
 
 int
 update_prefix(ia, pinfo, pifc, dhcpifp, ctlp, callback)
@@ -260,9 +258,8 @@ update_prefix(ia, pinfo, pifc, dhcpifp, ctlp, callback)
 		break;
 	}
 
-#if 1 //brcm
-   sendPrefixEventMessage(IFADDRCONF_ADD, sp);
-#endif
+//brcm
+	sendPrefixEventMessage(IFADDRCONF_ADD, sp);
 
 	return (0);
 }
@@ -297,9 +294,8 @@ remove_siteprefix(sp)
 	if (sp->timer)
 		dhcp6_remove_timer(&sp->timer);
 
-#if 1 //brcm
-   sendPrefixEventMessage(IFADDRCONF_REMOVE, sp);
-#endif
+//brcm
+	sendPrefixEventMessage(IFADDRCONF_REMOVE, sp);
 
 	/* remove all interface prefixes */
 	while ((ip = TAILQ_FIRST(&sp->ifprefix_list)) != NULL) {
@@ -438,7 +434,6 @@ siteprefix_timo(arg)
 		dhcp6_remove_timer(&sp->timer);
 
 	remove_siteprefix(sp);
-   sendDhcp6cEventMessage();
 
 	(*callback)(ia);
 
@@ -467,12 +462,12 @@ add_ifprefix(siteprefix, prefix, pconf)
 	ifpfx->ifconf = pconf;
 
 	ifpfx->paddr.sin6_family = AF_INET6;
-#ifndef __linux__
+#ifdef HAVE_SA_LEN
 	ifpfx->paddr.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 	ifpfx->paddr.sin6_addr = prefix->addr;
 
-	/* FIXME: Find out how ISP will deploy site local prefix configuration */
+	/* brcm: FIXME: Find out how ISP will deploy site local prefix configuration */
 	pconf->sla_len = pconf->ifid_len - prefix->plen;
 
 	ifpfx->plen = prefix->plen + pconf->sla_len;
@@ -540,17 +535,16 @@ pd_ifaddrconf(cmd, ifpfx)
 	    ND6_INFINITE_LIFETIME, ND6_INFINITE_LIFETIME));
 }
 
-#if 1 //brcm
+//brcm
 inline void sendPrefixEventMessage(ifaddrconf_cmd_t cmd, struct siteprefix *sp)
 {
-   dhcp6cMsgBody.prefixAssigned = TRUE;
-   dhcp6cMsgBody.prefixCmd      = cmd;
-   sprintf(dhcp6cMsgBody.sitePrefix, "%s/%d", in6addr2str(&sp->prefix.addr, 0), sp->prefix.plen);
-   dhcp6cMsgBody.prefixPltime = sp->prefix.pltime;
-   dhcp6cMsgBody.prefixVltime = sp->prefix.vltime;
+	dhcp6cMsgBody.prefixAssigned = TRUE;
+	dhcp6cMsgBody.prefixCmd      = cmd;
+	sprintf(dhcp6cMsgBody.sitePrefix, "%s/%d", in6addr2str(&sp->prefix.addr, 0), sp->prefix.plen);
+	dhcp6cMsgBody.prefixPltime = sp->prefix.pltime;
+	dhcp6cMsgBody.prefixVltime = sp->prefix.vltime;
 
-   dprintf(LOG_NOTICE, FNAME, "DHCP6C_PREFIX_CHANGED");
-   return;
+	dprintf(LOG_NOTICE, FNAME, "DHCP6C_PREFIX_CHANGED");
+	return;
 }  /* End of sendPrefixEventMessage() */
-#endif
 

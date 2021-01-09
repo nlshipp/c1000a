@@ -250,7 +250,7 @@ SDIRS=  objects \
 	des dh\
 	bn rsa dso \
 	buffer stack rand err \
-	evp asn1 pem x509 lhash bio txt_db x509v3 conf pkcs7 pkcs12 comp ui 
+	evp asn1 pem x509 lhash bio txt_db x509v3 conf pkcs7 pkcs12 comp ui
 else
 SDIRS=  objects \
 	md5 sha hmac \

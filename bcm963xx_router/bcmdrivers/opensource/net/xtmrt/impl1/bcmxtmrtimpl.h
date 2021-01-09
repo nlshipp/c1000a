@@ -1,19 +1,19 @@
 /*
-<:copyright-gpl 
- Copyright 2007 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+<:copyright-gpl
+ Copyright 2007 Broadcom Corp. All Rights Reserved.
+
+ This program is free software; you can distribute it and/or modify it
+ under the terms of the GNU General Public License (Version 2) as
+ published by the Free Software Foundation.
+
+ This program is distributed in the hope it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program; if not, write to the Free Software Foundation, Inc.,
+ 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 :>
 */
 /**************************************************************************
@@ -124,7 +124,7 @@
 #define FSTAT_MODE_COMMON           0x00000800
 
 /* Receive Buffer Descriptor frame status word for ATM/PTM. */
-#define FSTAT_MATCH_ID_MASK         0x0000007f             
+#define FSTAT_MATCH_ID_MASK         0x0000007f
 #define FSTAT_MATCH_ID_SHIFT        0
 #define FSTAT_PACKET_CELL_MASK      0x00000400
 #define FSTAT_PACKET                0x00000000
@@ -177,7 +177,7 @@ typedef struct TxQInfo
 typedef struct bcmxtmrt_dev_context
 {
     /* Linux structures. */
-    struct net_device *pDev;        
+    struct net_device *pDev;
     struct net_device_stats DevStats;
     IOCTL_MIB_INFO MibInfo;
     struct ppp_channel Chan;
@@ -204,7 +204,7 @@ typedef struct bcmxtmrt_dev_context
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
     struct napi_struct napi;
-#endif  
+#endif
 
 } BCMXTMRT_DEV_CONTEXT, *PBCMXTMRT_DEV_CONTEXT;
 
@@ -367,7 +367,7 @@ typedef struct _XtmRtPtmBondInfo {
       /* Per line counters */
       UINT32               rfg [MAX_BOND_PORTS];	/* rx fragments counter */
    } bStats ;
-	
+
 #ifdef PTM_BONDING_DEBUG
    int                  logLevel ;
 #define MAX_SEQ_DUMP 750
@@ -456,7 +456,7 @@ UINT32 bcmxtmrt_process_rx_pkt( PBCMXTMRT_DEV_CONTEXT pDevCtx,
                               FkBuff_t *pFkb, UINT16 bufStatus, int delLen,
 										int trailerDelLen) ;
 void bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, pNBuff_t *ppNBuff,
-                               struct sk_buff **ppNBuffSkb, UINT8 **ppData, 
+                               struct sk_buff **ppNBuffSkb, UINT8 **ppData,
                                int *pLen) ;
 void bcmxtmrt_ptmbond_receive_rx_fragment (PBCMXTMRT_DEV_CONTEXT pDevCtx, FkBuff_t *pFkb,
                                            UINT16 bufStatus) ;

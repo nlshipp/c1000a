@@ -16,10 +16,9 @@
 
 
 #############################################################################
-#                                                                            
+#
 #  Create the temporary file that will contain the FAP module size
-#                                                                            
+#
 #############################################################################
 $(shell echo '#define FAP_CORE_SIZE 0' >  $(SHARED_DIR)/opensource/include/bcm963xx/fap_mod_size.h )
-$(shell echo '#define FAP_INIT_SIZE 0' >> $(SHARED_DIR)/opensource/include/bcm963xx/fap_mod_size.h ) 
-
+$(shell echo '#define FAP_INIT_SIZE 0' >> $(SHARED_DIR)/opensource/include/bcm963xx/fap_mod_size.h )

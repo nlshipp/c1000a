@@ -130,6 +130,9 @@ flog(int prio, char *format, ...)
 {
 	va_list ap;
 	int res;
+      
+        if (debug_level < (prio-3))
+          return;
 
 	va_start(ap, format);
 	res = vlog(prio, format, ap);

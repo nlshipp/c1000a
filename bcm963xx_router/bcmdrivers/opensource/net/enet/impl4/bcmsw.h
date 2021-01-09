@@ -1,21 +1,31 @@
 /*
-<:copyright-gpl
- Copyright 2004-2010 Broadcom Corp. All Rights Reserved.
+    Copyright 2004-2010 Broadcom Corporation
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */
+
 #ifndef _BCMSW_H_
 #define _BCMSW_H_
 
@@ -76,19 +86,33 @@ void ethsw_reset(int is6829);
 void ethsw_init_hw(int unit, uint32_t map, int wanPort, int is6829);
 int ethsw_set_multiport_address(uint8_t* addr);
 void ethsw_set_mac_hw(uint16_t sw_port, PHY_STAT ps, int is6829);
+void bcmsw_set_ext_switch_pbvlan(int port, uint16_t portMap);
+void ethsw_set_stp_mode(unsigned int unit, unsigned int port, unsigned char stpState);
 
 #ifdef REPORT_HARDWARE_STATS
+#if defined(AEI_VDSL_STATS_DIAG)
+int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats, struct net_device * dev);
+#else
 int ethsw_get_hw_stats(int port, int extswitch, struct net_device_stats *stats);
+#endif
 #endif
 
 int reset_switch(int is6829);
+int remove_arl_entry_wrapper(void *ptr);
 
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
 int ethsw_is_switch_locked(void *ptr);
+int ethsw_get_port_buf_usage(void *ptr);
 #endif /* CONFIG_BCM96816 */
 
 #if (defined(CONFIG_BCM_ARL) || defined(CONFIG_BCM_ARL_MODULE))
 int enet_hook_for_arl_access(void *ethswctl);
 #endif
+
+void fast_age_port(uint8_t port, uint8_t age_static);
+
+int enet_ioctl_debug_conf(struct ethswctl_data *e);
+int write_vlan_table(bcm_vlan_t vid, uint32_t val32);
+void enet_arl_write(uint8_t *mac, uint16_t vid, uint16_t val);
 
 #endif /* _BCMSW_H_ */

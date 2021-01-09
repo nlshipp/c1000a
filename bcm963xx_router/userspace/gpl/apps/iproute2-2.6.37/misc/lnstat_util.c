@@ -104,7 +104,7 @@ int lnstat_update(struct lnstat_file *lnstat_files)
 					lfi->result = lfi->values[1];
 				else
 					lfi->result = (lfi->values[1]-lfi->values[0])
-				    			/ lf->interval.tv_sec;
+							/ lf->interval.tv_sec;
 			}
 
 			rewind(lf->fp);

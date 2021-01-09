@@ -8,7 +8,7 @@
 <abstract>
 <tt/arpd/ is daemon collecting gratuitous ARP information, saving
 it on local disk and feeding it to kernel on demand to avoid
-redundant broadcasting due to limited size of kernel ARP cache. 
+redundant broadcasting due to limited size of kernel ARP cache.
 </abstract>
 
 
@@ -34,7 +34,7 @@ that host is dead was proven the last time.
 in text format similar dumped by option <tt/-l/. Exit after load,
 probably listing resulting database, if option <tt/-l/ is also given.
 If <tt/FILE/ is <tt/-/, <tt/stdin/ is read to get ARP table.
- 
+
 <item><tt/-b DATABASE/  - location of database file. Default location is
 <tt>/var/lib/arpd/arpd.db</tt>.
 
@@ -114,7 +114,7 @@ with kernel functionality:
 <item> Completely replace kernel resolution on interfaces <tt/eth0/
 and <tt/eth1/. In this case kernel still does unicast probing to
 validate entries, but all the broadcast activity is suppressed
-and made under authority of <tt/arpd/: 
+and made under authority of <tt/arpd/:
 
 <tscreen><verb>
    arpd -b /var/tmp/arpd.db -a 3 -k eth0 eth1
@@ -127,4 +127,3 @@ mode occasionally.
 </enum>
 
 </article>
-

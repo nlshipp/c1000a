@@ -64,6 +64,7 @@
 #include "dbussend_msg.h"
 extern void *ctlMsgHandle;
 extern CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody;
+extern CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody_Old;
 #ifdef CONFIG_IOT_RECONFIGURATION
 extern int got_valid_ia_na;
 #endif
@@ -130,7 +131,7 @@ update_address(ia, addr, dhcpifp, ctlp, callback)
 	/*
 	 * A client discards any addresses for which the preferred
          * lifetime is greater than the valid lifetime.
-	 * [RFC3315 22.6] 
+	 * [RFC3315 22.6]
 	 */
 	if (addr->vltime != DHCP6_DURATION_INFINITE &&
 	    (addr->pltime == DHCP6_DURATION_INFINITE ||
@@ -189,7 +190,7 @@ update_address(ia, addr, dhcpifp, ctlp, callback)
 	if (sa->addr.vltime != 0)
 		if (na_ifaddrconf(IFADDRCONF_ADD, sa) < 0)
 		    {
-		        				ctllog_debug(LOG_NOTICE,FLNAME,LINENUM,FNAME,
+							ctllog_debug(LOG_NOTICE,FLNAME,LINENUM,FNAME,
 				    "failed to add stateful addr ,ignore this error");
 #ifndef CDROUTER_TEST_DHCP6C
 			return (-1);
@@ -312,6 +313,11 @@ cleanup_addr(iac)
 		TAILQ_REMOVE(&iac_na->statefuladdr_head, sa, link);
 		remove_addr(sa);
 	}
+    if (memcmp(&ctldhcp6cMsgBody, &ctldhcp6cMsgBody_Old, sizeof(CtlDhcp6cStateChangedMsgBody)))
+    {
+         sendDhcp6cEventMessage();
+         memcpy(&ctldhcp6cMsgBody_Old, &ctldhcp6cMsgBody, sizeof(CtlDhcp6cStateChangedMsgBody));
+    }
 
 	free(iac);
 }
@@ -391,6 +397,14 @@ addr_timo(arg)
 		dhcp6_remove_timer(&sa->timer);
 
 	remove_addr(sa);
+
+       //when addr tiomeout need send the message to smd immediately
+      //add by harrison 2012-08-07
+      if (memcmp(&ctldhcp6cMsgBody, &ctldhcp6cMsgBody_Old, sizeof(CtlDhcp6cStateChangedMsgBody)))
+     {
+              sendDhcp6cEventMessage();
+              memcpy(&ctldhcp6cMsgBody_Old, &ctldhcp6cMsgBody, sizeof(CtlDhcp6cStateChangedMsgBody));
+      }
 
 	(*callback)(ia);
 
@@ -497,8 +511,8 @@ ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
 	if (ioctl(s, SIOGIFINDEX, &ifr) < 0) {
 		dprintf(LOG_NOTICE, FNAME, "failed to get the index of %s: %s",
 		    ifname, strerror(errno));
-		close(s); 
-		return (-1); 
+		close(s);
+		return (-1);
 	}
 	memcpy(&req.ifr6_addr, &addr->sin6_addr, sizeof(struct in6_addr));
 	req.ifr6_prefixlen = plen;
@@ -506,8 +520,8 @@ ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
 #ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
 	req.ifr6_vltime = vltime;
 	req.ifr6_pltime = pltime;
- 		dprintf(LOG_NOTICE, FNAME, "====req.ifr6_vltime=%d,req.ifr6_pltime=%d",req.ifr6_vltime,req.ifr6_pltime);
-   
+		dprintf(LOG_NOTICE, FNAME, "====req.ifr6_vltime=%d,req.ifr6_pltime=%d",req.ifr6_vltime,req.ifr6_pltime);
+
 #endif
 #endif
 #ifdef __sun__
@@ -535,7 +549,7 @@ ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
 	    addr2str((struct sockaddr *)addr), plen, ifname);
 
 	close(s);
-	
+
 #if 1 //brcm
    if (updateIp6AddrFile(cmd, ifname, addr) == 0)
    {
@@ -578,7 +592,7 @@ int updateIp6AddrFile(ifaddrconf_cmd_t cmd, char *ifname, struct sockaddr_in6 *a
    long ifaddrLen;
    char ifaddr[84];
    char line[84];
-   
+
    /* see if the f_ip6Addr file already exists */
    if (access(f_ip6Addr, F_OK) == 0)
    {
@@ -649,7 +663,11 @@ int updateIp6AddrFile(ifaddrconf_cmd_t cmd, char *ifname, struct sockaddr_in6 *a
 void sendAddrEventMessage(ifaddrconf_cmd_t cmd, const char *ifname, const char *addr)
 {
    /* TODO: Currently, we always assume br0 as the  PD interface */
+#if defined(AEI_COVERITY_FIX)
+   if ( strncmp(ifname, "br0", strlen("br0")) == 0 )  /* address of the PD interface */
+#else
    if ( strncmp(ifname, "br0", sizeof(ifname)) == 0 )  /* address of the PD interface */
+#endif
    {
       snprintf(ctldhcp6cMsgBody.pdIfAddress, sizeof(ctldhcp6cMsgBody.pdIfAddress), "%s", addr);
    }
@@ -658,19 +676,25 @@ void sendAddrEventMessage(ifaddrconf_cmd_t cmd, const char *ifname, const char *
 #ifdef CONFIG_IOT_RECONFIGURATION
     if(cmd==IFADDRCONF_ADD)
         {
-            got_valid_ia_na++;
+            //got_valid_ia_na++;
             ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "add valid ia na(ifname=%s,addr=%s) now,got_valid_ia_na=%d",
                 ifname,addr,got_valid_ia_na);
-            
+
         }
-    else if(got_valid_ia_na >0 )
+       //support remove ia_na
+      //modify by harrison 2012-08-07
+        else if(cmd==IFADDRCONF_REMOVE)
+        {
+            ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "remove valid ia na(ifname=%s,addr=%s) now,got_valid_ia_na=%d",
+                ifname,addr,got_valid_ia_na);
+        }
+    /*else if(got_valid_ia_na >0 )
         {
              ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "got valid ia na(ifname=%s,addr=%s) before,cann't do remove!got_valid_ia_na=%d",
                 ctldhcp6cMsgBody.ifname,ctldhcp6cMsgBody.address,got_valid_ia_na);
             return;
-        }
+        }*/
 #endif
-
       ctldhcp6cMsgBody.addrAssigned = TRUE;
       ctldhcp6cMsgBody.addrCmd      = cmd;
       snprintf(ctldhcp6cMsgBody.ifname, sizeof(ctldhcp6cMsgBody.ifname), "%s", ifname);

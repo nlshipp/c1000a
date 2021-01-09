@@ -544,7 +544,7 @@ make_interface_object(argc, argv, bpp, lenp)
   fail:
 	warnx("make_interface_object: failed");
 	return (-1);
-}	
+}
 
 static int
 make_binding_object(argc, argv, bpp, lenp)

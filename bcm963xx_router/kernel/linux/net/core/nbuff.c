@@ -1,5 +1,5 @@
 /*
- * <:copyright-BRCM:2009:GPL:standard
+ * <:copyright-BRCM:2009:GPL/GPL:standard
  * 
  *    Copyright (c) 2009 Broadcom Corporation
  *    All Rights Reserved
@@ -204,11 +204,11 @@ void fkbM_recycle(pNBuff_t pNBuff, unsigned context, unsigned flags)
     register FkbPool_t * pool_p = (FkbPool_t *)context;
 
     fkb_assertv( (pool_p == &fkb_pool_g[FkbMasterPool_e]) ); 
-    fkb_assertv( (flags & SKB_DATA_RECYCLE) );
 
     if ( IS_SKBUFF_PTR(pNBuff) )
     {
         struct sk_buff * skb_p = (struct sk_buff *)PNBUFF_2_SKBUFF(pNBuff);
+        fkb_assertv( (flags & SKB_DATA_RECYCLE) );
         fkbM_p = (FkBuff_t *)((uint32_t)(skb_p->head) - PFKBUFF_PHEAD_OFFSET); 
     }
     /* else if IS_FPBUFF_PTR, else if IS_TGBUFF_PTR */
@@ -254,6 +254,8 @@ void fkbC_recycle(FkBuff_t * fkbC_p)
     register FkbPool_t * pool_p;
 
     pool_p = &fkb_pool_g[ FkbClonedPool_e ];
+
+    fkb_dbg(2, "fkb_p<0x%08x>", (int)fkbC_p);
 
     FKB_AUDIT(
         if ( fkbC_p->recycle_hook != (RecycleFuncP)NULL )
@@ -428,16 +430,17 @@ FkBuff_t * fkb_alloc( FkbObject_t object )
           || (fkb_extend( pool_p->extend_size, object ) != pool_p->extend_size))
         {
             fkb_print( "WARNING: FKB Pool %s exhausted", pool_p->name );
+            fkb_p = FKB_NULL;
+            goto fkb_alloc_return;
         }
 #else
         if ( fkb_extend( pool_p->extend_size, object ) == 0 )
         {
             fkb_print( "WARNING: FKB Pool %s out of memory", pool_p->name );
+            fkb_p = FKB_NULL;
+            goto fkb_alloc_return;
         }
 #endif
-
-        fkb_p = FKB_NULL;
-        goto fkb_alloc_return;
     }
 
     FKB_STATS(
@@ -562,8 +565,8 @@ FkBuff_t * fkb_unshare(FkBuff_t * fkb_p)
             memcpy(fkbM_p->data, fkb_p->data, fkb_p->len);
 
             dirty_p = _to_dptr_from_kptr_(fkb_p->data  + fkb_p->len);
-            if ( fkb_p->dirty_p < dirty_p )
-                fkb_p->dirty_p = dirty_p;
+            if ( fkb_p->master_p->dirty_p < dirty_p )
+                fkb_p->master_p->dirty_p = dirty_p;
 
             fkb_dec_ref(fkb_p->master_p); /* decrement masters user count */
             fkb_dbg(1, "cloned fkb_p with multiple ref master");
@@ -583,6 +586,11 @@ FkBuff_t * fkb_unshare(FkBuff_t * fkb_p)
                 fkbM_p->dirty_p = fkb_p->dirty_p;
         }
 
+        fkb_dbg(2, "fkbM_p<0x%08x> fkbM_data<0x%08x> dirty_p<0x%08x> len<%d>",
+            (int)fkbM_p, (int)fkbM_p->data, (int)fkbM_p->dirty_p, fkbM_p->len);
+        fkb_dbg(2, "fkb_p<0x%08x> fkb_data<0x%08x> dirty_p<0x%08x> len<%d>",
+            (int)fkb_p, (int)fkb_p->data, (int)fkb_p->dirty_p, fkb_p->len);
+
         fkb_p->dirty_p = (uint8_t*)NULL;
         fkbC_recycle(fkb_p);    /* always recycle original clone fkb */
 
@@ -592,7 +600,12 @@ FkBuff_t * fkb_unshare(FkBuff_t * fkb_p)
     {
         /* Single reference, no need to unshare */
         if ( _get_master_users_(fkb_p) == 1 )
+        {
+            fkb_dbg(1, "master fkb_p with single ref ");
+            fkb_dbg(2, "fkb_p<0x%08x> fkb_data<0x%08x> dirty_p<0x%08x> len<%d>",
+                (int)fkb_p, (int)fkb_p->data, (int)fkb_p->dirty_p, fkb_p->len);
             return fkb_p;
+        }
 
         /* Allocate a master FkBuff with associated data buffer */
         fkbM_p = fkb_alloc( FkbMasterPool_e );
@@ -623,6 +636,10 @@ FkBuff_t * fkb_unshare(FkBuff_t * fkb_p)
         fkb_dec_ref(fkb_p);
 
         fkb_dbg(1, "master fkb_p with multiple ref");
+        fkb_dbg(2, "fkbM_p<0x%08x> fkbM_data<0x%08x> dirty_p<0x%08x> len<%d>",
+            (int)fkbM_p, (int)fkbM_p->data, (int)fkbM_p->dirty_p, fkbM_p->len);
+        fkb_dbg(2, "fkb_p<0x%08x> fkb_data<0x%08x> dirty_p<0x%08x> len<%d>",
+            (int)fkb_p, (int)fkb_p->data, (int)fkb_p->dirty_p, fkb_p->len);
         return fkbM_p;  /* return new allocate master FkBuff */
     }
 }

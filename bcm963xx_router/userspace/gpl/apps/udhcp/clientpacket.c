@@ -55,6 +55,17 @@ unsigned long random_xid(void)
     return rand();
 }
 
+#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
+/* get an integer between -1000X1000 and 1000X1000 */
+int get_randomize_usec()
+{
+    int usec = 0;
+    srand(time(0));
+    usec =  (int)(rand() % 2000 - 1000);
+    return (usec * 1000);
+}
+#endif
+
 /* initialize a packet with the proper defaults */
 static void init_packet(struct dhcpMessage *packet, char type)
 {
@@ -109,11 +120,19 @@ static void init_packet(struct dhcpMessage *packet, char type)
 static void add_requests(struct dhcpMessage *packet)
 {
 	#if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_OPTION121)
-	char request_list[] = { DHCP_PARAM_REQ, 0,DHCP_CLASSLESS_ROUTE,PARM_REQUESTS };
+	char request_list[] = { DHCP_PARAM_REQ, 0,DHCP_CLASSLESS_ROUTE,PARM_REQUESTS
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+            , DHCP_NTP_SERVER
+#endif
+        };
 	#else
-    char request_list[] = { DHCP_PARAM_REQ, 0, PARM_REQUESTS };
+    char request_list[] = { DHCP_PARAM_REQ, 0, PARM_REQUESTS
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+            , DHCP_NTP_SERVER
+#endif
+    };
     #endif
-	
+
 
     request_list[OPT_LEN] = sizeof(request_list) - 2;
     add_option_string(packet->options, request_list);
@@ -181,7 +200,7 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
                   server_hwaddr[3], server_hwaddr[4], server_hwaddr[5]);
             if(!memcmp(server_hwaddr,MAC_INVALID_ADDR,6))
                  memcpy(server_hwaddr, MAC_BCAST_ADDR, 6);
-            
+
             ret = raw_packet(&packet, ciaddr, CLIENT_PORT, server,
                              SERVER_PORT, server_hwaddr, client_config.ifindex);
             if(ret >= 0)
@@ -192,6 +211,9 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
     else
         ret = raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
                          SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
+#ifdef AEI_VDSL_CUSTOMER_BELLALIANT
+    system("echo 1 > /var/renew_completed");
+#endif
     return ret;
 }
 
@@ -199,6 +221,7 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
 int send_release(unsigned long server, unsigned long ciaddr)
 {
     struct dhcpMessage packet;
+    int ret = 0;
 
     init_packet(&packet, DHCPRELEASE);
     packet.xid = random_xid();
@@ -209,7 +232,11 @@ int send_release(unsigned long server, unsigned long ciaddr)
     add_simple_option(packet.options, DHCP_SERVER_ID, ntohl(server));
 
     LOG(LOG_DEBUG, "Sending release...");
-    return kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+    ret =kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+#ifdef AEI_VDSL_CUSTOMER_BELLALIANT
+    system("echo 1 > /var/release_completed");
+#endif
+    return ret;
 }
 
 int get_raw_packet(struct dhcpMessage *payload, int fd)

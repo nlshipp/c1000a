@@ -1,10 +1,10 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-string-private.h String utility class (internal to D-Bus implementation)
- * 
+ *
  * Copyright (C) 2002, 2003  Red Hat, Inc.
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -14,7 +14,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -35,7 +35,7 @@ DBUS_BEGIN_DECLS
 
 /**
  * @brief Internals of DBusString.
- * 
+ *
  * DBusString internals. DBusString is an opaque objects, it must be
  * used via accessor functions.
  */
@@ -78,7 +78,7 @@ typedef struct
 /**
  * Checks assertions about a string object that needs to be
  * modifiable - may not be locked or const. Also declares
- * the "real" variable pointing to DBusRealString. 
+ * the "real" variable pointing to DBusRealString.
  * @param str the string
  */
 #define DBUS_STRING_PREAMBLE(str) DBusRealString *real = (DBusRealString*) str; \

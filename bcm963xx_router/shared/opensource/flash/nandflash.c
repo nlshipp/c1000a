@@ -1,25 +1,30 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
 
+    <:label-BRCM:2012:DUAL/GPL:standard 
+    
     Unless you and Broadcom execute a separate written software license
     agreement governing use of this software, this software is licensed
     to you under the terms of the GNU General Public License version 2
-    (the GPL?, available at http://www.broadcom.com/licenses/GPLv2.php,
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
     with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :> 
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
 */                       
 
 /***************************************************************************
@@ -35,7 +40,7 @@
 #include "lib_printf.h"
 #include "lib_string.h"
 #include "lib_malloc.h"
-#include "bcm_map.h"  
+#include "bcm_map_part.h"  
 #include "bcmtypes.h"
 #include "bcm_hwdefs.h"
 #include "flash_api.h"
@@ -44,7 +49,7 @@
 #include "cfe_timer.h"
 #endif
 
-#if defined(_BCM96368_) || defined(_BCM96816_) || defined(_BCM96362_) || defined(_BCM96328_)
+#if defined(_BCM96368_) || defined(_BCM96816_) || defined(_BCM96362_) || defined(_BCM96328_) || defined(_BCM96828_)
 /* Not used on non-BCM963268 chips but prevents compile errors. */
 #define NC_BLK_SIZE_2048K       0x60000000
 #define NC_BLK_SIZE_1024K       0x50000000
@@ -75,6 +80,7 @@
 #define NAC_ECC_LVL_RESVD_1     13
 #define NAC_ECC_LVL_RESVD_2     14
 #define NAC_ECC_LVL_HAMMING     15
+#define NandSpareAreaReadOfs10  NandSpareAreaReadOfs0
 #endif
 
 /* for debugging in jtag */
@@ -88,17 +94,31 @@
 #define SPARE_MAX_SIZE          (27 * 16)
 #define CTRLR_CACHE_SIZE        512
 
-#define NAND_CI_CELLTYPE_MSK    0x00000f00
-#define NAND_IS_MLC(chip)       ((chip)->chip_device_id & NAND_CI_CELLTYPE_MSK)
+#define NAND_CI_CELLTYPE_MSK    0x00000c00
+#define NAND_IS_MLC(chip)               \
+    (NAND->NandRevision > 0x00000202 && \
+     (chip)->chip_page_size > 512 &&    \
+     ((chip)->chip_device_id & NAND_CI_CELLTYPE_MSK))
 #define NAND_CHIPID(chip)       ((chip)->chip_device_id >> 16)             
 
 /* Flash manufacturers. */
 #define FLASHTYPE_SAMSUNG       0xec
 #define FLASHTYPE_ST            0x20
 #define FLASHTYPE_MICRON        0x2c
+#define FLASHTYPE_HYNIX         0xad
+#define FLASHTYPE_TOSHIBA       0x98
+#define FLASHTYPE_MXIC          0xc2
+#define FLASHTYPE_SPANSION      0x01
+#ifdef AEI_VDSL_CUSTOMER_NCS
+#define FLASHTYPE_ESMT          0x92
+#endif
 
 /* Samsung flash parts. */
 #define SAMSUNG_K9F5608U0A      0x55
+#define SAMSUNG_K9F1208U0       0x76
+#ifdef AEI_VDSL_CUSTOMER_NCS
+#define SAMSUNG_K9F1G08U0D      0xf1
+#endif
 
 /* ST flash parts. */
 #define ST_NAND512W3A2CN6       0x76
@@ -107,16 +127,70 @@
 /* Micron flash parts. */
 #define MICRON_MT29F1G08AAC     0xf1
 
+/* Hynix flash parts. */
+#define HYNIX_H27U1G8F2B        0xf1
+#define HYNIX_H27U518S2C        0x76
+
+/* MXIC flash parts */
+#define MXIC_MX30LF1208AA       0xf0
+
+/* SPANSION flash parts */
+#define SPANSION_S34ML01G1      0xf1
+#define SPANSION_S34ML02G1      0xda
+#define SPANSION_S34ML04G1      0xdc
+
+#ifdef AEI_VDSL_CUSTOMER_NCS
+#define ESMT_F59L1G81A          0xf1
+#endif
+
+
 /* Flash id to name mapping. */
 #define NAND_MAKE_ID(A,B)    \
     (((unsigned short) (A) << 8) | ((unsigned short) B & 0xff))
 
+#ifdef AEI_VDSL_CUSTOMER_NCS
 #define NAND_FLASH_DEVICES                                                    \
   {{NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F5608U0A),"Samsung K9F5608U0"},  \
+   {NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F1208U0),"Samsung K9F1208U0"},   \
    {NAND_MAKE_ID(FLASHTYPE_ST,ST_NAND512W3A2CN6),"ST NAND512W3A2CN6"},        \
    {NAND_MAKE_ID(FLASHTYPE_ST,ST_NAND01GW3B2CN6),"ST NAND01GW3B2CN6"},        \
    {NAND_MAKE_ID(FLASHTYPE_MICRON,MICRON_MT29F1G08AAC),"Micron MT29F1G08AAC"},\
+   {NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U1G8F2B),"Hynix H27U1G8F2B"},       \
+   {NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U518S2C),"Hynix H27U518S2C"},       \
+   {NAND_MAKE_ID(FLASHTYPE_MXIC,MXIC_MX30LF1208AA),"MXIC MX30LF1208AA"},      \
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML01G1),"Spansion S34ML01G1"},\
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML02G1),"Spansion S34ML02G1"},\
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML04G1),"Spansion S34ML04G1"},\
+   {NAND_MAKE_ID(FLASHTYPE_ESMT,ESMT_F59L1G81A),"ESMT F59L1G81A"},            \
+   {NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F1G08U0D),"SAMSUNG K9F1G08U0D"},  \
    {0,""}                                                                     \
+  }
+#else
+#define NAND_FLASH_DEVICES                                                    \
+  {{NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F5608U0A),"Samsung K9F5608U0"},  \
+   {NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F1208U0),"Samsung K9F1208U0"},   \
+   {NAND_MAKE_ID(FLASHTYPE_ST,ST_NAND512W3A2CN6),"ST NAND512W3A2CN6"},        \
+   {NAND_MAKE_ID(FLASHTYPE_ST,ST_NAND01GW3B2CN6),"ST NAND01GW3B2CN6"},        \
+   {NAND_MAKE_ID(FLASHTYPE_MICRON,MICRON_MT29F1G08AAC),"Micron MT29F1G08AAC"},\
+   {NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U1G8F2B),"Hynix H27U1G8F2B"},       \
+   {NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U518S2C),"Hynix H27U518S2C"},       \
+   {NAND_MAKE_ID(FLASHTYPE_MXIC,MXIC_MX30LF1208AA),"MXIC MX30LF1208AA"},      \
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML01G1),"Spansion S34ML01G1"},\
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML02G1),"Spansion S34ML02G1"},\
+   {NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML04G1),"Spansion S34ML04G1"},\
+   {0,""}                                                                     \
+  }
+#endif
+
+#define NAND_FLASH_MANUFACTURERS        \
+  {{FLASHTYPE_SAMSUNG, "Samsung"},      \
+   {FLASHTYPE_ST, "ST"},                \
+   {FLASHTYPE_MICRON, "Micron"},        \
+   {FLASHTYPE_HYNIX, "Hynix"},          \
+   {FLASHTYPE_TOSHIBA, "Toshiba"},      \
+   {FLASHTYPE_MXIC, "MXIC"},            \
+   {FLASHTYPE_SPANSION, "Spansion"},    \
+   {0,""}                               \
   }
 
 /* Condition to determine the spare layout. */
@@ -199,15 +273,26 @@ static unsigned char *nand_flash_get_memptr(unsigned short sector);
 static int nand_flash_get_blk(int addr);
 static int nand_flash_get_total_size(void);
 static int nandflash_wait_status(unsigned long status_mask);
+static inline int nandflash_wait_device(void);
 static int nandflash_read_spare_area(PCFE_NAND_CHIP pchip,
     unsigned long page_addr, unsigned char *buffer, int len);
 static int nandflash_write_spare_area(PCFE_NAND_CHIP pchip,
     unsigned long page_addr, unsigned char *buffer, int len);
 static int nandflash_read_page(PCFE_NAND_CHIP pchip,
     unsigned long start_addr, unsigned char *buffer, int len);
+#ifdef AEI_NAND_IMG_CHECK
+static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
+    unsigned char *buffer, int len, int crcflag);
+#else
 static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
     unsigned char *buffer, int len);
+#endif
 static int nandflash_block_erase(PCFE_NAND_CHIP pchip, unsigned long blk_addr);
+#ifdef AEI_NAND_IMG_CHECK
+static int nand_flash_write_buf_crc(unsigned short blk, int offset,
+    unsigned char *buffer, int numbytes);
+static int nand_flash_check_img(unsigned short sblk, unsigned short esblk);
+#endif
 #else
 /** Prototypes for CFE ROM. **/
 void rom_nand_flash_init(void);
@@ -232,6 +317,9 @@ static inline int nandflash_wait_cache(void);
 static inline int nandflash_wait_spare(void);
 static int nandflash_check_ecc(void);
 static int check_ecc_for_ffs(PCFE_NAND_CHIP pchip, UINT32 step);
+#ifdef AEI_NAND_IMG_CHECK
+static int nand_flash_check_img(unsigned short sblk, unsigned short esblk);
+#endif
 #endif
 
 
@@ -252,7 +340,13 @@ static flash_device_info_t flash_nand_dev =
         nand_flash_get_sector_size,
         nand_flash_get_memptr,
         nand_flash_get_blk,
+#ifdef AEI_NAND_IMG_CHECK
+        nand_flash_get_total_size,
+	nand_flash_write_buf_crc,
+	nand_flash_check_img
+#else
         nand_flash_get_total_size
+#endif
     };
 
 /* B,B,0,0,0,0,E,E-E,0,0,0,0,0,0,0-0,0,0,0,0,0,E,E-E,0,0,0,0,0,0,0
@@ -437,6 +531,7 @@ int nand_flash_init(flash_device_info_t **flash_info)
     {
         PCFE_NAND_CHIP pchip = &g_chip;
         static struct flash_name_from_id fnfi[] = NAND_FLASH_DEVICES;
+        static struct flash_name_from_id fmfi[] = NAND_FLASH_MANUFACTURERS;
         struct flash_name_from_id *fnfi_ptr;
 
         DBG_PRINTF(">> nand_flash_init - entry\n");
@@ -445,13 +540,20 @@ int nand_flash_init(flash_device_info_t **flash_info)
 #if !defined(_BCM96328_)
         PERF->blkEnables |= NAND_CLK_EN;
 #endif
-#if (defined(_BCM96362_) || defined(_BCM963268_)) && (INC_SPI_FLASH_DRIVER==1)
+#if (defined(_BCM96362_) || defined(_BCM963268_) || defined(_BCM96828_)) && (INC_SPI_FLASH_DRIVER==1)
         GPIO->GPIOBaseMode |= NAND_GPIO_OVERRIDE;
 #endif
+
         NAND->NandNandBootConfig = NBC_AUTO_DEV_ID_CFG | 1;
 #if (INC_SPI_FLASH_DRIVER==1)
         cfe_usleep(1000);
 #endif
+
+        NAND->NandCmdAddr = 0;
+        NAND->NandCmdExtAddr = 0;
+        NAND->NandCmdStart = NCMD_DEV_ID_READ;
+        nandflash_wait_device();
+
         /* Read the NAND flash chip id. */
         pchip->chip_device_id = NAND->NandFlashDeviceId;
         flash_nand_dev.flash_device_id = NAND_CHIPID(pchip);
@@ -465,11 +567,20 @@ int nand_flash_init(flash_device_info_t **flash_info)
             }
         }
 
-        /* If NAND chip is not in the list of NAND chips, the correct
-         * configuration has still been set by the NAND controller.
+        /* If NAND chip is not in the list of NAND chips, try to identify the
+         * manufacturer.
          */
         if( flash_nand_dev.flash_device_name[0] == '\0' )
-            strcpy(flash_nand_dev.flash_device_name, "<not identified>");
+        {
+            for( fnfi_ptr = fmfi; fnfi_ptr->fnfi_id != 0; fnfi_ptr++ )
+            {
+                if( fnfi_ptr->fnfi_id == flash_nand_dev.flash_device_id )
+                {
+                    strcpy(flash_nand_dev.flash_device_name, fnfi_ptr->fnfi_name);
+                    break;
+                }
+            }
+        }
 
         *flash_info = &flash_nand_dev;
 
@@ -550,6 +661,56 @@ static void nand_read_cfg(PCFE_NAND_CHIP pchip)
 {
     /* Read chip configuration. */
     unsigned long cfg = NAND->NandConfig;
+
+    /* Special case changes from what the NAND controller configured. */
+    switch(NAND_CHIPID(pchip))
+    {
+    case NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U1G8F2B):
+        cfg &= ~(NC_DEV_SIZE_MASK | NC_FUL_ADDR_MASK | (0xff << NC_BLK_ADDR_SHIFT));
+
+        /* 128 MB device size, 4 full address bytes, 2 column address bytes, 2 block address bytes */
+        cfg |= (5 << NC_DEV_SIZE_SHIFT) | (0x04 << NC_FUL_ADDR_SHIFT) | (0x22 << NC_BLK_ADDR_SHIFT);
+        NAND->NandConfig = cfg;
+        break;
+
+    case NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F5608U0A):
+    case NAND_MAKE_ID(FLASHTYPE_SAMSUNG,SAMSUNG_K9F1208U0):
+    case NAND_MAKE_ID(FLASHTYPE_HYNIX,HYNIX_H27U518S2C):
+        /* Set device id "cell type" to 0 (SLC). */
+        pchip->chip_device_id &= ~NAND_CI_CELLTYPE_MSK;
+        NAND->NandFlashDeviceId = pchip->chip_device_id;
+        break;
+
+    case NAND_MAKE_ID(FLASHTYPE_MXIC,MXIC_MX30LF1208AA):
+    	/* This 64MB device was detected as 256MB device on 63268. Manually update
+    	 * device size in the cfg register.
+    	 */
+    	cfg &= ~NC_DEV_SIZE_MASK;
+    	cfg |= (0x04<<NC_DEV_SIZE_SHIFT);
+    	NAND->NandConfig = cfg;
+    	break;
+
+    case NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML01G1):
+        /* Set device size to 128MB, it is misconfigured to 512MB. */
+    	cfg &= ~NC_DEV_SIZE_MASK;
+    	cfg |= (0x05<<NC_DEV_SIZE_SHIFT);
+    	NAND->NandConfig = cfg;
+        break;
+
+    case NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML02G1):
+        /* Set device size to 256MB, it is misconfigured to 512MB. */
+    	cfg &= ~NC_DEV_SIZE_MASK;
+    	cfg |= (0x06<<NC_DEV_SIZE_SHIFT);
+    	NAND->NandConfig = cfg;
+        break;
+
+    case NAND_MAKE_ID(FLASHTYPE_SPANSION,SPANSION_S34ML04G1):
+        /* Set block size to 128KB, it is misconfigured to 512MB. */
+    	cfg &= ~NC_BLK_SIZE_MASK;
+    	cfg |= NC_BLK_SIZE_128K;
+    	NAND->NandConfig = cfg;
+        break;
+    }
 
     pchip->chip_total_size =
         (4 * (1 << ((cfg & NC_DEV_SIZE_MASK) >> NC_DEV_SIZE_SHIFT))) << 20;
@@ -839,7 +1000,7 @@ static int nand_initialize_spare_area(PCFE_NAND_CHIP pchip)
     for( i = 0; i < pchip->chip_total_size; i += pchip->chip_block_size )
     {
         /* Read the current spare area. */
-        ret = nandflash_read_spare_area(pchip,0,spare,pchip->chip_spare_size);
+        ret = nandflash_read_spare_area(pchip,i,spare,pchip->chip_spare_size);
         if(ret == FLASH_API_OK
           /*&& spare[pchip->chip_bi_index_1] != SPARE_BI_MARKER*/
           /*&& spare[pchip->chip_bi_index_2] != SPARE_BI_MARKER*/)
@@ -869,6 +1030,7 @@ static int nand_initialize_spare_area(PCFE_NAND_CHIP pchip)
  ***************************************************************************/
 static void nand_mark_bad_blk(PCFE_NAND_CHIP pchip, unsigned long page_addr)
 {
+    static int set_nandcmd = 0;
     static int marking_bad_blk = 0;
 
     unsigned char spare[SPARE_MAX_SIZE];
@@ -884,6 +1046,28 @@ static void nand_mark_bad_blk(PCFE_NAND_CHIP pchip, unsigned long page_addr)
         spare[pchip->chip_bi_index_1] = SPARE_BI_MARKER;
         spare[pchip->chip_bi_index_2] = SPARE_BI_MARKER;
         nandflash_write_spare_area(pchip,page_addr,spare,pchip->chip_spare_size);
+
+#if (INC_BTRM_BOOT==1) && (INC_BTRM_SECURITY==1)
+        if( page_addr / pchip->chip_block_size > 2 )
+#endif
+        {
+            /* Also mark the first page in the block as bad so the Linux NAND
+             * flash driver finds it when updating the BBT.
+             */
+            page_addr &= ~(pchip->chip_block_size - 1);
+            nandflash_write_spare_area(pchip, page_addr, spare,
+                pchip->chip_spare_size);
+        }
+
+        if( set_nandcmd == 0 )
+        {
+            /* Pass a parameter to the Linux NAND flash driver to rescan the
+             * spare area to look for bad blocks to add to the BBT.
+             */
+            extern void blparms_set_str(char *name, char *value);
+            set_nandcmd = 1;
+            blparms_set_str(NAND_COMMAND_NAME, "rescan");
+        }
         marking_bad_blk = 0;
     }
 } /* nand_mark_bad_blk */
@@ -986,6 +1170,73 @@ int nand_flash_read_buf(unsigned short blk, int offset, unsigned char *buffer,
  * Description  : Writes to flash memory.
  * Returns      : number of bytes written or FLASH_API_ERROR
  ***************************************************************************/
+#ifdef AEI_NAND_IMG_CHECK
+static int nand_flash_write_buf_ext(unsigned short blk, int offset,
+    unsigned char *buffer, int len, int crcflag)
+{
+    int ret = len;
+    PCFE_NAND_CHIP pchip = &g_chip;
+    UINT32 start_addr;
+    UINT32 blk_addr;
+    UINT32 blk_offset;
+    UINT32 size;
+
+    DBG_PRINTF(">> nand_flash_write_buf - 1 blk=0x%8.8lx, offset=%d, len=%d\n",
+        blk, offset, len);
+
+    start_addr = (blk * pchip->chip_block_size) + offset;
+    blk_addr = start_addr & ~(pchip->chip_block_size - 1);
+    blk_offset = start_addr - blk_addr;
+    size = pchip->chip_block_size - blk_offset;
+
+    if(size > len)
+        size = len;
+
+    do
+    {
+        if(nandflash_write_page(pchip,start_addr,buffer,size,crcflag) != FLASH_API_OK)
+        {
+            ret = ret - len;
+            break;
+        }
+        else
+        {
+            len -= size;
+            if( len )
+            {
+                blk++;
+
+                DBG_PRINTF(">> nand_flash_write_buf- 2 blk=0x%8.8lx, len=%d\n",
+                    blk, len);
+
+                offset = 0;
+                start_addr = blk * pchip->chip_block_size;
+                buffer += size;
+                if(len > pchip->chip_block_size)
+                    size = pchip->chip_block_size;
+                else
+                    size = len;
+            }
+        }
+    } while(len);
+
+    DBG_PRINTF(">> nand_flash_write_buf - ret=%d\n", ret);
+
+    return( ret ) ;
+} /* nand_flash_write_buf */
+
+static int nand_flash_write_buf(unsigned short blk, int offset,
+    unsigned char *buffer, int len)
+{
+    return nand_flash_write_buf_ext(blk, offset, buffer, len, 0);
+}
+
+static int nand_flash_write_buf_crc(unsigned short blk, int offset,
+    unsigned char *buffer, int len)
+{
+    return nand_flash_write_buf_ext(blk, offset, buffer, len, 1);
+}
+#else
 static int nand_flash_write_buf(unsigned short blk, int offset,
     unsigned char *buffer, int len)
 {
@@ -1039,6 +1290,7 @@ static int nand_flash_write_buf(unsigned short blk, int offset,
 
     return( ret ) ;
 } /* nand_flash_write_buf */
+#endif
 
 /***************************************************************************
  * Function Name: nand_flash_get_memptr
@@ -1061,7 +1313,7 @@ static unsigned char *nand_flash_get_memptr(unsigned short sector)
  ***************************************************************************/
 static int nand_flash_get_blk(int addr)
 {
-    return( (addr - FLASH_BASE) / g_chip.chip_block_size );
+    return((int) ((unsigned long) addr - FLASH_BASE) / g_chip.chip_block_size);
 } /* nand_flash_get_blk */
 
 /***************************************************************************
@@ -1136,16 +1388,35 @@ static inline void nandflash_copy_from_spare(unsigned char *buffer,
     int numbytes)
 {
     unsigned long *spare_area = (unsigned long *) &NAND->NandSpareAreaReadOfs0;
-    unsigned long *pbuff = (unsigned long *)buffer;
-    unsigned long i;
+    unsigned char *pbuff = buffer;
+    unsigned long i, j, k;
 
-    /* TBD. Support 27 byte spare area. */
-    if( numbytes > 16 )
-        numbytes = 16;
+    for(i=0; i < 4; ++i)
+    {
+         j = spare_area[i];
+         *pbuff++ = (unsigned char) ((j >> 24) & 0xff);
+         *pbuff++ = (unsigned char) ((j >> 16) & 0xff);
+         *pbuff++ = (unsigned char) ((j >>  8) & 0xff);
+         *pbuff++ = (unsigned char) ((j >>  0) & 0xff);
+    }
 
-    numbytes /= sizeof(long);
-    for(i=0; i< numbytes; ++i)
-         pbuff[i] = spare_area[i];
+    /* Spare bytes greater than 16 are for the ECC. */
+    if( NAND->NandRevision > 0x00000202 && numbytes > 16 )
+    {
+        spare_area = (unsigned long *) &NAND->NandSpareAreaReadOfs10;
+        for(i=0, k=16; i < 4 && k < numbytes; ++i)
+        {
+            j = spare_area[i];
+            if( k < numbytes )
+                pbuff[k++] = (unsigned char) ((j >> 24) & 0xff);
+            if( k < numbytes )
+                pbuff[k++] = (unsigned char) ((j >> 16) & 0xff);
+            if( k < numbytes )
+                pbuff[k++] = (unsigned char) ((j >>  8) & 0xff);
+            if( k < numbytes )
+                pbuff[k++] = (unsigned char) ((j >>  0) & 0xff);
+        }
+    }
 } /* nandflash_copy_from_spare */
 
 #if defined(CFG_RAMAPP)
@@ -1178,15 +1449,21 @@ static inline void nandflash_copy_to_cache(unsigned char *buffer, int offset,
 static inline void nandflash_copy_to_spare(unsigned char *buffer,int numbytes)
 {
     unsigned long *spare_area = (unsigned long *) &NAND->NandSpareAreaWriteOfs0;
-    unsigned long *pbuff = (unsigned long *)buffer;
-    int i;
+    unsigned char *pbuff = buffer;
+    int i, j;
 
-    /* TBD. Support 27 byte spare area. */
+    /* Spare bytes greater than 16 are for the ECC. */
     if( numbytes > 16 )
         numbytes = 16;
 
-    for(i=0; i< numbytes / sizeof(unsigned long); ++i)
-        spare_area[i] = pbuff[i];
+    for(i=0; i< numbytes / sizeof(unsigned long); ++i, pbuff += sizeof(long))
+    {
+        j = ((unsigned long) pbuff[0] << 24) |
+            ((unsigned long) pbuff[1] << 16) |
+            ((unsigned long) pbuff[2] <<  8) |
+            ((unsigned long) pbuff[3] <<  0);
+        spare_area[i] = j;
+    }
 } /* nandflash_copy_to_spare */
 #endif
 
@@ -1198,7 +1475,7 @@ static inline void nandflash_copy_to_spare(unsigned char *buffer,int numbytes)
 static int nandflash_wait_status(unsigned long status_mask)
 {
 
-    const unsigned long nand_poll_max = 1000000;
+    const unsigned long nand_poll_max = 2000000;
     unsigned long data;
     unsigned long poll_count = 0;
     int ret = FLASH_API_OK;
@@ -1208,7 +1485,7 @@ static int nandflash_wait_status(unsigned long status_mask)
         data = NAND->NandIntfcStatus;
     } while(!(status_mask & data) && (++poll_count < nand_poll_max));
 
-    if(poll_count >= nand_poll_max)
+    if(!(status_mask & NAND->NandIntfcStatus))
     {
         printf("Status wait timeout: nandsts=0x%8.8lx mask=0x%8.8lx, count="
             "%lu\n", NAND->NandIntfcStatus, status_mask, poll_count);
@@ -1289,6 +1566,7 @@ static int check_ecc_for_ffs(PCFE_NAND_CHIP pchip, UINT32 step)
     UINT8 *spare_mask = pchip->chip_spare_mask;
     UINT32 i, j = step * pchip->chip_spare_step_size;
 
+    memset(spare, 0xff, sizeof(spare));
     nandflash_copy_from_spare(spare, pchip->chip_spare_step_size);
     for( i = 0; i < pchip->chip_spare_step_size; i++, j++ )
     {
@@ -1469,9 +1747,19 @@ static int nandflash_read_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
                             if(check_ecc_for_ffs(pchip,i/CTRLR_CACHE_SIZE))
                                 ret = FLASH_API_OK;
                             else
+                            {
+#if defined(CFG_RAMAPP)
                                 printf("Uncorrectable ECC Error: addr="
-                                    "0x%8.8lx, intrCtrl=0x%8.8lx\n",
-                                    NAND->NandEccUncAddr);
+                                    "0x%8.8lx, blk=%d,\n", NAND->NandEccUncAddr,
+                                    NAND->NandEccUncAddr/pchip->chip_block_size);
+#if 1
+                                ret = FLASH_API_OK;
+#else
+                                nand_mark_bad_blk(pchip,
+                                    start_addr & ~(pchip->chip_page_size-1));
+#endif
+#endif /* CFG_RAMAPP */
+                            }
                         }
                     }
 
@@ -1526,10 +1814,18 @@ static int nandflash_read_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
  * Description  : Writes up to a NAND block of pages from the specified buffer.
  * Returns      : FLASH_API_OK or FLASH_API_ERROR
  ***************************************************************************/
+#ifdef AEI_NAND_IMG_CHECK
+static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
+    unsigned char *buffer, int len, int crcflag)
+#else
 static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
     unsigned char *buffer, int len)
+#endif
 {
     int ret = FLASH_API_ERROR;
+#ifdef AEI_NAND_IMG_CHECK
+    unsigned int *p32 = (unsigned int *)g_spare_cleanmarker;
+#endif
 
     if( len <= pchip->chip_block_size )
     {
@@ -1550,8 +1846,25 @@ static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
 
             do
             {
-                for( i = 0, xfer_ofs = 0, xfer_size = 0, ret = FLASH_API_OK;
-                     i < steps && ret==FLASH_API_OK; i++)
+                /* Don't write page if data is all 0xFFs.  This allows the
+                 * Linux NAND flash driver to successfully write the page.
+                 */
+                UINT32 *pdw = (UINT32 *) (buffer + index);
+                ret = FLASH_API_OK_BLANK;
+                for( i = 0; i < pchip->chip_page_size / sizeof(long); i++ )
+                {
+                    if( *pdw++ != 0xffffffff )
+                    {
+                        ret = FLASH_API_OK;
+                        break;
+                    }
+                }
+
+                /* If the page is all 0xFFs, ret will equal FLASH_API_OK_BLANK,
+                 * Skip writing the page but continue to process the buffer.
+                 */
+                for( i = 0, xfer_ofs = 0, xfer_size = 0;
+                     i < steps && ret == FLASH_API_OK; i++ )
                 {
                     memset(xfer_buf, 0xff, sizeof(xfer_buf));
 
@@ -1572,12 +1885,23 @@ static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
                         (i * CTRLR_CACHE_SIZE);
                     NAND->NandCmdExtAddr = 0;
 
+#ifdef AEI_NAND_IMG_CHECK
+                    if (crcflag) {
+                        extern UINT32 getCrc32(unsigned char *pdata, UINT32 size, UINT32 crc);
+                        p32[3] = getCrc32(xfer_buf + page_offset, xfer_size, 0xffffffff);
+                    }
+#endif
+
                     nandflash_copy_to_spare(g_spare_cleanmarker +
                         (i * pchip->chip_spare_step_size),
                         pchip->chip_spare_step_size);
 
                     nandflash_copy_to_cache(xfer_buf, 0, CTRLR_CACHE_SIZE);
 
+#ifdef AEI_NAND_IMG_CHECK
+                    if (crcflag)
+                        p32[3] = 0xffffffff;
+#endif
                     NAND->NandCmdStart = NCMD_PROGRAM_PAGE;
                     if( (ret = nandflash_wait_cmd()) == FLASH_API_OK )
                     {
@@ -1593,8 +1917,11 @@ static int nandflash_write_page(PCFE_NAND_CHIP pchip, unsigned long start_addr,
                     }
                 }
 
-                if(ret != FLASH_API_OK)
+                if(ret == FLASH_API_ERROR)
                     break;
+
+                if(ret == FLASH_API_OK_BLANK)
+                    ret = FLASH_API_OK;
 
                 page_offset = 0;
                 page_addr += pchip->chip_page_size;
@@ -1703,17 +2030,169 @@ int read_spare_data(int blk, unsigned char *buf, int bufsize)
         {
             unsigned char *spare_mask = pchip->chip_spare_mask;
 
-            /* Skip spare offsets that are reserved for the ECC.  Make spare
-             * data bytes contiguous in the spare buffer.
-             */
-            for( i = 0, j = 0; i < pchip->chip_spare_size; i++ )
-                if( ECC_MASK_BIT(spare_mask, i) == 0 && j < bufsize )
-                    buf[j++] = spare[i];
+            if( spare[pchip->chip_bi_index_1] == SPARE_BI_MARKER ||
+                spare[pchip->chip_bi_index_2] == SPARE_BI_MARKER )
+            {
+                ret = FLASH_API_ERROR;
+            }
+            else
+            {
+                /* Skip spare offsets that are reserved for the ECC.  Make
+                 * spare data bytes contiguous in the spare buffer.
+                 */
+                for( i = 0, j = 0; i < pchip->chip_spare_size; i++ )
+                    if( ECC_MASK_BIT(spare_mask, i) == 0 && j < bufsize )
+                        buf[j++] = spare[i];
+            }
         }
     }
 
     return(ret);
 }
 
+int dump_spare_pages(int blk);
+int dump_spare_pages(int blk)
+{
+    PCFE_NAND_CHIP pchip = &g_chip;
+    unsigned long spare[SPARE_MAX_SIZE / 4];
+    unsigned long page_addr = blk * pchip->chip_block_size;
+    unsigned long i;
+    int ret = 0;
+
+    for( i = 0; i < 6; i++ )
+    {
+        if( (ret = nandflash_read_spare_area( pchip, page_addr +
+            (i * pchip->chip_page_size), (unsigned char *) spare,
+            pchip->chip_spare_size)) == FLASH_API_OK )
+        {
+            printf("%8.8lx %8.8lx %8.8lx %8.8lx\n", spare[0], spare[1],
+                spare[2], spare[3]);
+            if( pchip->chip_spare_size > 16 )
+            {
+                printf("%8.8lx %8.8lx %8.8lx %8.8lx\n", spare[4], spare[5],
+                    spare[6], spare[7]);
+                printf("%8.8lx %8.8lx %8.8lx %8.8lx\n", spare[8], spare[9],
+                    spare[10], spare[11]);
+                printf("%8.8lx %8.8lx %8.8lx %8.8lx\n\n", spare[12], spare[13],
+                    spare[14], spare[15]);
+            }
+        }
+    }
+
+    return(ret);
+}
+
+#ifdef AEI_NAND_IMG_CHECK
+/***************************************************************************
+ * Function Name: nand_flash_check_img
+ * Description  : Returns the status of image integrity.
+ * Returns      : 1 - no error, -1 - error in crc check.
+ ***************************************************************************/
+#if defined(CFG_RAMAPP)
+static
+#endif
+int nand_flash_check_img(unsigned short sblk, unsigned short eblk)
+{
+	int ret = 1;
+	PCFE_NAND_CHIP pchip = &g_chip;
+	UINT32 start_addr;
+	unsigned short blk = sblk;
+	UINT32 page_addr = 0, page_crc = 0xffffffff, crc32;
+	UINT32 size, index = 0, i, len, nocrc = 0;
+	unsigned char spare[SPARE_MAX_SIZE], buffer[pchip->chip_page_size];
+	UINT32 *p32 = (UINT32 *)spare;
+	extern UINT32 getCrc32(unsigned char *pdata, UINT32 size, UINT32 crc);
+
+	while (blk < eblk) {
+		start_addr = (blk * pchip->chip_block_size);
+
+		/* Verify that the spare area contains a JFFS2 cleanmarker. */
+		if( !nand_is_blk_cleanmarker(pchip, start_addr & ~(pchip->chip_page_size - 1), 0)) {
+			printf("image check : skip block %d due to the badblock marker\n", blk);
+			blk++;
+			continue;
+		}
+
+		len = pchip->chip_block_size;
+		page_addr = start_addr;
+		size = pchip->chip_page_size;
+
+		do {
+		    index = nocrc = 0;
+		    if(nandflash_read_spare_area(pchip, page_addr, spare,
+                                      pchip->chip_spare_size) != FLASH_API_OK)
+			nocrc = 1;
+
+		    /* check if page has badmarker or does not contain the crc */
+		    if (!nocrc && (p32[3] == 0xffffffff ||
+			spare[pchip->chip_bi_index_1] == SPARE_BI_MARKER ||
+			spare[pchip->chip_bi_index_2] == SPARE_BI_MARKER))
+			nocrc = 2;
+
+		    page_crc = p32[3];
+		    ret = FLASH_API_OK;
+		    for( i = 0 ; nocrc == 0 && i < pchip->chip_page_size &&
+				ret == FLASH_API_OK; i += CTRLR_CACHE_SIZE) {
+
+			/* clear interrupts, so we can check later for ECC errors */
+			NAND_INTR->NandInterrupt = NINT_STS_MASK;
+
+			/* send command */
+			NAND->NandCmdAddr = pchip->chip_base + page_addr + i;
+			NAND->NandCmdExtAddr = 0;
+			NAND->NandCmdStart = NCMD_PAGE_READ;
+
+			if( (ret = nandflash_wait_cmd()) == FLASH_API_OK ) {
+			    /* wait until data is available in the cache */
+			    if( (ret = nandflash_wait_cache()) == FLASH_API_OK ) {
+				if((ret = nandflash_check_ecc())==FLASH_API_ERROR) {
+				    if(check_ecc_for_ffs(pchip,i/CTRLR_CACHE_SIZE))
+					ret = FLASH_API_OK;
+				    else
+					printf("Uncorrectable ECC Error: addr="
+						"0x%8.8lx, intrCtrl=0x%8.8lx\n",
+						NAND->NandEccUncAddr);
+				}
+			    }
+
+			    if( ret == FLASH_API_OK ) {
+				if( i < size ) {
+				    UINT32 copy_size = (i+CTRLR_CACHE_SIZE <= size) ? CTRLR_CACHE_SIZE : size-i;
+				    nandflash_copy_from_cache(&buffer[index + i], 0, copy_size);
+				}
+			    }
+			    else
+				break;
+
+			}
+		    } /* for */
+
+		    if(ret != FLASH_API_OK) {
+			printf("image check : failed to read page 0x%x\n", page_addr);
+			return -1;
+		    }
+
+		    /* compare crc */
+		    if (nocrc == 0) {
+			crc32 = getCrc32(buffer, pchip->chip_page_size, 0xffffffff);
+			if (crc32 != page_crc) {
+			    printf("image check : mismatched crc(org 0x%x, calc 0x%x) at page 0x%x\n",page_crc, crc32, page_addr);
+			    return -1;
+			}
+		    }
+		    page_addr += pchip->chip_page_size;
+		    len -= size;
+		    if(len > pchip->chip_page_size)
+			size = pchip->chip_page_size;
+		    else
+			size = len;
+		} while(len);
+
+		blk++;
+	}
+	printf("image check : verified the image blocks %d to %d\n", sblk, eblk-1);
+	return( ret ) ;
+} /* nand_flash_check_img */
+#endif
 #endif
 

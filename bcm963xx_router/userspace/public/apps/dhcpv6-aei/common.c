@@ -2,7 +2,7 @@
 /*
  * Copyright (C) 1998 and 1999 WIDE Project.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -14,7 +14,7 @@
  * 3. Neither the name of the project nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE PROJECT AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -236,20 +236,24 @@ char tmpbuf[48]="";
 		case DHCP6_LISTVAL_STATEFULADDR6:
             if (option & MATCHLIST_PREFIXLEN)
                 {
+#ifdef AEI_COVERITY_FIX
+					 snprintf(tmpbuf, sizeof(tmpbuf), "%s", in6addr2str(&lv->val_statefuladdr6.addr, 0));
+#else
                      strncpy(tmpbuf,in6addr2str(&lv->val_statefuladdr6.addr, 0),sizeof(tmpbuf));
+#endif
                     dprintf(LOG_DEBUG, FNAME, "tmpbuf=%s,val=%s",tmpbuf,val?(char*)val:"NULL");
-                    
+
                     if(val && !strncmp(tmpbuf,(char *)val,strlen(val)))
                         {
-                   			dprintf(LOG_DEBUG, FNAME,
-    			    "%s ==%s",tmpbuf,val) ;
-                        
+					dprintf(LOG_DEBUG, FNAME,
+			    "%s ==%s",tmpbuf,val) ;
+
                             return (lv);
                         }
                     else
                         {
                             return (NULL);
-                        }               
+                        }
                 }
 		else if (IN6_ARE_ADDR_EQUAL(&lv->val_statefuladdr6.addr,
 			    &((struct dhcp6_prefix *)val)->addr)) {
@@ -600,6 +604,9 @@ dhcp6_remove_event(ev)
 		free(ev->authparam);
 
 	free(ev);
+#ifdef AEI_COVERITY_FIX
+    ev = NULL;
+#endif
 }
 
 void
@@ -770,7 +777,7 @@ getifaddr(addr, ifnam, prefix, plen, strong, ignoreflags)
 		memcpy(addr, &sin6.sin6_addr, sizeof(sin6.sin6_addr));
 #ifdef __KAME__
 		if (IN6_IS_ADDR_LINKLOCAL(addr))
-			addr->s6_addr[2] = addr->s6_addr[3] = 0; 
+			addr->s6_addr[2] = addr->s6_addr[3] = 0;
 #endif
 		error = 0;
 		break;
@@ -825,7 +832,7 @@ in6_addrscopebyif(addr, ifnam)
 	struct in6_addr *addr;
 	char *ifnam;
 {
-	u_int ifindex; 
+	u_int ifindex;
 
 	if ((ifindex = if_nametoindex(ifnam)) == 0)
 		return (-1);
@@ -1939,14 +1946,14 @@ dhcp6_get_options(p, ep, optinfo)
 			    (int)*(u_char *)cp);
 			optinfo->reconf_type = (int)*(u_char *)cp;
 			break;
-#endif			
+#endif
 //brcm- start
 		case DH6OPT_USER_CLASS:
       {
          char *instance, *instanceNext;
          char csav;
 
-         printf("DHCP6 received User Class Option (15):\n");
+        // printf("DHCP6 received User Class Option (15):\n");
          for (instance = cp; instance < (char *)np; instance = instanceNext) {
             instanceNext = instance + 2 + *(u_int16_t *)instance;
             if (instanceNext <= (char *)np) {
@@ -1966,8 +1973,8 @@ dhcp6_get_options(p, ep, optinfo)
          char *instance, *instanceNext;
          char csav;
 
-         printf("DHCP6 received Vendor Class Option (16):\n");
-         printf("    enterprise-number: %d\n", *(u_int32_t *)cp);
+       //  printf("DHCP6 received Vendor Class Option (16):\n");
+       //  printf("    enterprise-number: %d\n", *(u_int32_t *)cp);
          for (instance = cp+4; instance < (char *)np; instance = instanceNext) {
             instanceNext = instance + 2 + *(u_int16_t *)instance;
             if (instanceNext <= (char *)np) {
@@ -1975,7 +1982,7 @@ dhcp6_get_options(p, ep, optinfo)
                csav = *instanceNext;
                /* replace it with a NULL */
                *instanceNext = '\0';
-               printf("    vendor class data: %s\n", instance+2);
+              // printf("    vendor class data: %s\n", instance+2);
                /* restore the original char */
                *instanceNext = csav;
             }
@@ -2125,7 +2132,7 @@ copyin_option(type, p, ep, list)
 
 			if (dhcp6_find_listval(list, DHCP6_LISTVAL_PREFIX6,
 			    &iapd_prefix, 0)) {
-				dprintf(LOG_INFO, FNAME, 
+				dprintf(LOG_INFO, FNAME,
 				    "duplicated IA_PD prefix "
 				    "%s/%d pltime=%lu vltime=%lu",
 				    in6addr2str(&iapd_prefix.addr, 0),
@@ -2175,7 +2182,7 @@ copyin_option(type, p, ep, list)
 
 			if (dhcp6_find_listval(list,
 			    DHCP6_LISTVAL_STATEFULADDR6, &ia_addr, 0)) {
-				dprintf(LOG_INFO, FNAME, 
+				dprintf(LOG_INFO, FNAME,
 				    "duplicated IA_NA address"
 				    "%s pltime=%lu vltime=%lu",
 				    in6addr2str(&ia_addr.addr, 0),
@@ -2343,7 +2350,7 @@ copy_option(type, len, val, optp, ep, totallenp)
 		memcpy(opt + 1, val, len);
 
 	*optp = (struct dhcp6opt *)((char *)(opt + 1) + len);
- 	*totallenp += sizeof(struct dhcp6opt) + len;
+	*totallenp += sizeof(struct dhcp6opt) + len;
 	dprintf(LOG_DEBUG, FNAME, "set %s (len %d)", dhcp6optstr(type), len);
 
 	return (0);
@@ -2421,7 +2428,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 			dprintf(LOG_INFO, FNAME,
 				"Add option DH6OPT_RECONF_ACCEPT");
 		}
-	
+
 #endif
 
 	if (optinfo->pref != DH6OPT_PREF_UNDEF) {
@@ -2660,7 +2667,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 				dprintf(LOG_DEBUG, FNAME,
 				    "key ID %x, offset %d",
 				    optinfo->delayedauth_keyid,
-				    optinfo->delayedauth_offset); 
+				    optinfo->delayedauth_offset);
 				break;
 #ifdef notyet
 			case DHCP6_AUTHPROTO_RECONFIG:
@@ -2675,6 +2682,10 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 
 		if (copy_option(DH6OPT_AUTH, authlen - 4,
 		    &auth->dh6_auth_proto, &p, optep, &len) != 0) {
+/*coverity CID:11993 added by libby*/
+#ifdef AEI_COVERITY_FIX
+            free(auth);
+#endif
 			goto fail;
 		}
 		free(auth);
@@ -2946,7 +2957,7 @@ dhcp6_set_timeoparam(ev)
 		ev->max_retrans_time = REQ_MAX_RT;
 		ev->max_retrans_cnt = REQ_MAX_RC;
 		break;
-#endif		
+#endif
 	default:
 		dprintf(LOG_ERR, FNAME, "unexpected event state %d on %s",
 		    ev->state, ev->ifp->ifname);
@@ -3345,8 +3356,8 @@ char *dhcp6_event_statestr(ev)
 #ifdef ACTION_TEC_IPV6_CODE_FOR_CONFIRM
 	case DHCP6S_CONFIRM:
 		return ("CONFIRM");
-#endif        
-#ifdef ACTION_TEC_IPV6_CODE_FOR_DECLINE        
+#endif
+#ifdef ACTION_TEC_IPV6_CODE_FOR_DECLINE
 	case DHCP6S_DECLINE:
 		return ("DECLINE");
 #endif
@@ -3491,8 +3502,8 @@ ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
 	if (ioctl(s, SIOGIFINDEX, &ifr) < 0) {
 		dprintf(LOG_NOTICE, FNAME, "failed to get the index of %s: %s",
 		    ifname, strerror(errno));
-		close(s); 
-		return (-1); 
+		close(s);
+		return (-1);
 	}
 	memcpy(&req.ifr6_addr, &addr->sin6_addr, sizeof(struct in6_addr));
 	req.ifr6_prefixlen = plen;

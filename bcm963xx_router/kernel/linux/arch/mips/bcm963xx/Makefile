@@ -9,6 +9,10 @@ obj-$(CONFIG_SMP)	+= smp-brcm.o
 
 ifneq ($(strip $(CONFIG_BCM_HOSTMIPS_PWRSAVE)),)
 obj-y += pwrmngtclk.o        
+else
+ifneq ($(strip $(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)),)
+obj-y += pwrmngtclk.o        
+endif
 endif
 
 SRCBASE         := $(TOPDIR)
@@ -35,5 +39,8 @@ EXTRA_CFLAGS += -DADSL_ANNEXC
 endif
 ifeq "$(BRCM_PHY_BONDING)" "y"
 EXTRA_CFLAGS += -DSUPPORT_DSL_BONDING
+endif
+ifeq "$(BRCM_PHY_BONDING5B)" "y"
+EXTRA_CFLAGS += -DSUPPORT_DSL_BONDING5B
 endif
 

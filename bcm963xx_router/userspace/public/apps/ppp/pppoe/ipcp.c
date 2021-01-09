@@ -1853,10 +1853,10 @@ ipcp_up(f)
     FILE *f_auth;
 
     f_auth = fopen(PPP_Auth_FAIL, "w");
-    if (f_auth == NULL) 
-    	error("Failed to create %s: ", PPP_Auth_FAIL);
+    if (f_auth == NULL)
+	error("Failed to create %s: ", PPP_Auth_FAIL);
     else
-        fprintf(f_auth, "%d\n", 0); // If successfully connected, then clear ppp auth fail number. 
+        fprintf(f_auth, "%d\n", 0); // If successfully connected, then clear ppp auth fail number.
     fclose(f_auth);
 #endif
 
@@ -1899,10 +1899,10 @@ ipcp_up(f)
     else {
        printf("PPP: %s Connection Up.\n", req_name);
        sendPppEventMessage(BCM_PPPOE_CLIENT_STATE_UP, local_ip, subnet_ip, router_ip, dns_ip, MDMVS_ERROR_NONE);
-#ifdef AEI_CONTROL_LAYER   
+#ifdef AEI_CONTROL_LAYER
 	//fix Bug #9284 [12i9test][function]There is no ipv6 addr in pppoe, 6rd model
 	sendCtlPppEventMessage(BCM_PPPOE_CLIENT_IPV6_STATE_UP, NULL, NULL, NULL, NULL, MDMVS_ERROR_NONE);
-#endif	   
+#endif
        syslog(LOG_CRIT,"Received valid IP address from server.  Connection UP.\n");   
     }
 }
@@ -1955,7 +1955,7 @@ ipcp_down(f)
 
 // brcm
     printf("PPP: %s Connection Down.\n", req_name);
-#ifdef AEI_CONTROL_LAYER 
+#ifdef AEI_CONTROL_LAYER
 	//fix Bug #9284 [12i9test][function]There is no ipv6 addr in pppoe, 6rd model
 	sendCtlPppEventMessage(BCM_PPPOE_CLIENT_IPV6_STATE_DOWN, NULL, NULL, NULL, NULL, MDMVS_ERROR_NONE);
 #endif

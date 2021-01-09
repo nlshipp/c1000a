@@ -4,50 +4,31 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* BB_AUDIT SUSv3 N/A -- Matches GNU behavior. */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <errno.h>
-#include "busybox.h"
+#include "libbb.h"
 
-int chroot_main(int argc, char **argv)
+int chroot_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int chroot_main(int argc UNUSED_PARAM, char **argv)
 {
-	if (argc < 2) {
+	++argv;
+	if (!*argv)
 		bb_show_usage();
-	}
+	xchroot(*argv);
+	xchdir("/");
 
 	++argv;
-	if (chroot(*argv) || (chdir("/"))) {
-		bb_perror_msg_and_die("cannot change root directory to %s", *argv);
-	}
-
-	++argv;
-	if (argc == 2) {
+	if (!*argv) { /* no 2nd param (PROG), use shell */
 		argv -= 2;
-		if (!(*argv = getenv("SHELL"))) {
-			*argv = (char *) DEFAULT_SHELL;
+		argv[0] = getenv("SHELL");
+		if (!argv[0]) {
+			argv[0] = (char *) DEFAULT_SHELL;
 		}
 		argv[1] = (char *) "-i";
 	}
 
-	execvp(*argv, argv);
-	bb_perror_msg_and_die("cannot execute %s", *argv);
+	BB_EXECVP_or_die(argv);
 }

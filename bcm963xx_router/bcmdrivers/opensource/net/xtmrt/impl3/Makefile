@@ -19,6 +19,10 @@ EXTRA_CFLAGS += $(ACTION_TEC_DFLAGS)
 endif
 endif
 EXTRA_CFLAGS += -Werror -Wfatal-errors
+ifeq "$(BRCM_PHY_LOOPBACK)" "y"
+EXTRA_CFLAGS += -DPHY_LOOPBACK
+endif
+
 
 clean:
 	rm -f core *.o *.a *.s

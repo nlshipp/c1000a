@@ -104,6 +104,12 @@ typedef struct _FILE_TAG
 #define WFI_NAND16_FLASH        2
 #define WFI_NAND128_FLASH       3
 
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+/* block size of flash. */
+#define NAND16_FLASH_BLOCK_SIZE        (16 * 1024)
+#define NAND128_FLASH_BLOCK_SIZE       (128 * 1024)
+#endif
+
 /* TAG at end of whole flash ".w" image.  Size must be TOKEN_LEN. */
 typedef struct _WFI_TAG
 {

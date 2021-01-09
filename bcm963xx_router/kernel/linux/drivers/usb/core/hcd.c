@@ -46,14 +46,14 @@
 #include "hub.h"
 #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
 int usb_led_flag = -1;
-static struct timer_list usbLedTimer;	
+static struct timer_list usbLedTimer;
 void usbledTimerStart(void)
-{       
+{
     init_timer(&usbLedTimer);
     usbLedTimer.function = (void*)usbledTimerExpire;
     usbLedTimer.expires = jiffies + 3*HZ;        // timer expires in ~100ms
     add_timer(&usbLedTimer);
-} 
+}
 void usbledTimerEnd(void)
 {
 	usb_led_flag = -1;
@@ -65,15 +65,15 @@ void usbledTimerExpire(void)
 	{
 		usbledTimerStart();
 		usb_led_flag = kLedStateOn;
-	} 
+	}
 	else if (usb_led_flag == -1)
 	{
-		usbledTimerEnd();	
+		usbledTimerEnd();
 	}
 	else if ( usb_led_flag == kLedStateOn)
 	{
 		usbledTimerStart();
-		kerSysLedCtrl(kLedUsb, kLedStateOn);	
+		kerSysLedCtrl(kLedUsb, kLedStateOn);
 		usb_led_flag = kLedStateOn;
 	}
 }
@@ -1335,10 +1335,10 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 	#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
 	if (usb_led_flag != -1)
 	{
-     	kerSysLedCtrl(kLedUsb, kLedStateSlowBlinkContinues);
-		usb_led_flag = kLedStateSlowBlinkContinues; 
+	kerSysLedCtrl(kLedUsb, kLedStateSlowBlinkContinues);
+		usb_led_flag = kLedStateSlowBlinkContinues;
 	}
- 	#endif
+	#endif
 	/* increment urb's reference count as part of giving it to the HCD
 	 * (which will control it).  HCD guarantees that it either returns
 	 * an error or calls giveback(), but not both.

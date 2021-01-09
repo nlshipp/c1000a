@@ -2,10 +2,10 @@
  *
  *  Copyright (c) 2011  Actiontec Electronics Inc.
  *  All Rights Reserved
- *  
+ *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
- *  are missing from cms_led.h file will locate in this file. 
+ *  in addition to routines provided by Broadcom. All additional routines that
+ *  are missing from cms_led.h file will locate in this file.
  *
  ************************************************************************/
 
@@ -14,6 +14,7 @@
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 #include "aei_cms_msg.h"
+#include "board.h"
 
 int AEI_boardIoctl(int boardFd, int board_ioctl, BOARD_IOCTL_ACTION action,
                    char *string, int strLen, int offset);

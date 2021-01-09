@@ -1,4 +1,4 @@
-Notes about distribution tables from Nistnet 
+Notes about distribution tables from Nistnet
 -------------------------------------------------------------------------------
 I. About the distribution tables
 
@@ -32,8 +32,8 @@ To see this, it's enough to show that Y's cumulative distribution function,
 	     = (# of entries in T <= x) / N   -- as Y chosen uniformly from T
 	     = i/N, where i is the largest integer such that G(i/N) <= x
 	     = i/N, where i is the largest integer such that i/N <= F(x)
-	     		-- since G and F are inverse functions (and F is
-	     		   increasing)
+			-- since G and F are inverse functions (and F is
+			   increasing)
 	     = floor(N*F(x))/N
 
 as desired.

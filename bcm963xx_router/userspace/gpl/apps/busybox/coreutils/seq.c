@@ -2,50 +2,98 @@
 /*
  * seq implementation for busybox
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of version 2 of the GNU General Public License as
- *  published by the Free Software Foundation.
+ * Copyright (C) 2004, Glenn McGrath
  *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Licensed under the GPL v2, see the file LICENSE in this tarball.
  */
+#include "libbb.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "busybox.h"
+/* This is a NOFORK applet. Be very careful! */
 
-extern int seq_main(int argc, char **argv)
+int seq_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int seq_main(int argc, char **argv)
 {
-	double last;
-	double first = 1;
-	double increment = 1;
-	double i;
+	enum {
+		OPT_w = (1 << 0),
+		OPT_s = (1 << 1),
+	};
+	double first, last, increment, v;
+	unsigned n;
+	unsigned width;
+	unsigned frac_part;
+	const char *sep, *opt_s = "\n";
+	unsigned opt;
 
-	if (argc == 4) {
-		first = atof(argv[1]);
-		increment = atof(argv[2]);
-	} else if (argc == 3) {
-		first = atof(argv[1]);
-	} else if (argc != 2) {
-		bb_show_usage();
+#if ENABLE_LOCALE_SUPPORT
+	/* Undo busybox.c: on input, we want to use dot
+	 * as fractional separator, regardless of current locale */
+	setlocale(LC_NUMERIC, "C");
+#endif
+
+	opt = getopt32(argv, "+ws:", &opt_s);
+	argc -= optind;
+	argv += optind;
+	first = increment = 1;
+	errno = 0;
+	switch (argc) {
+			char *pp;
+		case 3:
+			increment = strtod(argv[1], &pp);
+			errno |= *pp;
+		case 2:
+			first = strtod(argv[0], &pp);
+			errno |= *pp;
+		case 1:
+			last = strtod(argv[argc-1], &pp);
+			if (!errno && *pp == '\0')
+				break;
+		default:
+			bb_show_usage();
 	}
-	last = atof(argv[argc - 1]);
 
-	/* You should note that this is pos-5.0.91 semantics, -- FK. */
-	if ((first > last) && (increment > 0)) {
-		return EXIT_SUCCESS;
+#if ENABLE_LOCALE_SUPPORT
+	setlocale(LC_NUMERIC, "");
+#endif
+
+	/* Last checked to be compatible with: coreutils-6.10 */
+	width = 0;
+	frac_part = 0;
+	while (1) {
+		char *dot = strchrnul(*argv, '.');
+		int w = (dot - *argv);
+		int f = strlen(dot);
+		if (width < w)
+			width = w;
+		argv++;
+		if (!*argv)
+			break;
+		/* Why do the above _before_ frac check below?
+		 * Try "seq 1 2.0" and "seq 1.0 2.0":
+		 * coreutils never pay attention to the number
+		 * of fractional digits in last arg. */
+		if (frac_part < f)
+			frac_part = f;
 	}
-
-	for (i = first; ((first <= last) ? (i <= last) : (i >= last));
-	     i += increment) {
-		printf("%g\n", i);
+	if (frac_part) {
+		frac_part--;
+		if (frac_part)
+			width += frac_part + 1;
 	}
+	if (!(opt & OPT_w))
+		width = 0;
 
-	return EXIT_SUCCESS;
+	sep = "";
+	v = first;
+	n = 0;
+	while (increment >= 0 ? v <= last : v >= last) {
+		printf("%s%0*.*f", sep, width, frac_part, v);
+		sep = opt_s;
+		/* v += increment; - would accumulate floating point errors */
+		n++;
+		v = first + n * increment;
+	}
+	if (n) /* if while loop executed at least once */
+		bb_putchar('\n');
+
+	return fflush_all();
 }

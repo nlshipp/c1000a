@@ -745,6 +745,21 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 	iph 			=	ip_hdr(skb);
 	iph->version		=	4;
 	iph->ihl		=	sizeof(struct iphdr)>>2;
+#if !defined(CONFIG_MIPS_BRCM)
+	/*
+	 *	cd-router #1329: DF flag should not be set
+	 *	RFC 3056 sec 4: DF flag should not be set
+	 *	RFC 4213 sec 3.2.1: DF flag MUST NOT be set for static MTU cases.
+	 *	RFC 4213 sec 3.2.2: For dynamic MTU cases, the algorithm should be:
+	 *	if ( (v4MTU-20) < 1280 ) {
+	 *	    if ( v6Pkt > 1280 ) send ICMPv6 "TooBig" with MTU=1280;
+	 *	    else encapsulate to v4 packet and DF flag MUST NOT be set
+	 *	}
+	 *	else {
+	 *	    if ( v6Pkt > (v4MTU-20) ) send ICMPv6 "TooBig" with MTU=(v4MTU-20);
+	 *	    else encapsulate to v4 packet and DF flag MUST be set
+	 *	}
+	 */
 	if (mtu > IPV6_MIN_MTU)
 	    {
 	        /*
@@ -758,6 +773,7 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 		iph->frag_off	=	htons(IP_DF);
 	    }
 	else
+#endif
 		iph->frag_off	=	0;
 
 	iph->protocol		=	IPPROTO_IPV6;
@@ -766,7 +782,17 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
 	iph->saddr		=	rt->rt_src;
 
 	if ((iph->ttl = tiph->ttl) == 0)
-		iph->ttl	=	iph6->hop_limit;
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK	
+    //CENTURYLINK require in 6rd data, the v4 TTL should  independent of the v6 Hop/TTL for traceroute6
+    {
+        if(iph6->hop_limit < 64)
+          iph->ttl = 64;
+        else
+          iph->ttl = iph6->hop_limit; 
+     }
+#else
+        iph->ttl = iph6->hop_limit;
+#endif
 
 	nf_reset(skb);
 

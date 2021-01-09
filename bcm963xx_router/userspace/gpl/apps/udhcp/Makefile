@@ -59,8 +59,8 @@ CFLAGS += -Os -fomit-frame-pointer -fno-strict-aliasing
 CFLAGS += $(BRCM_WERROR_CFLAGS)
 
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
-CFLAGS += -I$(BUILD_DIR)/userspace/public/include
-LIBS += -L$(BUILD_DIR)/userspace/public/libs -ldbussend_msg -ldbus
+CFLAGS += -I$(BUILD_DIR)/userspace/private/apps/ctl_layer/include -I$(BUILD_DIR)/userspace/private/apps/ctl_layer/tr69fw/include
+LIBS += -L$(BUILD_DIR)/userspace/public/include -ldbussend_msg -ldbus
 endif
 
 ifeq ($(strip $(BUILD_UDHCP)), static)

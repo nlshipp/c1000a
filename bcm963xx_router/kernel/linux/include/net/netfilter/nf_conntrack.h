@@ -114,6 +114,7 @@ struct nf_conn {
 #if defined(CONFIG_BLOG)
 	unsigned int blog_key[2];	/* Associating 2=IP_CT_DIR_MAX blogged flows */
 #endif
+	unsigned int iq_prio;	    /* Ingress QoS Prio */
 	struct list_head safe_list; /* bugfix for lost connections */
 	struct list_head derived_connections; /* Used by master connection */
 	struct list_head derived_list; /* Used by child connection */
@@ -299,11 +300,21 @@ extern struct nf_conn nf_conntrack_untracked;
 extern void
 nf_ct_iterate_cleanup(struct net *net, int (*iter)(struct nf_conn *i, void *data), void *data);
 extern void nf_conntrack_free(struct nf_conn *ct);
+
+#if defined(CONFIG_MIPS_BRCM)
+extern struct nf_conn *
+nf_conntrack_alloc(struct net *net,
+		   struct sk_buff *skb,
+		   const struct nf_conntrack_tuple *orig,
+		   const struct nf_conntrack_tuple *repl,
+		   gfp_t gfp);
+#else
 extern struct nf_conn *
 nf_conntrack_alloc(struct net *net,
 		   const struct nf_conntrack_tuple *orig,
 		   const struct nf_conntrack_tuple *repl,
 		   gfp_t gfp);
+#endif
 
 /* It's confirmed if it is, or has been in the hash table. */
 static inline int nf_ct_is_confirmed(struct nf_conn *ct)

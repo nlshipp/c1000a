@@ -70,12 +70,12 @@ int read_block(int fd, long long start, long long *next, unsigned char *block, s
 {
 	unsigned short c_byte;
 	int offset = 2;
-	
+
 	if(swap) {
 		read_bytes(fd, start, 2, (char *) block);
 		((unsigned char *) &c_byte)[1] = block[0];
-		((unsigned char *) &c_byte)[0] = block[1]; 
-	} else 
+		((unsigned char *) &c_byte)[0] = block[1];
+	} else
 		read_bytes(fd, start, 2, (char *)&c_byte);
 
 	if(SQUASHFS_CHECK_DATA(sBlk->flags))
@@ -218,7 +218,7 @@ int scan_inode_table(int fd, long long start, long long end, long long root_inod
 	                        add_file(start, inode.file_size, file_bytes, block_list, blocks, inode.fragment, inode.offset, frag_bytes);
 				cur_ptr += blocks * sizeof(unsigned int);
 				break;
-			}	
+			}
 			case SQUASHFS_LREG_TYPE: {
 				squashfs_lreg_inode_header inode;
 				int frag_bytes;
@@ -265,10 +265,10 @@ int scan_inode_table(int fd, long long start, long long end, long long root_inod
 	                        add_file(start, inode.file_size, file_bytes, block_list, blocks, inode.fragment, inode.offset, frag_bytes);
 				cur_ptr += blocks * sizeof(unsigned int);
 				break;
-			}	
+			}
 			case SQUASHFS_SYMLINK_TYPE: {
 				squashfs_symlink_inode_header inodep;
-	
+
 				if(swap) {
 					squashfs_symlink_inode_header sinodep;
 					memcpy(&sinodep, cur_ptr, sizeof(sinodep));
@@ -320,8 +320,8 @@ int scan_inode_table(int fd, long long start, long long end, long long root_inod
 				}
 				break;
 			}
-		 	case SQUASHFS_BLKDEV_TYPE:
-		 	case SQUASHFS_CHRDEV_TYPE:
+			case SQUASHFS_BLKDEV_TYPE:
+			case SQUASHFS_CHRDEV_TYPE:
 				(*dev_count) ++;
 				cur_ptr += sizeof(squashfs_dev_inode_header);
 				break;
@@ -334,12 +334,12 @@ int scan_inode_table(int fd, long long start, long long end, long long root_inod
 				(*sock_count) ++;
 				cur_ptr += sizeof(squashfs_ipc_inode_header);
 				break;
-		 	default:
+			default:
 				ERROR("Unknown inode type %d in scan_inode_table!\n", inode.inode_type);
 				goto failed;
 		}
 	}
-	
+
 	return files;
 
 
@@ -378,7 +378,7 @@ int read_super(int fd, squashfs_super_block *sBlk, int *be, char *source)
 	default:
 		ERROR("Can't find a SQUASHFS superblock on %s\n", source);
 		goto failed_mount;
- 	}
+	}
 
 	/* Check the MAJOR & MINOR versions */
 	if(sBlk->s_major != SQUASHFS_MAJOR || sBlk->s_minor > SQUASHFS_MINOR) {
@@ -452,7 +452,7 @@ unsigned char *squashfs_readdir(int fd, int root_entries, unsigned int directory
 		goto all_done;
 
 	bytes = offset;
- 	while(bytes < size) {			
+	while(bytes < size) {
 		if(swap) {
 			squashfs_dir_header sdirh;
 			memcpy(&sdirh, directory_table + bytes, sizeof(sdirh));
@@ -628,7 +628,7 @@ long long read_filesystem(char *root_name, int fd, squashfs_super_block *sBlk, c
 			ERROR("read_filesystem: failed to alloc space for existing filesystem inode table\n");
 			goto error;
 		}
-	       	read_bytes(fd, start, root_inode_start, *cinode_table);
+		read_bytes(fd, start, root_inode_start, *cinode_table);
 
 		if((*cdirectory_table = (char *) malloc(*last_directory_block)) == NULL) {
 			ERROR("read_filesystem: failed to alloc space for existing filesystem directory table\n");

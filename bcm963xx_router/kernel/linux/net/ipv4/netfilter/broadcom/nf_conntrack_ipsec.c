@@ -56,7 +56,7 @@ struct sk_buff nfskb_p;
 #define MAX_TIMEOUT_COUNT  ((CT_15MIN_TIME)/REFRESH_TIMEOUT)
 
 /* Internal table for ISAKMP */
-struct _ipsec_table 
+struct _ipsec_table
 {
    u_int32_t initcookie;
    __be32 lan_ip;
@@ -69,7 +69,7 @@ struct _ipsec_table
 
 static void ipsec_free_entry(unsigned long index)
 {
-   if( ipsec_table[index].inuse ) 
+   if( ipsec_table[index].inuse )
    {
       del_timer(&ipsec_table[index].refresh_timer);
       memset(&ipsec_table[index], 0, sizeof(struct _ipsec_table));
@@ -92,12 +92,12 @@ static void ipsec_refresh_ct(unsigned long data)
           ipsec_entry->ntimeouts, ipsec_entry->pkt_rcvd, ipsec_entry, data,
           ipsec_entry->ct);
 
-   if( ipsec_entry->pkt_rcvd ) 
+   if( ipsec_entry->pkt_rcvd )
    {
       ipsec_entry->pkt_rcvd = 0;
       ipsec_entry->ntimeouts = 0;
-   } 
-   else 
+   }
+   else
    {
       ipsec_entry->ntimeouts++;
       if( ipsec_entry->ntimeouts >= MAX_TIMEOUT_COUNT )
@@ -121,22 +121,22 @@ static struct _ipsec_table *ipsec_alloc_entry(int *index)
 {
    int idx = 0;
 
-   for( ; idx < MAX_VPN_CONNECTION; idx++ ) 
+   for( ; idx < MAX_VPN_CONNECTION; idx++ )
    {
       if( ipsec_table[idx].inuse )
          continue;
-   
+
       *index = idx;
       memset(&ipsec_table[idx], 0, sizeof(struct _ipsec_table));
       init_timer( &ipsec_table[idx].refresh_timer );
       ipsec_table[idx].refresh_timer.expires = jiffies + REFRESH_TIMEOUT;
       ipsec_table[idx].refresh_timer.function = ipsec_refresh_ct;
       ipsec_table[idx].refresh_timer.data = (unsigned long)idx;
-      add_timer( &ipsec_table[idx].refresh_timer );      
+      add_timer( &ipsec_table[idx].refresh_timer );
 
       return (&ipsec_table[idx]);
    }
-   
+
    return NULL;
 }
 
@@ -149,17 +149,17 @@ search_ipsec_entry_by_cookie(struct isakmp_pkt_hdr *isakmph)
    int idx = 0;
    struct _ipsec_table *ipsec_entry = ipsec_table;
 
-   for( ; idx < MAX_VPN_CONNECTION; idx++ ) 
+   for( ; idx < MAX_VPN_CONNECTION; idx++ )
    {
       DEBUGP("Searching initcookie %x <-> %x\n",
           ntohl(isakmph->initcookie), ntohl(ipsec_entry->initcookie));
-      
-      if( isakmph->initcookie == ipsec_entry->initcookie ) 
+
+      if( isakmph->initcookie == ipsec_entry->initcookie )
          return ipsec_entry;
-      
+
       ipsec_entry++;
    }
-   
+
    return NULL;
 }
 
@@ -172,12 +172,12 @@ search_ipsec_entry_by_addr(const __be32 lan_ip, int *index)
    int idx = 0;
    struct _ipsec_table *ipsec_entry = ipsec_table;
 
-   for( ; idx < MAX_VPN_CONNECTION; idx++ ) 
+   for( ; idx < MAX_VPN_CONNECTION; idx++ )
    {
-      DEBUGP("Looking up lan_ip=%u.%u.%u.%u table entry %u.%u.%u.%u\n", 
+      DEBUGP("Looking up lan_ip=%u.%u.%u.%u table entry %u.%u.%u.%u\n",
               NIPQUAD(lan_ip), NIPQUAD(ipsec_entry->lan_ip));
 
-      if( ntohl(ipsec_entry->lan_ip) == ntohl(lan_ip) ) 
+      if( ntohl(ipsec_entry->lan_ip) == ntohl(lan_ip) )
       {
          DEBUGP("Search by addr returning entry %p\n", ipsec_entry);
 
@@ -186,12 +186,12 @@ search_ipsec_entry_by_addr(const __be32 lan_ip, int *index)
       }
       ipsec_entry++;
    }
-   
+
    return NULL;
 }
 
 static inline int
-ipsec_inbound_pkt(struct sk_buff **pskb, struct nf_conn *ct, 
+ipsec_inbound_pkt(struct sk_buff **pskb, struct nf_conn *ct,
 		  enum ip_conntrack_info ctinfo, __be32 lan_ip)
 {
 //   struct nf_ct_ipsec_master *info = &nfct_help(ct)->help.ct_ipsec_info;
@@ -202,7 +202,7 @@ ipsec_inbound_pkt(struct sk_buff **pskb, struct nf_conn *ct,
    nf_nat_ipsec_inbound = rcu_dereference(nf_nat_ipsec_hook_inbound);
    if (nf_nat_ipsec_inbound && ct->status & IPS_NAT_MASK)
       return nf_nat_ipsec_inbound(pskb, ct, ctinfo, lan_ip);
-   
+
    return NF_ACCEPT;
 }
 
@@ -220,7 +220,7 @@ ipsec_outbound_pkt(struct sk_buff **pskb,
    nf_nat_ipsec_outbound = rcu_dereference(nf_nat_ipsec_hook_outbound);
    if( nf_nat_ipsec_outbound && ct->status & IPS_NAT_MASK )
       return nf_nat_ipsec_outbound(pskb, ct, ctinfo);
-   
+
    return NF_ACCEPT;
 }
 
@@ -239,9 +239,9 @@ static int conntrack_ipsec_help(struct sk_buff **pskb, unsigned int protoff,
 
    nexthdr_off = protoff + 8;   /* UDP header length = 8 */
 
-   isakmph = skb_header_pointer(*pskb, nexthdr_off, 
+   isakmph = skb_header_pointer(*pskb, nexthdr_off,
                                 sizeof(_isakmph), &_isakmph);
-   if( !isakmph ) 
+   if( !isakmph )
    {
       DEBUGP("no full ISAKMP header, can't track\n");
       return NF_ACCEPT;
@@ -254,25 +254,25 @@ static int conntrack_ipsec_help(struct sk_buff **pskb, unsigned int protoff,
       int lan_ip = ct->tuplehash[dir].tuple.src.u3.ip;
       DEBUGP("LAN -> WAN: old cookies:%x new cookies:%x, src: %u.%u.%u.%u, dst: %u.%u.%u.%u\n",
               ntohl(info->initcookie), ntohl(isakmph->initcookie),
-	      NIPQUAD(ct->tuplehash[dir].tuple.src.u3.ip), 
+	      NIPQUAD(ct->tuplehash[dir].tuple.src.u3.ip),
 	      NIPQUAD(ct->tuplehash[dir].tuple.dst.u3.ip) );
-      
+
       /* create one entry in the internal table if a new connection is found */
-      if( (ipsec_entry = search_ipsec_entry_by_cookie(isakmph)) == NULL ) 
+      if( (ipsec_entry = search_ipsec_entry_by_cookie(isakmph)) == NULL )
       {
          /* NOTE: cookies may be updated in the connection */
-         if( (ipsec_entry = 
-              search_ipsec_entry_by_addr(lan_ip, &index)) == NULL ) 
+         if( (ipsec_entry =
+              search_ipsec_entry_by_addr(lan_ip, &index)) == NULL )
          {
             ipsec_entry = ipsec_alloc_entry(&index);
-            if( ipsec_entry == NULL ) 
+            if( ipsec_entry == NULL )
             {
                /* All entries are currently in use */
                DEBUGP("%s:%s Out of table entries\n", __FILE__, __FUNCTION__);
                spin_unlock_bh(&nf_ipsec_lock);
                return NF_DROP;
             }
-            
+
             ipsec_entry->lan_ip = ct->tuplehash[dir].tuple.src.u3.ip;
             ipsec_entry->inuse = 1;
          }
@@ -280,8 +280,8 @@ static int conntrack_ipsec_help(struct sk_buff **pskb, unsigned int protoff,
          ipsec_entry->initcookie = isakmph->initcookie;
          ipsec_entry->ct = ct;
 
-         DEBUGP("create a new ipsec_entry with ct=%p, lan_ip=%u.%u.%u.%u, initcookie=%x\n", 
-            ipsec_entry->ct, NIPQUAD(ipsec_entry->lan_ip), 
+         DEBUGP("create a new ipsec_entry with ct=%p, lan_ip=%u.%u.%u.%u, initcookie=%x\n",
+            ipsec_entry->ct, NIPQUAD(ipsec_entry->lan_ip),
             ntohl(ipsec_entry->initcookie) );
       }
       ipsec_entry->pkt_rcvd++;
@@ -289,17 +289,17 @@ static int conntrack_ipsec_help(struct sk_buff **pskb, unsigned int protoff,
       info->initcookie = isakmph->initcookie;
       info->lan_ip = ct->tuplehash[dir].tuple.src.u3.ip;
 
-      DEBUGP("ct_ipsec_info => initcookie=%x, lan_ip=%u.%u.%u.%u, ct->tuplehash[%d].tuple.src.u3.ip=%u.%u.%u.%u, ct->tuplehash[%d].tuple.dst.u3.ip=%u.%u.%u.%u\n\n", 
-              info->initcookie, NIPQUAD(info->lan_ip), 
-              dir, NIPQUAD(ct->tuplehash[dir].tuple.src.u3.ip), 
+      DEBUGP("ct_ipsec_info => initcookie=%x, lan_ip=%u.%u.%u.%u, ct->tuplehash[%d].tuple.src.u3.ip=%u.%u.%u.%u, ct->tuplehash[%d].tuple.dst.u3.ip=%u.%u.%u.%u\n\n",
+              info->initcookie, NIPQUAD(info->lan_ip),
+              dir, NIPQUAD(ct->tuplehash[dir].tuple.src.u3.ip),
               dir, NIPQUAD(ct->tuplehash[dir].tuple.dst.u3.ip));
-      
-      ret = ipsec_outbound_pkt(pskb, ct, ctinfo); 
+
+      ret = ipsec_outbound_pkt(pskb, ct, ctinfo);
    }
    else
    {
       DEBUGP("WAN->LAN\n");
-      
+
       if( (ipsec_entry = search_ipsec_entry_by_cookie(isakmph)) != NULL )
       {
          ipsec_entry->pkt_rcvd++;

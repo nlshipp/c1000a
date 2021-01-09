@@ -1,25 +1,27 @@
 /*
-    Copyright 2000-2010 Broadcom Corporation
+<:label-BRCM:2012:DUAL/GPL:standard 
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the “GPL”), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
 */                       
 
 /***********************************************************************/
@@ -63,7 +65,7 @@ extern "C" {
 #define FLASH_BASE          (0xA0000000 | PHYS_FLASH_BASE)  /* uncached Flash  */
 #define BOOT_OFFSET         0
 #else
-#if defined(_BCM96328_) || defined(CONFIG_BCM96328) || defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM963268_) || defined(CONFIG_BCM963268) 
+#if defined(_BCM96328_) || defined(CONFIG_BCM96328) || defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM963268_) || defined(CONFIG_BCM963268) || defined(_BCM96828_) || defined(CONFIG_BCM96828) || defined(_BCM96318_) || defined(CONFIG_BCM96318) 
 #define FLASH_BASE          0xB8000000
 #else
 #define FLASH_BASE          (0xA0000000 | (MPI->cs[0].base & 0xFFFFFF00))
@@ -102,6 +104,7 @@ extern "C" {
 #define NVRAM_GPON_SERIAL_NUMBER_LEN    13
 #define NVRAM_GPON_PASSWORD_LEN         11
 
+
 #define NVRAM_WLAN_PARAMS_LEN      256
 #define NVRAM_WPS_DEVICE_PIN_LEN   8
 
@@ -116,6 +119,12 @@ extern "C" {
 #define DEFAULT_PSI_SIZE    24
 #define DEFAULT_GPON_SN     "BRCM12345678"
 #define DEFAULT_GPON_PW     "          "
+#define DEFAULT_LOG_SIZE    0
+#define DEFAULT_FLASHBLK_SIZE  64
+#define MAX_FLASHBLK_SIZE      128
+#define DEFAULT_AUXFS_PERCENT 0
+#define MAX_AUXFS_PERCENT   80
+#define DEFAUT_BACKUP_PSI  0
 
 #define DEFAULT_WPS_DEVICE_PIN     "12345670"
 
@@ -124,7 +133,9 @@ extern "C" {
 #define NVRAM_MAC_COUNT_MAX         32
 #define NVRAM_MAX_PSI_SIZE          64
 #define NVRAM_MAX_SYSLOG_SIZE       256
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 #define NVRAM_OPTICAL_PARAMS_SIZE   64
+#endif
 
 #define NP_BOOT             0
 #define NP_ROOTFS_1         1
@@ -138,9 +149,19 @@ extern "C" {
 #define NAND_BBT_SMALL_SIZE_KB  1024
 #define NAND_BBT_BIG_SIZE_KB    4096
 
-#define NAND_CFE_RAM_NAME   "cferam.000"
+#define NAND_CFE_RAM_NAME           "cferam.000"
+#define NAND_RFS_OFS_NAME           "NAND_RFS_OFS"
+#define NAND_COMMAND_NAME           "NANDCMD"
+#define NAND_BOOT_STATE_FILE_NAME   "boot_state_x"
+#define NAND_SEQ_MAGIC              0x53510000
 
-#define NAND_RFS_OFS_NAME   "NAND_RFS_OFS"
+#define NAND_FULL_PARTITION_SEARCH  0
+
+#if (NAND_FULL_PARTITION_SEARCH == 1)
+#define MAX_NOT_JFFS2_VALUE         0 /* infinite */
+#else
+#define MAX_NOT_JFFS2_VALUE         10
+#endif
 
 #ifndef _LANGUAGE_ASSEMBLY
 typedef struct
@@ -152,7 +173,7 @@ typedef struct
     unsigned long ulPsiSize;
     unsigned long ulNumMacAddrs;
     unsigned char ucaBaseMacAddr[NVRAM_MAC_ADDRESS_LEN];
-#if defined(AEI_VDSL_CUSTOMER_BELLALIANT)     
+#if (defined(AEI_VDSL_CUSTOMER_BELLALIANT) || defined(AEI_VDSL_CUSTOMER_TELUS)) && (!defined(AEI_63168_CHIP) && !defined(AEI_CONFIG_JFFS))
     /* add new parameters below dslDatapump parameter and substract size, don't move parameters */
     char ulSerialNumber[32];
     char chFactoryFWVersion[48];
@@ -171,9 +192,12 @@ typedef struct
     unsigned long ulNandPartSizeKb[NP_TOTAL];
     char szVoiceBoardId[NVRAM_BOARD_ID_STRING_LEN];
     unsigned long afeId[2];
-    char OpticalParams[NVRAM_OPTICAL_PARAMS_SIZE];    
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-#if   !defined(AEI_VDSL_CUSTOMER_BELLALIANT)     
+//for compatible with sdk1204 nvram
+    char OpticalParams[NVRAM_OPTICAL_PARAMS_SIZE]; 
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if   (!defined(AEI_VDSL_CUSTOMER_BELLALIANT) && !defined(AEI_VDSL_CUSTOMER_TELUS)) || (defined(AEI_63168_CHIP) && defined(AEI_CONFIG_JFFS))
     /* add new parameters below dslDatapump parameter and substract size, don't move parameters */
     char ulSerialNumber[32];
     char chFactoryFWVersion[48];
@@ -187,27 +211,44 @@ typedef struct
     char ugimage2[30];
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     char adminPassword[32];
-    char chUnused[300-32-48-32-32-4-63-32];
-#else	
-    char chUnused[300-32-48-32-32-4-63];
 #endif
 #else // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     char adminPassword[32];
-    char chUnused[300-32-48-32-32-4-32];
-#else	
-    char chUnused[300-32-48-32-32-4];
 #endif
 #endif // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-
+#endif // AEI_VDSL_CUSTOMER_NCS
+    unsigned short opticRxPwrReading;   // optical initial rx power reading
+    unsigned short opticRxPwrOffset;    // optical rx power offset
+    unsigned short opticTxPwrReading;   // optical initial tx power reading
+#if !defined(AEI_VDSL_CUSTOMER_NCS)
+    unsigned char ucUnused2[58];
+#endif
+    unsigned char ucFlashBlkSize;
+    unsigned char ucAuxFSPercent;
+    unsigned long ulBoardStuffOption;   // board options. bit0-3 is for DECT    
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+#ifdef AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+        char chUnused[290-32-48-32-32-4-63-32-64+58];
 #else
-    char chUnused[300];
+        char chUnused[290-32-48-32-32-4-63-64+58];
+#endif
+#else // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+        char chUnused[290-32-48-32-32-4-32-64+58];
+#else
+        char chUnused[290-32-48-32-32-4-64+58];
+#endif
+#endif // AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
+#else
+    char chUnused[290];
 #endif // AEI_VDSL_CUSTOMER_NCS
     unsigned long ulCheckSum;
 } NVRAM_DATA, *PNVRAM_DATA;
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-#if   !defined(AEI_VDSL_CUSTOMER_BELLALIANT) 
+#if !defined(AEI_VDSL_CUSTOMER_BELLALIANT)
 typedef struct
 {
     unsigned long ulVersion;
@@ -230,7 +271,42 @@ typedef struct
     char chUnused[432-32-48-32-32];
     unsigned long ulCheckSum;
 } NVRAM_DATA_OLD, *PNVRAM_DATA_OLD;
-#endif 
+#endif
+
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+typedef struct
+{
+    unsigned long ulVersion;
+    char szBootline[NVRAM_BOOTLINE_LEN];
+    char szBoardId[NVRAM_BOARD_ID_STRING_LEN];
+    unsigned long ulMainTpNum;
+    unsigned long ulPsiSize;
+    unsigned long ulNumMacAddrs;
+    unsigned char ucaBaseMacAddr[NVRAM_MAC_ADDRESS_LEN];
+    char pad;
+    char backupPsi;  /**< if 0x01, allocate space for a backup PSI */
+    unsigned long ulCheckSumV4;
+    char gponSerialNumber[NVRAM_GPON_SERIAL_NUMBER_LEN];
+    char gponPassword[NVRAM_GPON_PASSWORD_LEN];
+    char wpsDevicePin[NVRAM_WPS_DEVICE_PIN_LEN];
+    char wlanParams[NVRAM_WLAN_PARAMS_LEN];
+    unsigned long ulSyslogSize; /**< number of KB to allocate for persistent syslog */
+    unsigned long ulNandPartOfsKb[NP_TOTAL];
+    unsigned long ulNandPartSizeKb[NP_TOTAL];
+    char szVoiceBoardId[NVRAM_BOARD_ID_STRING_LEN];
+    unsigned long afeId[2];
+    /* add new parameters below dslDatapump parameter and substract size, don't move parameters */
+    char ulSerialNumber[32];
+    char chFactoryFWVersion[48];
+    char wpsPin[32];
+    char wpaKey[32];
+    unsigned long dslDatapump; /* use long for alignment, put here so old cfe should work properly */
+    char chUnused[364-32-48-32-32-4];
+    unsigned long ulCheckSum;
+} TELUS_V2000H_NVRAM_DATA, *TELUS_V2000H_PNVRAM_DATA;
+
+#endif
+
 #endif
 #endif
 
@@ -284,6 +360,7 @@ typedef struct _TOKEN_DEF
     char tokenName[TOKEN_NAME_LEN];
     int tokenLen;
 } SP_TOKEN, *PSP_TOKEN;
+
 #endif
 
 /*****************************************************************************/
@@ -320,6 +397,13 @@ typedef struct _TOKEN_DEF
 
 #define FLASH_IS_NO_REBOOT(X)       ((X) & 0x0000ffff)
 #define FLASH_GET_PARTITION(X)      ((unsigned long) (X) >> 16)
+
+/*****************************************************************************/
+/*       Global Shared Parameters                                            */
+/*****************************************************************************/
+
+#define BRCM_MAX_CHIP_NAME_LEN	16
+
 
 #ifdef __cplusplus
 }

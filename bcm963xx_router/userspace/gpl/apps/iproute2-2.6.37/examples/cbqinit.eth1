@@ -26,7 +26,7 @@ $TC class add dev $DEVICE parent 1:0 classid :1 est 1sec 8sec cbq \
 $BANDWIDTH rate 10Mbit allot 1514 maxburst 50 avpkt 1000
 
 # Bulk.
-#    New parameters are: 
+#    New parameters are:
 #    weight, which is set to be proportional to
 #            "rate". It is not necessary, weight=1 will work as well.
 #    defmap and split say that best effort ttraffic, not classfied
@@ -73,4 +73,3 @@ maxburst 20
 $TC class add dev $DEVICE parent 1:7FFE classid 1:7FFF  est 4sec 32sec cbq \
 rate 1Mbit $BANDWIDTH allot 1514b avpkt 1000 weight 10Kbit \
 prio 6 maxburst 10 split 1:7FFE defmap ffff
-

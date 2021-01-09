@@ -5,83 +5,80 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <termios.h>
-#include <sys/ioctl.h>
-#define PWD_BUFFER_SIZE 256
-
+#include "libbb.h"
 
 /* do nothing signal handler */
-static void askpass_timeout(int ignore)
+static void askpass_timeout(int UNUSED_PARAM ignore)
 {
 }
 
-char *bb_askpass(int timeout, const char * prompt)
+char* FAST_FUNC bb_ask_stdin(const char *prompt)
 {
+	return bb_ask(STDIN_FILENO, 0, prompt);
+}
+char* FAST_FUNC bb_ask(const int fd, int timeout, const char *prompt)
+{
+	/* Was static char[BIGNUM] */
+	enum { sizeof_passwd = 128 };
+	static char *passwd;
+
 	char *ret;
-	int i, size;
-	struct sigaction sa;
-	struct termios old, new;
-	static char passwd[PWD_BUFFER_SIZE];
+	int i;
+	struct sigaction sa, oldsa;
+	struct termios tio, oldtio;
 
-	tcgetattr(STDIN_FILENO, &old);
+	tcgetattr(fd, &oldtio);
+	tcflush(fd, TCIFLUSH);
+	tio = oldtio;
+#ifndef IUCLC
+# define IUCLC 0
+#endif
+	tio.c_iflag &= ~(IUCLC|IXON|IXOFF|IXANY);
+	tio.c_lflag &= ~(ECHO|ECHOE|ECHOK|ECHONL|TOSTOP);
+	tcsetattr(fd, TCSANOW, &tio);
 
-	size = sizeof(passwd);
-	ret = passwd;
-	memset(passwd, 0, size);
-
-	fputs(prompt, stdout);
-	fflush(stdout);
-
-	tcgetattr(STDIN_FILENO, &new);
-	new.c_iflag &= ~(IUCLC|IXON|IXOFF|IXANY);
-	new.c_lflag &= ~(ECHO|ECHOE|ECHOK|ECHONL|TOSTOP);
-	tcsetattr(STDIN_FILENO, TCSANOW, &new);
-
+	memset(&sa, 0, sizeof(sa));
+	/* sa.sa_flags = 0; - no SA_RESTART! */
+	/* SIGINT and SIGALRM will interrupt reads below */
+	sa.sa_handler = askpass_timeout;
+	sigaction(SIGINT, &sa, &oldsa);
 	if (timeout) {
-		sa.sa_flags = 0;
-		sa.sa_handler = askpass_timeout;
-		sigaction(SIGALRM, &sa, NULL);
+		sigaction_set(SIGALRM, &sa);
 		alarm(timeout);
 	}
 
-	if (read(STDIN_FILENO, passwd, size-1) <= 0) {
-		ret = NULL;
-	} else {
-		for(i = 0; i < size && passwd[i]; i++) {
-			if (passwd[i]== '\r' || passwd[i] == '\n') {
-				passwd[i]= 0;
-				break;
-			}
+	fputs(prompt, stdout);
+	fflush_all();
+
+	if (!passwd)
+		passwd = xmalloc(sizeof_passwd);
+	ret = passwd;
+	i = 0;
+	while (1) {
+		int r = read(fd, &ret[i], 1);
+		if (r < 0) {
+			/* read is interrupted by timeout or ^C */
+			ret = NULL;
+			break;
+		}
+		if (r == 0 /* EOF */
+		 || ret[i] == '\r' || ret[i] == '\n' /* EOL */
+		 || ++i == sizeof_passwd-1 /* line limit */
+		) {
+			ret[i] = '\0';
+			break;
 		}
 	}
 
 	if (timeout) {
 		alarm(0);
 	}
-
-	tcsetattr(STDIN_FILENO, TCSANOW, &old);
-	fputs("\n", stdout);
-	fflush(stdout);
+	sigaction_set(SIGINT, &oldsa);
+	tcsetattr(fd, TCSANOW, &oldtio);
+	bb_putchar('\n');
+	fflush_all();
 	return ret;
 }
-

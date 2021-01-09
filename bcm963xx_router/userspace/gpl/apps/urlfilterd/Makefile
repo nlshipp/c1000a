@@ -5,14 +5,16 @@
 CFLAGS = -s -Os -fomit-frame-pointer
 CFLAGS += $(BRCM_WERROR_CFLAGS)
 CFLAGS += $(ACTION_TEC_DFLAGS)
-LDFLAGS = -Wl,-allow-shlib-undefined -L$(INSTALL_DIR)/lib/public -lcms_util -lcms_msg -L./libnfnetlink -L./libnetfilter_queue 
+LDFLAGS = -Wl,-allow-shlib-undefined -L$(INSTALL_DIR)/lib/public -lcms_util -lcms_msg -L./libnfnetlink -L./libnetfilter_queue
 ifeq ($(strip $(BUILD_URLFILTER)), static)
 CFLAGS += -DBUILD_STATIC 
 endif
 
 LIBS = -lnetfilter_queue -lnfnetlink
 CFLAGS+=-Wall -I./libnetfilter_queue/include -I./libnfnetlink/include -I$(BUILD_DIR)/userspace/public/include -I$(BUILD_DIR)/userspace/public/include/linux
-
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NCS)),) 
+CFLAGS += -Werror -Wfatal-errors 
+endif
 OBJS = filter.o 
 
 all: gen-libs urlfilterd

@@ -1,22 +1,30 @@
 /*
-<:copyright-gpl
- Copyright 2002 Broadcom Corp. All Rights Reserved.
+    Copyright 2000-2011 Broadcom Corporation
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */
-#if defined(CONFIG_BCM96816)
 
 #include <linux/types.h>
 #include <linux/kernel.h>
@@ -25,22 +33,82 @@
 #include <bcm_map_part.h>
 #include <linux/device.h>
 #include <bcmSpiRes.h>
+#include <spidevices.h>
 #include <board.h>
 #include <boardparms.h>
 #include <linux/mii.h>
 
-// board.h cannot declare spinlock, so do it here
+/***************************************************************************
+* File Name  : spidevices.c
+*
+* Description: This file contains the functions for communicating between a brcm
+*              cpe chip(63268) to another brcm cpe chip(6368) which is connected 
+*              as a spi slave device.
+*
+***************************************************************************/
+
+/*********************************************************************************************************
+ * Eg. configuration required for spi slave devices
+ * 
+ * 6368: BcmSpiReserveSlave2(HS_SPI_BUS_NUM, 7, 781000, SPI_MODE_3, SPI_CONTROLLER_STATE_GATE_CLK_SSOFF);
+ *
+ *
+ **********************************************************************************************************/
+
 extern spinlock_t bcm_gpio_spinlock;
 
 #define BCM_SPI_SLAVE_ID     1
-#define BCM_SPI_SLAVE_BUS    LEG_SPI_BUS_NUM
 #define BCM_SPI_SLAVE_FREQ   6250000
 
-// HW SPI supports 2 modes rev0 and rev1 - should use rev1 but can go back to rev0
-// by using the define below
-//#define USE_REV0_SPI_IF
+static unsigned int bcmSpiSlaveResetGpio = 0xFF;
+static unsigned int bcmSpiSlaveBus       = LEG_SPI_BUS_NUM;
+static unsigned int bcmSpiSlaveId        = BCM_SPI_SLAVE_ID;
+static unsigned int bcmSpiSlaveMaxFreq   = BCM_SPI_SLAVE_FREQ;
+static unsigned int bcmSpiSlaveMode      = SPI_MODE_DEFAULT;
+static unsigned int bcmSpiSlaveCtrState  = SPI_CONTROLLER_STATE_CPHA_EXT;
+static unsigned int bcmSpiSlaveProtoRev  = 1;
 
-#ifdef USE_REV0_SPI_IF
+
+// HW SPI supports 2 modes rev0 and rev1 
+
+static int kerSysBcmSpiSlaveInit_rev0(void);
+static int kerSysBcmSpiSlaveRead_rev0(unsigned long addr, unsigned long *data, unsigned long len);
+static int kerSysBcmSpiSlaveWrite_rev0(unsigned long addr, unsigned long data, unsigned long len);
+static int kerSysBcmSpiSlaveWriteBuf_rev0(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize);
+static int kerSysBcmSpiSlaveInit_rev1(void);
+static int kerSysBcmSpiSlaveRead_rev1(unsigned long addr, unsigned long *data, unsigned long len);
+static int kerSysBcmSpiSlaveWrite_rev1(unsigned long addr, unsigned long data, unsigned long len);
+static int kerSysBcmSpiSlaveWriteBuf_rev1(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize);
+
+
+static void getSpiSlaveDeviceInfo(void);
+static void resetSpiSlaveDevice(void);
+
+typedef int (*spiSlaveInit)( void );
+typedef int (*spiSlaveRead)(unsigned long addr, unsigned long *data, unsigned long len);
+typedef int (*spiSlaveWrite)(unsigned long addr, unsigned long data, unsigned long len);
+typedef int (*spiSlaveWriteBuf)(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize);
+
+typedef struct 
+{
+    spiSlaveInit slaveInit;
+    spiSlaveRead slaveRead;
+    spiSlaveWrite slaveWrite;
+    spiSlaveWriteBuf slaveWriteBuf;    
+} spiSlaveOps;
+
+static spiSlaveOps spiOps[2] = {
+                            {kerSysBcmSpiSlaveInit_rev0, kerSysBcmSpiSlaveRead_rev0, kerSysBcmSpiSlaveWrite_rev0, kerSysBcmSpiSlaveWriteBuf_rev0},
+                            {kerSysBcmSpiSlaveInit_rev1, kerSysBcmSpiSlaveRead_rev1, kerSysBcmSpiSlaveWrite_rev1, kerSysBcmSpiSlaveWriteBuf_rev1}
+                        };
+                                
+
+static uint8_t  init_seq_rev0[3] = { 0x11, 0x01, 0xfc };
+static uint8_t  init_adr_rev0[8] = { 0x11, 0x01, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static uint8_t  init_seq_rev1[3] = { 0x11, 0x01, 0xfd };
+static uint8_t  init_cfg_rev1[3] = { 0x11, 0x03, 0x58 };
+static uint8_t  init_adr_rev1[7] = { 0x11, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 static struct mutex bcmSpiSlaveMutex;
 
 static int spi_setup_addr( uint32_t addr, uint32_t len )
@@ -62,7 +130,7 @@ static int spi_setup_addr( uint32_t addr, uint32_t len )
    buf[5] = (uint8_t)(addr >> 16);
    buf[6] = (uint8_t)(addr >> 24);
 
-   status = BcmSpiSyncTrans(buf, NULL, 0, 7, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncTrans(buf, NULL, 0, 7, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "spi_setup_addr: BcmSpiSyncTrans error\n");
@@ -77,7 +145,7 @@ static int spi_read_status(uint8_t *data)
    uint8_t read_status[2] = {0x10, 0x00};
    int     status;
 
-   status = BcmSpiSyncTrans(read_status, &read_status[0], 2, 1, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncTrans(read_status, &read_status[0], 2, 1, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "spi_read_status: BcmSpiSyncTrans returned error\n");
@@ -89,7 +157,7 @@ static int spi_read_status(uint8_t *data)
    return(0);
 }
 
-int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long *data, unsigned long len)
+static int kerSysBcmSpiSlaveRead_rev0(unsigned long addr, unsigned long *data, unsigned long len)
 {
    uint8_t buf[4] = { 0, 0, 0, 0 };
    int     status;
@@ -100,20 +168,9 @@ int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long *data, unsigned long
    addr &= 0x1fffffff;
    spi_setup_addr( addr, len );
 
-   buf[0] = 0x11;
-   buf[1] = 0x01;
-   buf[2] = (((1 << len) - 1) << ((4 - len) - (addr & 3))) | 0x20;
-   status = BcmSpiSyncTrans(&buf[0], NULL, 0, 3, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-   if ( SPI_STATUS_OK != status )
-   {
-      printk(KERN_ERR "kerSysBcmSpiSlaveRead: BcmSpiSyncTrans returned error\n");
-      mutex_unlock(&bcmSpiSlaveMutex);
-      return(-1);
-   }
-
    buf[0] = 0x12;
    buf[1] = (uint8_t)(addr >> 0);
-   status = BcmSpiSyncTrans(&buf[0], &buf[0], 2, len, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncTrans(&buf[0], &buf[0], 2, len, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "kerSysBcmSpiSlaveRead: BcmSpiSyncTrans returned error\n");
@@ -136,7 +193,7 @@ int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long *data, unsigned long
    return(0);
 }
 
-int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long len)
+static int kerSysBcmSpiSlaveWrite_rev0(unsigned long addr, unsigned long data, unsigned long len)
 {
    uint8_t buf[6];
    int     status;
@@ -158,7 +215,7 @@ int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long
    buf[3] = data >> 16;
    buf[4] = data >> 8;
    buf[5] = data >> 0;
-   status = BcmSpiSyncTrans(buf, NULL, 0, 2 + len, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncTrans(buf, NULL, 0, 2 + len, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "kerSysBcmSpiSlaveWrite: BcmSpiSyncTrans returned error\n");
@@ -179,16 +236,15 @@ int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long
 }
 
 
-int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize)
+static int kerSysBcmSpiSlaveWriteBuf_rev0(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize)
 {
-   int            status;
+   int            status = SPI_STATUS_ERR;
    int            maxSize;
    unsigned char *pWriteData;
    unsigned long  nBytes = 0;
    unsigned long  length = len;   
 
-   /* determine the maximum size transfer taking setup bytes and unitSize into consideration */
-   maxSize    = BcmSpi_GetMaxRWSize(BCM_SPI_SLAVE_BUS);
+   maxSize    = BcmSpi_GetMaxRWSize(bcmSpiSlaveBus, 0);  
    maxSize   -= 2;
    maxSize   &= ~(unitSize - 1);
    pWriteData = kmalloc(maxSize+2, GFP_KERNEL);
@@ -214,7 +270,7 @@ int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned 
       pWriteData[0] = 0x13;
       pWriteData[1] = addr & 0xff;
       memcpy(&pWriteData[2], data, nBytes);
-      status = BcmSpiSyncTrans(&pWriteData[0], NULL, 0, nBytes+2, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+      status = BcmSpiSyncTrans(&pWriteData[0], NULL, 0, nBytes+2, bcmSpiSlaveBus, bcmSpiSlaveId);
       if ( SPI_STATUS_OK != status )
       {
          printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: BcmSpiSyncTrans returned error\n");
@@ -240,119 +296,24 @@ out:
    return( status );
 }
 
-#else
-
-int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long *data, unsigned long len)
+static int kerSysBcmSpiSlaveRead_rev1(unsigned long addr, unsigned long *data, unsigned long len)
 {
    struct spi_transfer xfer[2];
    uint8_t buf_0[3]  = { 0 };
-   uint8_t buf_1[12] = { 0 };
-   int     pollCount = 10;
-   int     status    = SPI_STATUS_OK;
+   uint8_t buf_1[20] = { 0 };
+   int     status;
+   int     i;
 
    *data = 0;
    switch ( len )
-   {
-      case 1: buf_0[2] = 0x00; break;
-      case 2: buf_0[2] = 0x20; break;
-      case 4: buf_0[2] = 0x40; break;
-      default: return(SPI_STATUS_INVALID_LEN);
-   }
-
-   while ( pollCount > 0 )
-   {
-      pollCount--;
-      memset(xfer, 0, (sizeof xfer));
-   
-      buf_0[0]         = 0x11;
-      buf_0[1]         = 0x03;
-      xfer[0].len      = 3;
-      xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[0].tx_buf   = &buf_0[0];
-
-      addr            &= 0x1fffffff;
-      buf_1[0]         = 0x10;
-      buf_1[1]         = 0xC0 | ((addr >>  0) & 0x3f);
-      buf_1[2]         = 0x80 | ((addr >>  6) & 0x7f);
-      buf_1[3]         = 0x80 | ((addr >> 13) & 0x7f);
-      buf_1[4]         = 0x80 | ((addr >> 20) & 0x7f);
-      buf_1[5]         = 0x00 | ((addr >> 27) & 0x1f);
-      xfer[1].len      = 7 + len;
-      xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[1].tx_buf   = &buf_1[0];
-      xfer[1].rx_buf   = &buf_1[0];
-
-      if (irqs_disabled() || (preempt_count() != 0))
-      {
-         status = BcmSpiSyncMultTransNoSched(&xfer[0], 2, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-      }
-      else
-      {
-         status = BcmSpiSyncMultTrans(&xfer[0], 2, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-      }
-
-      if ( SPI_STATUS_OK != status )
-      {
-         printk(KERN_ERR "kerSysBcmSpiSlaveRead: BcmSpiSyncMultTrans returned error\n");
-         return(SPI_STATUS_ERR);
-      }
-
-      /* check the status of the read
-         first 6 bytes correspond to the written data, 7th byte will be the read status */
-      if ( 0x01 & buf_1[6] )
-      {
-         /* completed successfully */
-         *data = (buf_1[6+1] << 24) | (buf_1[6+2] << 16) | (buf_1[6+3] << 8) | buf_1[6+4];
-         *data >>= ((4 - len) * 8);
-         break;
-      }
-      else if ( (0x0E & buf_1[6]) || ( 0 == pollCount ) )
-      {
-          buf_0[0]         = 0x10;
-          buf_0[1]         = 0x02;
-          xfer[3].len      = 3;
-          xfer[3].speed_hz = BCM_SPI_SLAVE_FREQ;
-          xfer[3].tx_buf   = &buf_0[0];
-          xfer[3].rx_buf   = &buf_0[0];
-
-          if (irqs_disabled() || (preempt_count() != 0))
-          {
-             status = BcmSpiSyncMultTransNoSched(&xfer[0], 2, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-          }
-          else
-          {
-             status = BcmSpiSyncMultTrans(&xfer[0], 2, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-          }
-
-          if (0x0E & buf_1[6])
-             printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI error: %x\n", buf_0[2] );
-          else
-             printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI read timed out: %x\n", buf_0[2] );
-            
-          status = SPI_STATUS_ERR;
-          break;
-      }
-   }
-
-   return( status );
-   
-}
-
-
-int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long len)
-{
-   struct spi_transfer xfer[3];
-   uint8_t buf_0[3]  = { 0 };
-   uint8_t buf_1[10] = { 0 };
-   uint8_t buf_2[12] = { 0 };
-   int     pollCount = 0;
-   int     status    = SPI_STATUS_OK;
-
-   switch ( len )
-   {
-      case 1: buf_0[2] = 0x00; break;
-      case 2: buf_0[2] = 0x20; break;
-      case 4: buf_0[2] = 0x40; break;
+   {  
+      /* a read includes up to 10 status bytes,
+         if read completes with one status byte slave will
+         start reading next address. Disable address auto
+         increment to avoid memory faults */
+      case 1: buf_0[2] = 0x00 | 0x08; break;
+      case 2: buf_0[2] = 0x20 | 0x08; break;
+      case 4: buf_0[2] = 0x40 | 0x08; break;
       default: return(SPI_STATUS_INVALID_LEN);
    }
 
@@ -361,99 +322,9 @@ int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long
    buf_0[0]         = 0x11;
    buf_0[1]         = 0x03;
    xfer[0].len      = 3;
-   xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
+   xfer[0].speed_hz = bcmSpiSlaveMaxFreq;
    xfer[0].tx_buf   = &buf_0[0];
-
-   addr            &= 0x1fffffff;
-   data           <<= 8 * (4 - len);
-   buf_1[0]         = 0x11;
-   buf_1[1]         = 0xC0 | ((addr >>  0) & 0x3f);
-   buf_1[2]         = 0x80 | ((addr >>  6) & 0x7f);
-   buf_1[3]         = 0x80 | ((addr >> 13) & 0x7f);
-   buf_1[4]         = 0x80 | ((addr >> 20) & 0x7f);
-   buf_1[5]         = 0x00 | ((addr >> 27) & 0x1f);
-   buf_1[6]         = data >> 24;
-   buf_1[7]         = data >> 16;
-   buf_1[8]         = data >> 8;
-   buf_1[9]         = data >> 0;
-   xfer[1].len      = 6 + len;
-   xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[1].tx_buf   = &buf_1[0];
-   xfer[1].rx_buf   = &buf_1[0];
-
-   buf_2[0]         = 0x10;
-   buf_2[1]         = 0x02;
-   xfer[2].len      = 10;
-   xfer[2].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[2].tx_buf   = &buf_2[0];
-   xfer[2].rx_buf   = &buf_2[0];
- 
-   if (irqs_disabled() || (preempt_count() != 0))
-   {
-      status = BcmSpiSyncMultTransNoSched(&xfer[0], 3, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-   }
-   else
-   {
-      status = BcmSpiSyncMultTrans(&xfer[0], 3, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-   }
-
-   if ( SPI_STATUS_OK != status )
-   {
-      printk(KERN_ERR "kerSysBcmSpiSlaveWrite: BcmSpiSyncMultTrans returned error\n");
-      return(SPI_STATUS_ERR);
-   }
-
-   /* skip past the written data */
-   for( pollCount = 2; pollCount < 10; pollCount++ )
-   {
-      if ( 0x00 == (0xC0 & buf_2[pollCount]) )
-      {
-         if ( 0x00 != (0xE & buf_2[pollCount]) )
-         {
-            printk(KERN_ERR "kerSysBcmSpiSlaveWrite: SPI error: %x\n", buf_2[pollCount] );
-            status = SPI_STATUS_ERR;
-         }
-         break;
-      }      
-   }
-
-   if ( pollCount >= 10 )
-   {
-      printk(KERN_ERR "kerSysBcmSpiSlaveWrite: SPI timeout: %x\n", buf_2[9] );
-      status = SPI_STATUS_ERR;
-   }
-
-   return( status );
-   
-}
-
-
-int kerSysBcmSpiSlaveReadNoSched(unsigned long addr, unsigned long *data, unsigned long len)
-{
-   struct spi_transfer xfer[4];
-   uint8_t buf_0[3]  = { 0 };
-   uint8_t buf_1[6]  = { 0 };
-   uint8_t buf_2[15] = { 0 };
-   uint8_t buf_3[3]  = { 0 };
-   int     pollCount = 0;
-   int     status    = SPI_STATUS_OK;
-
-   *data = 0;
-   switch ( len )
-   {
-      case 1: buf_0[2] = 0x00; break;
-      case 2: buf_0[2] = 0x20; break;
-      case 4: buf_0[2] = 0x40; break;
-      default: return(SPI_STATUS_INVALID_LEN);
-   }
-
-   memset(xfer, 0, (sizeof xfer));
-   
-   buf_0[0]         = 0x11;
-   buf_0[1]         = 0x03;
-   xfer[0].len      = 3;
-   xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[0].tx_buf   = &buf_0[0];
+   xfer[0].cs_change = 1;
 
    addr            &= 0x1fffffff;
    buf_1[0]         = 0x10;
@@ -462,67 +333,79 @@ int kerSysBcmSpiSlaveReadNoSched(unsigned long addr, unsigned long *data, unsign
    buf_1[3]         = 0x80 | ((addr >> 13) & 0x7f);
    buf_1[4]         = 0x80 | ((addr >> 20) & 0x7f);
    buf_1[5]         = 0x00 | ((addr >> 27) & 0x1f);
-   xfer[1].len      = 6;
-   xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
+   xfer[1].len      = 20; /* 6 cmd bytes, 1-4 data bytes, 10-13 status bytes */
+   xfer[1].speed_hz = bcmSpiSlaveMaxFreq;
    xfer[1].tx_buf   = &buf_1[0];
+   xfer[1].rx_buf   = &buf_1[0];
+   xfer[1].cs_change = 1;
 
-   buf_2[0]         = 0x10;
-   buf_2[1]         = 0x80 | (addr & 0x3f);
-   xfer[2].len      = 15;
-   xfer[2].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[2].tx_buf   = &buf_2[0];
-   xfer[2].rx_buf   = &buf_2[0];
-
-   buf_3[0]         = 0x10;
-   buf_3[1]         = 0x02;
-   xfer[3].len      = 3;
-   xfer[3].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[3].tx_buf   = &buf_3[0];
-   xfer[3].rx_buf   = &buf_3[0];
-  
-   status = BcmSpiSyncMultTransNoSched(&xfer[0], 4, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncMultTrans(&xfer[0], 2, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "kerSysBcmSpiSlaveRead: BcmSpiSyncMultTrans returned error\n");
       return(SPI_STATUS_ERR);
    }
 
-   /* first two bytes correspond to the data we wrote so ignore them */
-   for( pollCount = 2; pollCount < 15; pollCount++ )
+   /* there can be up to 10 status bytes starting at index 6 */
+   for ( i = 6; i < (20 - len); i++)
    {
-      if ( 0x01 & buf_2[pollCount] )
+      if ( 0x01 & buf_1[i] )
       {
          /* completed successfully */
-         *data = (buf_2[pollCount+1] << 24) | (buf_2[pollCount+2] << 16) | (buf_2[pollCount+3] << 8) | buf_2[pollCount+4];
-         *data >>= ((4 - len) * 8);
-         break;
+         switch ( len )
+         {
+            case 1: 
+               *data = buf_1[i+1]; 
+               break;
+            case 2: 
+               *data = (buf_1[i+1] << 8) | buf_1[i+2];
+               break;
+            case 4:
+            default: 
+               *data = (buf_1[i+1] << 24) | (buf_1[i+2] << 16) | 
+                       (buf_1[i+3] <<  8) | buf_1[i+4];
+               break;
+         }
+         return SPI_STATUS_OK;
       }
-      else if ( 0x0E & buf_2[pollCount] )
-      {         
-         printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI error: %x\n", buf_3[2] );
-         status = SPI_STATUS_ERR;
-         break;
+      else if ( 0x02 & buf_1[i] )
+      {
+          buf_0[0]         = 0x10;
+          buf_0[1]         = 0x02;
+          xfer[0].len      = 3;
+          xfer[0].speed_hz = bcmSpiSlaveMaxFreq;
+          xfer[0].tx_buf   = &buf_0[0];
+          xfer[0].rx_buf   = &buf_0[0];
+
+          BcmSpiSyncMultTrans(&xfer[0], 1, bcmSpiSlaveBus, bcmSpiSlaveId);
+          printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI error: %x\n", buf_0[2] );
+          return SPI_STATUS_ERR;
       }
    }
 
-   if ( pollCount >= 15 )
-   {
-      printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI timeout: %x\n", buf_3[2] );
-      status = SPI_STATUS_ERR;
-   }
+   /* read did not complete - read status register and return error 
+      note that number of status bytes read should prevent this from happening */
+   buf_0[0]         = 0x10;
+   buf_0[1]         = 0x02;
+   xfer[0].len      = 3;
+   xfer[0].speed_hz = bcmSpiSlaveMaxFreq;
+   xfer[0].tx_buf   = &buf_0[0];
+   xfer[0].rx_buf   = &buf_0[0];
+   BcmSpiSyncMultTrans(&xfer[0], 1, bcmSpiSlaveBus, bcmSpiSlaveId);
+   printk(KERN_ERR "kerSysBcmSpiSlaveRead: SPI timeout: %x\n", buf_0[2] );
 
-   return( status );
+   return( SPI_STATUS_ERR );
    
 }
 
-int kerSysBcmSpiSlaveWriteNoSched(unsigned long addr, unsigned long data, unsigned long len)
+
+static int kerSysBcmSpiSlaveWrite_rev1(unsigned long addr, unsigned long data, unsigned long len)
 {
    struct spi_transfer xfer[3];
+   int                 status;
    uint8_t buf_0[3]  = { 0 };
    uint8_t buf_1[10] = { 0 };
-   uint8_t buf_2[12] = { 0 };
-   int     pollCount = 0;
-   int     status    = SPI_STATUS_OK;
+   uint8_t buf_2[3]  = { 0 };
 
    switch ( len )
    {
@@ -533,79 +416,67 @@ int kerSysBcmSpiSlaveWriteNoSched(unsigned long addr, unsigned long data, unsign
    }
 
    memset(xfer, 0, (sizeof xfer));
-   
-   buf_0[0]         = 0x11;
-   buf_0[1]         = 0x03;
-   xfer[0].len      = 3;
-   xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[0].tx_buf   = &buf_0[0];
+   buf_0[0]          = 0x11;
+   buf_0[1]          = 0x03;
+   xfer[0].len       = 3;
+   xfer[0].speed_hz  = bcmSpiSlaveMaxFreq;
+   xfer[0].tx_buf    = &buf_0[0];
+   xfer[0].cs_change = 1;
 
-   addr            &= 0x1fffffff;
-   data           <<= 8 * (4 - len);
-   buf_1[0]         = 0x11;
-   buf_1[1]         = 0xC0 | ((addr >>  0) & 0x3f);
-   buf_1[2]         = 0x80 | ((addr >>  6) & 0x7f);
-   buf_1[3]         = 0x80 | ((addr >> 13) & 0x7f);
-   buf_1[4]         = 0x80 | ((addr >> 20) & 0x7f);
-   buf_1[5]         = 0x00 | ((addr >> 27) & 0x1f);
-   buf_1[6]         = data >> 24;
-   buf_1[7]         = data >> 16;
-   buf_1[8]         = data >> 8;
-   buf_1[9]         = data >> 0;
-   xfer[1].len      = 6 + len;
-   xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[1].tx_buf   = &buf_1[0];
-   xfer[1].rx_buf   = &buf_1[0];
+   addr               &= 0x1fffffff;
+   data              <<= 8 * (4 - len);
+   buf_1[0]            = 0x11;
+   buf_1[1]            = 0xC0 | ((addr >>  0) & 0x3f);
+   buf_1[2]            = 0x80 | ((addr >>  6) & 0x7f);
+   buf_1[3]            = 0x80 | ((addr >> 13) & 0x7f);
+   buf_1[4]            = 0x80 | ((addr >> 20) & 0x7f);
+   buf_1[5]            = 0x00 | ((addr >> 27) & 0x1f);
+   buf_1[6]            = data >> 24;
+   buf_1[7]            = data >> 16;
+   buf_1[8]            = data >> 8;
+   buf_1[9]            = data >> 0;
+   xfer[1].len         = 6 + len;
+   xfer[1].speed_hz    = bcmSpiSlaveMaxFreq;
+   xfer[1].tx_buf      = &buf_1[0];
+   xfer[1].rx_buf      = &buf_1[0];
+   xfer[1].cs_change   = 1;
+   xfer[1].delay_usecs = 10; /* delay to allow write to complete */
 
-   buf_2[0]         = 0x10;
-   buf_2[1]         = 0x02;
-   xfer[2].len      = 10;
-   xfer[2].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[2].tx_buf   = &buf_2[0];
-   xfer[2].rx_buf   = &buf_2[0];
+   buf_2[0]          = 0x10;
+   buf_2[1]          = 0x02;
+   xfer[2].len       = 3;
+   xfer[2].speed_hz  = bcmSpiSlaveMaxFreq;
+   xfer[2].tx_buf    = &buf_2[0];
+   xfer[2].rx_buf    = &buf_2[0];
+   xfer[2].cs_change = 1;
  
-   status = BcmSpiSyncMultTransNoSched(&xfer[0], 3, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   status = BcmSpiSyncMultTrans(&xfer[0], 3, bcmSpiSlaveBus, bcmSpiSlaveId);
    if ( SPI_STATUS_OK != status )
    {
       printk(KERN_ERR "kerSysBcmSpiSlaveWrite: BcmSpiSyncMultTrans returned error\n");
-      return(SPI_STATUS_ERR);
+      return(status);
    }
 
-   /* skip past the written data */
-   for( pollCount = 2; pollCount < 10; pollCount++ )
+   if ( buf_2[2] != 0 )
    {
-      if ( 0x00 == (0xC0 & buf_2[pollCount]) )
-      {
-         if ( 0x00 != (0xE & buf_2[pollCount]) )
-         {
-            printk(KERN_ERR "kerSysBcmSpiSlaveWrite: SPI error: %x\n", buf_2[pollCount] );
-            status = SPI_STATUS_ERR;
-         }
-         break;
-      }      
+      /* transfer timed out or there was an error */
+      printk(KERN_ERR "kerSysBcmSpiSlaveWrite: SPI error: %x\n", buf_2[2] );
+      return SPI_STATUS_ERR;
    }
 
-   if ( pollCount >= 10 )
-   {
-      printk(KERN_ERR "kerSysBcmSpiSlaveWrite: SPI timeout: %x\n", buf_2[9] );
-      status = SPI_STATUS_ERR;
-   }
+   return SPI_STATUS_OK;
 
-   return( status );
-   
 }
 
 
-int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize)
+static int kerSysBcmSpiSlaveWriteBuf_rev1(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize)
 {
-   struct spi_transfer xfer[4];
-   uint8_t             buf_0[3]  = { 0 };
-   uint8_t             buf_1[6]  = { 0 };
-   uint8_t             buf_2[12] = { 0 };
-   int                 status    = SPI_STATUS_OK;
-   int                 pollCount = 0;
-   unsigned long       length    = len;
-   unsigned long       nBytes    = 0;
+   struct spi_transfer xfer[8];
+   uint8_t             buf_0[3] = { 0 };
+   uint8_t             buf_1[3] = { 0 };
+   int                 status;
+   unsigned long       length   = len;
+   unsigned long       nBytes   = 0;
    int                 maxSize;
    unsigned char      *pWriteData;
 
@@ -616,108 +487,74 @@ int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned 
       case 4: buf_0[2] = 0x40; break;
       default: return(SPI_STATUS_INVALID_LEN);
    }
-   
-   /* determine the maximum size transfer taking setup bytes and unitSize into consideration */
-   maxSize    = BcmSpi_GetMaxRWSize(BCM_SPI_SLAVE_BUS);
-   maxSize   -= 2;
+
+ 
+   maxSize    = BcmSpi_GetMaxRWSize(bcmSpiSlaveBus, 0); // No Autobuffer
+   maxSize   -= 6;      /* account for command bytes */
    maxSize   &= ~(unitSize - 1);
-   pWriteData = kmalloc(maxSize+2, GFP_KERNEL);
+   pWriteData = kmalloc(maxSize+6, GFP_KERNEL);
    if ( NULL == pWriteData )
    {
       printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: Out of memory\n");
       return(SPI_STATUS_ERR);
    }
-
-   memset(xfer, 0, (sizeof xfer));
+   
+   memset(&xfer[0], 0, sizeof(struct spi_transfer)*8);
    addr &= 0x1fffffff;
    while ( length > 0 )
    {
-      buf_0[0] = 0x11;
-      buf_0[1] = 0x03;
-      switch ( unitSize )
-      {
-         case 1: buf_0[2] = 0x00; break;
-         case 2: buf_0[2] = 0x20; break;
-         case 4: buf_0[2] = 0x40; break;
-         default: kfree(pWriteData); return(SPI_STATUS_INVALID_LEN);
-      }
-      xfer[0].len      = 3;
-      xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[0].tx_buf   = &buf_0[0]; 
+      buf_0[0]          = 0x11;
+      buf_0[1]          = 0x03;
+      xfer[0].len       = 3;
+      xfer[0].speed_hz  = bcmSpiSlaveMaxFreq;
+      xfer[0].tx_buf    = &buf_0[0];
+      xfer[0].cs_change = 1;
 
-      buf_1[0]         = 0x11;
-      buf_1[1]         = 0x05;
-      buf_1[2]         = (addr >>  0);
-      buf_1[3]         = (addr >>  8);
-      buf_1[4]         = (addr >> 16);
-      buf_1[5]         = (addr >> 24);
-      xfer[1].len      = 6;
-      xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[1].tx_buf   = &buf_1[0];
+      nBytes              = (length > maxSize) ? maxSize : length;
+      pWriteData[0]            = 0x11;
+      pWriteData[1]            = 0xC0 | ((addr >>  0) & 0x3f);
+      pWriteData[2]            = 0x80 | ((addr >>  6) & 0x7f);
+      pWriteData[3]            = 0x80 | ((addr >> 13) & 0x7f);
+      pWriteData[4]            = 0x80 | ((addr >> 20) & 0x7f);
+      pWriteData[5]            = 0x00 | ((addr >> 27) & 0x1f);
+      memcpy(&pWriteData[6], data, nBytes);
+      xfer[1].len         = 6 + nBytes;
+      xfer[1].speed_hz    = bcmSpiSlaveMaxFreq;
+      xfer[1].tx_buf      = pWriteData;
+      xfer[1].cs_change   = 1;
+      xfer[1].delay_usecs = 30; /* delay to allow write to complete */
 
-      nBytes           = (length > maxSize) ? maxSize : length;
-      pWriteData[0]    = 0x11;
-      pWriteData[1]    = 0x80 | (addr & 0x3f);
-      memcpy(&pWriteData[2], data, nBytes);
-      xfer[2].len      = 2 + nBytes;
-      xfer[2].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[2].tx_buf   = &pWriteData[0];
+      buf_1[0]          = 0x10;
+      buf_1[1]          = 0x02;
+      xfer[2].len       = 3;
+      xfer[2].speed_hz  = bcmSpiSlaveMaxFreq;
+      xfer[2].tx_buf    = &buf_1[0];
+      xfer[2].rx_buf    = &buf_1[0];
+      xfer[2].cs_change = 1;
 
-      buf_2[0]         = 0x10;
-      buf_2[1]         = 0x02;
-      xfer[3].len      = 10;
-      xfer[3].speed_hz = BCM_SPI_SLAVE_FREQ;
-      xfer[3].tx_buf   = &buf_2[0];
-      xfer[3].rx_buf   = &buf_2[0];
-
-      if (irqs_disabled() || (preempt_count() != 0))
-      {
-         status = BcmSpiSyncMultTransNoSched(&xfer[0], 4, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-      }
-      else
-      {
-         status = BcmSpiSyncMultTrans(&xfer[0], 4, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
-      }
-
+      status = BcmSpiSyncMultTrans(&xfer[0], 3, bcmSpiSlaveBus, bcmSpiSlaveId);
       if ( SPI_STATUS_OK != status )
       {
          printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: BcmSpiSyncMultTrans returned error\n");
          kfree(pWriteData);
-         return(SPI_STATUS_ERR);
+         return(status);
       }
 
-      /* skip past the written data */
-      for( pollCount = 2; pollCount < 10; pollCount++ )
+      if ( buf_1[2] != 0 )
       {
-         //printk("status %02x\n", buf_2[pollCount]);
-         if ( 0x00 == (0xC0 & buf_2[pollCount]) )
-         {
-            if ( 0x00 != (0xE & buf_2[pollCount]) )
-            {
-               printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: SPI error: %x\n", buf_2[pollCount] );
-               kfree(pWriteData);
-               return(SPI_STATUS_ERR);
-            }
-            break;
-         }      
-      } 
-      
-      if ( pollCount >= 10 )
-      {
-         printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: SPI timeout: %x\n", buf_2[9] );
-         return(SPI_STATUS_ERR);
+         /* transfer timed out or there was an error */
+         printk(KERN_ERR "kerSysBcmSpiSlaveWriteBuf: SPI error: %x\n", buf_1[2] );
+         kfree(pWriteData);
+         return SPI_STATUS_ERR;
       }
-
       addr    = (unsigned int)addr + nBytes;
       data    = (unsigned long *)((unsigned long)data + nBytes);
       length -= nBytes;
    }
 
    kfree(pWriteData);
-
-   return( status );
+   return SPI_STATUS_OK;
 }
-#endif
 
 unsigned long kerSysBcmSpiSlaveReadReg32(unsigned long addr)
 {
@@ -746,22 +583,137 @@ void kerSysBcmSpiSlaveWriteReg32(unsigned long addr, unsigned long data)
 
 }
 
-static int kerSysBcmSpiSlaveInit( void )
+ 
+static void resetSpiSlaveDevice(void)
+{
+   // unsigned long flags;
+    
+    printk(KERN_ERR "Entering %s: bcmSpiSlaveResetGpio = %d\n", __FUNCTION__, bcmSpiSlaveResetGpio);  
+
+    if ( bcmSpiSlaveResetGpio != 0xFF )
+    {
+        kerSysSetGpioState(bcmSpiSlaveResetGpio,  kGpioInactive);
+        mdelay(1);
+        kerSysSetGpioState(bcmSpiSlaveResetGpio,  kGpioActive); 
+        mdelay(350);
+    }
+  
+}
+
+static void getSpiSlaveDeviceInfo(void)
+{ 
+    unsigned short gpio;
+    unsigned short slaveId;
+    unsigned short slaveBus;
+    unsigned short slaveMode;  
+    unsigned long  ctrlState;  
+    unsigned long  slaveMaxFreq;     
+    unsigned short protoRev;
+    
+    if ( BpGetSpiSlaveResetGpio(&gpio) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveResetGpio = gpio;
+        printk(KERN_INFO "%s: bcmSpiSlaveResetGpio = %d\n", __FUNCTION__, bcmSpiSlaveResetGpio);        
+    }
+
+    if ( BpGetSpiSlaveSelectNum(&slaveId) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveId = slaveId;
+        printk(KERN_INFO"%s: bcmSpiSlaveId = %d\n", __FUNCTION__, bcmSpiSlaveId);          
+    }
+    
+    if ( BpGetSpiSlaveBusNum(&slaveBus) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveBus = slaveBus;
+        printk(KERN_INFO "%s: bcmSpiSlaveBus = %d\n", __FUNCTION__, bcmSpiSlaveBus);           
+    }
+    
+    if ( BpGetSpiSlaveMode(&slaveMode) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveMode = slaveMode;
+        printk(KERN_INFO "%s: bcmSpiSlaveMode = %d\n", __FUNCTION__, bcmSpiSlaveMode);            
+    }
+
+    if ( BpGetSpiSlaveCtrlState(&ctrlState) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveCtrState = ctrlState;
+        printk(KERN_INFO "%s: bcmSpiSlaveCtrState = 0x%x\n", __FUNCTION__, bcmSpiSlaveCtrState);           
+    }
+    
+    if ( BpGetSpiSlaveMaxFreq(&slaveMaxFreq) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveMaxFreq = slaveMaxFreq;
+        printk(KERN_INFO "%s: bcmSpiSlaveMaxFreq = %d\n", __FUNCTION__, bcmSpiSlaveMaxFreq);          
+    }     
+    
+    if ( BpGetSpiSlaveProtoRev(&protoRev) == BP_SUCCESS ) 
+    {
+        bcmSpiSlaveProtoRev = protoRev;
+        printk(KERN_INFO "%s: bcmSpiSlaveProtoRev = %d\n", __FUNCTION__, bcmSpiSlaveProtoRev);                  
+    }       
+}
+
+int kerSysBcmSpiSlaveInit_rev0( void )
+{
+    unsigned long data;
+    int32_t       retVal = 0;
+    int           status;
+    struct spi_transfer xfer[2];
+   
+    mutex_init(&bcmSpiSlaveMutex);
+
+    status = BcmSpiReserveSlave2(bcmSpiSlaveBus, bcmSpiSlaveId, bcmSpiSlaveMaxFreq, bcmSpiSlaveMode, bcmSpiSlaveCtrState);
+    if ( SPI_STATUS_OK != status )
+    {
+      printk(KERN_ERR "%s: BcmSpiReserveSlave2 returned error %d\n", __FUNCTION__, status);
+      return(SPI_STATUS_ERR);
+    }
+  
+    memset(xfer, 0, (sizeof xfer));
+    xfer[0].len         = 3;
+    xfer[0].speed_hz    = bcmSpiSlaveMaxFreq;
+    xfer[0].tx_buf      = &init_seq_rev0[0];
+    xfer[0].cs_change   = 1;
+    xfer[0].delay_usecs = 10;
+    
+    xfer[1].len         = 8;
+    xfer[1].speed_hz    = bcmSpiSlaveMaxFreq;
+    xfer[1].tx_buf      = &init_adr_rev0[0];
+    xfer[1].cs_change   = 1;
+    xfer[1].delay_usecs = 10;
+    
+    status = BcmSpiSyncMultTrans(&xfer[0], 2, bcmSpiSlaveBus, bcmSpiSlaveId);
+    if ( SPI_STATUS_OK != status )
+    {
+      printk(KERN_ERR "%s: BcmSpiSyncMultTrans returned error\n", __FUNCTION__);
+      return(SPI_STATUS_ERR);
+    }
+    
+    if ((kerSysBcmSpiSlaveRead(0x10000000, &data, 4) == -1) ||
+       (data == 0) || (data == 0xffffffff))
+    {   
+      printk(KERN_ERR "%s: Failed to read the Chip ID: 0x%08x\n", __FUNCTION__, (unsigned int)data);
+      return -1;
+    }
+    else
+    {
+      printk(KERN_INFO "%s: Chip ID: 0x%08x\n", __FUNCTION__, (unsigned int)data);
+    }
+
+    
+    return( retVal );
+
+}
+
+int kerSysBcmSpiSlaveInit_rev1( void )
 {
    unsigned long data;
-   int32_t       retVal      = 0;
+   int32_t       retVal = 0;
    int           status;
-#ifdef USE_REV0_SPI_IF
-   uint8_t       init_seq[3] = { 0x11, 0x01, 0xfc };
-   uint8_t       init_cfg[3] = { 0x11, 0x01, 0x0f };
-   uint8_t       init_adr[7] = { 0x11, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00 };
-#else   
-   uint8_t       init_seq[3] = { 0x11, 0x01, 0xfd };
-   uint8_t       init_cfg[3] = { 0x11, 0x03, 0x58 };
-   uint8_t       init_adr[7] = { 0x11, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00 };
-#endif
-
    struct spi_transfer xfer[3];
+
+#if defined(CONFIG_BCM96816)
+   uint32        miscStrapBus; 
    unsigned long flags;
 
    /* the 6829 should only be reset for the BHR board and not the BHRGR board
@@ -775,47 +727,92 @@ static int kerSysBcmSpiSlaveInit( void )
    GPIO->GPIODir  &=  ~2;
    spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
 
-#ifdef USE_REV0_SPI_IF
-   mutex_init(&bcmSpiSlaveMutex);
-#endif
-
-   BcmSpiReserveSlave(LEG_SPI_BUS_NUM, BCM_SPI_SLAVE_ID, BCM_SPI_SLAVE_FREQ);
-
-   memset(xfer, 0, (sizeof xfer));
-
-   xfer[0].len      = 3;
-   xfer[0].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[0].tx_buf   = &init_seq[0];
-
-   xfer[1].len      = 3;
-   xfer[1].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[1].tx_buf   = &init_cfg[0];
-
-   xfer[2].len      = 7;
-   xfer[2].speed_hz = BCM_SPI_SLAVE_FREQ;
-   xfer[2].tx_buf   = &init_adr[0];
-
-   status = BcmSpiSyncMultTrans(&xfer[0], 3, BCM_SPI_SLAVE_BUS, BCM_SPI_SLAVE_ID);
+   miscStrapBus = MISC->miscStrapBus;
+   if ( miscStrapBus & MISC_STRAP_BUS_LS_SPIM_ENABLED )
+   {
+      bcmSpiSlaveBus = LEG_SPI_BUS_NUM;
+   }
+   else
+   {
+      bcmSpiSlaveBus = HS_SPI_BUS_NUM;
+   }
+  status =  BcmSpiReserveSlave2(bcmSpiSlaveBus, BCM_SPI_SLAVE_ID, BCM_SPI_SLAVE_FREQ, SPI_MODE_DEFAULT, SPI_CONTROLLER_STATE_CPHA_EXT); 
+#else
+   status = BcmSpiReserveSlave2(bcmSpiSlaveBus, bcmSpiSlaveId, bcmSpiSlaveMaxFreq, bcmSpiSlaveMode, bcmSpiSlaveCtrState);
+#endif   
    if ( SPI_STATUS_OK != status )
    {
-      printk(KERN_ERR "kerSysBcmSpiSlaveInit: BcmSpiSyncMultTrans returned error\n");
+       printk(KERN_ERR "%s: BcmSpiSyncMultTrans returned error\n", __FUNCTION__);
+       return(SPI_STATUS_ERR);
+   }
+
+   memset(xfer, 0, (sizeof xfer));
+   xfer[0].len         = 3;
+   xfer[0].speed_hz    = bcmSpiSlaveMaxFreq;
+   xfer[0].tx_buf      = &init_seq_rev1[0];
+   xfer[0].cs_change   = 1;
+   xfer[0].delay_usecs = 10;
+   
+   xfer[1].len         = 3;
+   xfer[1].speed_hz    = bcmSpiSlaveMaxFreq;
+   xfer[1].tx_buf      = &init_cfg_rev1[0];
+   xfer[1].cs_change   = 1;
+   xfer[1].delay_usecs = 10;
+   
+   xfer[2].len         = 7;
+   xfer[2].speed_hz    = bcmSpiSlaveMaxFreq;
+   xfer[2].tx_buf      = &init_adr_rev1[0];
+   xfer[2].cs_change   = 1;
+   xfer[2].delay_usecs = 10;
+
+   status = BcmSpiSyncMultTrans(&xfer[0], 3, bcmSpiSlaveBus, bcmSpiSlaveId);
+   if ( SPI_STATUS_OK != status )
+   {
+      printk(KERN_ERR "%s: BcmSpiSyncMultTrans returned error\n", __FUNCTION__);
       return(SPI_STATUS_ERR);
    }
 
    if ((kerSysBcmSpiSlaveRead(0x10000000, &data, 4) == -1) ||
        (data == 0) || (data == 0xffffffff))
    {   
-      printk(KERN_ERR "kerSysBcmSpiSlaveInit: Failed to read the Chip ID: 0x%08x\n", (unsigned int)data);
+      printk(KERN_ERR "%s: Failed to read the Chip ID: 0x%08x\n", __FUNCTION__, (unsigned int)data);
       return -1;
    }
    else
    {
-      printk(KERN_INFO "kerSysBcmSpiSlaveInit: Chip ID: 0x%08x\n", (unsigned int)data);
+      printk(KERN_INFO "%s: Chip ID: 0x%08x\n", __FUNCTION__, (unsigned int)data);
    }
+
 
    return( retVal );
 
 }
+
+int kerSysBcmSpiSlaveInit( void )
+{
+    getSpiSlaveDeviceInfo();             
+    resetSpiSlaveDevice();             
+
+    return spiOps[bcmSpiSlaveProtoRev].slaveInit();
+}
+
+int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long * data, unsigned long len)
+{
+    return spiOps[bcmSpiSlaveProtoRev].slaveRead(addr, data, len);
+}
+
+int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long len)
+{
+    return spiOps[bcmSpiSlaveProtoRev].slaveWrite(addr, data, len);
+}
+
+int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize)
+{
+    return spiOps[bcmSpiSlaveProtoRev].slaveWriteBuf(addr, data, len, unitSize);
+}
+
+
+#if defined(CONFIG_BCM96816)  
 
 #define REG_MDIO_CTRL_WRITE                       (1 << 31)
 #define REG_MDIO_CTRL_READ                        (1 << 30)
@@ -855,7 +852,7 @@ static void ethswMdioWrite6829(int phy_id, int reg, uint16_t *data)
     
 }
 
-
+   
 void board_Init6829( void )
 {
    unsigned char     portInfo6829;
@@ -864,8 +861,8 @@ void board_Init6829( void )
    unsigned long     data2;
    ETHERNET_MAC_INFO EnetInfo;
    int               i;
-   
-   /* disable interfaces on the 6829 that are not being used */
+
+    /* disable interfaces on the 6829 that are not being used */
    retVal = BpGet6829PortInfo(&portInfo6829);
    if ( (BP_SUCCESS == retVal) && (0 != portInfo6829))
    {
@@ -1029,8 +1026,9 @@ void board_Init6829( void )
       kerSysBcmSpiSlaveWrite(0xb0000004, data, 4);
       udelay(500); 
    }
+ 
 }
-
+#endif
 #if 0
 void board_Reset6829( void )
 {
@@ -1044,6 +1042,4 @@ void board_Reset6829( void )
       kerSysBcmSpiSlaveWriteReg32(0xb0000008, 0x0);
    }
 }
-#endif
-
 #endif

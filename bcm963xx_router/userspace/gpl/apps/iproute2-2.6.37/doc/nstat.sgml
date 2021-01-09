@@ -24,7 +24,7 @@ to all of them.
 <tt/PATTERN/ is shell style pattern, selecting identifier
 of SNMP variables or interfaces to show. Variable is displayed
 if one of patterns matches its name. If no patterns are given,
-<tt/Xstat/ assumes that user wants to see all the variables.  
+<tt/Xstat/ assumes that user wants to see all the variables.
 
 <p> <tt/OPTIONS/ is list of single letter options, using common unix
 conventions.
@@ -45,7 +45,7 @@ conventions.
                 statistics. <tt/INTERVAL/ is interval between measurements
                 in seconds.
 <item><tt/-t INTERVAL/ - time interval to average rates. Default value
-                is 60 seconds. 
+                is 60 seconds.
 <item><tt/-e/ - display extended information about errors (<tt/ifstat/ only).
 </itemize>
 

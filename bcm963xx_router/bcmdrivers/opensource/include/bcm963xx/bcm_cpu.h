@@ -20,6 +20,12 @@
 #ifndef __BCM_CPU_H
 #define __BCM_CPU_H
 
+#if defined(CONFIG_BCM96318)
+#include <6318_cpu.h>
+#endif
+#if defined(CONFIG_BCM96828)
+#include <6828_cpu.h>
+#endif
 #if defined(CONFIG_BCM963268)
 #include <63268_cpu.h>
 #endif
@@ -31,6 +37,9 @@
 #endif
 #if defined(CONFIG_BCM96816)
 #include <6816_cpu.h>
+#endif
+#if defined(CONFIG_BCM96818)
+#include <6818_cpu.h>
 #endif
 #if defined(CONFIG_BCM96362)
 #include <6362_cpu.h>

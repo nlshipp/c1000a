@@ -42,6 +42,7 @@
 /*=====================================================================*/
 #define INTERNAL_ISR_TABLE_OFFSET       8
 #define INTERNAL_HIGH_ISR_TABLE_OFFSET  (INTERNAL_ISR_TABLE_OFFSET + 32)
+#define INTERNAL_EXT_ISR_TABLE_OFFSET   (INTERNAL_HIGH_ISR_TABLE_OFFSET + 32)
 
 /*=====================================================================*/
 /* Logical Peripheral Interrupt IDs                                    */
@@ -109,8 +110,6 @@
 #define INTERRUPT_ID_ATM_DMA_6           (INTERNAL_HIGH_ISR_TABLE_OFFSET + 29)
 #define INTERRUPT_ID_ATM_DMA_7           (INTERNAL_HIGH_ISR_TABLE_OFFSET + 30)
 
-#define INTERRUPT_ID_LAST                INTERRUPT_ID_ATM_DMA_7
-
 #define INTERRUPT_ID_ENETSW_TX_DMA_0     (INTERNAL_EXT_ISR_TABLE_OFFSET + 0)
 #define INTERRUPT_ID_ENETSW_TX_DMA_1     (INTERNAL_EXT_ISR_TABLE_OFFSET + 1)
 #define INTERRUPT_ID_ENETSW_TX_DMA_2     (INTERNAL_EXT_ISR_TABLE_OFFSET + 2)
@@ -128,6 +127,11 @@
 #define INTERRUPT_ID_ATM_DMA_18          (INTERNAL_EXT_ISR_TABLE_OFFSET + 14)
 #define INTERRUPT_ID_ATM_DMA_19          (INTERNAL_EXT_ISR_TABLE_OFFSET + 15)
 #define INTERRUPT_ID_LS_SPIM             (INTERNAL_EXT_ISR_TABLE_OFFSET + 16)
+#define INTERRUPT_ID_GMAC_DMA_0          (INTERNAL_EXT_ISR_TABLE_OFFSET + 17)
+#define INTERRUPT_ID_GMAC_DMA_1          (INTERNAL_EXT_ISR_TABLE_OFFSET + 18)
+#define INTERRUPT_ID_GMAC                (INTERNAL_EXT_ISR_TABLE_OFFSET + 19)
+
+#define INTERRUPT_ID_LAST                INTERRUPT_ID_GMAC
 
 
 #ifdef __cplusplus

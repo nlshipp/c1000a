@@ -20,7 +20,7 @@ EGDEV="dev eth1"
 # tag the rest of incoming packets from subnet 10.2.0.0/24 to value 3
 #These values are used in the egress
 #
-############################################################ 
+############################################################
 $IPCHAINS -A input -s 10.2.0.4/24 -m 3
 $IPCHAINS -A input -i $INDEV -s 10.2.0.24 -m 1
 $IPCHAINS -A input -i $INDEV -s 10.2.0.3 -m 2

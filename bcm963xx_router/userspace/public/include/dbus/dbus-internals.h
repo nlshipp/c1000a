@@ -4,7 +4,7 @@
  * Copyright (C) 2002, 2003  Red Hat, Inc.
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -14,7 +14,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -56,8 +56,8 @@ void _dbus_warn_check_failed  (const char *format,
 
 /*
  * (code from GLib)
- * 
- * The _DBUS_LIKELY and _DBUS_UNLIKELY macros let the programmer give hints to 
+ *
+ * The _DBUS_LIKELY and _DBUS_UNLIKELY macros let the programmer give hints to
  * the compiler about the expected result of an expression. Some compilers
  * can use this information for optimizations.
  *
@@ -84,16 +84,16 @@ void _dbus_warn_check_failed  (const char *format,
 #ifdef DBUS_ENABLE_VERBOSE_MODE
 
 /*
- at least gnu cc and msvc compiler are known to 
+ at least gnu cc and msvc compiler are known to
  have support for variable macro argument lists
  add other compilers is required
 */
-#if defined(__GNUC__) || defined(_MSC_VER) 
+#if defined(__GNUC__) || defined(_MSC_VER)
 #define DBUS_CPP_SUPPORTS_VARIABLE_MACRO_ARGUMENTS
 #endif
 
 #ifdef DBUS_CPP_SUPPORTS_VARIABLE_MACRO_ARGUMENTS
-void _dbus_verbose_real       (const char *file, const int line, const char *function, 
+void _dbus_verbose_real       (const char *file, const int line, const char *function,
                                const char *format,...) _DBUS_GNUC_PRINTF (4, 5);
 #  define _dbus_verbose(fmt,...) _dbus_verbose_real( __FILE__,__LINE__,__FUNCTION__,fmt, ## __VA_ARGS__)
 #else
@@ -115,7 +115,7 @@ dbus_bool_t _dbus_is_verbose_real (void);
 static void _dbus_verbose(const char * x,...) {;}
 #  endif
 #  define _dbus_verbose_reset()
-#  define _dbus_is_verbose() FALSE 
+#  define _dbus_is_verbose() FALSE
 #endif /* !DBUS_ENABLE_VERBOSE_MODE */
 
 const char* _dbus_strerror (int error_number);
@@ -299,7 +299,7 @@ extern int _dbus_current_generation;
 /* Thread initializers */
 #define _DBUS_LOCK_NAME(name)           _dbus_lock_##name
 #define _DBUS_DECLARE_GLOBAL_LOCK(name) extern DBusMutex  *_dbus_lock_##name
-#define _DBUS_DEFINE_GLOBAL_LOCK(name)  DBusMutex         *_dbus_lock_##name  
+#define _DBUS_DEFINE_GLOBAL_LOCK(name)  DBusMutex         *_dbus_lock_##name
 #define _DBUS_LOCK(name)                _dbus_mutex_lock   (_dbus_lock_##name)
 #define _DBUS_UNLOCK(name)              _dbus_mutex_unlock (_dbus_lock_##name)
 

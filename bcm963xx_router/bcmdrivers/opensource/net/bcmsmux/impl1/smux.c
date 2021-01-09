@@ -41,7 +41,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
 
 int smux_dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev);
-int smux_dev_set_mac_address(struct net_device *dev, 
+int smux_dev_set_mac_address(struct net_device *dev,
                              void *addr_struct_p);
 int smux_dev_change_mtu(struct net_device *vdev, int new_mtu);
 int smux_dev_open(struct net_device *vdev);
@@ -68,7 +68,7 @@ static const struct net_device_ops smux_netdev_ops2 = {
 
 
 /***************************************************************************
-                         Global variables 
+                         Global variables
  ***************************************************************************/
 
 static DEFINE_RWLOCK(smux_lock);
@@ -121,11 +121,11 @@ static inline struct smux_dev_info *list_entry_smuxdev(const struct list_head *l
 
 /***************************************************************************
  * Function Name: __find_smux_in_smux_group
- * Description  : returns the smux device from smux group of devices 
+ * Description  : returns the smux device from smux group of devices
  * Returns      : struct net_device
  ***************************************************************************/
 static struct net_device *__find_smux_in_smux_group(
-                                     struct smux_group *smux_grp, 
+                                     struct smux_group *smux_grp,
                                      const char *ifname)
 {
   struct list_head *lh;
@@ -151,7 +151,7 @@ static struct net_device *__find_smux_in_smux_group(
  * Description  : packet recv routine for all smux devices from real dev.
  * Returns      : 0 on Success
  ***************************************************************************/
-int smux_pkt_recv(struct sk_buff *skb, 
+int smux_pkt_recv(struct sk_buff *skb,
                   struct net_device *dev,
                   struct net_device *rdev)
 {
@@ -195,7 +195,7 @@ int smux_pkt_recv(struct sk_buff *skb,
 
       vdev = dev_info->vdev;
       if((dev_info->proto == SMUX_PROTO_PPPOE) &&
-         (skb->protocol != htons(ETH_P_PPP_DISC)) && 
+         (skb->protocol != htons(ETH_P_PPP_DISC)) &&
          (skb->protocol != htons(ETH_P_PPP_SES))) {
            DPRINTK("non-PPPOE packet dropped on RX dev %s\n", vdev->name);
       }
@@ -204,7 +204,7 @@ int smux_pkt_recv(struct sk_buff *skb,
         blog_link(IF_DEVICE, blog_ptr(skb), (void*)vdev, DIR_RX, skb->len);
 #endif
         dev_info->stats.rx_packets++;
-        dev_info->stats.rx_bytes += skb->len; 
+        dev_info->stats.rx_bytes += skb->len;
         skb2 = skb_copy(skb, GFP_ATOMIC);
         skb2->dev = vdev;
         skb2->pkt_type = PACKET_HOST;
@@ -213,7 +213,7 @@ int smux_pkt_recv(struct sk_buff *skb,
     }
 
     if((dev_info_first->proto == SMUX_PROTO_PPPOE) &&
-       (skb->protocol != htons(ETH_P_PPP_DISC)) && 
+       (skb->protocol != htons(ETH_P_PPP_DISC)) &&
        (skb->protocol != htons(ETH_P_PPP_SES))) {
          DPRINTK("non-PPPOE packet dropped on RX dev %s\n", vdev->name);
          dev_kfree_skb(skb);
@@ -224,14 +224,14 @@ int smux_pkt_recv(struct sk_buff *skb,
                 (void*)dev_info_first->vdev, DIR_RX, skb->len);
 #endif
       dev_info_first->stats.rx_packets++;
-      dev_info_first->stats.rx_bytes += skb->len; 
+      dev_info_first->stats.rx_bytes += skb->len;
       skb->dev = dev_info_first->vdev;
       skb->pkt_type = PACKET_HOST;
       netif_rx(skb);
     }
     isTxDone = 1;
   }
-  else 
+  else
   {
     /* Routing Interface Traffic : check dst mac */
     list_for_each(lh, &grp->virtual_devs) {
@@ -240,7 +240,7 @@ int smux_pkt_recv(struct sk_buff *skb,
       if (!compare_ether_addr(dstAddr, vdev->dev_addr)) {
 
         if((dev_info->proto == SMUX_PROTO_PPPOE) &&
-           (skb->protocol != htons(ETH_P_PPP_DISC)) && 
+           (skb->protocol != htons(ETH_P_PPP_DISC)) &&
            (skb->protocol != htons(ETH_P_PPP_SES))) {
            DPRINTK("non-PPPOE packet dropped on RX dev %s\n", vdev->name);
            dev_kfree_skb(skb);
@@ -251,7 +251,7 @@ int smux_pkt_recv(struct sk_buff *skb,
 #endif
           skb->dev = vdev;
           dev_info->stats.rx_packets++;
-          dev_info->stats.rx_bytes += skb->len; 
+          dev_info->stats.rx_bytes += skb->len;
 	  skb->pkt_type = PACKET_HOST;
           netif_rx(skb);
         }
@@ -261,7 +261,7 @@ int smux_pkt_recv(struct sk_buff *skb,
     }
   }
 
-  if(isTxDone != 1) 
+  if(isTxDone != 1)
   {
     /* Bridging Interface Traffic */
     list_for_each(lh, &grp->virtual_devs) {
@@ -273,7 +273,7 @@ int smux_pkt_recv(struct sk_buff *skb,
 #endif
         skb->dev = vdev;
         dev_info->stats.rx_packets++;
-        dev_info->stats.rx_bytes += skb->len; 
+        dev_info->stats.rx_bytes += skb->len;
         skb->pkt_type = PACKET_HOST;
         netif_rx(skb);
         isTxDone = 1;
@@ -304,7 +304,7 @@ int smux_dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
   blog_link(IF_DEVICE, blog_ptr(skb), (void*)dev, DIR_TX, skb->len);
 #endif
 
-  stats->tx_packets++; 
+  stats->tx_packets++;
   stats->tx_bytes += skb->len;
 
   skb->dev = SMUX_DEV_INFO(dev)->smux_grp->real_dev;
@@ -316,7 +316,7 @@ int smux_dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 /***************************************************************************
  * Function Name: smux_dev_open
- * Description  : 
+ * Description  :
  * Returns      : 0 on Success
  ***************************************************************************/
 int smux_dev_open(struct net_device *vdev)
@@ -330,7 +330,7 @@ int smux_dev_open(struct net_device *vdev)
 
 /***************************************************************************
  * Function Name: smux_dev_stop
- * Description  : 
+ * Description  :
  * Returns      : 0 on Success
  ***************************************************************************/
 int smux_dev_stop(struct net_device *dev)
@@ -343,7 +343,7 @@ int smux_dev_stop(struct net_device *dev)
  * Description  : sets the mac for devs
  * Returns      : 0 on Success
  ***************************************************************************/
-int smux_dev_set_mac_address(struct net_device *dev, 
+int smux_dev_set_mac_address(struct net_device *dev,
                              void *addr_struct_p)
 {
   struct sockaddr *addr = (struct sockaddr *)(addr_struct_p);
@@ -440,7 +440,7 @@ static void smux_dev_clear_stats(struct net_device * dev_p)
         return;
 
     dStats_p = smux_dev_get_stats(dev_p);
-    cStats_p = smux_dev_get_cstats(dev_p); 
+    cStats_p = smux_dev_get_cstats(dev_p);
     bStats_p = smux_dev_get_bstats(dev_p);
 
     blog_notify(FETCH_NETIF_STATS, (void*)dev_p, 0, BLOG_PARAM1_DO_CLEAR);
@@ -518,7 +518,7 @@ int smux_dev_change_mtu(struct net_device *vdev, int new_mtu)
 static void smux_setup(struct net_device *new_dev)
 {
   SET_MODULE_OWNER(new_dev);
- 
+
   /* Make this thing known as a SMUX device */
   new_dev->priv_flags |= IFF_OSMUX;
 
@@ -550,10 +550,10 @@ static void smux_setup(struct net_device *new_dev)
 
 /***************************************************************************
  * Function Name: smux_transfer_operstate
- * Description  : updates the operstate of overlay device 
+ * Description  : updates the operstate of overlay device
  * Returns      : None.
  ***************************************************************************/
-static void smux_transfer_operstate(const struct net_device *rdev, 
+static void smux_transfer_operstate(const struct net_device *rdev,
                                     struct net_device *vdev)
 {
 
@@ -574,7 +574,7 @@ static void smux_transfer_operstate(const struct net_device *rdev,
 
 /***************************************************************************
  * Function Name: smux_register_device
- * Description  : regists new overlay device on real device & registers for 
+ * Description  : regists new overlay device on real device & registers for
                   packet handlers depending on the protocol types
  * Returns      : 0 on Success
  ***************************************************************************/
@@ -600,7 +600,7 @@ static struct net_device *smux_register_device(const char *rifname,
                                                int smux_proto)
 {
   struct net_device *new_dev = NULL;
-  struct net_device *real_dev = NULL; 
+  struct net_device *real_dev = NULL;
   struct smux_group *grp = NULL;
   struct smux_dev_info *vdev_info = NULL;
   int    mac_reused = 0;
@@ -619,7 +619,7 @@ static struct net_device *smux_register_device(const char *rifname,
     goto real_dev_invalid;
   }
 
-  new_dev = alloc_netdev(sizeof(struct smux_dev_info), 
+  new_dev = alloc_netdev(sizeof(struct smux_dev_info),
                          nifname,
                          smux_setup);
 
@@ -635,7 +635,7 @@ static struct net_device *smux_register_device(const char *rifname,
   new_dev->priv_flags  |= (real_dev->priv_flags & ~IFF_RSMUX);
   real_dev->priv_flags |= IFF_RSMUX;
 
-  new_dev->state = (real_dev->state & 
+  new_dev->state = (real_dev->state &
                     ((1<<__LINK_STATE_NOCARRIER) |
                      (1<<__LINK_STATE_DORMANT))) |
                      (1<<__LINK_STATE_PRESENT);
@@ -659,7 +659,7 @@ static struct net_device *smux_register_device(const char *rifname,
       INIT_LIST_HEAD(&grp->virtual_devs);
       INIT_LIST_HEAD(&grp->smux_grp_devs);
 
-        
+
       grp->real_dev = real_dev;
 
       write_lock_irq(&smux_lock);
@@ -684,7 +684,7 @@ static struct net_device *smux_register_device(const char *rifname,
       else {
         list_for_each(lh, &grp->virtual_devs) {
           vdev_info = list_entry_smuxdev(lh);
-          if (!compare_ether_addr(real_dev->dev_addr, 
+          if (!compare_ether_addr(real_dev->dev_addr,
                                  vdev_info->vdev->dev_addr)) {
             mac_reused = 1;
             break;
@@ -698,7 +698,7 @@ static struct net_device *smux_register_device(const char *rifname,
           int i;
           unsigned long unit = 0, mscId = 0, macId = 0;
           char *p;
-          
+
           /* Read and display the MAC address. */
           new_dev->dev_addr[0] = 0xff;
 
@@ -816,7 +816,7 @@ static int smux_unregister_device(const char* vifname)
    unregister_netdev(vdev);
 
    synchronize_net();
-   dev_put(real_dev); 
+   dev_put(real_dev);
 
    ret = 0;
   }
@@ -829,8 +829,8 @@ static int smux_unregister_device(const char* vifname)
  * Description  : handles real device events to update overlay devs. status
  * Returns      : 0 on Success
  ***************************************************************************/
-static int smux_device_event(struct notifier_block *unused, 
-                             unsigned long event, 
+static int smux_device_event(struct notifier_block *unused,
+                             unsigned long event,
                              void *ptr)
 {
   struct net_device *rdev = ptr;

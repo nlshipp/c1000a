@@ -1,110 +1,102 @@
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/wait.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <time.h>
-
+/* vi: set sw=4 ts=4: */
+/*
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
+ */
+#include "common.h"
 #include "dhcpd.h"
-#include "leases.h"
-#include "libbb_udhcp.h"
+#include "unicode.h"
 
-#define REMAINING 0
-#define ABSOLUTE 1
-
-
-#ifndef IN_BUSYBOX
-static void __attribute__ ((noreturn)) show_usage(void)
+#if BB_LITTLE_ENDIAN
+static inline uint64_t hton64(uint64_t v)
 {
-	printf(
-"Usage: dumpleases -f <file> -[r|a]\n\n"
-"  -f, --file=FILENAME             Leases file to load\n"
-"  -r, --remaining                 Interepret lease times as time remaing\n"
-"  -a, --absolute                  Interepret lease times as expire time\n");
-	exit(0);
+        return (((uint64_t)htonl(v)) << 32) | htonl(v >> 32);
 }
 #else
-#define show_usage bb_show_usage
+#define hton64(v) (v)
 #endif
+#define ntoh64(v) hton64(v)
 
 
-#ifdef IN_BUSYBOX
-int dumpleases_main(int argc, char *argv[])
-#else
-int main(int argc, char *argv[])
-#endif
+int dumpleases_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int dumpleases_main(int argc UNUSED_PARAM, char **argv)
 {
-	FILE *fp;
-	int i, c, mode = REMAINING;
-	long expires;
+	int fd;
+	int i;
+	unsigned opt;
+	int64_t written_at, curr, expires_abs;
 	const char *file = LEASES_FILE;
-	struct dhcpOfferedAddr lease;
+	struct dyn_lease lease;
 	struct in_addr addr;
 
-	static const struct option options[] = {
-		{"absolute", 0, 0, 'a'},
-		{"remaining", 0, 0, 'r'},
-		{"file", 1, 0, 'f'},
-		{0, 0, 0, 0}
+	enum {
+		OPT_a	= 0x1,	// -a
+		OPT_r	= 0x2,	// -r
+		OPT_f	= 0x4,	// -f
 	};
+#if ENABLE_LONG_OPTS
+	static const char dumpleases_longopts[] ALIGN1 =
+		"absolute\0"  No_argument       "a"
+		"remaining\0" No_argument       "r"
+		"file\0"      Required_argument "f"
+		;
 
-	while (1) {
-		int option_index = 0;
-		c = getopt_long(argc, argv, "arf:", options, &option_index);
-		if (c == -1) break;
+	applet_long_options = dumpleases_longopts;
+#endif
+	init_unicode();
 
-		switch (c) {
-		case 'a': mode = ABSOLUTE; break;
-		case 'r': mode = REMAINING; break;
-		case 'f':
-			file = optarg;
-			break;
-		default:
-			show_usage();
-		}
-	}
+	opt_complementary = "=0:a--r:r--a";
+	opt = getopt32(argv, "arf:", &file);
 
-	fp = xfopen(file, "r");
+	fd = xopen(file, O_RDONLY);
 
-	printf("Mac Address       IP-Address      Expires %s\n", mode == REMAINING ? "in" : "at");
-	/*     "00:00:00:00:00:00 255.255.255.255 Wed Jun 30 21:49:08 1993" */
-	while (fread(&lease, sizeof(lease), 1, fp)) {
+	printf("Mac Address       IP Address      Host Name           Expires %s\n", (opt & OPT_a) ? "at" : "in");
+	/*     "00:00:00:00:00:00 255.255.255.255 ABCDEFGHIJKLMNOPQRS Wed Jun 30 21:49:08 1993" */
+	/*     "123456789 123456789 123456789 123456789 123456789 123456789 123456789 123456789 */
 
+	xread(fd, &written_at, sizeof(written_at));
+	written_at = ntoh64(written_at);
+	curr = time(NULL);
+	if (curr < written_at)
+		written_at = curr; /* lease file from future! :) */
+
+	while (full_read(fd, &lease, sizeof(lease)) == sizeof(lease)) {
+		const char *fmt = ":%02x" + 1;
 		for (i = 0; i < 6; i++) {
-			printf("%02x", lease.chaddr[i]);
-			if (i != 5) printf(":");
+			printf(fmt, lease.lease_mac[i]);
+			fmt = ":%02x";
 		}
-		addr.s_addr = lease.yiaddr;
-		printf(" %-15s", inet_ntoa(addr));
-		expires = ntohl(lease.expires);
-		printf(" ");
-		if (mode == REMAINING) {
-			if (!expires) printf("expired\n");
-			else {
-				if (expires > 60*60*24) {
-					printf("%ld days, ", expires / (60*60*24));
-					expires %= 60*60*24;
-				}
-				if (expires > 60*60) {
-					printf("%ld hours, ", expires / (60*60));
-					expires %= 60*60;
-				}
-				if (expires > 60) {
-					printf("%ld minutes, ", expires / 60);
-					expires %= 60;
-				}
-				printf("%ld seconds\n", expires);
-			}
-		} else printf("%s", ctime(&expires));
+		addr.s_addr = lease.lease_nip;
+#if ENABLE_UNICODE_SUPPORT
+		{
+			char *uni_name = unicode_conv_to_printable_fixedwidth(NULL, lease.hostname, 19);
+			printf(" %-16s%s ", inet_ntoa(addr), uni_name);
+			free(uni_name);
+		}
+#else
+		/* actually, 15+1 and 19+1, +1 is a space between columns */
+		/* lease.hostname is char[20] and is always NUL terminated */
+		printf(" %-16s%-20s", inet_ntoa(addr), lease.hostname);
+#endif
+		expires_abs = ntohl(lease.expires) + written_at;
+		if (expires_abs <= curr) {
+			puts("expired");
+			continue;
+		}
+		if (!(opt & OPT_a)) { /* no -a */
+			unsigned d, h, m;
+			unsigned expires = expires_abs - curr;
+			d = expires / (24*60*60); expires %= (24*60*60);
+			h = expires / (60*60); expires %= (60*60);
+			m = expires / 60; expires %= 60;
+			if (d)
+				printf("%u days ", d);
+			printf("%02u:%02u:%02u\n", h, m, (unsigned)expires);
+		} else { /* -a */
+			time_t t = expires_abs;
+			fputs(ctime(&t), stdout);
+		}
 	}
-	fclose(fp);
+	/* close(fd); */
 
 	return 0;
 }

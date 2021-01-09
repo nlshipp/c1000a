@@ -2,10 +2,12 @@
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 headers = \
+	acls.h	\
 	attrib.h	\
 	attrlist.h	\
 	bitmap.h	\
 	bootsect.h	\
+	cache.h		\
 	collate.h	\
 	compat.h	\
 	compress.h	\
@@ -13,6 +15,7 @@ headers = \
 	device.h	\
 	device_io.h	\
 	dir.h		\
+	efs.h		\
 	endians.h	\
 	index.h		\
 	inode.h		\
@@ -24,12 +27,17 @@ headers = \
 	misc.h		\
 	mst.h		\
 	ntfstime.h	\
+	object_id.h	\
+	param.h	\
+	realpath.h	\
+	reparse.h	\
 	runlist.h	\
 	security.h	\
 	support.h	\
 	types.h		\
 	unistr.h	\
-	volume.h
+	volume.h 	\
+	xattrs.h
 
 if INSTALL_LIBRARY
 ntfs3ginclude_HEADERS = $(headers)

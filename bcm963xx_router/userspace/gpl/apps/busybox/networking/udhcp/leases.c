@@ -1,158 +1,175 @@
+/* vi: set sw=4 ts=4: */
 /*
- * leases.c -- tools to manage DHCP leases
  * Russ Dill <Russ.Dill@asu.edu> July 2001
+ *
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
  */
-
-#include <time.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-#include "dhcpd.h"
-#include "files.h"
-#include "options.h"
-#include "leases.h"
-#include "arpping.h"
 #include "common.h"
+#include "dhcpd.h"
 
-#include "static_leases.h"
-
-
-uint8_t blank_chaddr[] = {[0 ... 15] = 0};
-
-/* clear every lease out that chaddr OR yiaddr matches and is nonzero */
-void clear_lease(uint8_t *chaddr, uint32_t yiaddr)
+/* Find the oldest expired lease, NULL if there are no expired leases */
+static struct dyn_lease *oldest_expired_lease(void)
 {
-	unsigned int i, j;
+	struct dyn_lease *oldest_lease = NULL;
+	leasetime_t oldest_time = time(NULL);
+	unsigned i;
 
-	for (j = 0; j < 16 && !chaddr[j]; j++);
-
-	for (i = 0; i < server_config.max_leases; i++)
-		if ((j != 16 && !memcmp(leases[i].chaddr, chaddr, 16)) ||
-		    (yiaddr && leases[i].yiaddr == yiaddr)) {
-			memset(&(leases[i]), 0, sizeof(struct dhcpOfferedAddr));
+	/* Unexpired leases have g_leases[i].expires >= current time
+	 * and therefore can't ever match */
+	for (i = 0; i < server_config.max_leases; i++) {
+		if (g_leases[i].expires < oldest_time) {
+			oldest_time = g_leases[i].expires;
+			oldest_lease = &g_leases[i];
 		}
+	}
+	return oldest_lease;
 }
 
-
-/* add a lease into the table, clearing out any old ones */
-struct dhcpOfferedAddr *add_lease(uint8_t *chaddr, uint32_t yiaddr, unsigned long lease)
+/* Clear out all leases with matching nonzero chaddr OR yiaddr.
+ * If chaddr == NULL, this is a conflict lease.
+ */
+static void clear_leases(const uint8_t *chaddr, uint32_t yiaddr)
 {
-	struct dhcpOfferedAddr *oldest;
+	unsigned i;
+
+	for (i = 0; i < server_config.max_leases; i++) {
+		if ((chaddr && memcmp(g_leases[i].lease_mac, chaddr, 6) == 0)
+		 || (yiaddr && g_leases[i].lease_nip == yiaddr)
+		) {
+			memset(&g_leases[i], 0, sizeof(g_leases[i]));
+		}
+	}
+}
+
+/* Add a lease into the table, clearing out any old ones.
+ * If chaddr == NULL, this is a conflict lease.
+ */
+struct dyn_lease* FAST_FUNC add_lease(
+		const uint8_t *chaddr, uint32_t yiaddr,
+		leasetime_t leasetime,
+		const char *hostname, int hostname_len)
+{
+	struct dyn_lease *oldest;
 
 	/* clean out any old ones */
-	clear_lease(chaddr, yiaddr);
+	clear_leases(chaddr, yiaddr);
 
 	oldest = oldest_expired_lease();
 
 	if (oldest) {
-		memcpy(oldest->chaddr, chaddr, 16);
-		oldest->yiaddr = yiaddr;
-		oldest->expires = time(0) + lease;
+		memset(oldest, 0, sizeof(*oldest));
+		if (hostname) {
+			char *p;
+
+			hostname_len++; /* include NUL */
+			if (hostname_len > sizeof(oldest->hostname))
+				hostname_len = sizeof(oldest->hostname);
+			p = safe_strncpy(oldest->hostname, hostname, hostname_len);
+			/* sanitization (s/non-ASCII/^/g) */
+			while (*p) {
+				if (*p < ' ' || *p > 126)
+					*p = '^';
+				p++;
+			}
+		}
+		if (chaddr)
+			memcpy(oldest->lease_mac, chaddr, 6);
+		oldest->lease_nip = yiaddr;
+		oldest->expires = time(NULL) + leasetime;
 	}
 
 	return oldest;
 }
 
-
-/* true if a lease has expired */
-int lease_expired(struct dhcpOfferedAddr *lease)
+/* True if a lease has expired */
+int FAST_FUNC is_expired_lease(struct dyn_lease *lease)
 {
-	return (lease->expires < (unsigned long) time(0));
+	return (lease->expires < (leasetime_t) time(NULL));
 }
 
-
-/* Find the oldest expired lease, NULL if there are no expired leases */
-struct dhcpOfferedAddr *oldest_expired_lease(void)
+/* Find the first lease that matches MAC, NULL if no match */
+struct dyn_lease* FAST_FUNC find_lease_by_mac(const uint8_t *mac)
 {
-	struct dhcpOfferedAddr *oldest = NULL;
-	unsigned long oldest_lease = time(0);
-	unsigned int i;
-
+	unsigned i;
 
 	for (i = 0; i < server_config.max_leases; i++)
-		if (oldest_lease > leases[i].expires) {
-			oldest_lease = leases[i].expires;
-			oldest = &(leases[i]);
-		}
-	return oldest;
-
-}
-
-
-/* Find the first lease that matches chaddr, NULL if no match */
-struct dhcpOfferedAddr *find_lease_by_chaddr(uint8_t *chaddr)
-{
-	unsigned int i;
-
-	for (i = 0; i < server_config.max_leases; i++)
-		if (!memcmp(leases[i].chaddr, chaddr, 16)) return &(leases[i]);
+		if (memcmp(g_leases[i].lease_mac, mac, 6) == 0)
+			return &g_leases[i];
 
 	return NULL;
 }
 
-
-/* Find the first lease that matches yiaddr, NULL is no match */
-struct dhcpOfferedAddr *find_lease_by_yiaddr(uint32_t yiaddr)
+/* Find the first lease that matches IP, NULL is no match */
+struct dyn_lease* FAST_FUNC find_lease_by_nip(uint32_t nip)
 {
-	unsigned int i;
+	unsigned i;
 
 	for (i = 0; i < server_config.max_leases; i++)
-		if (leases[i].yiaddr == yiaddr) return &(leases[i]);
+		if (g_leases[i].lease_nip == nip)
+			return &g_leases[i];
 
 	return NULL;
 }
 
-
-/* check is an IP is taken, if it is, add it to the lease table */
-static int check_ip(uint32_t addr)
+/* Check if the IP is taken; if it is, add it to the lease table */
+static int nobody_responds_to_arp(uint32_t nip, const uint8_t *safe_mac)
 {
 	struct in_addr temp;
+	int r;
 
-	if (arpping(addr, server_config.server, server_config.arp, server_config.interface) == 0) {
-		temp.s_addr = addr;
-		LOG(LOG_INFO, "%s belongs to someone, reserving it for %ld seconds",
-			inet_ntoa(temp), server_config.conflict_time);
-		add_lease(blank_chaddr, addr, server_config.conflict_time);
-		return 1;
-	} else return 0;
+	r = arpping(nip, safe_mac,
+			server_config.server_nip,
+			server_config.server_mac,
+			server_config.interface);
+	if (r)
+		return r;
+
+	temp.s_addr = nip;
+	bb_info_msg("%s belongs to someone, reserving it for %u seconds",
+		inet_ntoa(temp), (unsigned)server_config.conflict_time);
+	add_lease(NULL, nip, server_config.conflict_time, NULL, 0);
+	return 0;
 }
 
-
-/* find an assignable address, it check_expired is true, we check all the expired leases as well.
- * Maybe this should try expired leases by age... */
-uint32_t find_address(int check_expired)
+/* Find a new usable (we think) address */
+uint32_t FAST_FUNC find_free_or_expired_nip(const uint8_t *safe_mac)
 {
-	uint32_t addr, ret;
-	struct dhcpOfferedAddr *lease = NULL;
+	uint32_t addr;
+	struct dyn_lease *oldest_lease = NULL;
 
-	addr = ntohl(server_config.start); /* addr is in host order here */
-	for (;addr <= ntohl(server_config.end); addr++) {
+	addr = server_config.start_ip; /* addr is in host order here */
+	for (; addr <= server_config.end_ip; addr++) {
+		uint32_t nip;
+		struct dyn_lease *lease;
 
 		/* ie, 192.168.55.0 */
-		if (!(addr & 0xFF)) continue;
-
+		if ((addr & 0xff) == 0)
+			continue;
 		/* ie, 192.168.55.255 */
-		if ((addr & 0xFF) == 0xFF) continue;
+		if ((addr & 0xff) == 0xff)
+			continue;
+		nip = htonl(addr);
+		/* is this a static lease addr? */
+		if (is_nip_reserved(server_config.static_leases, nip))
+			continue;
 
-		/* Only do if it isn't an assigned as a static lease */
-		if(!reservedIp(server_config.static_leases, htonl(addr)))
-		{
-
-		/* lease is not taken */
-		ret = htonl(addr);
-		if ((!(lease = find_lease_by_yiaddr(ret)) ||
-
-		     /* or it expired and we are checking for expired leases */
-		     (check_expired  && lease_expired(lease))) &&
-
-		     /* and it isn't on the network */
-	    	     !check_ip(ret)) {
-			return ret;
-			break;
+		lease = find_lease_by_nip(nip);
+		if (!lease) {
+//TODO: DHCP servers do not always sit on the same subnet as clients: should *ping*, not arp-ping!
+			if (nobody_responds_to_arp(nip, safe_mac))
+				return nip;
+		} else {
+			if (!oldest_lease || lease->expires < oldest_lease->expires)
+				oldest_lease = lease;
 		}
 	}
+
+	if (oldest_lease
+	 && is_expired_lease(oldest_lease)
+	 && nobody_responds_to_arp(oldest_lease->lease_nip, safe_mac)
+	) {
+		return oldest_lease->lease_nip;
 	}
+
 	return 0;
 }

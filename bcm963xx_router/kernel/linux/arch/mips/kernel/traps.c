@@ -125,6 +125,34 @@ static int __init set_raw_show_trace(char *str)
 __setup("raw_show_trace", set_raw_show_trace);
 #endif
 
+#if defined(CONFIG_MIPS_BRCM) && (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+
+long * traps_fap0DbgVals = NULL;
+long * traps_fap1DbgVals = NULL;
+EXPORT_SYMBOL(traps_fap0DbgVals);
+EXPORT_SYMBOL(traps_fap1DbgVals);
+
+static void dumpFapInfo(void)
+{
+    int i;
+    printk("FAP0: ");
+    if (traps_fap0DbgVals != NULL)
+        for (i = 0; i < 10; i++)
+        {
+            printk("[%d]:%08lx ", i, traps_fap0DbgVals[i]);
+        }
+    printk("\n");
+    
+    printk("FAP1: ");
+    if (traps_fap1DbgVals != NULL)
+        for (i = 0; i < 10; i++)
+        {
+            printk("[%d]:%08lx ", i, traps_fap1DbgVals[i]);
+        }
+    printk("\n");
+}
+#endif
+
 static void show_backtrace(struct task_struct *task, const struct pt_regs *regs)
 {
 	unsigned long sp = regs->regs[29];
@@ -150,6 +178,13 @@ static void show_backtrace(struct task_struct *task, const struct pt_regs *regs)
 		pc = unwind_stack(task, &sp, pc, &ra);
 	} while (pc);
 	printk("\n");
+    
+#if defined(CONFIG_MIPS_BRCM) && (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+        printk("FAP Information:\n");
+        dumpFapInfo();
+        printk("\n");
+#endif
+    
 }
 
 /*

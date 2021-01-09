@@ -223,7 +223,7 @@ static int send_netlink_message_to_userspace(struct ra_info_msg *flag) {
 	skb=alloc_skb(NLMSG_SPACE(sizeof(struct ra_info_msg)),GFP_ATOMIC);
 	if (!skb) {
 		printk(KERN_ERR "alloc skb error\n");
-		return -1;   
+		return -1;
 	}
 
 	nlh = NLMSG_PUT(skb, 0, 0, NLMSG_DONE, sizeof(struct ra_info_msg));
@@ -246,7 +246,7 @@ static int send_netlink_message_to_userspace(struct ra_info_msg *flag) {
 	if (ret < 0) {
 		if (broadcast_resend_times>0) {
 			//printk(KERN_DEBUG "Need redo broadcast start a timer\n");
-	
+
 			resend_timer.expires = jiffies + RESEND_DURA;
 			resend_timer.data = (unsigned long)flag;
 
@@ -1267,7 +1267,10 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 	}
 #if defined(CONFIG_MIPS_BRCM)
 	/* WAN interface needs to act like a host. */
-	if (((in6_dev->cnf.forwarding) && !(in6_dev->dev->priv_flags & IFF_WANDEV))
+	if (((in6_dev->cnf.forwarding) && 
+		(!(in6_dev->dev->priv_flags & IFF_WANDEV) || 
+		((in6_dev->dev->priv_flags & IFF_WANDEV) && 
+		!strchr(in6_dev->dev->name, '.'))))
 		|| (!in6_dev->cnf.accept_ra)) {
 #else
 	if (in6_dev->cnf.forwarding || !in6_dev->cnf.accept_ra) {
@@ -1324,7 +1327,6 @@ static void ndisc_router_discovery(struct sk_buff *skb)
 #endif
 
 	rt = rt6_get_dflt_router(&ipv6_hdr(skb)->saddr, skb->dev);
-printk(KERN_ERR "ICMP6 RA: lifetime=%d,rt=%p\n",lifetime,rt); 
 	if (rt)
 		neigh = rt->rt6i_nexthop;
 
@@ -1356,7 +1358,7 @@ printk(KERN_ERR "ICMP6 RA: lifetime=%d,rt=%p\n",lifetime,rt);
 			in6_dev_put(in6_dev);
 			return;
 		}
-      
+
 		neigh->flags |= NTF_ROUTER;
 	} else if (rt) {
 		rt->rt6i_flags = (rt->rt6i_flags & ~RTF_PREF_MASK) | RTF_PREF(pref);
@@ -1428,7 +1430,7 @@ skip_linkparms:
 				goto out;
 			}
 		}
-        
+
 		neigh_update(neigh, lladdr, NUD_STALE,
 			     NEIGH_UPDATE_F_WEAK_OVERRIDE|
 			     NEIGH_UPDATE_F_OVERRIDE|
@@ -1471,7 +1473,7 @@ skip_linkparms:
 		}
 #ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
 		{
-		    
+
 			memcpy(&message_val.u_ra,(const void*)&(ra_msg->icmph.icmp6_dataun.u_nd_ra),
 				   sizeof(struct icmpv6_nd_ra));
             strncpy(message_val.name,skb->dev->name,IFNAMSIZ-1);

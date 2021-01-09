@@ -48,3 +48,6 @@ lib-$(CONFIG_TTYSIZE)     += ttysize.o
 lib-$(CONFIG_VOLNAME)     += volname.o
 lib-$(CONFIG_WALL)        += wall.o
 lib-$(CONFIG_WATCHDOG)    += watchdog.o
+# brcm begin
+lib-$(CONFIG_SYSINFO)    += sysinfo.o
+# brcm end

@@ -1,4 +1,6 @@
 /*
+<:label-BRCM:2012:DUAL/GPL:standard 
+
     Copyright 2000-2010 Broadcom Corporation
 
     Unless you and Broadcom execute a separate written software license
@@ -20,6 +22,8 @@
     software in any way with any other Broadcom software provided under a
     license other than the GPL, without Broadcom's express prior written
     consent.
+
+:>
 */                       
 
 /***************************************************************************
@@ -38,6 +42,7 @@ extern "C" {
 
 /* Flash definitions. */
 #define FLASH_API_OK                1
+#define FLASH_API_OK_BLANK          2
 #define FLASH_API_ERROR             -1
 
 #define FLASH_IFC_UNKNOWN           0
@@ -59,7 +64,11 @@ int flash_get_numsectors(void);
 int flash_get_sector_size(unsigned short sector);
 unsigned char *flash_get_memptr(unsigned short sector);
 int flash_get_blk(int addr);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 int flash_get_total_size(void);
+#else
+unsigned long flash_get_total_size(void);
+#endif
 int flash_get_flash_type(void);
 void flash_change_flash_type(int type);
 #ifdef AEI_CONFIG_JFFS
@@ -68,7 +77,14 @@ int AEI_nand_flash_read_buf(unsigned short sector, int offset, unsigned char *bu
 int AEI_nand_flash_write_buf(unsigned short sector, int offset, unsigned char *buffer,
     int numbytes);
 #endif
-
+#ifdef AEI_NAND_IMG_CHECK
+int flash_nand_img_check(unsigned short s_sector, unsigned short e_sector);
+int flash_write_buf_crc(unsigned short sector, int offset, unsigned char *buffer,
+    int numbytes);
+#endif
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+int AEI_flash_get_flash_id(void);
+#endif
 /* Internal Flash Device Driver Information. */
 typedef struct flash_device_info_s
 {
@@ -86,6 +102,11 @@ typedef struct flash_device_info_s
     unsigned char * (*fn_flash_get_memptr) (unsigned short sector);
     int (*fn_flash_get_blk) (int addr);
     int (*fn_flash_get_total_size) (void);
+#ifdef AEI_NAND_IMG_CHECK
+    int (*fn_flash_write_buf_crc) (unsigned short sector, int offset,
+        unsigned char *buffer, int numbytes);
+    int (*fn_flash_nand_img_check) (unsigned short s_sector, unsigned short e_sector);
+#endif
 } flash_device_info_t;
 
 #ifdef __cplusplus

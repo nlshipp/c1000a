@@ -117,7 +117,7 @@ void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
 }
 
 static const char *oper_states[] = {
-	"UNKNOWN", "NOTPRESENT", "DOWN", "LOWERLAYERDOWN", 
+	"UNKNOWN", "NOTPRESENT", "DOWN", "LOWERLAYERDOWN",
 	"TESTING", "DORMANT",	 "UP"
 };
 
@@ -279,7 +279,7 @@ int print_linkinfo(const struct sockaddr_nl *who,
 #endif
 	if (tb[IFLA_OPERSTATE])
 		print_operstate(fp, *(__u8 *)RTA_DATA(tb[IFLA_OPERSTATE]));
-		
+
 	if (filter.showqueue)
 		print_queuelen(fp, (char*)RTA_DATA(tb[IFLA_IFNAME]));
 
@@ -310,7 +310,7 @@ int print_linkinfo(const struct sockaddr_nl *who,
 		print_linktype(fp, tb[IFLA_LINKINFO]);
 
 	if (do_link && tb[IFLA_IFALIAS])
-		fprintf(fp,"\n    alias %s", 
+		fprintf(fp,"\n    alias %s",
 			(const char *) RTA_DATA(tb[IFLA_IFALIAS]));
 
 	if (do_link && tb[IFLA_STATS64] && show_stats) {
@@ -853,7 +853,7 @@ flush_done:
 				if (show_stats) {
 					if (round == 0)
 						printf("Nothing to flush.\n");
-					else 
+					else
 						printf("*** Flush is complete after %d round%s ***\n", round, round>1?"s":"");
 				}
 				fflush(stdout);
@@ -1207,4 +1207,3 @@ int do_ipaddr(int argc, char **argv)
 	fprintf(stderr, "Command \"%s\" is unknown, try \"ip addr help\".\n", *argv);
 	exit(-1);
 }
-

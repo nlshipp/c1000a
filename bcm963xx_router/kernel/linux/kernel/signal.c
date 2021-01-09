@@ -1782,6 +1782,9 @@ static int ptrace_signal(int signr, siginfo_t *info,
 	return signr;
 }
 
+#ifdef AEI_VDSL_CUSTOMER_NCS
+extern void dump_user_backtrace(struct pt_regs *regs, int signr);
+#endif
 int get_signal_to_deliver(siginfo_t *info, struct k_sigaction *return_ka,
 			  struct pt_regs *regs, void *cookie)
 {
@@ -1929,6 +1932,9 @@ relock:
 		if (sig_kernel_coredump(signr)) {
 			if (print_fatal_signals)
 				print_fatal_signal(regs, info->si_signo);
+			#ifdef AEI_VDSL_CUSTOMER_NCS
+			dump_user_backtrace(regs, info->si_signo);
+			#endif
 			/*
 			 * If it was able to dump core, this kills all
 			 * other threads in the group and synchronizes with

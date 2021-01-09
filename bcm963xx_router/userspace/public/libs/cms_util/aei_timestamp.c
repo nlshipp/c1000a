@@ -4,11 +4,11 @@
  *  All Rights Reserved
  *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
+ *  in addition to routines provided by Broadcom. All additional routines that
  *  are missing from timestamp.c file will locate in this file.
  *
  ************************************************************************/
-
+#define _XOPEN_SOURCE
 #include <time.h>
 
 #include "cms.h"
@@ -40,7 +40,7 @@ CmsRet AEI_cmsTms_subXSIDateTime(const char *xsiTime1, const char *xsiTime2, UIN
 
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 CmsRet AEI_cmsTms_getGUIDateTime(char *buf, UINT32 bufLen)
-{   
+{
    return (AEI_oalTms_getGUIDateTime(buf, bufLen));
-}   
+}
 #endif

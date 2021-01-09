@@ -10,6 +10,23 @@ ifeq ($(strip $(BRCM_CHIP)),6816)
 obj-y += spidevices.o
 endif
 
+ifeq ($(strip $(BRCM_CHIP)),6818)
+
+ifneq ($(strip $(BUILD_6802_MOCA)),)
+    obj-y += bbsi/bbsi.o    
+    obj-y += bbsi/bbsiExecSeq.o   
+    obj-y += moca/6802/ont.o   
+    
+else
+    obj-y += spidevices.o
+endif
+
+endif
+
+ifeq ($(strip $(BRCM_CHIP)),63268)
+obj-y += spidevices.o
+endif
+
 ifneq ($(strip $(CONFIG_BCM_CPLD1)),)
     obj-y += bcmcpld1.o
 	EXTRA_CFLAGS += -DCONFIG_BCM_CPLD1

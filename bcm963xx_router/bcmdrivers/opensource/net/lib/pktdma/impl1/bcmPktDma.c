@@ -4,19 +4,25 @@
     Copyright (c) 2009 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license 
+ agreement governing use of this software, this software is licensed 
+ to you under the terms of the GNU General Public License version 2 
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give 
+    you permission to link this software with independent modules, and 
+    to copy and distribute the resulting executable under terms of your 
+    choice, provided that you also meet, for each linked independent 
+    module, the terms and conditions of the license of that module. 
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications 
+    of the software.  
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine 
+ this software in any way with any other Broadcom software provided 
+ under a license other than the GPL, without Broadcom's express prior 
+ written consent. 
  
 :>
 */
@@ -33,15 +39,19 @@
 #include <linux/skbuff.h>
 
 #include "bcmtypes.h"
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include "fap_task.h"
-#include "bcmPktDmaHooks.h"
+#include "fap_packet.h"
 #include "bcmPktDma.h"
+#include "bcmPktDmaHooks.h"
 
 bcmPktDma_hostHooks_t bcmPktDma_hostHooks_g;
 static RecycleFuncP   bcmPktDma_enet_recycle_hook = NULL;
 static RecycleFuncP   bcmPktDma_xtm_fkb_recycle_hook = NULL;
 static RecycleFuncP   bcmPktDma_xtm_skb_recycle_hook = NULL;
+#if defined(CONFIG_BCM_FAP_LAYER2)
+bcmPktDma_arlNotifyHandlerFuncP bcmPktDma_arlNotifyHandlerFuncP_g = NULL;
+#endif
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
 #if (MAX_SWITCH_PORTS != 8)
@@ -67,7 +77,7 @@ void mapEthPortToRxIudma(uint8 port, uint8 iudma)
 
 int getEthRxIudmaFromPort(int port)
 {
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
     if(port >= MAX_SWITCH_PORTS + MAX_EXT_SWITCH_PORTS) {
         printk("%s : Invalid Argument: port <%d>\n", __FUNCTION__, port);
         return PKTDMA_ETH_US_IUDMA;
@@ -105,7 +115,17 @@ int bcmPktDma_bind(bcmPktDma_hostHooks_t *hostHooks)
        hostHooks->psmAlloc == NULL ||
        hostHooks->dqmXmitMsgHost == NULL ||
        hostHooks->dqmRecvMsgHost == NULL ||
-       hostHooks->dqmEnableHost == NULL)
+       hostHooks->dqmEnableHost == NULL
+#if defined(CC_FAP4KE_TM)
+        || hostHooks->tmMasterConfig == NULL ||
+       hostHooks->tmPortConfig == NULL ||
+       hostHooks->tmSetPortMode == NULL ||
+       hostHooks->tmGetPortMode == NULL ||
+       hostHooks->tmIsPortEnabled == NULL ||
+       hostHooks->tmPortType == NULL ||
+       hostHooks->tmApply == NULL
+#endif
+       )
     {
         return FAP_ERROR;
     }
@@ -149,6 +169,18 @@ RecycleFuncP bcmPktDma_get_xtm_skb_recycle(void)
     return(bcmPktDma_xtm_skb_recycle_hook);
 }
 
+#if defined(CONFIG_BCM_FAP_LAYER2)
+void bcmPktDma_registerArlNotifyHandler(bcmPktDma_arlNotifyHandlerFuncP arlNotifyHandlerFuncP)
+{
+    bcmPktDma_arlNotifyHandlerFuncP_g = arlNotifyHandlerFuncP;
+}
+
+void bcmPktDma_unregisterArlNotifyHandler(void)
+{
+    bcmPktDma_arlNotifyHandlerFuncP_g = NULL;
+}
+#endif /* CONFIG_BCM_FAP_LAYER2 */
+
 int __init bcmPktDma_init(void)
 {
     printk("%s: Broadcom Packet DMA Library initialized\n", __FUNCTION__);
@@ -178,3 +210,8 @@ EXPORT_SYMBOL(bcmPktDma_get_enet_recycle);
 EXPORT_SYMBOL(bcmPktDma_set_xtm_recycle);
 EXPORT_SYMBOL(bcmPktDma_get_xtm_fkb_recycle);
 EXPORT_SYMBOL(bcmPktDma_get_xtm_skb_recycle);
+#if defined(CONFIG_BCM_FAP_LAYER2)
+EXPORT_SYMBOL(bcmPktDma_arlNotifyHandlerFuncP_g);
+EXPORT_SYMBOL(bcmPktDma_registerArlNotifyHandler);
+EXPORT_SYMBOL(bcmPktDma_unregisterArlNotifyHandler);
+#endif /* CONFIG_BCM_FAP_LAYER2 */

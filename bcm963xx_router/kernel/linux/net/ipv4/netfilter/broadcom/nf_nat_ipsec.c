@@ -49,7 +49,7 @@ ipsec_outbound_pkt(struct sk_buff **pskb,
    /* make sure source port is 500 */
    udph->source = htons(IPSEC_PORT);
    udph->check = 0;
-   
+
    return NF_ACCEPT;
 }
 
@@ -66,7 +66,7 @@ ipsec_inbound_pkt(struct sk_buff **pskb, struct nf_conn *ct,
    udph->check = 0;
    iph->check = 0;
    iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl);
-   
+
    return NF_ACCEPT;
 }
 

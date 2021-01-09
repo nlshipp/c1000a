@@ -5,19 +5,25 @@
    Copyright (c) 2010 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
 
 :>
 */
@@ -57,10 +63,12 @@ Boston, MA 02111-1307, USA.
 #include <linux/etherdevice.h>
 #include <linux/kmod.h>
 #include <linux/rtnetlink.h>
+#include <linux/if_bridge.h>
 #include <net/arp.h>
 #include <board.h>
+#include <spidevices.h>
 #include <bcmnetlink.h>
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include <bcm_intr.h>
 #include "linux/bcm_assert_locks.h"
 #include "bcmenet.h"
@@ -93,10 +101,122 @@ Boston, MA 02111-1307, USA.
 #include <linux/hrtimer.h>
 #endif
 
-#if defined(CONFIG_BCM96816) && defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
-#ifdef BCM_FULL_SRC
-#include "mocablock.h"
+#if defined(AEI_VDSL_SW_WAN_ETH_LED)
+int enetWanLedOn=0;
+#if defined(AEI_VDSL_SMARTLED)
+UBOOL8 inetTrafficBlinkEnable=FALSE;
+UBOOL8 inetAmberEnable=FALSE;
 #endif
+void AEI_poll_gphy_LED(void);
+#define GPHY_MIBS_TX_REG     0xb0702300
+#define GPHY_MIBS_RX_REG     0xb0702344
+#define LED_CTRL_MODE1_REG   0xb0001908
+#define LED_CTRL_INIT_REG    0xb0001900
+#define LED_CTRL_MODE0_REG   0xb0001904
+#define LED_CTRL_STROBE_REG  0xb0001910
+
+
+#if defined(CONFIG_BCM_GMAC)
+#define UPDATE_GPHY_OCTET_COUNT(x) \
+do { \
+volatile GmacMIBRegs *e = (volatile GmacMIBRegs *)GMAC_MIB; \
+volatile uint32 *ghyMibsTxReg =  (volatile uint32 *) GPHY_MIBS_TX_REG; \
+volatile uint32 *ghyMibsRxReg =  (volatile uint32 *) GPHY_MIBS_RX_REG; \
+if (gmac_info_pg->enabled) \
+    x = e->RxOctetsLo + e->TxOctetsLo; \
+x += *ghyMibsTxReg + *ghyMibsRxReg; \
+} while(0)
+#else
+#define UPDATE_GPHY_OCTET_COUNT(x) \
+do { \
+volatile uint32 *ghyMibsTxReg =  (volatile uint32 *) GPHY_MIBS_TX_REG; \
+volatile uint32 *ghyMibsRxReg =  (volatile uint32 *) GPHY_MIBS_RX_REG; \
+x = *ghyMibsTxReg + *ghyMibsRxReg; \
+} while(0)
+#endif
+
+#define GPHY_LED_ON() \
+do { \
+volatile uint32 *ledCtrlMode1Reg = (volatile uint32 *) LED_CTRL_MODE1_REG; \
+*ledCtrlMode1Reg |= 0x30000000; \
+} while(0)
+
+#define GPHY_LED_FAST_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlMode1Reg = (volatile uint32 *) LED_CTRL_MODE1_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x1C0; \
+*ledCtrlMode1Reg &= 0xCFFFFFFF; \
+*ledCtrlMode1Reg |= 0x20000000; \
+} while (0)
+
+#define GPHY_LED_SLOW_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlMode1Reg = (volatile uint32 *) LED_CTRL_MODE1_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x600; \
+*ledCtrlMode1Reg &= 0xCFFFFFFF; \
+*ledCtrlMode1Reg |= 0x20000000; \
+} while (0)
+
+#define GINET_AMBER_LED_ON() \
+do { \
+volatile uint32 *ledCtrlMode0Reg = (volatile uint32 *) LED_CTRL_MODE0_REG; \
+*ledCtrlMode0Reg |= 0x0000000F; \
+} while(0)
+
+#define GINET_AMBER_LED_FAST_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlMode0Reg = (volatile uint32 *) LED_CTRL_MODE0_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x1C0; \
+*ledCtrlMode0Reg &= 0xFFFFFFF0; \
+*ledCtrlMode0Reg |= 0x0000000A; \
+} while (0)
+
+#define GINET_AMBER_LED_SLOW_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlStrobeReg = (volatile uint32 *) LED_CTRL_STROBE_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x1C0; \
+*ledCtrlStrobeReg |= 0x00000003; \
+} while (0)
+
+#define GINET_GREEN_LED_ON() \
+do { \
+volatile uint32 *ledCtrlMode0Reg = (volatile uint32 *) LED_CTRL_MODE0_REG; \
+*ledCtrlMode0Reg |= 0x0000000C; \
+} while(0)
+
+#define GINET_GREEN_LED_FAST_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlMode0Reg = (volatile uint32 *) LED_CTRL_MODE0_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x1C0; \
+*ledCtrlMode0Reg &= 0xFFFFFFF0; \
+*ledCtrlMode0Reg |= 0x00000008; \
+} while (0)
+
+#define GINET_GREEN_LED_SLOW_BLINK() \
+do { \
+volatile uint32 *ledCtrlInitReg = (volatile uint32 *) LED_CTRL_INIT_REG; \
+volatile uint32 *ledCtrlStrobeReg = (volatile uint32 *) LED_CTRL_STROBE_REG; \
+*ledCtrlInitReg &= 0xFFFFF03F; \
+*ledCtrlInitReg |= 0x1C0; \
+*ledCtrlStrobeReg |= 0x00000002; \
+} while (0)
+#endif
+
+
+#if defined(CONFIG_BCM96816) && defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
+// #ifdef BCM_FULL_SRC
+// #include "mocablock.h"
+// #endif
 #include "bmoca.h"
 #endif
 
@@ -115,6 +235,9 @@ Boston, MA 02111-1307, USA.
 #if (defined(CONFIG_BCM_ARL) || defined(CONFIG_BCM_ARL_MODULE))
 #include <linux/blog_rule.h>
 #endif
+#if defined(CONFIG_BCM_GMAC)
+#include <bcmgmac.h>
+#endif
 
 
 #define ENET_POLL_DONE        0x80000000
@@ -123,7 +246,11 @@ Boston, MA 02111-1307, USA.
 #if defined(CONFIG_BCM_ENDPOINT) || defined(CONFIG_BCM_ENDPOINT_MODULE) || (defined(CONFIG_BCM96816) && defined(CONFIG_BCM_MOCA_SOFT_SWITCHING))
 #define NETDEV_WEIGHT  16 // lower weight for less voice latency
 #else
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 #define NETDEV_WEIGHT  32
+#else
+#define NETDEV_WEIGHT  32
+#endif
 #endif
 
 extern BcmPktDma_Bds *bcmPktDma_Bds_p;
@@ -144,8 +271,6 @@ static thresh_t enet_rx_dqm_iq_thresh[ENET_RX_CHANNELS_MAX];
 /* FAP get Eth DQM queue length handler hook */
 extern iqos_fap_ethRxDqmQueue_hook_t iqos_fap_ethRxDqmQueue_hook_g;
 
-static void enet_set_iq_thresh_dqm(BcmEnet_devctrl *pDevCtrl, int channel,
-                                uint16 loThresh, uint16 hiThresh);
 static void enet_iq_dqm_update_cong_status(BcmEnet_devctrl *pDevCtrl);
 static void enet_iq_dqm_status(void);
 #endif
@@ -158,6 +283,11 @@ static void enet_iq_status(void);
 #endif
 
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+
+#if (ENET_TX_EGRESS_QUEUES_MAX != NUM_EGRESS_QUEUES)
+#error "ERROR - (ENET_TX_EGRESS_QUEUES_MAX != NUM_EGRESS_QUEUES)"
+#endif
+
 extern uint32_t gbpm_enable_g;
 static inline int enet_bpm_alloc_buf(BcmEnet_devctrl *pDevCtrl, int channel);
 static inline int enet_bpm_free_buf(BcmEnet_devctrl *pDevCtrl, int channel,
@@ -168,10 +298,26 @@ static void enet_bpm_free_buf_ring(BcmEnet_RxDma *rxdma, int channel);
 
 static void enet_rx_set_bpm_alloc_trig( BcmEnet_devctrl *pDevCtrl, int chnl );
 
-/* BPM status dump handler hook */
 extern gbpm_status_hook_t gbpm_enet_status_hook_g;
-
 static void enet_bpm_status(void);
+
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+/* BPM status dump handler hook */
+extern gbpm_thresh_hook_t gbpm_enet_thresh_hook_g;
+
+static uint16_t
+        enet_bpm_dma_tx_drop_thr[ENET_TX_CHANNELS_MAX][ENET_TX_EGRESS_QUEUES_MAX];
+
+
+static void enet_bpm_init_tx_drop_thr(BcmEnet_devctrl *pDevCtrl, int chnl);
+static void enet_bpm_set_tx_drop_thr( BcmEnet_devctrl *pDevCtrl, int chnl );
+static void enet_bpm_dma_dump_tx_drop_thr(void);
+static void enet_bpm_dump_tx_drop_thr(void);
+/* Sanity checks */
+#if (BPM_ENET_BULK_ALLOC_COUNT > FAP_BPM_ENET_BULK_ALLOC_MAX)
+#error "ERROR - BPM_ENET_BULK_ALLOC_COUNT > FAP_BPM_ENET_BULK_ALLOC_MAX"
+#endif
+#endif
 
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
 /* BPM threshold dump handler hook */
@@ -184,14 +330,6 @@ static void moca_lan_dump_txq_thresh( void );
 static void moca_wan_dump_txq_thresh( void );
 static void moca_bpm_dump_txq_thresh(void);
 #endif
-
-/* Sanity checks */
-#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-#if (BPM_ENET_BULK_ALLOC_COUNT > FAP_BPM_ENET_BULK_ALLOC_MAX)
-#error "ERROR - BPM_ENET_BULK_ALLOC_COUNT > FAP_BPM_ENET_BULK_ALLOC_MAX"
-#endif
-#endif
-
 #endif
 
 //extern int sched_setscheduler_export(struct task_struct *, int, struct sched_param *);
@@ -205,12 +343,18 @@ static int bcm63xx_enet_close(struct net_device * dev);
 static void bcm63xx_enet_timeout(struct net_device * dev);
 static void bcm63xx_enet_poll_timer(unsigned long arg);
 static int bcm63xx_enet_xmit(pNBuff_t pNBuff, struct net_device * dev);
+#ifdef PKTC
+static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff, struct net_device *dev, EnetXmitParams *pParam, bool is_chained);
+#else
 static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff, struct net_device *dev, EnetXmitParams *pParam);
+#endif
 static int bcm63xx_xmit_reclaim(void);
 static struct net_device_stats * bcm63xx_enet_query(struct net_device * dev);
 static int bcm63xx_enet_change_mtu(struct net_device *dev, int new_mtu);
+#if !defined(CONFIG_BCM96818) 
 static FN_HANDLER_RT bcm63xx_ephy_isr(int irq, void *);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static FN_HANDLER_RT bcm63xx_gphy_isr(int irq, void *);
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
@@ -224,8 +368,8 @@ static void bcm63xx_enet_recycle_skb_or_data(struct sk_buff *skb,
 static int bcm_set_mac_addr(struct net_device *dev, void *p);
 static void flush_assign_rx_buffer(BcmEnet_devctrl *pDevCtrl, int channel,
                                    uint8 * pData, uint8 * pEnd);
-static void init_dma(BcmEnet_devctrl *pDevCtrl);
 static int init_buffers(BcmEnet_devctrl *pDevCtrl, int channel);
+static void setup_rxdma_channel(int channel);
 static void setup_txdma_channel(int channel);
 static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl);
 static int bcm63xx_uninit_dev(BcmEnet_devctrl *pDevCtrl);
@@ -240,12 +384,25 @@ static int init_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel);
 static int init_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel);
 void uninit_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel);
 void uninit_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel);
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static int bcm_strip_tag_type1(struct sk_buff *skb, bool strip_brcm_tag);
 static int bcm_strip_tag_type2(struct sk_buff *skb, bool strip_brcm_tag);
 #else
 static int bcm_strip_tag_type1(struct sk_buff *skb);
 static int bcm_strip_tag_type2(struct sk_buff *skb);
+#endif
+
+#if defined(CONFIG_BCM_GMAC)
+static inline int IsGmacPort( int log_port );
+static inline int ChkGmacPort( void * ctxt );
+static inline int ChkGmacActive( void *ctxt );
+static inline int IsLogPortWan( int log_port );
+int enet_gmac_log_port( void );
+#endif
+
+
+#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+UBOOL8 extSwitchExist = FALSE;
 #endif
 
 /* Sanity checks for user configured DMA parameters */
@@ -256,7 +413,7 @@ static int bcm_strip_tag_type2(struct sk_buff *skb);
 #error "ERROR - Defined TX DMA Channels greater than MAX"
 #endif
 #if 0
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 #if (CONFIG_BCM_NR_RX_BDS*CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS > 400)
 #error "ERROR - Not enough memory for configured RX BDs"
 #endif
@@ -266,19 +423,23 @@ static int bcm_strip_tag_type2(struct sk_buff *skb);
 #endif
 #endif
 
-/* 32bit context is union of pointer to pdevCtrl and channel number */
+
+
 #if (ENET_RX_CHANNELS_MAX > 4)
 #error "Overlaying channel and pDevCtrl into context param needs rework"
 #else
+#define CONTEXT_CHAN_MASK   0x3
+#endif
+
+
 /*
  * IMPORTANT: The following 3 macros are only used for ISR context. The
  * recycling context is defined by enet_recycle_context_t
  */
 #define BUILD_CONTEXT(pDevCtrl,channel) \
-            (uint32)((uint32)(pDevCtrl) | ((uint32)(channel) & 0x3u))
-#define CONTEXT_TO_PDEVCTRL(context)    (BcmEnet_devctrl*)((context) & ~0x3u)
-#define CONTEXT_TO_CHANNEL(context)     (int)((context) & 0x3u)
-#endif
+            (uint32)((uint32)(pDevCtrl) | ((uint32)(channel) & CONTEXT_CHAN_MASK))
+#define CONTEXT_TO_PDEVCTRL(context)    (BcmEnet_devctrl*)((context) & ~CONTEXT_CHAN_MASK)
+#define CONTEXT_TO_CHANNEL(context)     (int)((context) & CONTEXT_CHAN_MASK)
 
 /*
  * Recycling context definition
@@ -286,8 +447,13 @@ static int bcm_strip_tag_type2(struct sk_buff *skb);
 typedef union {
     struct {
         /* fapQuickFree handling removed - Oct 2010 */
+#if defined(CONFIG_BCM_GMAC)
+        uint32 reserved     : 29;
+        uint32 channel      :  3;
+#else
         uint32 reserved     : 30;
         uint32 channel      :  2;
+#endif
     };
     uint32 u32;
 } enet_recycle_context_t;
@@ -304,15 +470,13 @@ static void bcm63xx_enet_recycle(pNBuff_t pNBuff, uint32 context, uint32 flags);
 static DECLARE_COMPLETION(poll_done);
 static atomic_t poll_lock = ATOMIC_INIT(1);
 static int poll_pid = -1;
-#if !defined(SUPPORT_SWMDK)
 static int ephy_int_cnt = 1;
-#endif
 struct net_device* vnet_dev[MAX_NUM_OF_VPORTS+1] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 static int vport_to_phyport[MAX_NUM_OF_VPORTS] = {0, 1, 2, 3, 4, 5, 6, 7};
 static int phyport_to_vport[MAX_SWITCH_PORTS*2] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 int vport_cnt;  /* number of vports: bitcount of Enetinfo.sw.port_map */
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static unsigned int consolidated_portmap;
 #endif
 
@@ -336,7 +500,7 @@ static const softirq_prio_t poll_prio =  /* type, priority, nice */
 #endif
 #endif /* defined(RXCHANNEL_PKT_RATE_LIMIT) */
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 #define gemid_from_dmaflag(dmaFlag) (dmaFlag & RX_GEM_ID_MASK)
 #define UNASSIGED_IFIDX_VALUE (-1)
 #define MAX_GPON_IFS_PER_GEM  (5)
@@ -352,8 +516,10 @@ struct net_device* gponifid_to_dev[MAX_GPON_IFS] =
 static int create_gpon_vport(char *name);
 static int delete_gpon_vport(char *ifname);
 static int delete_all_gpon_vports(void);
-static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *gem_map);
-static int set_mcast_gem_id(u32 gem_map);
+static int set_get_gem_map(int op, char *ifname, int ifnum, uint8 *pgem_map_arr);
+static void dumpGemIdxMap(uint8 *pgem_map_arr);
+static void initGemIdxMap(uint8 *pgem_map_arr);
+static int set_mcast_gem_id(uint8 *pgem_map_arr);
 #endif
 
 #if defined(CONFIG_BCM96816)
@@ -363,8 +529,9 @@ struct net_device* bcm6829_to_dev[MAX_6829_IFS] = {NULL, NULL};
 #define BCM6829_MOCA_DEV 0
 atomic_t bcm6829ActDevIdx = ATOMIC_INIT(0);
 int phyport_to_vport_6829[MAX_SWITCH_PORTS] = {-1, -1, -1, -1, -1, -1, -1, -1};
-MirrorCfg gemMirrorCfg[2]= { {"", "", 0, 0, 0},
-                             {"", "", 0, 0, 0}};
+#endif
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
+MirrorCfg gemMirrorCfg[2];
 static uint8 defaultIPG = 0; /* Read during init */
 #endif
 
@@ -386,8 +553,13 @@ static const struct net_device_ops bcm96xx_netdev_ops = {
 #endif
 
 /* The number of rx and tx dma channels currently used by enet driver */
+#if defined(CONFIG_BCM_GMAC)
+   int cur_rxdma_channels = ENET_RX_CHANNELS_MAX;
+   int cur_txdma_channels = ENET_TX_CHANNELS_MAX;
+#else
    int cur_rxdma_channels = CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS;
    int cur_txdma_channels = CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS;
+#endif
 
 /* When TX iuDMA channel is used for determining the egress queue,
    this array provides the Tx iuDMA channel to egress queue mapping
@@ -430,6 +602,7 @@ extsw_info_t extSwInfo = {
   .switch_id = 0,
   .brcm_tag_type = 0,
   .present = 0,
+  .connected_to_internalPort = -1,
 };
 
 static int bcmenet_in_init_dev = 0;
@@ -475,14 +648,13 @@ typedef struct {
 
 typedef struct {
     unsigned int extPhyMask;
-    int ext_ephy_energy;
     int dump_enable;
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     int (*bcm_strip_tag) (struct sk_buff *skb, bool strip_brcm_tag);
 #else
     int (*bcm_strip_tag) (struct sk_buff *skb);
 #endif
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     int Is6829;
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
     int enet_softswitch_xmit_start_q;
@@ -499,10 +671,9 @@ typedef struct {
 
 static enet_global_var_t global = {
   .extPhyMask = 0,
-  .ext_ephy_energy = 0,
   .dump_enable = 0,
   .bcm_strip_tag = bcm_strip_tag_type1,
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
   .Is6829 = 0,
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
   .enet_softswitch_xmit_start_q = 2,
@@ -553,7 +724,7 @@ spinlock_t bcm_extsw_access;
 atomic_t phy_read_ref_cnt = ATOMIC_INIT(0);
 atomic_t phy_write_ref_cnt = ATOMIC_INIT(0);
 
-#define DELAYED_RECLAIM_ARRAY_LEN 4
+#define DELAYED_RECLAIM_ARRAY_LEN 8
 
 /*
  * This macro can only be used inside enet_xmit2 because it uses the local
@@ -561,23 +732,190 @@ atomic_t phy_write_ref_cnt = ATOMIC_INIT(0);
  */
 #define DO_DELAYED_RECLAIM() \
     do { \
-    reclaim_idx=0; \
-    while (reclaim_idx < DELAYED_RECLAIM_ARRAY_LEN) { \
-        if (delayed_reclaim_array[reclaim_idx] != (uint32_t) PNBUFF_NULL) {\
-            nbuff_free((pNBuff_t) delayed_reclaim_array[reclaim_idx]); \
-            delayed_reclaim_array[reclaim_idx] = (uint32_t) PNBUFF_NULL; } \
-        reclaim_idx++; } \
+        uint32 tmp_idx=0; \
+        while (tmp_idx < reclaim_idx) { \
+            nbuff_free((pNBuff_t) delayed_reclaim_array[tmp_idx]); \
+            tmp_idx++; } \
     } while (0)
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
 /* Add code for buffer quick free between enet and xtm - June 2010 */
 static RecycleFuncP xtm_fkb_recycle_hook = NULL;
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static RecycleFuncP xtm_skb_recycle_hook = NULL;
 #endif
 #endif
 
-#if defined(CONFIG_BCM96816)
+
+
+
+#if defined(AEI_VDSL_WAN_ETHER_LINK_PATCH)
+uint16 GPHYPortFlag = 0 ;
+
+/*
+ * function: AEI_EWANWireSpeedRetryLimited
+ *
+ * Description:
+ * Function to change the Ethernet@wirespeed Retry Limit
+ * by writing register 0x1C, shadow 0x4, bits[4:2].
+ *
+ */
+static void AEI_EWANWireSpeedRetryLimited(void)
+{
+    uint16 v16 = 0x0;
+    ethsw_phy_rreg(GPHY_PORT_PHY_ID, MII_REGISTER_1C, &v16);
+    v16 |= MII_1C_WRITE_ENABLE; //Write Enable
+    v16 &= ~(0x1F << 10); //clear Shadow Register Selector
+    v16 |= 1<<12;//set Shadow Register Selector
+    v16 &= ~(0x7 << 2);//Ethernet@WireSpeed Retry Limit
+    ethsw_phy_wreg(GPHY_PORT_PHY_ID, MII_REGISTER_1C, &v16);
+}
+
+/*
+ * function: AEI_EnableGPHYWireSpeed
+ *
+ * Description:
+ * Function to change the internal Gphy register during init
+ * to enable bit 4 of MISC Control Register shadow
+ * for "Enable Ethernet@WireSpeed"
+ *
+ */ 
+static void AEI_EnableGPHYWireSpeed(void)
+{
+    uint16 v16 = 0x0;
+    /* don't use 0x81f7 from BRCM CSP as that stops traffic, use 0x8077 */
+    v16 = MII_REG_18_WR(0x7,0x70);
+    ethsw_phy_wreg(GPHY_PORT_PHY_ID, MII_REGISTER_18, &v16);
+}
+
+/*
+ * function: AEI_VerifyLinkUp
+ *
+ * Description:
+ * Function to read ASR register to see rate/duplex used by other end
+ * and if the speed does not match, manually set the speed.
+ *
+ *
+ * Input:
+ * phyId for phy Id of the switch port
+ * speed is the pointer to interger holding the speed of link
+ * from swmdk
+ *
+ * Output:
+ * Value of speed maybe modified to the link speed read from other end.
+ * Value of duplex maybe modified to duplex read from other end. 
+ * If port is GPhy, GPHYPortFlag stores the value set on MCR 
+ * so AEI_VerifyLinkDown can know it was previously set.     
+ */ 
+static void AEI_VerifyLinkUp(int phyId, int *speed, int *duplex)
+{
+    if (phyId==GPHY_PORT_PHY_ID && GPHYPortFlag==0)
+    {
+        uint16 v16 = 0;
+        int realspeed = 1000;
+
+        ethsw_phy_rreg(phyId, MII_ASR, &v16);
+        if (MII_ASR_FDX(v16))
+            *duplex = 1;
+        else
+            *duplex = 0;
+
+        if (MII_ASR_1000(v16))
+            realspeed = 1000;
+        else if (MII_ASR_100(v16))
+            realspeed = 100;
+        else
+            realspeed = 10;   
+
+        /* if speed does not match then do this funky workaround 
+         * to manually force the speed
+         */
+        if (realspeed != *speed)
+        {
+             v16 = 0;
+             ethsw_phy_rreg(phyId, MII_BMCR, &v16);
+             v16 &= (~BMCR_ANENABLE);
+
+             if (*duplex)
+                 v16 |= BMCR_FULLDPLX;
+             else
+                 v16 &= (~BMCR_FULLDPLX);
+
+            *speed = realspeed;
+
+            if (realspeed == 1000)
+            {
+                v16 &= (~BMCR_SPEED100);
+                v16 |= BMCR_SPEED1000;
+            }
+            else if (realspeed == 100)
+            {
+                v16 &= (~BMCR_SPEED1000);
+                v16 |= BMCR_SPEED100;
+            }
+            else
+            {
+                v16 &= (~BMCR_SPEED1000);
+                v16 &= (~BMCR_SPEED100);
+            }
+
+            GPHYPortFlag = v16;
+            ethsw_phy_wreg(phyId, MII_BMCR, &v16);
+        }
+    }
+}
+
+
+/*
+ * function: AEI_VerifyLinkDown
+ *
+ * Description:
+ * Function to reset MCR register back to default when a link down is
+ * detected for GPHY. If the link is down but MCR did not match what was
+ * previously set, set MCR again to what was manually set before to cover
+ * case for CTL Calix ONT. This function only takes effect if the detected speed
+ * did not match when the link was up previously to flag GPHYPortFlag.
+ *
+ * Input:
+ * phyId for phy Id of the switch port
+ *
+ * If port is GPhy and GPHYPortFlag matches MCR,GPHYPortFlag is cleared
+ * so MCR can be restored to default on the link down.
+ */ 
+static void AEI_VerifyLinkDown(int phyId)
+{
+    if (phyId==GPHY_PORT_PHY_ID && GPHYPortFlag)
+    {
+        
+        uint16 v16 = 0x0;
+        ethsw_phy_rreg(phyId, MII_BMCR, &v16);
+
+        if (v16 != GPHYPortFlag)
+        /* If MCR does not match what was manually set previously,
+         * reset again to make sure speed is correct.
+         */
+        {
+           ethsw_phy_wreg(phyId, MII_BMCR, &GPHYPortFlag);
+        }
+        else
+        /* If MCR matches what was previously set
+         * and there is a link down, then reset MCR back to
+         * default as this is a real link down.
+         */
+        {
+            /* set back to default */
+            v16 |= BMCR_ANENABLE;
+            v16 &= (~BMCR_SPEED100);
+            v16 |= BMCR_FULLDPLX;
+            v16 |= BMCR_SPEED1000;
+            ethsw_phy_wreg(phyId, MII_BMCR, &v16);
+            GPHYPortFlag=0;
+        }
+    }
+}
+#endif
+
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 static unsigned short bcm_type_trans(struct sk_buff *skb, struct net_device *dev);
 /***************************************************************************
  * Function Name: MirrorPacket
@@ -587,12 +925,15 @@ static unsigned short bcm_type_trans(struct sk_buff *skb, struct net_device *dev
  *                purposes.
  * Returns      : None.
  ***************************************************************************/
-static void MirrorPacket(struct sk_buff *skb, char *intfName, int stripTag)
+static void MirrorPacket(struct sk_buff *skb, char *intfName, int stripTag, int need_unshare)
 {
     struct sk_buff *skb2;
     struct net_device *netDev;
 
-    skb2 = skb_copy( skb, GFP_ATOMIC );
+    if ( need_unshare )
+        skb2 = skb_copy( skb, GFP_ATOMIC );
+    else
+        skb2 = skb_clone( skb, GFP_ATOMIC );
     if( skb2 != NULL )
     {
         blog_xfer(skb, skb2);
@@ -624,6 +965,99 @@ static void MirrorPacket(struct sk_buff *skb, char *intfName, int stripTag)
 } /* MirrorPacket */
 #endif
 
+#ifdef DYING_GASP_API
+static unsigned char dg_ethOam_frame[64] = {
+    1, 0x80, 0xc2, 0, 0, 2, 
+    0, 0,    0,    0, 0, 0, /* Fill Src MAC at the time of sending, from dev */
+    0x88, 0x9, 
+    3, /* Subtype */
+    5, /* code for DG frame */
+    'B', 'R', 'O', 'A', 'D', 'C', 'O', 'M', 
+    ' ', 'B', 'C', 'G', 
+
+};
+static struct sk_buff dg_skb;
+static struct sk_buff *dg_skbp = &dg_skb;
+int from_dg = 0; 
+#endif
+
+static inline int get_phy_chan( int channel )
+{
+    int phy_chan;
+#if defined(CONFIG_BCM_GMAC)
+    if ( gmac_info_pg->active && (channel == GMAC_LOG_CHAN ) )
+        phy_chan = GMAC_PHY_CHAN;
+    else
+#endif
+        phy_chan = channel;
+
+    return phy_chan;
+}
+
+static inline volatile DmaRegs *get_dmaCtrl( int channel )
+{
+    volatile DmaRegs *dmaCtrl;
+
+#if defined(CONFIG_BCM_GMAC)
+    if ( gmac_info_pg->active && (channel == GMAC_LOG_CHAN ) )
+        dmaCtrl= (DmaRegs *)(GMAC_DMA_BASE); 
+    else
+#endif
+        dmaCtrl = (DmaRegs *)(SWITCH_DMA_BASE);
+
+    return dmaCtrl;
+}
+
+static inline int get_rxIrq( int channel )
+{
+    int rxIrq;
+
+#if defined(CONFIG_BCM_GMAC)
+    if ( gmac_info_pg->active && (channel == GMAC_LOG_CHAN ) )
+        rxIrq = INTERRUPT_ID_GMAC_DMA_0;
+    else
+#endif
+        rxIrq = bcmPktDma_EthSelectRxIrq(channel);
+
+    return rxIrq;
+}
+
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+void bcmEnet_pktCmfEthResetStats( uint32_t vport )
+{
+    bcmFun_t *pktCmfEthResetStatsHook;
+
+    pktCmfEthResetStatsHook = bcmFun_get(BCM_FUN_ID_CMF_ETH_RESET_STATS);
+
+    if (pktCmfEthResetStatsHook)
+    {
+        pktCmfEthResetStatsHook( (void *) &vport);
+    }
+}
+
+void bcmEnet_pktCmfEthGetStats( uint32_t vport,
+        uint32_t *rxDropped_p, uint32_t *txDropped_p )
+{
+    bcmFun_t *pktCmfEthGetStatsHook;
+    PktCmfStatsParam_t statsParam;
+
+    *rxDropped_p = 0;
+    *txDropped_p = 0;
+
+    pktCmfEthGetStatsHook = bcmFun_get(BCM_FUN_ID_CMF_ETH_GET_STATS);
+
+    if (pktCmfEthGetStatsHook)
+    {
+        statsParam.vport = vport;
+        statsParam.rxDropped_p = rxDropped_p;
+        statsParam.txDropped_p = txDropped_p;
+
+        pktCmfEthGetStatsHook( (void *) &statsParam );
+    }
+}
+#endif
+
+
 #if defined(AEI_VDSL_HPNA)
 enum {
 HPNA_LAN,
@@ -632,7 +1066,8 @@ HPNA_WAN_LAN
 
 static int hpna_admin_state = 1;
 static int hpna_mode = HPNA_LAN;
-static int hpna_index = 0;
+static int hpna_dev_index = 0;
+static int hpna_port = 0;
 int hpna_support = 0; // 0 : un-support, 1 : support
 #endif
 
@@ -694,7 +1129,7 @@ static void AEI_MirrorPacket( struct sk_buff *skb, char *intfName, UBOOL8 mirror
 
                 skb_push(skbCopy, sizeof(struct ethhdr));
 
-                /* when transmiting packets using GW mac address as its ethernet dest mac address, 
+                /* when transmiting packets using GW mac address as its ethernet dest mac address,
                  * some version of the BCM53115 switch will drop these packets, so just swap
                  * the ethernet source and dest mac address for these packets.
                  */
@@ -741,6 +1176,7 @@ static void AEI_MultiMirrorPacket( struct sk_buff *skb, UINT16 mirFlags, UBOOL8 
 }
 #endif /* AEI_VDSL_TOOLBOX */
 
+
 /* _assign_rx_buffer: Reassigns a free data buffer to RxBD. No flushing !!! */
 static inline void _assign_rx_buffer(BcmEnet_devctrl *pDevCtrl, int channel, uint8 * pData)
 {
@@ -780,6 +1216,9 @@ static inline void _assign_rx_buffer(BcmEnet_devctrl *pDevCtrl, int channel, uin
     }
 #else
 #if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    BCM_ENET_DEBUG("Enet: BPM Chan=%d OwnerMap=%d iudmaOwner=%d\n", channel,
+        g_Eth_rx_iudma_ownership[channel], pktDmaRxInfo_p->rxOwnership);
+
      if (pktDmaRxInfo_p->rxOwnership == HOST_OWNED)
      {
         if (pktDmaRxInfo_p->numRxBds - pktDmaRxInfo_p->rxAssignedBds)
@@ -877,8 +1316,14 @@ static void bcm63xx_enet_recycle_skb_or_data(struct sk_buff *skb,
     cpuid = smp_processor_id();
     is_bulk_rx_lock_active = pDevCtrl->bulk_rx_lock_active[cpuid];
 
+#ifdef AEI_ABBA_FIX
+    if (0 == is_bulk_rx_lock_active){
+	    ENET_RX_LOCK_WITH_UNLOCK_TX();
+    }
+#else
     if (0 == is_bulk_rx_lock_active)
         ENET_RX_LOCK();
+#endif
 #else
     ENET_RX_LOCK();
 #endif
@@ -991,6 +1436,8 @@ static const char* mocaif_name = "moca%d";
 static const char* eponif_name = "epon0";
 #endif
 
+static const char* plcif_name = "plc%d";
+
 #if defined (AEI_VDSL_WAN_ETH)
 static const char* ewanif_name = "ewan%d";
 #endif
@@ -1005,12 +1452,13 @@ static int create_vport(void)
     PHY_STAT phys;
     BcmEnet_devctrl *pDevCtrl = NULL;
     BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
-    int phy_id;
-#if defined(CONFIG_BCM963268)
+    int phy_id, phy_conn;
+    char *phy_devName;
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     int unit, port;
 #endif   
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     map = consolidated_portmap;
 #else
     map = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.port_map;
@@ -1037,7 +1485,7 @@ static int create_vport(void)
         vport_to_phyport[i] = j;
         phyport_to_vport[j] = i;
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         /* Skip creating eth interface for GPON port */
         if (j == GPON_PORT_ID) {
             map /= 2;
@@ -1046,19 +1494,26 @@ static int create_vport(void)
         }
 #endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         if (extSwInfo.present)
         {
             port = LOGICAL_PORT_TO_PHYSICAL_PORT(j);     
             unit = (j < MAX_EXT_SWITCH_PORTS) ? 1 : 0;
             phy_id = pVnetDev0->EnetInfo[unit].sw.phy_id[port];
+            phy_conn = pVnetDev0->EnetInfo[unit].sw.phyconn[port];
+            phy_devName = pVnetDev0->EnetInfo[unit].sw.phy_devName[port];
         }
         else 
         {
              phy_id = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phy_id[j];
+             phy_conn = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phyconn[j];
+             phy_devName = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phy_devName[j];
         }
+
 #else
         phy_id = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phy_id[j];
+        phy_conn = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phyconn[j];
+        phy_devName = pVnetDev0->EnetInfo[pVnetDev0->unit].sw.phy_devName[j];
 #endif
 
 #if defined(CONFIG_BCM96816)
@@ -1092,14 +1547,20 @@ static int create_vport(void)
 #if defined(CONFIG_EPON_SDK)
         if (phy_id & CONNECTED_TO_EPON_MAC) {
             dev_alloc_name(dev, eponif_name);
+            dev->priv_flags |= IFF_EPON_IF;
         } else
 #endif
+        if (phy_devName != PHY_DEVNAME_NOT_DEFINED)
+        {
+            dev_alloc_name(dev, phy_devName);
+        }
+        else
 #if defined(AEI_VDSL_WAN_ETH)
 #if defined(CONFIG_BCM963268)
         if (phy_id == EWAN_PORT_ID)
 #else
         if (j == EWAN_PORT_ID)
-#endif  
+#endif
         {
             dev_alloc_name(dev, ewanif_name);
         } else
@@ -1111,26 +1572,30 @@ static int create_vport(void)
 
             sprintf(ifname, "eth%d", 3 - j);
             dev_alloc_name(dev, ifname);
-        }		
+        }
         else
 #endif
         {
-            dev_alloc_name(dev, dev->name);
+            if( phy_conn == PHY_CONN_TYPE_PLC ) // Fixme. Use phy_devName in boardparms.
+                dev_alloc_name(dev, plcif_name);            
+            else
+                dev_alloc_name(dev, dev->name);
         }
 
 
 #if defined(AEI_VDSL_HPNA)
         //initialize the external switch port to get hpna running
-        if ( hpna_support && (phy_id == HPNA_PORT_ID)) 
+        if ( hpna_support && (phy_id == HPNA_PORT_ID))
         {
 #if defined(AEI_63168_CHIP)
             ;
 #else
-            uint8 v8 = REG_PORT_STATE_LNK | REG_PORT_STATE_FDX | REG_PORT_STATE_100 | REG_PORT_STATE_OVERRIDE; //0x47
+            uint8 v8 = REG_PORT_STATE_LNK | REG_PORT_STATE_FDX | REG_PORT_STATE_100 | REG_PORT_STATE_FLOWCTL | REG_PORT_STATE_OVERRIDE;
 
-            extsw_wreg(PAGE_CONTROL, REG_PORT5_STATE, (uint8 *)&v8, 1);
+            extsw_wreg(PAGE_CONTROL, REG_PORT5_STATE, &v8, 1);
 #endif
-            hpna_index = LOGICAL_PORT_TO_PHYSICAL_PORT(j);
+            hpna_port = LOGICAL_PORT_TO_PHYSICAL_PORT(j);
+            hpna_dev_index = i;
         }
 #endif
 
@@ -1147,11 +1612,16 @@ static int create_vport(void)
         dev->do_ioctl               = vnet_dev[0]->do_ioctl;
         dev->get_stats              = vnet_dev[0]->get_stats;
 #endif
-        dev->priv_flags             = vnet_dev[0]->priv_flags;
+        dev->priv_flags             |= vnet_dev[0]->priv_flags;
         dev->base_addr              = j;
 
         dev->features               = vnet_dev[0]->features;
 
+#if defined(CONFIG_BCM96816)
+        /* For now keep the Integrated MoCA @ 1500/default MTU only */
+        if (j != MOCA_PORT_ID) 
+#endif
+        dev->mtu = ENET_MAX_MTU_PAYLOAD_SIZE; /* Explicitly assign the MTU size based on buffer size allocated */
         /* Switch port id of this interface */
         pDevCtrl->sw_port_id        = j;
 
@@ -1183,7 +1653,7 @@ static int create_vport(void)
             BCM_ENET_DEBUG("Getting MAC for WAN port %d", j);
 #ifdef SEPARATE_MAC_FOR_WAN_INTERFACES
        #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
-        if(strstr(dev->name,"ewan0")!=NULL) 
+        if(strstr(dev->name,"ewan0")!=NULL)
             status=kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
 #endif
@@ -1201,17 +1671,37 @@ static int create_vport(void)
         dev->set_mac_address(dev, &sockaddr);
 #endif
 
+#if defined(CONFIG_BCM_GMAC)
+        if( gmac_is_gmac_supported() ){
+            int gmac_port = 0;
+#if defined(CONFIG_BCM963268)
+            if (extSwInfo.present){
+        	    if(unit == 0)
+        		    gmac_port = port;
+        	    else
+        		    gmac_port = MAX_EXT_SWITCH_PORTS; //GMAC is not on external switch, make it invalid
+            }
+            else
+        	    gmac_port = j;
+#else
+            gmac_port = j;
+#endif
+
+            if (gmac_is_gmac_port(gmac_port)) {
+                pVnetDev0->gmacPort |= 1 << j;
+                BCM_ENET_DEBUG("Setting gmac port %d phy id %d to gmacPort %d", gmac_port, j, pVnetDev0->gmacPort);
+            }
+        }
+#endif
         /* Note: The parameter i should be the vport_id-1. The ethsw_set_mac
            maps it to physical port id */
         if(pVnetDev0->unit == 0)
             ethsw_set_mac(i-1, phys);
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
 #if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         if((pVnetDev0->unit == 1) && IsExternalSwitchPort(j)){
           dev->priv_flags |= IFF_EXT_SWITCH;
         }
-#endif
 #endif
 
         printk("%s: MAC Address: %02X:%02X:%02X:%02X:%02X:%02X\n",
@@ -1230,7 +1720,7 @@ static int create_vport(void)
 #undef OFFSETOF
 #define OFFSETOF(STYPE, MEMBER)     ((size_t) &((STYPE *)0)->MEMBER)
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static int bcm_strip_tag_type1(struct sk_buff *skb, bool strip_brcm_tag)
 #else
 static int bcm_strip_tag_type1(struct sk_buff *skb)
@@ -1238,7 +1728,7 @@ static int bcm_strip_tag_type1(struct sk_buff *skb)
 {
     unsigned int end_offset = 0;
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     if (strip_brcm_tag && ((BcmEnet_hdr*)skb->data)->brcm_type == BRCM_TYPE)
 #else
     if (((BcmEnet_hdr*)skb->data)->brcm_type == BRCM_TYPE)
@@ -1268,7 +1758,7 @@ static int bcm_strip_tag_type1(struct sk_buff *skb)
     return end_offset;
 }
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static int bcm_strip_tag_type2(struct sk_buff *skb, bool strip_brcm_tag)
 #else
 static int bcm_strip_tag_type2(struct sk_buff *skb)
@@ -1276,7 +1766,7 @@ static int bcm_strip_tag_type2(struct sk_buff *skb)
 {
     unsigned int end_offset = 0;
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     if (strip_brcm_tag && ((BcmEnet_hdr*)skb->data)->brcm_type == BRCM_TYPE2)
 #else
     if (((BcmEnet_hdr*)skb->data)->brcm_type == BRCM_TYPE2)
@@ -1311,7 +1801,7 @@ static int bcm_strip_tag_type2(struct sk_buff *skb)
  *  Broadcom Tag with Ethernet type BRCM_TYPE [0x8874].
  */
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 static unsigned short bcm_type_trans(struct sk_buff *skb, struct net_device *dev, int strip_tag)
 #else
 static unsigned short bcm_type_trans(struct sk_buff *skb, struct net_device *dev)
@@ -1329,7 +1819,7 @@ static unsigned short bcm_type_trans(struct sk_buff *skb, struct net_device *dev
     skb->mac.raw = skb->data;
 #endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     end_offset = global.bcm_strip_tag(skb, strip_tag);
 #else
     end_offset = global.bcm_strip_tag(skb);
@@ -1502,12 +1992,12 @@ static int bcm63xx_enet_open(struct net_device * dev)
     netif_start_queue(dev);
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 {
     struct ethswctl_data e2;
 
     /* Needed to allow iuDMA split override to work properly - Feb 2011 */
-    /* Set the Switch Control and QoS registers later than init for the 63268 */
+    /* Set the Switch Control and QoS registers later than init for the 63268/6828 */
 
     /* The equivalent of "ethswctl -c cosqsched -v BCM_COSQ_COMBO -q 2 -x 1 -y 1 -z 1 -w 1" */
     /* This assigns equal weight to each of the 4 egress queues */
@@ -1600,30 +2090,28 @@ static void bcm63xx_enet_timeout(struct net_device * dev)
 static struct net_device_stats *
 bcm63xx_enet_query(struct net_device * dev)
 {
-//#ifdef REPORT_HARDWARE_STATS 
-#if defined(REPORT_HARDWARE_STATS) && !defined(CONFIG_BCM96368)
+#ifdef REPORT_HARDWARE_STATS
+    int port, log_port, extswitch = 0;
 
-    int port, extswitch = 0;
-
-#if !defined(CONFIG_BCM963268)  
-    BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
+#if !defined(CONFIG_BCM963268) && !defined(CONFIG_BCM96828)  
+	BcmEnet_devctrl *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
 #endif
 
-    port = port_id_from_dev(dev);
+    port = log_port = port_id_from_dev(dev);
 #if defined(CONFIG_BCM96816)
     if ((SERDES_PORT_ID == port) &&
-        IsExt6829(pVnetDev0->EnetInfo[0].sw.phy_id[port]) )
+        IsExt6829(pVnetDev0->EnetInfo[0].sw.phy_id[log_port]) )
     {
         extswitch = 1;
-        port = dev->base_addr;
+        log_port = dev->base_addr;
     }
 #endif
 
-#if defined(CONFIG_BCM963268)    
-    if ( (extSwInfo.present == 1) && (port < MAX_EXT_SWITCH_PORTS)){    
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)    
+    if ( (extSwInfo.present == 1) && (log_port < MAX_EXT_SWITCH_PORTS)){	
         extswitch = 1;
-    }    
-    port = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+    }
+    port = LOGICAL_PORT_TO_PHYSICAL_PORT(log_port);
 #else
     if (pVnetDev0->extSwitch->brcm_tag_type == BRCM_TYPE2) {
         extswitch = 1;
@@ -1635,10 +2123,41 @@ bcm63xx_enet_query(struct net_device * dev)
     } else {
         struct net_device_stats *stats = &global.net_device_stats_from_hw;
         BcmEnet_devctrl *pDevCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
-       ethsw_get_hw_stats(port, extswitch, stats);
+        uint32 rxDropped, txDropped;
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        //int a = avenrun[0] + (FIXED_1/200);
+        /* Reading many stats for many ports when cpu 0 and 1 are busy can
+           screw up memory of skb that ingress ethernet and egress wifi,
+           so do not read all these stats when cpu 0 is very busy. 
+         */
+        //if (LOAD_INT(a)<WHOLE_N_MAX_THRESHOLD) {
+        if (AEI_IS_CPU_FREE()) {
+#if defined(AEI_VDSL_STATS_DIAG)
+           ethsw_get_hw_stats(port, extswitch, stats, dev);
+#else
+           ethsw_get_hw_stats(port, extswitch, stats);
+#endif
+        }
+#else
+        ethsw_get_hw_stats(port, extswitch, stats);
+#endif
+
         /* Add the dropped packets in software */
         stats->rx_dropped += pDevCtrl->stats.rx_dropped;
         stats->tx_dropped += pDevCtrl->stats.tx_dropped;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        stats->multicast += pDevCtrl->stats.multicast;
+#endif
+
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+        bcmEnet_pktCmfEthGetStats(log_port, (uint32_t*) &rxDropped, 
+                (uint32_t*) &txDropped);
+#else
+        bcmPktDma_EthGetStats(log_port, &rxDropped, &txDropped); 
+#endif
+        stats->rx_dropped += rxDropped;
+        stats->tx_dropped += txDropped;
     }
     return &global.net_device_stats_from_hw;
 #else
@@ -1648,14 +2167,21 @@ bcm63xx_enet_query(struct net_device * dev)
 
 static int bcm63xx_enet_change_mtu(struct net_device *dev, int new_mtu)
 {
-    //printk("[%s.%d] %s->mtu changing to %d (was %d)\n", __func__, __LINE__, dev->name, new_mtu, dev->mtu);
-    if (new_mtu < ETH_ZLEN || new_mtu > ETH_DATA_LEN)
+	int max_mtu = ENET_MAX_MTU_PAYLOAD_SIZE;
+	/* For MoCA port - keep the MTU to 1500 only for now */
+#if defined(CONFIG_BCM96816) && defined(CONFIG_BCM_ETH_JUMBO_FRAME)
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(dev);
+	if (pDevCtrl && pDevCtrl->sw_port_id == MOCA_PORT_ID) {
+		max_mtu = NON_JUMBO_MAX_MTU_SIZE-ENET_MAX_MTU_EXTRA_SIZE;
+	}
+#endif /* 6816 and BCM_ETH_JUMBO_FRAME */
+    if (new_mtu < ETH_ZLEN || new_mtu > max_mtu)
         return -EINVAL;
     dev->mtu = new_mtu;
     return 0;
 }
 
-#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 static int channel_rx_rate_limit_enable[ENET_RX_CHANNELS_MAX] = {0};
 static int rx_bytes_from_last_jiffies[ENET_RX_CHANNELS_MAX] = {0};
 /* default rate in bytes/sec */
@@ -1698,12 +2224,12 @@ static void bcm63xx_timer(unsigned long arg)
                                   last_pkt_jiffies[channel]);
                 if (elapsed_msecs >= 99) {
                     rxdma = priv->rxdma[channel];
-                    BCM_ENET_INFO("pkts_from_last_jiffies = %d \n",
+                    BCM_ENET_DEBUG("pkts_from_last_jiffies = %d \n",
                                    rx_pkts_from_last_jiffies[channel]);
                     rx_pkts_from_last_jiffies[channel] = 0;
                     last_pkt_jiffies[channel] = jiffies;
                     if (rxchannel_isr_enable[channel] == 0) {
-                        BCM_ENET_INFO("Enabling DMA Channel & Interrupt \n");
+                        BCM_ENET_DEBUG("Enabling DMA Channel & Interrupt \n");
                         switch_rx_ring(priv, channel, 0);
                         bcmPktDma_BcmHalInterruptEnable(channel, rxdma->rxIrq);
                         rxchannel_isr_enable[channel] = 1;
@@ -1723,7 +2249,7 @@ static void bcm63xx_timer(unsigned long arg)
 }
 #endif /* defined(RXCHANNEL_PKT_RATE_LIMIT) */
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
 struct task_struct *enet_softswitch_xmit_task = NULL;
 /*
@@ -1924,10 +2450,18 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
     int linkMask;
     int sw_port;
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
-    int phyId = priv->EnetInfo[0].sw.phy_id[port];
+    int phyId = 0; // 0 is a valid phy_id but not an external phy_id. So we are OK initializing it to 0.
+    if (extSwInfo.present == 1) {
+        if (!IsExternalSwitchPort(port)) {
+            phyId = priv->EnetInfo[0].sw.phy_id[LOGICAL_PORT_TO_PHYSICAL_PORT(port)];
+        }
+    } else {
+        phyId = priv->EnetInfo[0].sw.phy_id[port];
+    }
 #endif
 
     down(&bcm_link_handler_config);
+
 
 #if defined(CONFIG_BCM96816)
     if ( IsExt6829(port) )
@@ -1956,28 +2490,82 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
     }
 
     if ((priv->linkState & mask) != linkMask) {
-        BCM_ENET_DEBUG("port=%x; vport=%x", port, vport);
+        BCM_ENET_LINK_DEBUG("port=%x; vport=%x", port, vport);
 
         mib = &((BcmEnet_devctrl *)netdev_priv(pNetDev))->MibInfo;
         if (linkstatus) {
+#if defined(AEI_VDSL_WAN_ETHER_LINK_PATCH)
+            AEI_VerifyLinkUp(phyId,&speed,&duplex);
+#endif
+
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
             /* Link is up, so de-isolate the Phy  */
             if (IsExtPhyId(phyId)) {
                 ethsw_isolate_phy(phyId, 0);
             }
 #endif
+
+            /* Just set a flag for EEE because a 1 second delay is required */
+            priv->eee_enable_request_flag[0] |= (1<<sw_port);
+
             if (netif_carrier_ok(pNetDev) == 0)
                 netif_carrier_on(pNetDev);
             if (speed == 1000)
+            {
                 mib->ulIfSpeed = SPEED_1000MBIT;
+   //roll back it because it will cause packet loss of STB which is connected to DUT directly
+/* this will reduce the performance from WAN ETH->HPNA and LAN ETH->HPNA */
+//#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if 0
+	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
+                //QA-Bug#37910: STB connected to router through 1000M switch will have many packet loss.
+                //If we disable 1000M port, the 1000M port has no the same priority as the other 100/10M port which FAP TM is enabled.
+                bcmPktDma_EthSetPhyRate(port, 1, 990000, pNetDev->priv_flags & IFF_WANDEV);
+#else                
+
+                bcmPktDma_EthSetPhyRate(port, 0, 990000, pNetDev->priv_flags & IFF_WANDEV);
+#endif
+            }
             else if (speed == 100)
+            {
                 mib->ulIfSpeed = SPEED_100MBIT;
+   //roll back it because it will cause packet loss of STB which is connected to DUT directly
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+			   //Agile QA-Bug #38053,The result of HPNA throughput (LAN Ethernt to LAN HPNA and LAN HPNA to LAN Ethernet) is very poor. We need set HPNA's FAP TM rate to the big one such as 200M which is confirmed to have good performance.	
+               if(strcmp(pNetDev->name,"eth4")==0)
+               {
+                   //printk("###111set eth4 FAP TM rate to 200M\n");
+                   bcmPktDma_EthSetPhyRate(port, 1, 200000, pNetDev->priv_flags & IFF_WANDEV);
+               }
+               else
+#endif
+                   bcmPktDma_EthSetPhyRate(port, 1, 99000, pNetDev->priv_flags & IFF_WANDEV);
+
+            }
             else
+            {
                 mib->ulIfSpeed = SPEED_10MBIT;
+   //roll back it because it will cause packet loss of STB which is connected to DUT directly
+//#if !defined(AEI_VDSL_CUSTOMER_NCS)
+                bcmPktDma_EthSetPhyRate(port, 1, 9900, pNetDev->priv_flags & IFF_WANDEV);
+//#endif
+            }
+#if defined (CONFIG_BCM_ETH_JUMBO_FRAME)
+#if defined(CONFIG_BCM96816)
+            /* For now keep the Integrated MoCA @ 1500/default MTU only */
+            if (sw_port != MOCA_PORT_ID) 
+#endif
+            {
+               if (speed == 1000) /* When jumbo frame support is enabled - the jumbo MTU is applicable only for 1000M interfaces */
+                   dev_set_mtu(pNetDev, ENET_MAX_MTU_PAYLOAD_SIZE);
+               else
+                   dev_set_mtu(pNetDev, (NON_JUMBO_MAX_MTU_SIZE-ENET_MAX_MTU_EXTRA_SIZE));
+            }
+#endif
             mib->ulIfLastChange  = (jiffies * 100) / HZ;
             mib->ulIfDuplex = (unsigned long)duplex;
             priv->linkState |= mask;
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
             /* set spd led for the internal phy */
             bcmenet_set_spdled(port, speed);
 
@@ -1990,11 +2578,39 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
                     atomic_set(&bcm6829ActDevIdx, 0);
                 }
             }
-#endif
+#endif /* CONFIG_BCM_MOCA_SOFT_SWITCHING */
+#if defined(CONFIG_BCM96816)
             if ( MOCA_PORT_ID != sw_port )
+#endif /* CONFIG_BCM96816 */
 #endif
             printk((KERN_CRIT "%s (switch port: %d) Link UP %d mbps %s duplex\n"),
                     pNetDev->name, sw_port, speed, duplex?"full":"half");
+
+#if defined(AEI_63168_CHIP)
+            if (memcmp(pNetDev->name, "ewan", 4) == 0)
+            {
+                kerSysLedCtrl(kLedEnetWan, kLedStateOn);
+
+#if defined(AEI_VDSL_SW_WAN_ETH_LED)
+                enetWanLedOn=1;
+#endif
+            }
+#endif
+
+#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+                if (extSwitchExist)
+                {
+                    uint8 v8=0;
+                    bcmsw_pmdio_rreg(0x00, port, (uint8 *)&v8, sizeof(v8));
+                    /* if tx/rx not enabled, then enable */
+                    if (v8 & 0x3)
+                    {
+                       v8 &= ~(0x3); /* enable tx/rx */
+                       bcmsw_pmdio_wreg(0x00, port, (uint8 *)&v8, sizeof(v8));
+                    }
+                }
+#endif
+
         } else {
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
             /* Link is down, so isolate the Phy. To prevent switch rx lockup 
@@ -2003,19 +2619,74 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
                 ethsw_isolate_phy(phyId, 1);
             }
 #endif
+
+            /* Clear any pending request to enable eee and disable it */
+            priv->eee_enable_request_flag[0] &= ~(1<<sw_port);
+            priv->eee_enable_request_flag[1] &= ~(1<<sw_port);
+#if defined(CONFIG_BCM_GMAC)
+            BCM_ENET_DEBUG("%s: port %d  disabling EEE\n", __FUNCTION__, sw_port);
+            if (IsGmacPort( sw_port ) )
+            {
+                volatile GmacEEE_t *gmacEEEp = GMAC_EEE;
+                gmacEEEp->eeeCtrl.linkUp = 0;
+            }
+#endif
+            ethsw_eee_port_enable(sw_port, 0, 0);
+
+#if defined(CONFIG_BCM963268) || defined (CONFIG_BCM96828)
+            if ((extSwInfo.present == 1) && IsExternalSwitchPort(sw_port)) {
+                extsw_fast_age_port(sw_port, 0);
+            } else {
+                fast_age_port(LOGICAL_PORT_TO_PHYSICAL_PORT(sw_port), 0);
+            }
+#else
+            if (extSwInfo.present == 1) {
+                extsw_fast_age_port(sw_port, 0);
+            } else {
+                fast_age_port(sw_port, 0);
+            }
+#endif
+
             if (netif_carrier_ok(pNetDev) != 0)
                 netif_carrier_off(pNetDev);
             mib->ulIfLastChange  = 0;
             mib->ulIfSpeed       = 0;
             mib->ulIfDuplex      = 0;
             priv->linkState &= ~mask;
-#if defined(CONFIG_BCM96816)
+#if 1
+//Roll back the fix because it will cause packet loss of STB which is connected to DUT directly.
+//#if !defined(AEI_VDSL_CUSTOMER_NCS)
+            bcmPktDma_EthSetPhyRate(port, 0, 0, pNetDev->priv_flags & IFF_WANDEV);
+#endif
+
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
             /* set spd led for the internal phy */
             bcmenet_set_spdled(vport, 0);
 
+#if defined(CONFIG_BCM96816)
             if ( MOCA_PORT_ID != sw_port )
+#endif /* CONFIG_BCM96816 */
 #endif
             printk((KERN_CRIT "%s (switch port: %d)  Link DOWN.\n"), pNetDev->name, sw_port);
+
+#if defined(AEI_63168_CHIP)
+            if (memcmp(pNetDev->name, "ewan", 4) == 0)
+            {
+               kerSysLedCtrl(kLedEnetWan, kLedStateOff);
+#if defined(AEI_VDSL_SW_WAN_ETH_LED)
+               enetWanLedOn=0;
+#if defined(AEI_VDSL_SMARTLED)
+               /*since WAN/LAN LED has been off, we should disable internet LED traffic blink*/
+               inetTrafficBlinkEnable=FALSE;
+               inetAmberEnable=FALSE;
+#endif
+#endif
+            }
+#endif
+
+#if defined(AEI_VDSL_WAN_ETHER_LINK_PATCH) 
+            AEI_VerifyLinkDown(phyId);
+#endif
         }
 
         kerSysSendtoMonitorTask(MSG_NETLINK_BRCM_LINK_STATUS_CHANGED,NULL,0);
@@ -2047,12 +2718,7 @@ void link_change_handler(int port, int linkstatus, int speed, int duplex)
         }
 #endif
     }
-#if defined(CONFIG_BCM_ETH_PWRSAVE)
-    if (priv->linkState & global.extPhyMask)
-        global.ext_ephy_energy = 1;
-    else
-        global.ext_ephy_energy = 0;
-#endif
+
     up(&bcm_link_handler_config);
 }
 
@@ -2064,7 +2730,7 @@ static int link_change_handler_wrapper(void *ctxt)
   LinkChangeArgs *args = ctxt;
 
   BCM_ASSERT(args);
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
   if (args->activeELink)
   {
       if (args->linkstatus == 1)
@@ -2076,12 +2742,20 @@ static int link_change_handler_wrapper(void *ctxt)
           bcmsw_set_default_ipg();
       }
   }
-#endif /* BCM96816 */
+#endif /* BCM96816 6818 */
 
   link_change_handler(args->port,
                       args->linkstatus,
                       args->speed,
                       args->duplex);
+
+#if defined(CONFIG_BCM_GMAC)
+    if ( IsGmacPort(args->port) && IsLogPortWan(args->port) )
+    {
+        gmac_link_status_changed(GMAC_PORT_ID, args->linkstatus, args->speed,
+            args->duplex);
+    }
+#endif
   return 0;
 }
 
@@ -2096,11 +2770,20 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
 
     /* */
     daemonize("bcmsw");
-
+#if !defined(CONFIG_BCM96818)
     BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
     BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
 #endif
+#if defined(CONFIG_BCM96828) 
+        BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+        BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+        BcmHalInterruptEnable(INTERRUPT_ID_GMAC);
+#endif
+
 
     /* Enable the Phy interrupts of internal Phys */
     for (i = 0; i < TOTAL_SWITCH_PORTS - 1; i++) {
@@ -2151,7 +2834,7 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
         /* Add code for buffer quick free between enet and xtm - June 2010 */
         if(xtm_fkb_recycle_hook == NULL)
             xtm_fkb_recycle_hook = bcmPktDma_get_xtm_fkb_recycle();
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         if(xtm_skb_recycle_hook == NULL)
             xtm_skb_recycle_hook = bcmPktDma_get_xtm_skb_recycle();
 #endif
@@ -2167,6 +2850,132 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
     complete_and_exit(&poll_done, 0);
     printk("bcm63xx_enet_poll_timer: thread exits!\n");
 }
+
+
+#if defined(AEI_VDSL_SW_WAN_ETH_LED)
+void AEI_poll_gphy_LED(void)
+{
+    static uint32 previousCnt = 0;
+    static uint8 blinkBlink = 0;
+    uint32 currentCnt = 0;
+
+#if defined(AEI_VDSL_SMARTLED)
+   /* HDW-002
+    * WAN/LAN LED
+    * When in WAN Ethernet mode, the WAN/LAN LED should be solid green and not blink.
+    * When in LAN Ethernet mode, the WAN/LAN LED should be blinking green when traffic is being passed.
+    */
+    if (enetWanLedOn)
+    {
+        /* could use EthSwMIBRegs *e, e->RxOctetsLo and e->TxOctetsLo to access but not to save some instructions */
+        UPDATE_GPHY_OCTET_COUNT(currentCnt);
+
+        /* not locking here as the only other LEDs that may access this register
+         * are POST and POWER_ON which are accessed during bootup.
+         * use blinkBlink to take care of timer drift between to polling threads.
+         */
+
+        if(inetTrafficBlinkEnable)
+        {
+            /* in WAN Ethernet mode
+             * the WAN/LAN LED should be solid green
+             * and Internet LED need to blink while traffic
+             */
+            GPHY_LED_ON();
+
+            if(inetAmberEnable)
+            {
+                if (previousCnt != currentCnt)
+                {
+                    if (blinkBlink == 1)
+                        GINET_AMBER_LED_FAST_BLINK();
+                    else
+                    {
+                        GINET_AMBER_LED_SLOW_BLINK();
+                        blinkBlink = 1;
+                    }
+                    previousCnt = currentCnt;
+                }
+                else
+                {
+                    blinkBlink = 0;
+                    GINET_AMBER_LED_ON();
+                }
+            }
+            else
+            {
+                if (previousCnt != currentCnt)
+                {
+                    if (blinkBlink == 1)
+                        GINET_GREEN_LED_FAST_BLINK();
+                    else
+                    {
+                        GINET_GREEN_LED_SLOW_BLINK();
+                        blinkBlink = 1;
+                    }
+                    previousCnt = currentCnt;
+                }
+                else
+                {
+                    blinkBlink = 0;
+                    GINET_GREEN_LED_ON();
+                }
+            }
+        }
+        else
+        {
+           /* in LAN Ethernet mode
+            * the WAN/LAN LED should be blinking green when traffic is being passed.
+            */
+            if (previousCnt != currentCnt)
+            {
+                if (blinkBlink == 1)
+                    GPHY_LED_FAST_BLINK();
+                else
+                {
+                    GPHY_LED_SLOW_BLINK();
+                    blinkBlink = 1;
+                }
+                previousCnt = currentCnt;
+            }
+            else
+            {
+                blinkBlink = 0;
+                GPHY_LED_ON();
+            }
+        }
+    }
+#else  // AEI_VDSL_SMARTLED
+    if (enetWanLedOn)
+    {
+        /* could use EthSwMIBRegs *e, e->RxOctetsLo and e->TxOctetsLo to access but not to save some instructions */
+        UPDATE_GPHY_OCTET_COUNT(currentCnt);
+
+        /* not locking here as the only other LEDs that may access this register
+         * are POST and POWER_ON which are accessed during bootup.
+         * use blinkBlink to take care of timer drift between to polling threads.
+         */
+        if (previousCnt != currentCnt)
+        {
+            if (blinkBlink == 1)
+                GPHY_LED_FAST_BLINK();
+            else
+            {
+                GPHY_LED_SLOW_BLINK();
+                blinkBlink = 1;
+            }
+            previousCnt = currentCnt;
+        }
+        else
+        {
+            blinkBlink = 0;
+            GPHY_LED_ON();
+        }
+    }
+#endif
+    return;
+}
+#endif
 
 static int enet_ioctl_kernel_poll(void)
 {
@@ -2186,29 +2995,47 @@ static int enet_ioctl_kernel_poll(void)
     ethsw_counter_collect(port_map, 0);
 
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
-    ethsw_ephy_auto_power_down_sleep(global.ext_ephy_energy);
+    ethsw_ephy_auto_power_down_sleep();
+#endif
+
+    /* Check for delayed request to enable EEE */
+    ethsw_eee_process_delayed_enable_requests();
+
+#if (CONFIG_BCM_EXT_SWITCH_TYPE == 53115)
+    extsw_apd_set_compatibility_mode();
 #endif
 
 #if defined(AEI_VDSL_HPNA)
-    if (hpna_support) 
+    if (hpna_support)
     {
-        phys = AEI_ethsw_hpna_phy_stat(hpna_index);
-        if (hpna_link != phys.lnk) {
-            printk("%s Link %s\n",vnet_dev[hpna_index + 1]->name, phys.lnk?"UP":"DOWN");
-		hpna_link = phys.lnk;
+        phys = AEI_ethsw_hpna_phy_stat(hpna_port);
+        if (hpna_link != phys.lnk)
+        {
+            printk("%s Link %s\n",vnet_dev[hpna_dev_index]->name, phys.lnk?"UP":"DOWN");
 
-            if (phys.lnk) {
-               if (netif_carrier_ok(vnet_dev[hpna_index + 1]) == 0)
-                   netif_carrier_on(vnet_dev[hpna_index + 1]);
+            hpna_link = phys.lnk;
+
+            if (phys.lnk)
+            {
+                if (netif_carrier_ok(vnet_dev[hpna_dev_index]) == 0)
+                    netif_carrier_on(vnet_dev[hpna_dev_index]);
             }
-            else {
-               if (netif_carrier_ok(vnet_dev[hpna_index + 1]) != 0)
-                   netif_carrier_off(vnet_dev[hpna_index + 1]);
-           }
-
-       }
+            else
+            {
+                if (netif_carrier_ok(vnet_dev[hpna_dev_index]) != 0)
+                    netif_carrier_off(vnet_dev[hpna_dev_index]);
+            }
+        }
     }
 #endif
+
+#if defined(AEI_VDSL_SW_WAN_ETH_LED)
+    /* Do WAN eth LED here because not in datapath, alternate calling AEI_poll_gphy_LED
+     * because swmdk fork and calls enet_ioctl_kernel_poll 2x in every second.
+     */
+    AEI_poll_gphy_LED();
+#endif
+
     return 0;
 }
 
@@ -2225,17 +3052,22 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
     BcmEnet_devctrl *priv = (BcmEnet_devctrl *)netdev_priv(dev);
     int ephy_sleep_delay = 0;
     uint32_t port_map = (uint32_t) priv->EnetInfo[0].sw.port_map;
-#if defined(CONFIG_BCM_ETH_PWRSAVE)
-    int ext_ephy_energy;
-#endif
 
     /* */
     daemonize("bcmsw");
 
     /* */
+#if !defined(CONFIG_BCM96818)
     BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
+#endif
 #if defined(CONFIG_BCM963268)
     BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
+#elif defined(CONFIG_BCM96828)
+    BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+    BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+    BcmHalInterruptEnable(INTERRUPT_ID_GMAC);
 #endif
 
     /* Enable the Phy interrupts of internal Phys */
@@ -2278,9 +3110,6 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
         newstat = 0;
 
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
-        /* Assume no ext PHY link up, it will be updated further down */
-        ext_ephy_energy = 0;
-
         ephy_sleep_delay = ethsw_ephy_auto_power_down_wakeup();
 #endif
 
@@ -2288,7 +3117,7 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
         {
             int phyId = priv->EnetInfo[0].sw.phy_id[vport_to_phyport[i]];
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
             /* Skip GPON interface */
             if(vport_to_phyport[i] == GPON_PORT_ID) {
                 continue;
@@ -2337,17 +3166,6 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
             /* If link is up, set tmp with the mask of this port */
             tmp = (phys.lnk != 0) ? mask : 0;
 
-#if defined(CONFIG_BCM_ETH_PWRSAVE)
-           /* Determine if an external ETH PHY is link up */
-            /* In which case the EPHY PLL cannot be powered down */
-            if ((vport_to_phyport[i] < EPHY_PORTS) &&
-                  IsExtPhyId(phyId) &&
-                  (phys.lnk != 0))
-            {
-                ext_ephy_energy = 1;
-            }
-#endif
-
             /* Update the new link status */
             newstat |= tmp;
 
@@ -2381,7 +3199,7 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
 
                     mib->ulIfLastChange  = (jiffies * 100) / HZ;
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                     if ( MOCA_PORT_ID != vport_to_phyport[i] )
 #endif
                     {
@@ -2415,7 +3233,7 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
 
                     mib->ulIfLastChange  = 0;
                     mib->ulIfSpeed       = 0;
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                     if ( MOCA_PORT_ID != vport_to_phyport[i] )
 #endif
                     {
@@ -2429,9 +3247,17 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
         if (priv->linkState != newstat)
         {
           ephy_int_cnt = 0;
+#if !defined(CONFIG_BCM96818)
           BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
+#endif
 #if defined(CONFIG_BCM963268)
           BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
+#elif defined(CONFIG_BCM96828)
+          BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+          BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+            BcmHalInterruptEnable(INTERRUPT_ID_GMAC);
 #endif
           priv->linkState = newstat;
           kerSysSendtoMonitorTask(MSG_NETLINK_BRCM_LINK_STATUS_CHANGED,NULL,0);
@@ -2442,7 +3268,14 @@ static void bcm63xx_enet_poll_timer(unsigned long arg)
 
 
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
-        ephy_sleep_delay += ethsw_ephy_auto_power_down_sleep(ext_ephy_energy);
+        ephy_sleep_delay += ethsw_ephy_auto_power_down_sleep();
+#endif
+
+        /* Check for delayed request to enable EEE */
+        ethsw_eee_process_delayed_enable_requests();
+
+#if (CONFIG_BCM_EXT_SWITCH_TYPE == 53115)
+        extsw_apd_set_compatibility_mode();
 #endif
 
         /*   */
@@ -3030,7 +3863,11 @@ static inline int moca_send_packets(int isWan, int sendOne)
                     }
 
                     ENET_MOCA_TX_UNLOCK();
+#ifdef PKTC
+                    bcm63xx_enet_xmit2(pNBuff, dev, &param, FALSE);
+#else
                     bcm63xx_enet_xmit2(pNBuff, dev, &param);
+#endif
                     if ( leave || sendOne )
                     {
                         return 0;
@@ -3067,7 +3904,7 @@ static inline int moca_send_packets(int isWan, int sendOne)
 #endif
 #endif
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 
 #define get_first_gemid_to_ifIdx_mapping(gemId) gem_to_gponifid[gemId][0]
 
@@ -3197,9 +4034,9 @@ static BOOL is_gemid_mapped_to_gponif(int gemId, int ifId)
     }
     return FALSE;
 }
-#endif /* defined(CONFIG_BCM96816) && defined(DBL_DESC) */
+#endif /* (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC) */
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC) && defined(SUPPORT_HELLO))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC) && defined(SUPPORT_HELLO))
 static int dropped_xmit_port = 0;
 /* --------------------------------------------------------------------------
     Name: bcm63xx_enet_xmit_port
@@ -3210,7 +4047,7 @@ static int bcm63xx_enet_xmit_port(struct sk_buff * skb, int xPort)
     struct net_device * dev;
     BcmEnet_devctrl   *pVnetDev0 = (BcmEnet_devctrl *) netdev_priv(vnet_dev[0]);
 
-    BCM_ENET_DEBUG("Send<0x%08x> len=%d xport<%d> "
+    BCM_ENET_TX_DEBUG("Send<0x%08x> len=%d xport<%d> "
                   "mark<0x%08x> destQ<%d> gemId<%d> channel<%d>\n",
                   (int)skb, skb->len, xPort, skb->mark,
                   SKBMARK_GET_Q_PRIO(skb->mark), SKBMARK_GET_PORT(skb->mark),
@@ -3258,7 +4095,20 @@ static int bcm63xx_enet_xmit_port(struct sk_buff * skb, int xPort)
 -------------------------------------------------------------------------- */
 static int bcm63xx_enet_xmit(pNBuff_t pNBuff, struct net_device *dev)
 {
+#ifdef PKTC
+    bool is_chained = FALSE;
+#endif
     EnetXmitParams   param = {0};
+
+#ifdef PKTC
+    /* for PKTC, pNBuff is chained skb */
+
+    if (IS_SKBUFF_PTR(pNBuff))
+       is_chained = PKTISCHAINED(pNBuff);
+
+    do {
+
+#endif
 
     param.pDevPriv = netdev_priv(dev);
     param.vstats   = &param.pDevPriv->stats;
@@ -3337,7 +4187,22 @@ static int bcm63xx_enet_xmit(pNBuff_t pNBuff, struct net_device *dev)
     BCM_ENET_TX_DEBUG("The Tx channel is %d \n", param.channel);
     BCM_ENET_TX_DEBUG("The egress queue is %d \n", param.egress_queue);
 
+#ifdef PKTC
+
+    bcm63xx_enet_xmit2(pNBuff, dev, &param, is_chained);
+
+    if (is_chained) 
+        pNBuff = PKTCLINK(pNBuff);
+
+    } while (is_chained && pNBuff && IS_SKBUFF_PTR(pNBuff));
+
+    return 0;
+
+#else 
+
     return bcm63xx_enet_xmit2(pNBuff, dev, &param);
+
+#endif	
 }
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
@@ -3345,7 +4210,7 @@ static inline int fapTxChannelFkb(FkBuff_t *pFkb)
 {
     int txChannel;
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
     FkBuff_t *pFkbMaster = _get_fkb_master_ptr_(pFkb);
 
     if(pFkbMaster->recycle_hook == (RecycleFuncP)bcm63xx_enet_recycle)
@@ -3355,11 +4220,13 @@ static inline int fapTxChannelFkb(FkBuff_t *pFkb)
            received from. This is needed to avoid buffer recycling across FAPs */
         txChannel = FKB_RECYCLE_CONTEXT(pFkb)->channel;
     }
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     else if(pFkbMaster->recycle_hook == xtm_fkb_recycle_hook)
     {
         /* from XTM (from WAN) */
         txChannel = PKTDMA_ETH_DS_IUDMA;
     }
+#endif
     else
     {
         /* unknown source, e.g. USB (from LAN) */
@@ -3385,7 +4252,7 @@ static inline int fapTxChannelSkb(struct sk_buff *skb)
 {
     int txChannel;
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)  || defined(CONFIG_BCM96818)
 
     if(skb->recycle_hook == (RecycleFuncP)bcm63xx_enet_recycle_skb_or_data)
     {
@@ -3394,11 +4261,13 @@ static inline int fapTxChannelSkb(struct sk_buff *skb)
            received from. This is needed to avoid buffer recycling across FAPs */
         txChannel = RECYCLE_CONTEXT(skb->recycle_context)->channel;
     }
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     else if(skb->recycle_hook == xtm_skb_recycle_hook)
     {
         /* from XTM (from WAN) */
         txChannel = PKTDMA_ETH_DS_IUDMA;
     }
+#endif
     else
     {
         /* unknown source, e.g. USB (from LAN) */
@@ -3416,34 +4285,35 @@ static inline int fapTxChannelSkb(struct sk_buff *skb)
 }
 #endif /* defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE) */
 
+#ifdef PKTC
+static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
+    struct net_device *dev, EnetXmitParams *pParam, bool is_chained)
+#else
 static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
     struct net_device *dev, EnetXmitParams *pParam)
+#endif
 {
 #if defined(AEI_VDSL_TOOLBOX)
     BcmEnet_devctrl *pEthCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
 #endif
     uint32_t blog_chnl, blog_phy;       /* used if CONFIG_BLOG enabled */
-#if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    int param2 = -1;
+    
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     int gemid = -1;
+#if defined(CONFIG_BCM96818)
+    BCM_GponGemPidQueueInfo gemInfo;
+    DmaDesc16Ctrl *param2Ptr;
+#endif /* 6818 */
 #endif
-    uint32 reclaim_idx=0;
+    uint32 reclaim_idx;
     uint32 delayed_reclaim_array[DELAYED_RECLAIM_ARRAY_LEN];
     BcmPktDma_EthTxDma *txdma;
     unsigned int port_map = (1 << pParam->port_id);
     DmaDesc  dmaDesc;
     FkBuff_t *pFkb = NULL;
     struct sk_buff *skb = NULL;
-#if defined(AEI_VDSL_STATS_DIAG)
-    int is_multicast = 0;
-#endif
-
-#if defined(AEI_VDSL_STATS_DIAG)
-    /* multicast packets (including broadcast packets) */
-    if (pParam->data && (*(pParam->data) & 1))
-    {
-        is_multicast = 1;
-    }
-#endif
+    uint32 dqm;
 
     /* tx request should never be on the bcmsw interface */
     BCM_ASSERT_R((dev != vnet_dev[0]), 0);
@@ -3465,6 +4335,21 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
 #endif
     }
 
+#if defined(CONFIG_BCM_GMAC)
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    /* If WAN Port send to US TX IuDMA channel */
+    if ( IsLogPortWan(pParam->port_id) )
+        pParam->channel = PKTDMA_ETH_US_TX_IUDMA;
+    else
+        pParam->channel = PKTDMA_ETH_DS_TX_IUDMA;
+#else
+    if ( gmac_info_pg->active && IsGmacPort( pParam->port_id ) )
+        pParam->channel = GMAC_LOG_CHAN;
+#endif
+#endif
+
+    BCM_ENET_TX_DEBUG("chan=%d \n", pParam->channel);
+
 #if defined(AEI_VDSL_TOOLBOX)
     if (pEthCtrl->usMirrorOutFlags != 0)
     {
@@ -3477,17 +4362,20 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         }
     }
 #endif
-
+#if defined(AEI_VDSL_CUSTOMER_NCS) 
     txdma = global.pVnetDev0_g->txdma[pParam->channel];
+#endif
 
     BCM_ENET_TX_DEBUG("Send len=%d \n", pParam->len);
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     /* If GPON port, get the gemid from mark and put it in the BD */
     if (pParam->port_id == GPON_PORT_ID) {
         switch (pParam->pDevPriv->gem_count) {
             case 0:
                 BCM_ENET_TX_DEBUG("No gem_ids, so dropping Tx \n");
+                global.pVnetDev0_g->stats.tx_dropped++;
+                pParam->vstats->tx_dropped++;
                 goto drop_exit;
 
             case 1:
@@ -3501,6 +4389,8 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
                 if (get_first_gemid_to_ifIdx_mapping(gemid) != pParam->pDevPriv->gponifid) {
                     BCM_ENET_TX_DEBUG("The given gem_id is not associated with"
                                      " the given interface\n");
+                    global.pVnetDev0_g->stats.tx_dropped++;
+                    pParam->vstats->tx_dropped++;
                     goto drop_exit;
                 }
                 break;
@@ -3510,6 +4400,24 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         /* gemid is set later in bcmPktDma implementation of enet driver */
         blog_chnl = gemid;
         blog_phy  = BLOG_GPONPHY;
+#if defined(CONFIG_BCM96818)
+        {
+            bcmFun_t *getGemInfoFunc;
+            getGemInfoFunc =  bcmFun_get(BCM_FUN_ID_GPON_GET_GEM_PID_QUEUE);
+            gemInfo.gemPortIndex = gemid;
+            if (!getGemInfoFunc || getGemInfoFunc(&gemInfo))
+            {/* drop if no func or error */
+                goto drop_exit;
+            }
+            param2 = 0;  
+            param2Ptr = (DmaDesc16Ctrl*)(&param2);
+            param2Ptr->gemPid = gemInfo.gemPortId;
+            param2Ptr->usQueue = gemInfo.usQueueIdx;
+            param2Ptr->pktColor = 0;
+        }
+#else /* 6816 */
+        param2 = gemid;
+#endif
     }
     else    /* ! GPON_PORT_ID */
 #endif
@@ -3532,7 +4440,10 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
      * Pass to blog->fcache, so it can construct the customized
      * fcache based execution stack.
      */
-    blog_emit( pNBuff, dev, TYPE_ETH, blog_chnl, blog_phy ); /* CONFIG_BLOG */
+#ifdef PKTC
+    if (is_chained == FALSE) 
+#endif
+        blog_emit( pNBuff, dev, TYPE_ETH, blog_chnl, blog_phy ); /* CONFIG_BLOG */
 #endif
 
     ENET_TX_LOCK();
@@ -3541,8 +4452,6 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         BcmPktDma_txRecycle_t txRecycle;
         BcmPktDma_txRecycle_t *txRecycle_p;
 
-        while (reclaim_idx < DELAYED_RECLAIM_ARRAY_LEN)
-            delayed_reclaim_array[reclaim_idx++] = (uint32_t) PNBUFF_NULL;
         reclaim_idx = 0;
 
         while((txRecycle_p = bcmPktDma_EthFreeXmitBufGet(txdma, &txRecycle)) != NULL)
@@ -3564,41 +4473,104 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         }   /* end while(...) */
     }
 
-    /* Check for tx slots available AFTER re-acquiring the tx lock */
-    if (!bcmPktDma_EthXmitAvailable(txdma))
     {
-#if defined(ENABLE_FAP_COMMS_DEBUG)
-        /* Count # times eth tx send to FAP is rejected - May 2010 */
-        pHostPsmGbl->debug_ctrs[ENET_TX_HOST_2_FAP_REJECT]++;
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+        uint32_t q;
+        uint32_t txDropThr;
+        uint32_t qDepth;
+
+        if (g_Eth_tx_iudma_ownership[pParam->channel] == HOST_OWNED)
+        {
+            q = (pParam->egress_queue > 3) ? 3 : pParam->egress_queue;
+            txDropThr = txdma->txDropThr[q];
+            qDepth = bcmPktDma_EthXmitBufCountGet_Iudma(txdma);
+        }
+#endif
 #endif
 
-        TRACE(("%s: bcm63xx_enet_xmit low on txFreeBds\n", dev->name));
-        BCM_ENET_TX_DEBUG("No more Tx Free BDs\n");
-        global.pVnetDev0_g->stats.tx_dropped++;
-        pParam->vstats->tx_dropped++;
-        goto unlock_drop_exit;
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+        /* Send the high priority tarffic HOST2FAP HIGH priorty DQM's and other traffic
+         * through LOW priority HOST2FAP DQM 
+         * classification is based on (skb/fkb)->mark 
+         */
+
+        /* ouf of 4 switch priorities use (0,1) for low prioroty and (2,3)
+           for high priorty */
+        /* For 6818, there are 8 queues. However only 4 queues are exposed to the user via WEBGUI. So keeping the same logic
+           Queue < 2 will be low priority and the rest would be high priority */
+        if(pParam->egress_queue < 2)
+        {
+            dqm = DQM_HOST2FAP_ETH_XMIT_Q_LOW;
+        }
+        else 
+        {
+            dqm = DQM_HOST2FAP_ETH_XMIT_Q_HI;
+        }
+#else
+        dqm = 0;
+#endif
+
+
+        if ( 
+            !txdma->txEnabled || 
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+            ( (g_Eth_tx_iudma_ownership[pParam->channel] == HOST_OWNED) &&
+              (qDepth >= txDropThr) ) ||
+#endif
+#endif
+            /* Check for tx slots available AFTER re-acquiring the tx lock */
+            (!bcmPktDma_EthXmitAvailable(txdma, dqm)))
+        {
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+            txdma->txDropThrPkts[q]++;
+#endif
+#endif
+
+            TRACE(("%s: bcm63xx_enet_xmit low on txFreeBds\n", dev->name));
+            BCM_ENET_TX_DEBUG("No more Tx Free BDs\n");
+            global.pVnetDev0_g->stats.tx_dropped++;
+            pParam->vstats->tx_dropped++;
+
+#if defined(AEI_VDSL_STATS_DIAG)
+            if (pParam->data)
+            {
+                if (*(pParam->data) & 1)
+                    pEthCtrl->dev_stats.multicast_discarded_packets++;
+                else
+                    pEthCtrl->dev_stats.unicast_discarded_packets++;
+            }
+#endif
+
+            goto unlock_drop_exit;
+        }
     }
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     if (blog_phy == BLOG_GPONPHY && gemMirrorCfg[MIRROR_DIR_OUT].nStatus &&
-        (gemMirrorCfg[MIRROR_DIR_OUT].nGemPortMask & (1 << blog_chnl)))
+        (gemMirrorCfg[MIRROR_DIR_OUT].nGemPortMaskArray[blog_chnl/8] & (1 << (blog_chnl % 8))))
     {
         struct sk_buff * pNBuffSkb; /* If pNBuff is sk_buff: protocol access */
         pNBuffSkb = nbuff_xlate(pNBuff);    /* translate to skb */
         if (pNBuffSkb != (struct sk_buff *)NULL)
         {
-            MirrorPacket( pNBuffSkb, gemMirrorCfg[MIRROR_DIR_OUT].szMirrorInterface, 0);
+            ENET_TX_UNLOCK();
+            MirrorPacket( pNBuffSkb, gemMirrorCfg[MIRROR_DIR_OUT].szMirrorInterface, 0, 1);
+            ENET_TX_LOCK();
             pNBuff = SKBUFF_2_PNBUFF( pNBuffSkb );
             nbuff_get_context( pNBuff, &pParam->data, &pParam->len );
         }
     }
 #endif
 
+
     if (global.pVnetDev0_g->extSwitch->present
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         && (pParam->port_id < MAX_EXT_SWITCH_PORTS)
 #endif
-       ) 
+        ) 
     {
         if ( pFkb ) {
             FkBuff_t * pFkbOrig = pFkb;
@@ -3607,7 +4579,9 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
             if (pFkb == FKB_NULL)
             {
                 fkb_free(pFkbOrig);
-		goto unlock_exit;
+                global.pVnetDev0_g->stats.tx_dropped++;
+                pParam->vstats->tx_dropped++;
+                goto unlock_exit;
             }
             bcm63xx_fkb_put_tag(pFkb, dev, port_map);
             pParam->data = pFkb->data;
@@ -3616,28 +4590,32 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         } else {
             skb = bcm63xx_skb_put_tag(skb, dev, port_map);    /* also pads to 0 */
             if (skb == NULL) {
+                global.pVnetDev0_g->stats.tx_dropped++;
+                pParam->vstats->tx_dropped++;
                 goto unlock_exit;
             }
             pParam->data = skb->data;   /* Re-encode pNBuff for adjusted data and len */
             pParam->len  = skb->len;
             pNBuff = PBUF_2_PNBUFF((void*)skb,SKBUFF_PTR);
         }
-#if defined(CONFIG_BCM963268)
+
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         dmaDesc.status = DMA_OWN | DMA_SOP | DMA_EOP | DMA_APPEND_CRC | DMA_APPEND_BRCM_TAG | (1 << global.pVnetDev0_g->extSwitch->connected_to_internalPort);
 #else
         dmaDesc.status = DMA_OWN | DMA_SOP | DMA_EOP | DMA_APPEND_CRC;
 #endif
-    } else {
-
-        /* DMA priority is 2 bits - range 0-3, if the egress queue is greater than 3
-           then use DMA priority 3 to transmit the packet */
+    } 
+    else 
+    {
+        /* DMA priority is 2 bits - range 0-3, if the egress queue 
+           is greater than 3 then use DMA priority 3 to transmit the packet */
         int dmaPriority = pParam->egress_queue;
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
        /* When external switch is present and when we are xmitting on an internal sw port */
-       if (pParam->port_id >= MAX_EXT_SWITCH_PORTS)
-       {
-           port_map = port_map >> MAX_EXT_SWITCH_PORTS;
-       }
+        if (pParam->port_id >= MAX_EXT_SWITCH_PORTS)
+        {
+            port_map = port_map >> MAX_EXT_SWITCH_PORTS;
+        }
 #endif
         if (dmaPriority > 3)
             dmaPriority = 3;
@@ -3666,8 +4644,10 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         int bufSource;
         uint32 key;
         int param1;
-
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+        BcmEnet_devctrl *pDevCtrl = netdev_priv(dev);
+        uint32 destQueue;
+
         bufSource = HOST_VIA_DQM;
         key = (uint32)pNBuff;
         param1 = 0;
@@ -3679,8 +4659,13 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
 
             if(pFkbMaster->recycle_hook == (RecycleFuncP)bcm63xx_enet_recycle)
             {
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+                if((g_Eth_rx_iudma_ownership[rxChannel] != HOST_OWNED) &&
+							 (_get_master_users_(pFkbMaster) == 1))
+#else
                 /* received from FAP */
                 if(_get_master_users_(pFkbMaster) == 1)
+#endif
                 {
                     /* allow local recycling in FAP */
                     bufSource = FAP_ETH_RX;
@@ -3699,8 +4684,10 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
                  * key = (uint32)pNBuff;
                  */
 
-            param1 = rxChannel;
+                param1 = rxChannel;
             }
+            
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
             else if(pFkbMaster->recycle_hook == xtm_fkb_recycle_hook)
             {
                 /* received from FAP */
@@ -3724,14 +4711,34 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
 
                 param1 = rxChannel;
             }
+#endif
+            destQueue = SKBMARK_GET_Q_PRIO(pFkb->mark);
         }
-#if defined(CC_FAP4KE_PKT_GSO)
+#if defined(CONFIG_BCM_FAP_GSO)
         else /* skb */
         {
+#if defined(CONFIG_BCM_GMAC)
+            /* RX on Chan-0 then TX on Chan-1 and
+             * RX on Chan-1 then TX on Chan-0 */
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+            param1 = fapTxChannelSkb(skb);
+            if (pParam->channel == PKTDMA_ETH_US_TX_IUDMA)
+                param1 = PKTDMA_ETH_US_IUDMA;
+            else
+                param1 = PKTDMA_ETH_DS_IUDMA;
+#else
+            if (pParam->channel == GMAC_LOG_CHAN)
+                param1 = 0;
+            else
+                param1 = GMAC_LOG_CHAN;
+#endif
+#endif
             if(skb->ip_summed == CHECKSUM_PARTIAL)
             {
                 bufSource = HOST_VIA_DQM_CSUM;
             }
+
+            destQueue = SKBMARK_GET_Q_PRIO(skb->mark);
 
             if(skb_is_gso(skb))
             {
@@ -3752,19 +4759,20 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
                         int payloadLen = frag->size;
                         int headerLen = pParam->len - payloadLen;
 
-
                         /* Transmit Payload (fragment) */
                         cache_flush_len(payload_p, payloadLen);
                         bcmPktDma_EthXmit(txdma, payload_p,
-                                          payloadLen, HOST_VIA_DQM_FRAG, 0, 0, 0);
+                                          payloadLen, HOST_VIA_DQM_FRAG, 0, 0, 0, dqm,
+                                          pDevCtrl->sw_port_id, destQueue, param2);
 
-                        /* wait until space is avaialable, we cannot fail here */
-                        while(!(bcmPktDma_EthXmitAvailable(txdma)));
+                        /* wait until space is available, we cannot fail here */
+                        while(!(bcmPktDma_EthXmitAvailable(txdma, dqm)));
 
                         /* Transmit Header */
                         cache_flush_len(pParam->data, headerLen);
                         bcmPktDma_EthXmit(txdma, pParam->data, pParam->len,
-                                          bufSource, dmaDesc.status, (uint32)pNBuff, param1);
+                                          bufSource, dmaDesc.status, (uint32)pNBuff, param1, dqm,
+                                          pDevCtrl->sw_port_id, destQueue, param2);
 
                         kunmap_skb_frag(vaddr);
                         goto tx_continue;
@@ -3774,6 +4782,8 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
                     {
                         if(__skb_linearize(skb))
                         {
+                            global.pVnetDev0_g->stats.tx_dropped++;
+                            pParam->vstats->tx_dropped++;
                             goto unlock_drop_exit;
                         }
 
@@ -3809,15 +4819,17 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
                         /* Transmit Payload (fragment) */
                         cache_flush_len(payload_p, payloadLen);
                         bcmPktDma_EthXmit(txdma, payload_p,
-                                          payloadLen, HOST_VIA_DQM_FRAG, 0, 0, 0);
+                                          payloadLen, HOST_VIA_DQM_FRAG, 0, 0, 0, dqm,
+                                          pDevCtrl->sw_port_id, destQueue, param2);
 
                         /* wait until space is avaialable, we cannot fail here */
-                        while(!(bcmPktDma_EthXmitAvailable(txdma)));
+                        while(!(bcmPktDma_EthXmitAvailable(txdma, dqm)));
 
                         /* Transmit Header */
                         cache_flush_len(pParam->data, headerLen);
                         bcmPktDma_EthXmit(txdma, pParam->data, pParam->len,
-                                          bufSource, dmaDesc.status, (uint32)pNBuff, param1);
+                                          bufSource, dmaDesc.status, (uint32)pNBuff, param1, dqm,
+                                          pDevCtrl->sw_port_id, destQueue, param2);
 
                         kunmap_skb_frag(vaddr);
                         goto tx_continue;
@@ -3828,6 +4840,8 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
 
                         if(__skb_linearize(skb))
                         {
+                            global.pVnetDev0_g->stats.tx_dropped++;
+                            pParam->vstats->tx_dropped++;
                             goto unlock_drop_exit;
                         }
 
@@ -3844,17 +4858,16 @@ static inline int bcm63xx_enet_xmit2(pNBuff_t pNBuff,
         /* FAP is compiled out */
         bufSource = HOST_VIA_LINUX;
         key = (uint32)pNBuff;
-        param1 = gemid;
-
 #endif /* CONFIG_BCM_FAP */
 
         nbuff_flush(pNBuff, pParam->data, pParam->len);
 
         bcmPktDma_EthXmit(txdma,
                           pParam->data, pParam->len, bufSource,
-                          dmaDesc.status, key, param1);
+                          dmaDesc.status, key, param1, dqm,
+                          pDevCtrl->sw_port_id, destQueue, param2);
     }
-#if defined(CC_FAP4KE_PKT_GSO_FRAG)
+#if defined(CC_FAP4KE_PKT_GSO_FRAG) && defined(CONFIG_BCM_FAP_GSO)
 tx_continue:
 #endif
 
@@ -3867,9 +4880,12 @@ tx_continue:
     global.pVnetDev0_g->dev->trans_start = jiffies;
 
 #if defined(AEI_VDSL_STATS_DIAG)
-    if (is_multicast)
+    /* because of some limitations, it's not able to support
+     * multicast rx/tx bytes counters in the hardware, except this,
+     * all other counters will be directly gotten from the hardware */
+    if (pParam->data && (*(pParam->data) & 1))
     {
-        pEthCtrl->multi_stats.tx_multicast_bytes += pParam->len + ETH_CRC_LEN;
+        pEthCtrl->dev_stats.tx_multicast_bytes += pParam->len + ETH_CRC_LEN;
     }
 #endif
 
@@ -3888,7 +4904,7 @@ unlock_drop_exit:
     nbuff_flushfree(pNBuff);
     return 0;
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 drop_exit:
     nbuff_flushfree(pNBuff);
     return 0;
@@ -3924,7 +4940,7 @@ static int bcm63xx_enet_poll_napi(struct napi_struct *napi, int budget)
     ret_done = work_done & ENET_POLL_DONE;
     work_done &= ~ENET_POLL_DONE;
 
-    BCM_ENET_DEBUG("Work Done: %d \n", (int)work_done);
+    BCM_ENET_RX_DEBUG("Work Done: %d \n", (int)work_done);
 
     if (work_done == budget || ret_done != ENET_POLL_DONE)
     {
@@ -3987,7 +5003,7 @@ static int bcm63xx_enet_poll(struct net_device * dev, int * budget)
 
     ret_done = work_done & ENET_POLL_DONE;
     work_done &= ~ENET_POLL_DONE;
-    BCM_ENET_DEBUG("Work Done: %d \n", (int)work_done);
+    BCM_ENET_RX_DEBUG("Work Done: %d \n", (int)work_done);
     *budget -= work_done;
     dev->quota -= work_done;
 
@@ -4044,6 +5060,8 @@ static void switch_rx_ring(BcmEnet_devctrl *pDevCtrl, int channel, int toStdBy)
     int i = 0, status = 0, index = 0;
     DmaStateRam *StateRam;
     BcmEnet_RxDma *rxdma = pDevCtrl->rxdma[channel];
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
 
     BCM_ENET_RX_DEBUG("Head = %d; Assigned BDs = %d \n",
         rxdma->pktDmaRxInfo.rxHeadIndex, rxdma->pktDmaRxInfo.rxAssignedBds);
@@ -4054,20 +5072,20 @@ static void switch_rx_ring(BcmEnet_devctrl *pDevCtrl, int channel, int toStdBy)
     }
     bcmPktDma_EthRxDisable(&rxdma->pktDmaRxInfo);
 
-    /* Clear State RAM */
-    StateRam = (DmaStateRam *)&pDevCtrl->dmaCtrl->stram.s[channel*2];
+	/* Clear State RAM */
+    StateRam = (DmaStateRam *)&dmaCtrl->stram.s[phy_chan*2];
     memset(StateRam, 0, sizeof(DmaStateRam));
 
     /* Setup rx dma channel */
     if (toStdBy) {
         BCM_ENET_RX_DEBUG("switch_rx_ring: changing to stdby ring\n");
         rxdma->pktDmaRxInfo.rxDma->maxBurst |= DMA_THROUGHPUT_TEST_EN;
-        pDevCtrl->dmaCtrl->stram.s[channel * 2].baseDescPtr =
+        dmaCtrl->stram.s[phy_chan * 2].baseDescPtr =
             (uint32)VIRT_TO_PHY((uint32 *)rxdma->rxBdsStdBy);
     } else {
         BCM_ENET_RX_DEBUG("switch_rx_ring: changing to main ring\n");
         rxdma->pktDmaRxInfo.rxDma->maxBurst = DMA_MAX_BURST_LENGTH;
-        pDevCtrl->dmaCtrl->stram.s[channel * 2].baseDescPtr =
+        dmaCtrl->stram.s[phy_chan * 2].baseDescPtr =
             (uint32)VIRT_TO_PHY((uint32 *)rxdma->pktDmaRxInfo.rxBds);
         /* The head*/
 
@@ -4085,7 +5103,8 @@ static void switch_rx_ring(BcmEnet_devctrl *pDevCtrl, int channel, int toStdBy)
                 break;
             }
         }
-        pDevCtrl->dmaCtrl->stram.s[channel * 2].state_data = rxdma->pktDmaRxInfo.rxHeadIndex;
+        
+        dmaCtrl->stram.s[phy_chan * 2].state_data = rxdma->pktDmaRxInfo.rxHeadIndex;
     }
     rxdma->pktDmaRxInfo.rxDma->intMask = 0;   /* mask all ints */
     rxdma->pktDmaRxInfo.rxDma->intStat = DMA_DONE | DMA_NO_DESC | DMA_BUFF_DONE;
@@ -4104,18 +5123,19 @@ static void switch_rx_ring(BcmEnet_devctrl *pDevCtrl, int channel, int toStdBy)
 /*
  * bcm63xx_ephy_isr: Acknowledge interrupt.
  */
+#if !defined(CONFIG_BCM96818)
 static FN_HANDLER_RT bcm63xx_ephy_isr(int irq, void * dev_id)
 {
     ethsw_set_mac_link_down();
-#if !defined(SUPPORT_SWMDK)
     ephy_int_cnt++;
-#else
+#if defined(SUPPORT_SWMDK)
     BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
 #endif
     return BCM_IRQ_HANDLED;
 }
+#endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 /*
  * bcm63xx_gphy_isr: Acknowledge Gphy interrupt.
  */
@@ -4125,7 +5145,12 @@ static FN_HANDLER_RT bcm63xx_gphy_isr(int irq, void * dev_id)
 #if !defined(SUPPORT_SWMDK)
     ephy_int_cnt++;
 #else
+#if defined(CONFIG_BCM96828)
+    BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+    BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
+#else
     BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
+#endif
 #endif
     return BCM_IRQ_HANDLED;
 }
@@ -4205,7 +5230,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
     int i, vport, len=0, phy_port_id, channels_tbd = 0;
     uint32 rxpktgood = 0, rxpktprocessed = 0;
     uint32 rxpktmax = budget + (budget / 2);
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     int gemid = 0;
 #endif
     BcmEnet_RxDma *rxdma = pDevCtrl->rxdma[global_channel];
@@ -4220,7 +5245,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
     int got_blog_lock=0;
 #endif
 
-#if defined(CONFIG_BCM963268) 
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) 
     bool strip_brcm_tag = TRUE;
 #endif
 
@@ -4258,8 +5283,8 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
 
 #ifdef BCM_ENET_DEBUG_BUILD
         ch_serviced[NEXT_INDEX(dbg_index)] = global_channel;
-        BCM_ENET_RX_DEBUG("Total pkts received on this channel = %d",
-                           ch_pkts[global_channel]);
+        BCM_ENET_RX_DEBUG("Total pkts received on this channel<%d> = %d",
+                           global_channel, ch_pkts[global_channel]);
 #endif
         BCM_ENET_RX_DEBUG("channels_tbd = %d; channel = %d", channels_tbd, global_channel);
 
@@ -4324,6 +5349,18 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
             pHostPsmGbl->stats.Q7rxTotal++;
 #endif
 
+#if defined(CONFIG_BCM_GMAC)
+            if (gmac_info_pg->trans == 1)
+            {
+                /* Free all the packets received during MAC switching */
+                RECORD_BULK_RX_UNLOCK();
+                ENET_RX_UNLOCK();
+                flush_assign_rx_buffer(pDevCtrl, global_channel, pBuf, pBuf);
+                pDevCtrl->stats.rx_dropped++;
+                goto next_rx;
+            }
+#endif
+
             if ((len < ENET_MIN_MTU_SIZE) ||
                 (dmaDesc.status & (DMA_SOP | DMA_EOP)) != (DMA_SOP | DMA_EOP))
             {
@@ -4334,7 +5371,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 goto next_rx;
             }
 
-#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
             if (channel_rx_rate_limit_enable[global_channel]) {
                 if (jiffies_to_msecs(jiffies - last_byte_jiffies[global_channel])
                     > 1000)
@@ -4369,7 +5406,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
 #endif /* defined(RXCHANNEL_PKT_RATE_LIMIT) */
 
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
             phy_port_id = port_from_flag(dmaDesc.status);
             if (pDevCtrl->EnetInfo[0].sw.phy_id[phy_port_id] & EXTSW_CONNECTED) {
                 ((BcmEnet_hdr2*)pBuf)->brcm_type = BRCM_TYPE2;
@@ -4382,7 +5419,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 {
                     phy_port_id += MAX_EXT_SWITCH_PORTS; /* Port numbers for internal switch ports(non external sw ports) are from 8..15 */
                 }
-                /* No need to strip broadcom tag as 63268 switch is configured to not to add the tag */
+                /* No need to strip broadcom tag as 63268/6828 switch is configured to not to add the tag */
                 strip_brcm_tag = FALSE;
             }
 #else
@@ -4394,9 +5431,17 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
             }
 #endif
 
-            vport = phyport_to_vport[phy_port_id];
+#if defined(CONFIG_BCM_GMAC)
+            if (gmac_info_pg->active && (global_channel == GMAC_LOG_CHAN) )
+            {
+                phy_port_id = enet_gmac_log_port();
+            }
+#endif
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+            vport = phyport_to_vport[phy_port_id];
+            BCM_ENET_RX_DEBUG("phy_port_id=%d vport=%d\n", (int)phy_port_id, vport);
+
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
             /* If packet is from GPON port, get the gemid and find the gpon virtual
                interface with which that gemid is associated */
             if ( phy_port_id == GPON_PORT_ID) {
@@ -4439,7 +5484,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 BcmEnet_devctrl *pEthCtrl;
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
-                struct enet_multicast_stats *mstats;
+                struct enet_dev_stats *dev_stats;
 #endif
 
                 vstats = &(((BcmEnet_devctrl *) netdev_priv(dev))->stats);
@@ -4450,15 +5495,17 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 pDevCtrl->stats.rx_bytes += len;
 
 #if defined(AEI_VDSL_STATS_DIAG)
-                /* multicast packets (including broadcast packets) */
+                /* because of some limitations, it's not able to support
+                 * multicast rx/tx bytes counters in the hardware, except this,
+                 * all other counters will be directly gotten from the hardware */
                 if (pBuf && (*pBuf & 1))
                 {
-                    mstats = &(((BcmEnet_devctrl *) netdev_priv(dev))->multi_stats);
-                    mstats->rx_multicast_bytes += len;
+                    dev_stats = &(((BcmEnet_devctrl *) netdev_priv(dev))->dev_stats);
+                    dev_stats->rx_multicast_bytes += len;
                 }
 #endif
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
                 if (phy_port_id == GPON_PORT_ID) {
                     blog_chnl = gemid;      /* blog rx channel is gemid */
                     blog_phy = BLOG_GPONPHY;/* blog rx phy type is GPON */
@@ -4481,9 +5528,9 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 pFkb = fkb_init(pBuf, RX_ENET_SKB_HEADROOM,
                                 pBuf, len - ETH_CRC_LEN );
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 if (blog_phy == BLOG_GPONPHY && gemMirrorCfg[MIRROR_DIR_IN].nStatus &&
-                    (gemMirrorCfg[MIRROR_DIR_IN].nGemPortMask & (1 << blog_chnl)))
+                   (gemMirrorCfg[MIRROR_DIR_IN].nGemPortMaskArray[blog_chnl/8] & (1 << (blog_chnl % 8))))
                 {
                     struct sk_buff *skb_m;
                     FkBuff_t *fkbC_p;
@@ -4492,7 +5539,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                     skb_m = nbuff_xlate( FKBUFF_2_PNBUFF(fkbC_p) );    /* translate to skb */
                     if (skb_m != (struct sk_buff *)NULL)
                     {
-                        MirrorPacket(skb_m, gemMirrorCfg[MIRROR_DIR_IN].szMirrorInterface, 1);
+                        MirrorPacket(skb_m, gemMirrorCfg[MIRROR_DIR_IN].szMirrorInterface, 1, 0);
                         dev_kfree_skb_any( skb_m );
                     }
                 }
@@ -4519,10 +5566,23 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
 #endif
                 if ( blogAction == PKT_DROP )
                 {
+#if defined(AEI_VDSL_STATS_DIAG)
+                    if (pBuf)
+                    {
+                        dev_stats = &(((BcmEnet_devctrl *) netdev_priv(dev))->dev_stats);
+
+                        if (*pBuf & 1)
+                            dev_stats->multicast_discarded_packets++;
+                        else
+                            dev_stats->unicast_discarded_packets++;
+                    }
+#endif
+
                     /* CPU is congested and fcache has identified the packet
                      * as low prio, and needs to be dropped */
                     flush_assign_rx_buffer(pDevCtrl, global_channel, pBuf, pBuf + len);
                     pDevCtrl->stats.rx_dropped++;
+
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
 #if defined(CC_IQ_STATS)
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
@@ -4570,6 +5630,18 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 {
                     RECORD_BULK_RX_UNLOCK();
                     ENET_RX_UNLOCK();
+
+#if defined(AEI_VDSL_STATS_DIAG)
+                    if (pBuf)
+                    {
+                        dev_stats = &(((BcmEnet_devctrl *) netdev_priv(dev))->dev_stats);
+
+                        if (*pBuf & 1)
+                            dev_stats->multicast_discarded_packets++;
+                        else
+                            dev_stats->unicast_discarded_packets++;
+                    }
+#endif
                     fkb_release(pFkb);
                     pDevCtrl->stats.rx_dropped++;
                     /* Not necessary to flush cache as no access was done.  */
@@ -4615,7 +5687,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
                 skb_trim(skb, len - ETH_CRC_LEN);
                 skb->dev = dev;
 
-#if defined(CONFIG_BCM96816) && defined(DBL_DESC)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC)
                 skb->mark = SKBMARK_SET_PORT(skb->mark, gemid);
 #if defined(SUPPORT_HELLO)
                 if ( pktCmfHelloRx( skb, phy_port_id, bcm63xx_enet_xmit_port )
@@ -4625,7 +5697,7 @@ static uint32 bcm63xx_rx(void *ptr, uint32 budget)
 #endif  /* SUPPORT_HELLO */
 #endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
                 skb->protocol = bcm_type_trans(skb, dev, strip_brcm_tag);  
 #else
                 skb->protocol = bcm_type_trans(skb, dev);
@@ -4809,56 +5881,51 @@ static int bcm_set_mac_addr(struct net_device *dev, void *p)
     return 0;
 }
 
-/*
- * init_dma: Initialize DMA control register
- */
-static void init_dma(BcmEnet_devctrl *pDevCtrl)
+static void setup_rxdma_channel(int channel)
 {
-    int channel;
-    DmaStateRam *StateRam;
-    BcmEnet_RxDma *rxdma;
+    BcmEnet_RxDma *rxdma = global.pVnetDev0_g->rxdma[channel];
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
+    DmaStateRam *StateRam = (DmaStateRam *)&dmaCtrl->stram.s[phy_chan*2];
 
-    TRACE(("bcm63xxenet: init_dma\n"));
+    memset(StateRam, 0, sizeof(DmaStateRam));
 
-    for (channel = 0; channel < cur_rxdma_channels; channel++) {
-        StateRam = (DmaStateRam *)&pDevCtrl->dmaCtrl->stram.s[channel*2];
-        memset(StateRam, 0, sizeof(DmaStateRam));
-    }
-    for (channel = 0; channel < cur_txdma_channels; channel++) {
-        StateRam = (DmaStateRam *)&pDevCtrl->dmaCtrl->stram.s[(channel*2) + 1];
-        memset(StateRam, 0, sizeof(DmaStateRam));
-    }
+    BCM_ENET_DEBUG("Setup rxdma channel %d, baseDesc 0x%x\n", (int)channel,
+        (unsigned int)VIRT_TO_PHY((uint32 *)rxdma->pktDmaRxInfo.rxBds));
 
-    for (channel = 0; channel < cur_txdma_channels; channel++) {
-        setup_txdma_channel(channel);
-    }
-
-    /* setup the RX DMA channels */
-    for (channel = 0; channel < cur_rxdma_channels; channel++) {
-        rxdma = pDevCtrl->rxdma[channel];
         rxdma->pktDmaRxInfo.rxDma->cfg = 0;
         rxdma->pktDmaRxInfo.rxDma->maxBurst = DMA_MAX_BURST_LENGTH;
         rxdma->pktDmaRxInfo.rxDma->intMask = 0;
         rxdma->pktDmaRxInfo.rxDma->intStat = DMA_DONE | DMA_NO_DESC | DMA_BUFF_DONE;
         rxdma->pktDmaRxInfo.rxDma->intMask = DMA_DONE | DMA_NO_DESC | DMA_BUFF_DONE;
-        pDevCtrl->dmaCtrl->stram.s[channel * 2].baseDescPtr =
-            (uint32)VIRT_TO_PHY((uint32 *)rxdma->pktDmaRxInfo.rxBds);
 
-    }
+    dmaCtrl->stram.s[phy_chan * 2].baseDescPtr =
+            (uint32)VIRT_TO_PHY((uint32 *)rxdma->pktDmaRxInfo.rxBds);
 }
 
 static void setup_txdma_channel(int channel)
 {
+    DmaStateRam *StateRam;
     BcmPktDma_EthTxDma *txdma;
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
     txdma = global.pVnetDev0_g->txdma[channel];
+
+    StateRam = (DmaStateRam *)&dmaCtrl->stram.s[(phy_chan*2) + 1];
+    memset(StateRam, 0, sizeof(DmaStateRam));
+
+    BCM_ENET_DEBUG("setup_txdma_channel: %d, baseDesc 0x%x\n", 
+        (int)channel, (unsigned int)VIRT_TO_PHY((uint32 *)txdma->txBds));
+    
     txdma->txDma->cfg = 0;
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     txdma->txDma->maxBurst = DMA_MAX_BURST_LENGTH | DMA_DESCSIZE_SEL;
 #else
     txdma->txDma->maxBurst = DMA_MAX_BURST_LENGTH;
 #endif
     txdma->txDma->intMask = 0;
-    global.pVnetDev0_g->dmaCtrl->stram.s[(channel * 2) + 1].baseDescPtr =
+
+    dmaCtrl->stram.s[(phy_chan * 2) + 1].baseDescPtr =
         (uint32)VIRT_TO_PHY((uint32 *)txdma->txBds);
 }
 
@@ -4941,6 +6008,9 @@ static int init_buffers(BcmEnet_devctrl *pDevCtrl, int channel)
 #endif
 
 
+ if (!rxdma->skbs_p)
+ { /* CAUTION!!! DONOT reallocate SKB pool */
+
     if( (rxdma->skbs_p = kmalloc(
                     (rxdma->pktDmaRxInfo.numRxBds * SKB_ALIGNED_SIZE) + 0x10,
                     GFP_ATOMIC)) == NULL )
@@ -4948,6 +6018,8 @@ static int init_buffers(BcmEnet_devctrl *pDevCtrl, int channel)
 
     memset(rxdma->skbs_p, 0,
                 (rxdma->pktDmaRxInfo.numRxBds * SKB_ALIGNED_SIZE) + 0x10);
+
+    rxdma->freeSkbList = NULL;
 
     /* Chain socket skbs */
     for(i = 0, pSkbuff = (unsigned char *)
@@ -4957,6 +6029,7 @@ static int init_buffers(BcmEnet_devctrl *pDevCtrl, int channel)
         ((struct sk_buff *) pSkbuff)->next_free = rxdma->freeSkbList;
         rxdma->freeSkbList = (struct sk_buff *) pSkbuff;
     }
+ }
 
 #if defined(RXCHANNEL_PKT_RATE_LIMIT)
     /* Initialize the StdBy BD Ring */
@@ -5004,6 +6077,10 @@ void uninit_buffers(BcmEnet_RxDma *rxdma)
             }
         }
     }
+
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+      gbpm_unresv_rx_buf( GBPM_PORT_ETH, channel );
+#endif
 #else
     /* release all allocated receive buffers */
     for (i = 0; i < rxdma->pktDmaRxInfo.numRxBds; i++) {
@@ -5013,7 +6090,9 @@ void uninit_buffers(BcmEnet_RxDma *rxdma)
         }
     }
     kfree(rxdma->buf_pool);
+#endif
 
+#if 0   /* CAUTION!!! DONOT free SKB pool */
     kfree(rxdma->skbs_p);
 #endif
 
@@ -5024,6 +6103,69 @@ void uninit_buffers(BcmEnet_RxDma *rxdma)
     /* BDs freed elsewhere - Apr 2010 */
 #endif
 }
+
+#if 0   /* For debug */
+static int bcm63xx_dump_rxdma(int channel, BcmEnet_RxDma *rxdma )
+{
+    BcmPktDma_EthRxDma *pktDmaRxInfo_p = &rxdma->pktDmaRxInfo;
+
+    printk( "bcm63xx_dump_rxdma channel=%d\n", (int)channel);
+    printk( "=======================================\n" );
+    printk( "rxdma address = 0x%p\n", rxdma);
+    printk( "rxdma->rxIrq = %d\n", rxdma->rxIrq );
+    printk( "pktDmaRxInfo_p = 0x%p\n", &rxdma->pktDmaRxInfo);
+    printk( "pktDmaRxInfo_p->rxEnabled<0x%p>= %d\n", 
+        &pktDmaRxInfo_p->rxEnabled, pktDmaRxInfo_p->rxEnabled);
+    printk( "pktDmaRxInfo_p->channel = %d\n", pktDmaRxInfo_p->channel );
+    printk( "pktDmaRxInfo_p->rxDma = 0x%p\n", pktDmaRxInfo_p->rxDma );
+    printk( "pktDmaRxInfo_p->rxBdsBase = 0x%p\n", pktDmaRxInfo_p->rxBdsBase );
+    printk( "pktDmaRxInfo_p->rxBds= 0x%p\n", pktDmaRxInfo_p->rxBds);
+    printk( "pktDmaRxInfo_p->numRxBds = %d\n", pktDmaRxInfo_p->numRxBds );
+    printk( "pktDmaRxInfo_p->rxAssignedBds = %d\n", 
+        pktDmaRxInfo_p->rxAssignedBds );
+    printk( "pktDmaRxInfo_p->rxHeadIndex = %d\n", pktDmaRxInfo_p->rxHeadIndex );
+    printk( "pktDmaRxInfo_p->rxTailIndex = %d\n", pktDmaRxInfo_p->rxTailIndex );
+
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    printk( "pktDmaRxInfo_p->fapIdx = %d\n", (int) pktDmaRxInfo_p->fapIdx );
+    printk( "rxdma->bdsAllocated = %d\n", rxdma->bdsAllocated );
+#endif
+
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    printk( "\npktDmaRxInfo_p->rxOwnership = %d\n", pktDmaRxInfo_p->rxOwnership );
+#endif
+    return 0;
+}
+
+static int bcm63xx_dump_txdma(int channel, BcmPktDma_EthTxDma *txdma )
+{
+    printk( "bcm63xx_dump_txdma channel=%d\n", (int)channel);
+    printk( "=======================================\n" );
+    printk( "txdma address = 0x%p\n", txdma);
+    printk( "txdma->txEnabled<0x%p>= %d\n", &txdma->txEnabled, 
+        txdma->txEnabled);
+    printk( "txdma->channel = %d\n", txdma->channel );
+    printk( "txdma->txDma = 0x%p\n", txdma->txDma );
+    printk( "txdma->txBdsBase = 0x%p\n", txdma->txBdsBase );
+    printk( "txdma->txBds= 0x%p\n", txdma->txBds);
+    printk( "txdma->numTxBds = %d\n", txdma->numTxBds );
+    printk( "txdma->txFreeBds = %d\n", txdma->txFreeBds );
+    printk( "txdma->txHeadIndex = %d\n", txdma->txHeadIndex );
+    printk( "txdma->txTailIndex = %d\n", txdma->txTailIndex );
+    printk( "txdma->txRecycle = 0x%p\n", txdma->txRecycle );
+
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    printk( "txdma->fapIdx = %d\n", (int) txdma->fapIdx );
+    printk( "txdma->bdsAllocated = %d\n", txdma->bdsAllocated );
+#endif
+
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    printk( "\ntxdma->txOwnership = %d\n", txdma->txOwnership );
+#endif
+    return 0;
+}
+#endif
+
 
 /* Note: this may be called from an atomic context */
 static int bcm63xx_alloc_rxdma_bds(int channel, BcmEnet_devctrl *pDevCtrl)
@@ -5059,8 +6201,13 @@ static int bcm63xx_alloc_rxdma_bds(int channel, BcmEnet_devctrl *pDevCtrl)
    rxdma->rxBdsStdBy = &rxdma->pktDmaRxInfo.rxBds[rxdma->pktDmaRxInfo.numRxBds];
 #endif
 
-   printk("ETH Init: Ch:%d - %d rx BDs at 0x%x\n",
-          channel, rxdma->pktDmaRxInfo.numRxBds, (unsigned int)rxdma->pktDmaRxInfo.rxBds);
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->pktDmaRxInfo.rxOwnership != HOST_OWNED)
+#endif
+        rxdma->bdsAllocated = 1;
+#endif
+
    return 0;
 }
 
@@ -5073,7 +6220,46 @@ static int bcm63xx_alloc_txdma_bds(int channel, BcmEnet_devctrl *pDevCtrl)
    nr_tx_bds = txdma->numTxBds;
 
    /* BDs allocated in bcmPktDma lib in PSM or in DDR */
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+   txdma->txBdsBase = bcmPktDma_EthAllocTxBds(channel, nr_tx_bds);
+   if ( txdma->txBdsBase == NULL )
+   {
+      printk("Unable to allocate memory for Tx Descriptors \n");
+      return -ENOMEM;
+   }
+
+   BCM_ENET_DEBUG("bcm63xx_alloc_txdma_bds txdma->txBdsBase 0x%x", 
+        (unsigned int)txdma->txBdsBase);
+   
+  #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
+    if(txdma->txOwnership == HOST_OWNED)
+    {
+        /* Align BDs to a 16-byte boundary - Apr 2010 */
+        txdma->txBds = (volatile DmaDesc16 *)(((int)txdma->txBdsBase + 0xF) & ~0xF);
+        txdma->txBds = (volatile DmaDesc16 *)CACHE_TO_NONCACHE(txdma->txBds);
+        txdma->txRecycle = (BcmPktDma_txRecycle_t *)((uint32)txdma->txBds + (nr_tx_bds * sizeof(DmaDesc16)));
+        txdma->txRecycle = (BcmPktDma_txRecycle_t *)NONCACHE_TO_CACHE(txdma->txRecycle);
+    }
+    else
+    {
+  #endif
+#if defined(ENET_TX_BDS_IN_PSM)
+   txdma->txBds = txdma->txBdsBase;
+   txdma->txRecycle = (BcmPktDma_txRecycle_t *)((uint32)txdma->txBds + (nr_tx_bds * sizeof(DmaDesc16)));
+  #else   /* TX BDs in DDR */
+   /* Align BDs to a 16-byte boundary - Apr 2010 */
+   txdma->txBds = (volatile DmaDesc16 *)(((int)txdma->txBdsBase + 0xF) & ~0xF);
+   txdma->txBds = (volatile DmaDesc16 *)CACHE_TO_NONCACHE(txdma->txBds);
+   txdma->txRecycle = (BcmPktDma_txRecycle_t *)((uint32)txdma->txBds + (nr_tx_bds * sizeof(DmaDesc16)));
+   txdma->txRecycle = (BcmPktDma_txRecycle_t *)NONCACHE_TO_CACHE(txdma->txRecycle);
+  #endif
+
+  #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
+    }
+  #endif
+
+#else  //(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
    txdma->txBdsBase = bcmPktDma_EthAllocTxBds(channel, nr_tx_bds );
    if ( txdma->txBdsBase == NULL )
    {
@@ -5085,8 +6271,9 @@ static int bcm63xx_alloc_txdma_bds(int channel, BcmEnet_devctrl *pDevCtrl)
    txdma->txBds = (volatile DmaDesc16 *)CACHE_TO_NONCACHE(txdma->txBds);
    txdma->txRecycle = (BcmPktDma_txRecycle_t *)((uint32)txdma->txBds + (nr_tx_bds * sizeof(DmaDesc16)));
    txdma->txRecycle = (BcmPktDma_txRecycle_t *)NONCACHE_TO_CACHE(txdma->txRecycle);
+#endif //(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
 
-#else /* !(defined(CONFIG_BCM96816) && defined(DBL_DESC)) */
+#else /* !(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC)) */
    txdma->txBdsBase = bcmPktDma_EthAllocTxBds(channel, nr_tx_bds);
    if ( txdma->txBdsBase == NULL )
    {
@@ -5123,12 +6310,26 @@ static int bcm63xx_alloc_txdma_bds(int channel, BcmEnet_devctrl *pDevCtrl)
 
 #endif
 
-   printk("ETH Init: Ch:%d - %d tx BDs at 0x%x\n", channel, nr_tx_bds, (unsigned int)txdma->txBds);
-
    txdma->txFreeBds = nr_tx_bds;
    txdma->txHeadIndex = txdma->txTailIndex = 0;
+   nr_tx_bds = txdma->numTxBds;
 
-   bcmPktDma_EthInitTxChan(nr_tx_bds, pDevCtrl->txdma[channel]);
+   /* BDs allocated in bcmPktDma lib in PSM or in DDR */
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
+   memset((char *) txdma->txBds, 0, sizeof(DmaDesc16) * nr_tx_bds );
+#else
+   memset((char *) txdma->txBds, 0, sizeof(DmaDesc) * nr_tx_bds );
+#endif
+
+   // printk("txdma->txBds: 0x%p\n", txdma->txBds );
+   // printk("txdma->txRecycle: 0x%p\n", txdma->txRecycle );
+
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+#if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
+    if (txdma->txOwnership != HOST_OWNED)
+#endif
+        txdma->bdsAllocated = 1;
+#endif
    return 0;
 }
 
@@ -5143,19 +6344,24 @@ static int bcm63xx_init_txdma_structures(int channel, BcmEnet_devctrl *pDevCtrl)
         return -ENXIO;
     }
 
-    BCM_ENET_DEBUG("The txdma is %p \n", pDevCtrl->txdma[channel]);
+    BCM_ENET_DEBUG("The txdma is 0x%p \n", pDevCtrl->txdma[channel]);
 
     txdma = pDevCtrl->txdma[channel];
     txdma->channel = channel;
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     txdma->fapIdx = getFapIdxFromEthTxIudma(channel);
+    txdma->bdsAllocated = 0;
 #endif
-
-    txdma->txDma = &pDevCtrl->dmaCtrl->chcfg[(channel * 2) + 1];
 
 #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
     txdma->txOwnership = g_Eth_tx_iudma_ownership[channel];
+#endif
+
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+   enet_bpm_init_tx_drop_thr( pDevCtrl, channel );
+#endif
 #endif
 
     /* init number of Tx BDs in each tx ring */
@@ -5176,12 +6382,13 @@ static int bcm63xx_init_rxdma_structures(int channel, BcmEnet_devctrl *pDevCtrl)
         printk("Unable to allocate memory for rx dma rings \n");
         return -ENXIO;
     }
-    BCM_ENET_DEBUG("The rxdma is %p \n", pDevCtrl->rxdma[channel]);
+    BCM_ENET_DEBUG("The rxdma is 0x%p \n", pDevCtrl->rxdma[channel]);
 
     rxdma = pDevCtrl->rxdma[channel];
     rxdma->pktDmaRxInfo.channel = channel;
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     rxdma->pktDmaRxInfo.fapIdx = getFapIdxFromEthRxIudma(channel);
+    rxdma->bdsAllocated = 0;
 #endif
 
 #if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
@@ -5193,21 +6400,44 @@ static int bcm63xx_init_rxdma_structures(int channel, BcmEnet_devctrl *pDevCtrl)
     rxdma->pktDmaRxInfo.numRxBds =
                     bcmPktDma_EthGetRxBds( &rxdma->pktDmaRxInfo, channel );
 
-    /* init rxdma structures */
-    rxdma->rxIrq = bcmPktDma_EthSelectRxIrq(channel);
-    rxdma->pktDmaRxInfo.rxDma = &pDevCtrl->dmaCtrl->chcfg[channel * 2];
-
-    /* disable the interrupts from device */
-    bcmPktDma_BcmHalInterruptDisable(channel, rxdma->rxIrq);
-
+#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
+    enet_rx_init_iq_thresh(pDevCtrl, channel);
+#endif
+    
 #if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)) || defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
-    /* register the interrupt service handler */
-    if(rxdma->rxIrq)
-    {   /* a Host owned channel */
-        BcmHalMapInterrupt(bcm63xx_enet_isr,
-            BUILD_CONTEXT(pDevCtrl,channel), rxdma->rxIrq);
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->pktDmaRxInfo.rxOwnership == HOST_OWNED)
+    {
+#endif
+        /* request IRQs only once at module init */
+        {
+            int rxIrq = bcmPktDma_EthSelectRxIrq(channel);
+
+            /* disable the interrupts from device */
+            bcmPktDma_BcmHalInterruptDisable(channel, rxIrq);
+
+            /* a Host owned channel */
+            BcmHalMapInterrupt(bcm63xx_enet_isr,
+                BUILD_CONTEXT(pDevCtrl,channel), rxIrq);
+
+#if defined(CONFIG_BCM_GMAC)
+            if ( gmac_info_pg->enabled && (channel == GMAC_LOG_CHAN) )
+            {
+                rxIrq = INTERRUPT_ID_GMAC_DMA_0;
+
+                /* disable the interrupts from device */
+                bcmPktDma_BcmHalInterruptDisable(channel, rxIrq);
+
+                BcmHalMapInterrupt(bcm63xx_enet_isr,
+                    BUILD_CONTEXT(pDevCtrl,channel), rxIrq);
+            }
+#endif
+        }
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
     }
 #endif
+#endif
+
     return 0;
 }
 
@@ -5226,7 +6456,8 @@ static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl)
 
 
 #endif
-
+    volatile DmaRegs *dmaCtrl;
+    int phy_chan;
 
     TRACE(("bcm63xxenet: bcm63xx_init_dev\n"));
 
@@ -5237,6 +6468,11 @@ static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl)
 
     /* Get the pointer to switch DMA registers */
     pDevCtrl->dmaCtrl = (DmaRegs *)(SWITCH_DMA_BASE);
+#if defined(CONFIG_BCM_GMAC)
+    pDevCtrl->gmacDmaCtrl = (DmaRegs *)(GMAC_DMA_BASE); 
+    BCM_ENET_DEBUG("GMAC: gmacDmaCtrl is 0x%x\n", 
+        (unsigned int)pDevCtrl->gmacDmaCtrl);
+#endif /* defined(CONFIG_BCM_GMAC) */
 
     /* Initialize the Tx DMA software structures */
     for (i = 0; i < ENET_TX_CHANNELS_MAX; i++) {
@@ -5253,9 +6489,6 @@ static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl)
     for (i = 0; i < ENET_RX_CHANNELS_MAX; i++) {
         rc = bcm63xx_init_rxdma_structures(i, pDevCtrl);
 
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
-        enet_rx_init_iq_thresh(pDevCtrl, i);
-#endif
         if (rc < 0)
             return rc;
     }
@@ -5263,18 +6496,31 @@ static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl)
     /* allocate and assign tx buffer descriptors */
     for (i=0; i < cur_txdma_channels; ++i)
     {
-        rc = bcm63xx_alloc_txdma_bds(i,pDevCtrl);
+        rc = init_tx_channel(pDevCtrl, i);
         if (rc < 0)
         {
             return rc;
         }
+
+        /* Enable the Tx channel */
+        bcmPktDma_EthTxEnable(pDevCtrl->txdma[i]);
     }
 
 
+#if !defined(CONFIG_BCM96818)
     BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
     BcmHalInterruptDisable(INTERRUPT_ID_GPHY);
 #endif
+#if defined(CONFIG_BCM96828)
+    BcmHalInterruptDisable(INTERRUPT_ID_GPHY0);
+    BcmHalInterruptDisable(INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+    BcmHalInterruptDisable(INTERRUPT_ID_GMAC);
+#endif
+
 
     pending_ch_tbd = cur_rxdma_channels;
     for (i = 0; i < cur_rxdma_channels; i++) {
@@ -5285,46 +6531,28 @@ static int bcm63xx_init_dev(BcmEnet_devctrl *pDevCtrl)
     /* alloc space for the rx buffer descriptors */
     for (i = 0; i < cur_rxdma_channels; i++)
     {
-        rc = bcm63xx_alloc_rxdma_bds(i,pDevCtrl);
+        rxdma = pDevCtrl->rxdma[i];
+
+        rc = init_rx_channel(pDevCtrl, i);
         if (rc < 0)
         {
             return rc;
         }
+        
+        bcmPktDma_BcmHalInterruptEnable(i, rxdma->rxIrq);
+        bcmPktDma_EthRxEnable(&rxdma->pktDmaRxInfo);
     }
-
-    /* init dma registers */
-    init_dma(pDevCtrl);
 
     for (i=0;i<cur_rxdma_channels;i++)
     {
         rxdma = pDevCtrl->rxdma[i];
-
-        //printk("rxdma[0] is 0x%x, address of 0x%x\n", (unsigned int)pDevCtrl->rxdma[i], (unsigned int)&pDevCtrl->rxdma[i]);
-        //printk("rxdma[%d] rxBds 0x%x, rxDma 0x%x\n", i, (unsigned int)pDevCtrl->rxdma[i]->pktDmaRxInfo.rxBds, (unsigned int)pDevCtrl->rxdma[i]->pktDmaRxInfo.rxDma);
-        bcmPktDma_EthInitRxChan(rxdma->pktDmaRxInfo.numRxBds,
-                                                        &rxdma->pktDmaRxInfo);
-
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
-        enet_rx_set_iq_thresh( pDevCtrl, i );
-#endif
-#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
-        enet_rx_set_bpm_alloc_trig( pDevCtrl, i );
-#endif
+        dmaCtrl = get_dmaCtrl( i );
+        phy_chan = get_phy_chan( i );
 
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
     bcmPktDma_EthInitExtSw(extSwInfo.connected_to_internalPort);
 #endif
-#endif
-
-        /* initialize the receive buffers */
-        if (init_buffers(pDevCtrl, i)) {
-            printk("Unable to allocate rx packet buffers \n");
-            return -ENOMEM;
-        }
-#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
-        gbpm_resv_rx_buf( GBPM_PORT_ETH, i, rxdma->pktDmaRxInfo.numRxBds,
-            (rxdma->pktDmaRxInfo.numRxBds * BPM_ENET_ALLOC_TRIG_PCT/100) );
 #endif
     }
 
@@ -5394,10 +6622,36 @@ static void bcm63xx_uninit_rxdma_structures(int channel, BcmEnet_devctrl *pDevCt
     rxdma = pDevCtrl->rxdma[channel];
     rxdma->pktDmaRxInfo.rxDma->cfg = 0;
     (void) bcmPktDma_EthRxDisable(&rxdma->pktDmaRxInfo);
-    /* free the irq */
-    bcmPktDma_BcmHalInterruptDisable(channel, rxdma->rxIrq);
-    if(rxdma->rxIrq)   /* a Host owned channel */
-        free_irq(rxdma->rxIrq, (BcmEnet_devctrl *)BUILD_CONTEXT(pDevCtrl,channel));
+
+#if !(defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)) || defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->pktDmaRxInfo.rxOwnership == HOST_OWNED)
+    {
+#endif
+        /* free the IRQ */
+        {
+            int rxIrq = bcmPktDma_EthSelectRxIrq(channel);
+
+            /* disable the interrupts from device */
+            bcmPktDma_BcmHalInterruptDisable(channel, rxIrq);
+            free_irq(rxIrq, (BcmEnet_devctrl *)BUILD_CONTEXT(pDevCtrl,channel));
+
+#if defined(CONFIG_BCM_GMAC)
+            if ( gmac_info_pg->enabled && (channel == GMAC_LOG_CHAN) )
+            {
+                rxIrq = INTERRUPT_ID_GMAC_DMA_0;
+
+                /* disable the interrupts from device */
+                bcmPktDma_BcmHalInterruptDisable(channel, rxIrq);
+                free_irq(rxIrq, 
+                        (BcmEnet_devctrl *)BUILD_CONTEXT(pDevCtrl,channel));
+            }
+#endif
+        }
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    }
+#endif
+#endif
 
     /* release allocated receive buffer memory */
     uninit_buffers(rxdma);
@@ -5427,13 +6681,32 @@ static int bcm63xx_uninit_dev(BcmEnet_devctrl *pDevCtrl)
             bcm63xx_uninit_txdma_structures(i, pDevCtrl);
         }
 
+#if !defined(CONFIG_BCM96818)
         BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
         BcmHalInterruptDisable(INTERRUPT_ID_GPHY);
 #endif
+#if defined(CONFIG_BCM96828) 
+        BcmHalInterruptDisable(INTERRUPT_ID_GPHY0);
+        BcmHalInterruptDisable(INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+    BcmHalInterruptDisable(INTERRUPT_ID_GMAC);
+#endif
+
+#if !defined(CONFIG_BCM96818)
         free_irq(INTERRUPT_ID_EPHY, pDevCtrl);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
         free_irq(INTERRUPT_ID_GPHY, pDevCtrl);
+#endif
+#if defined(CONFIG_BCM96828)
+        free_irq(INTERRUPT_ID_GPHY0, pDevCtrl);
+        free_irq(INTERRUPT_ID_GPHY1, pDevCtrl);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+    free_irq(INTERRUPT_ID_GMAC, pDevCtrl);
 #endif
 
         /* Free the Rx DMA software structures and packet buffers*/
@@ -5495,7 +6768,7 @@ int __init bcm63xx_enet_probe(void)
 
     if (strstr(board_id, "C1000") != NULL)
         hpna_support = 0;
-    else 
+    else
         hpna_support = 1;
 #endif
 
@@ -5516,6 +6789,14 @@ int __init bcm63xx_enet_probe(void)
         /* device has already been initialized */
         return -ENXIO;
     }
+#if defined(AEI_VDSL_CUSTOMER_NCS) && !defined(AEI_63168_CHIP)
+    /* if external switch exists, then shut down all ports at first to prevent any packets from coming into driver.
+     * Only when a port has linked up do we turn on tx/rx for that port
+     */
+    if (EnetInfo[1].ucPhyType == BP_ENET_EXTERNAL_SWITCH) {
+        extSwitchExist=TRUE;
+    }
+#endif
 
     for (unit = 0; unit < BP_MAX_ENET_MACS; unit++)
     {
@@ -5531,7 +6812,7 @@ int __init bcm63xx_enet_probe(void)
         unit = 1;
     }
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     // Create a port map with only end ports. A port connected to external switch is ignored.
     consolidated_portmap = EnetInfo[0].sw.port_map;  
     if (unit == 1){
@@ -5572,6 +6853,9 @@ int __init bcm63xx_enet_probe(void)
     pDevCtrl->unit = unit;
     pDevCtrl->chipId  = chipid;
     pDevCtrl->chipRev = chiprev;
+#if defined(CONFIG_BCM_GMAC)
+    pDevCtrl->gmacPort = 0;
+#endif
 
     global.pVnetDev0_g = pDevCtrl;
     global.pVnetDev0_g->extSwitch = &extSwInfo;
@@ -5596,7 +6880,7 @@ int __init bcm63xx_enet_probe(void)
                 printk("Unable to reserve slave id for ethernet switch\n");
             }
         }
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
         {
             int port_connected_to_ext_switch = extSwInfo.connected_to_internalPort + MAX_EXT_SWITCH_PORTS;
             pDevCtrl->wanPort |= 1 << port_connected_to_ext_switch;
@@ -5604,7 +6888,7 @@ int __init bcm63xx_enet_probe(void)
 #endif
     }
 
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     global.Is6829 = IsExt6829(EnetInfo[0].sw.phy_id[SERDES_PORT_ID]);
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
     memset(&global.moca_lan, 0, sizeof(moca_queue_t));
@@ -5644,10 +6928,26 @@ int __init bcm63xx_enet_probe(void)
     if (unit == 1)
         memcpy(&(pDevCtrl->EnetInfo[1]), &EnetInfo[1], sizeof(ETHERNET_MAC_INFO));
 
+    {
+        char buf[BRCM_MAX_CHIP_NAME_LEN];
+        printk("Broadcom BCM%s Ethernet Network Device ", kerSysGetChipName(buf, BRCM_MAX_CHIP_NAME_LEN));
+        printk(VER_STR);
+        printk("\n");
+    }
 
-    printk("Broadcom BCM%X%X Ethernet Network Device ", chipid, chiprev);
-    printk(VER_STR);
-    printk("\n");
+#if defined(CONFIG_BCM963268)
+    // Now select ROBO at Phy3
+    BCM_ENET_DEBUG( "Select ROBO at Mux (bit18=0x40000)" ); 
+    GPIO->RoboswGphyCtrl |= GPHY_MUX_SEL_GMAC;
+    GPIO->RoboswGphyCtrl &= ~GPHY_MUX_SEL_GMAC;
+
+    BCM_ENET_DEBUG( "\tGPIORoboswGphyCtrl<0x%p>=0x%x", 
+        &GPIO->RoboswGphyCtrl, (uint32_t) GPIO->RoboswGphyCtrl );
+#endif
+
+#if defined(CONFIG_BCM_GMAC)
+    gmac_init();
+#endif
 
     if ((status = bcm63xx_init_dev(pDevCtrl)))
     {
@@ -5690,12 +6990,13 @@ int __init bcm63xx_enet_probe(void)
     /* setting this flag will cause the Linux bridge code to not forward
        broadcast packets back to other hardware ports */
     dev->priv_flags         = IFF_HW_SWITCH;
+    dev->mtu = ENET_MAX_MTU_PAYLOAD_SIZE; /* bcmsw dev : Explicitly assign the MTU size based on buffer size allocated */
 
-#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)) && defined(CC_FAP4KE_PKT_GSO)
-    dev->features           = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM | NETIF_F_TSO | NETIF_F_TSO6 | NETIF_F_UFO | NETIF_F_FRAGLIST;
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)) && defined(CONFIG_BCM_FAP_GSO)
+    dev->features           = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM | NETIF_F_TSO | NETIF_F_TSO6 | NETIF_F_UFO;
 #endif
 
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     bitcount(vport_cnt, consolidated_portmap);
 #else
     bitcount(vport_cnt, pDevCtrl->EnetInfo[unit].sw.port_map);
@@ -5711,22 +7012,10 @@ int __init bcm63xx_enet_probe(void)
         return status;
     }
 
-    ethsw_setup_led();
-#if defined(CONFIG_BCM_ETH_HWAPD_PWRSAVE)
-#if !defined(AEI_VDSL_POWERSAVE)
-    ethsw_setup_hw_apd(1);
-#endif
-#endif
+    ethsw_phy_config();
+
 #ifdef DYING_GASP_API
     kerSysRegisterDyingGaspHandler(pDevCtrl->dev->name, &ethsw_switch_power_off, dev);
-#endif
-
-#if defined(CONFIG_BCM96816)
-    ethsw_setup_phys();
-#endif
-
-#if defined(CONFIG_BCM963268)
-    ethsw_phy_advertise_all(GPHY_PORT_PHY_ID);
 #endif
 
 #if defined(CONFIG_BCM96368) && (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
@@ -5735,14 +7024,14 @@ int __init bcm63xx_enet_probe(void)
     pktCmfSwcConfig();
 #endif
 
-#if defined(CONFIG_BCM96816) && (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
     pktCmfSaveSwitchPortState    = ethsw_save_port_state;
     pktCmfRestoreSwitchPortState = ethsw_restore_port_state;
 #endif
 
     macAddr[0] = 0xff;
 #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
-        if(strstr(dev->name,"ewan0")!=NULL) 
+        if(strstr(dev->name,"ewan0")!=NULL)
             kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
 #endif
@@ -5768,9 +7057,32 @@ int __init bcm63xx_enet_probe(void)
 
     ethsw_init_config();
 
+#if defined(CONFIG_BCM_EXT_SWITCH)
+    /* Retrieve external switch id - this can only be done after other globals have been initialized */
+    if (extSwInfo.present) {
+        uint8 val[4] = {0};
+
+        extsw_rreg(PAGE_MANAGEMENT, REG_DEV_ID, (uint8 *)&val, 4);
+        extSwInfo.switch_id = swab32(*(uint32 *)val);
+
+        /* Initialize EEE on external switch */
+        extsw_eee_init();
+    }
+#endif
+    ethsw_eee_init();
+
+#if !defined(CONFIG_BCM96818)
     BcmHalMapInterrupt(bcm63xx_ephy_isr, (unsigned int)pDevCtrl, INTERRUPT_ID_EPHY);
+#endif
 #if defined(CONFIG_BCM963268)
     BcmHalMapInterrupt(bcm63xx_gphy_isr, (unsigned int)pDevCtrl, INTERRUPT_ID_GPHY);
+#endif
+#if defined(CONFIG_BCM96828)
+        BcmHalMapInterrupt(bcm63xx_gphy_isr, (unsigned int)pDevCtrl, INTERRUPT_ID_GPHY0);
+        BcmHalMapInterrupt(bcm63xx_gphy_isr, (unsigned int)pDevCtrl, INTERRUPT_ID_GPHY1);
+#endif
+#if defined(CONFIG_BCM_GMAC) 
+        BcmHalMapInterrupt(bcm63xx_gmac_isr, (unsigned int)pDevCtrl, INTERRUPT_ID_GMAC);
 #endif
 
     poll_pid = kernel_thread((int(*)(void *))bcm63xx_enet_poll_timer, 0, CLONE_KERNEL);
@@ -5803,6 +7115,23 @@ int __init bcm63xx_enet_probe(void)
     dev->flags |= IFF_UP;
     dev_mc_upload(dev);
 #endif
+#ifdef DYING_GASP_API
+    dg_skbp = alloc_skb(64, GFP_ATOMIC);
+    if (dg_skbp)
+    {    
+        memset(dg_skbp->data, 0, 64); 
+        //dg_skbp->len = 64;
+        memcpy(dg_skbp->data, dg_ethOam_frame, 32); 
+    }    
+#endif
+
+#if defined(AEI_VDSL_WAN_ETHER_LINK_PATCH)
+    /* need to move here from above 
+     * or else link not detected after a few line pulls 
+     */
+    AEI_EnableGPHYWireSpeed();
+    AEI_EWANWireSpeedRetryLimited();
+#endif
 
 #if defined(RXCHANNEL_PKT_RATE_LIMIT)
     if (timer_pid < 0)
@@ -5810,6 +7139,26 @@ int __init bcm63xx_enet_probe(void)
 #endif
     return ((poll_pid < 0)? -ENOMEM: 0);
 }
+
+int bcm63xx_enet_isExtSwPresent(void)
+{
+    return extSwInfo.present;
+}
+unsigned int bcm63xx_enet_extSwId(void)
+{
+    return extSwInfo.switch_id;
+}
+
+static int bridge_notifier(struct notifier_block *nb, unsigned long event, void *brName);
+static void bridge_update_ext_pbvlan(char *brName);
+static struct notifier_block br_notifier = {
+    .notifier_call = bridge_notifier,
+};
+
+static int bridge_stp_handler(struct notifier_block *nb, unsigned long event, void *portInfo);
+static struct notifier_block br_stp_handler = {
+    .notifier_call = bridge_stp_handler,
+};
 
 static void __exit bcmenet_module_cleanup(void)
 {
@@ -5826,6 +7175,9 @@ static void __exit bcmenet_module_cleanup(void)
 
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     gbpm_enet_status_hook_g = NULL;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    gbpm_enet_thresh_hook_g = NULL;
+#endif
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
     gbpm_moca_thresh_hook_g = NULL;
 #endif
@@ -5836,13 +7188,13 @@ static void __exit bcmenet_module_cleanup(void)
     pktCmfSarPortDisable = (HOOKV)NULL;
 #endif
 
-#if defined(CONFIG_BCM96816) && (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
     pktCmfSaveSwitchPortState    = (HOOKV)NULL;
     pktCmfRestoreSwitchPortState = (HOOKV)NULL;
 #endif
 
     delete_vport();
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     delete_all_gpon_vports();
 #endif
 
@@ -5881,6 +7233,13 @@ static void __exit bcmenet_module_cleanup(void)
     bcmFun_dereg(BCM_FUN_ID_ENET_LINK_CHG);
     bcmFun_dereg(BCM_FUN_ID_RESET_SWITCH);
     bcmFun_dereg(BCM_FUN_ID_ENET_CHECK_SWITCH_LOCKUP);
+    bcmFun_dereg(BCM_FUN_ID_ENET_GET_PORT_BUF_USAGE);
+    bcmFun_dereg(BCM_FUN_IN_ENET_CLEAR_ARL_ENTRY);	
+
+    if (extSwInfo.present == 1)
+        unregister_bridge_notifier(&br_notifier);
+
+    unregister_bridge_stp_notifier(&br_stp_handler);
 }
 
 static int enet_ioctl_ethsw_rxscheduling(struct ethswctl_data *e)
@@ -5929,19 +7288,32 @@ static int enet_ioctl_ethsw_wrrparam(struct ethswctl_data *e)
     } else {
         max_pkts = e->max_pkts_per_iter;
         for(i=0; i<ENET_RX_CHANNELS_MAX; i++) {
+#if defined(CONFIG_BCM_GMAC)
+            if (i < GMAC_LOG_CHAN)
+#endif /* defined(CONFIG_BCM_GMAC) */
             weights[i] = e->weights[i];
         }
 
         total_of_weights = 0;
         for(i=0; i<cur_rxdma_channels; i++) {
+#if defined(CONFIG_BCM_GMAC)
+            if (i < GMAC_LOG_CHAN)
+#endif /* defined(CONFIG_BCM_GMAC) */
             total_of_weights += weights[i];
         }
 
         for(i=0; i<cur_rxdma_channels; i++) {
+#if defined(CONFIG_BCM_GMAC)
+            if (i < GMAC_LOG_CHAN)
+            {
+#endif /* defined(CONFIG_BCM_GMAC) */
            weight_pkts[i] = (max_pkts/total_of_weights) * weights[i];
            pending_weight_pkts[i] = weight_pkts[i];
            BCM_ENET_DEBUG("weight[%d]_pkts: %d \n", i, weight_pkts[i]);
            pending_channel[i] = i;
+#if defined(CONFIG_BCM_GMAC)
+            }
+#endif /* defined(CONFIG_BCM_GMAC) */
         }
         global_channel = channel_ptr = loop_index = 0;
         pending_ch_tbd = cur_rxdma_channels;
@@ -5987,7 +7359,7 @@ static int enet_ioctl_default_txq_config(BcmEnet_devctrl *pDevCtrl,
     return 0;
 }
 
-#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 static int enet_ioctl_rx_rate_limit_config(struct ethswctl_data *e)
 {
     BCM_ENET_DEBUG("Given channel: %d \n ", e->channel);
@@ -6278,7 +7650,7 @@ static int enet_ioctl_test_config(struct ethswctl_data *e)
     if (e->sub_type == SUBTYPE_RESETMIB) {
         reset_mib(global.pVnetDev0_g->extSwitch->present);
     } else if (e->sub_type == SUBTYPE_RESETSWITCH) {
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
         reset_switch((e->channel & BCM_EXT_6829) ? 1 : 0);
 #endif
     }
@@ -6423,16 +7795,27 @@ void display_software_stats(BcmEnet_devctrl * pDevCtrl)
 }
 
 #define BIT_15 0x8000
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
+#define MAX_NUM_WAN_IFACES 40
+#else
+#define MAX_NUM_WAN_IFACES 8
+#endif
+#define MAX_WAN_IFNAMES_LEN ((MAX_NUM_WAN_IFACES * (IFNAMSIZ + 1)) + 2)
+
 static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
     BcmEnet_devctrl *pDevCtrl;
+    char *wanifnames;
     int *data=(int*)rq->ifr_data;
     char *chardata = (char *)rq->ifr_data;
-    char wanifnames[680];
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
+#if (defined(DBL_DESC) || defined(CONFIG_BCM96816))
     struct net_device *pNetDev;
+#endif
+#if !defined(CONFIG_BCM96818)
     int swPort6829 = 0;
     unsigned char portInfo6829;
+#endif
     int bExt6829 = 0;
     MirrorCfg mirrorCfg;
 #if defined(DBL_DESC)
@@ -6486,26 +7869,36 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             else
             {
 #endif
-            val = phyport_to_vport[swPort] - 1;
-            if (val >= 0) {
-                mii->phy_id = ethsw_port_to_phyid(val);
-                val = 0;
-            } else {
-                val = -EINVAL;
-            }
+            val = 0;
+            phy_id = enet_logport_to_phyid(swPort);
+            mii->phy_id =  (u16)phy_id;
+            /* Let us also return phy flags needed for accessing the phy */
+            mii->val_out =  phy_id & CONNECTED_TO_EXTERN_SW? ETHCTL_FLAG_ACCESS_EXTSW_PHY: 0;
+            mii->val_out |= IsExtPhyId(phy_id)? ETHCTL_FLAG_ACCESS_EXT_PHY: 0;
 #if defined(CONFIG_BCM96816)
             }
 #endif
-            BCM_ENET_DEBUG("phy_id: %d \n", mii->phy_id);
+            BCM_ENET_DEBUG("%s: swPort/logport %d phy_id: 0x%x flag 0x%x \n", __FUNCTION__,
+                                    swPort, mii->phy_id, mii->val_out);
             break;
 
         case SIOCGMIIREG:       /* Read MII PHY register. */
+        {    
+            int flags;
             mii = (struct mii_ioctl_data *)&rq->ifr_data;
+            flags = mii->val_out;
             down(&bcm_ethlock_switch_config);
-            BCM_ENET_DEBUG("phy_id: %d; reg_num = %d \n", mii->phy_id, mii->reg_num);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
             ethsw_phy_rreg(mii->phy_id, mii->reg_num & 0x1f, (uint16 *)&mii->val_out);
+#else           
+            ethsw_phyport_rreg2(mii->phy_id, mii->reg_num & 0x1f,
+                                    (uint16 *)&mii->val_out, mii->val_out);
+#endif
+            BCM_ENET_DEBUG("phy_id: %d; reg_num = %d  val = 0x%x\n",
+                         mii->phy_id, mii->reg_num, flags);
             up(&bcm_ethlock_switch_config);
             break;
+        }
 
         case SIOCGSWITCHPORT:       /* Get Switch Port. */
             val = -1;
@@ -6531,13 +7924,19 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             break;
 
         case SIOCSMIIREG:       /* Write MII PHY register. */
+        {
+            int flags;
             mii = (struct mii_ioctl_data *)&rq->ifr_data;
+            flags = mii->val_out;
             down(&bcm_ethlock_switch_config);
             BCM_ENET_DEBUG("phy_id: %d; reg_num = %d; val = 0x%x \n", mii->phy_id,
                             mii->reg_num, mii->val_in);
-            ethsw_phy_wreg(mii->phy_id, mii->reg_num & 0x1f, (uint16 *)&mii->val_in);
+            /* mii->val_out carries phy flags */
+            ethsw_phyport_wreg2(mii->phy_id, mii->reg_num & 0x1f,
+                             (uint16 *)&mii->val_in, flags);
             up(&bcm_ethlock_switch_config);
             break;
+        }
 
         case SIOCGLINKSTATE:
             if (dev == vnet_dev[0])
@@ -6557,9 +7956,9 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 #if defined(AEI_VDSL_HPNA)
             if (hpna_support)
             {
-                if (hpna_index == port_id_from_dev(dev))
+                if (hpna_port == LOGICAL_PORT_TO_PHYSICAL_PORT(port_id_from_dev(dev)))
                 {
-                    PHY_STAT phys = AEI_ethsw_hpna_phy_stat(hpna_index);
+                    PHY_STAT phys = AEI_ethsw_hpna_phy_stat(hpna_port);
                     val = phys.lnk;
                 }
             }
@@ -6574,6 +7973,12 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
         case SIOCSCLEARMIBCNTR:
             ASSERT(pDevCtrl != NULL);
 
+            bcm63xx_enet_query(dev);
+#if (defined(CONFIG_BCM_PKTCMF_MODULE) || defined(CONFIG_BCM_PKTCMF))
+            bcmEnet_pktCmfEthResetStats(port_id_from_dev(dev));
+#else
+            bcmPktDma_EthResetStats(port_id_from_dev(dev));
+#endif
             memset(&pDevCtrl->stats, 0, sizeof(struct net_device_stats));
             /* port 0 is bcmsw */
             for (vport = 1; vport <= vport_cnt; vport++)
@@ -6632,22 +8037,22 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             val = 0;
             break;
 
-#if defined(CONFIG_BCM96816)
-    case SIOCPORTMIRROR:
-        if(copy_from_user((void*)&mirrorCfg,data,sizeof(MirrorCfg)))
-            val = -EFAULT;
-        else
-        {
-            if( mirrorCfg.nDirection == MIRROR_DIR_IN )
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
+        case SIOCPORTMIRROR:
+            if(copy_from_user((void*)&mirrorCfg,data,sizeof(MirrorCfg)))
+                val = -EFAULT;
+            else
             {
-                memcpy(&gemMirrorCfg[0], &mirrorCfg, sizeof(MirrorCfg));
+                if( mirrorCfg.nDirection == MIRROR_DIR_IN )
+                {
+                    memcpy(&gemMirrorCfg[0], &mirrorCfg, sizeof(MirrorCfg));
+                }
+                else /* MIRROR_DIR_OUT */
+                {
+                    memcpy(&gemMirrorCfg[1], &mirrorCfg, sizeof(MirrorCfg));
+                }
             }
-            else /* MIRROR_DIR_OUT */
-            {
-                memcpy(&gemMirrorCfg[1], &mirrorCfg, sizeof(MirrorCfg));
-            }
-        }
-        break;
+            break;
 #endif
         case SIOCSWANPORT:
             if (dev == vnet_dev[0])
@@ -6655,7 +8060,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
             swPort = port_id_from_dev(dev);
 
-#if  defined(CONFIG_BCM963268)
+#if  defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
             if ( (pDevCtrl->unit == 1) && (swPort < MAX_EXT_SWITCH_PORTS) ){
                 phyId  = pDevCtrl->EnetInfo[1].sw.phy_id[swPort];
             } else {
@@ -6699,9 +8104,51 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 pDevCtrl->wanPort |= (1 << swPort);
                 dev->priv_flags |= IFF_WANDEV;
                 dev->priv_flags &= ~IFF_HW_SWITCH;
+#if defined(CONFIG_BCM_GMAC)
+                if ( IsGmacPort(swPort) )
+                    gmac_set_wan_port( 1 );
+#endif
+                {
+                    IOCTL_MIB_INFO *mib =
+                        &((BcmEnet_devctrl *)netdev_priv(dev))->MibInfo;
+
+                    switch(mib->ulIfSpeed)
+                    {
+                        case SPEED_1000MBIT:
+//#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if 0
+	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
+
+		//QA-Bug#37910: STB connected to router through 1000M switch will have many packet loss.
+		//If we disable 1000M port, the 1000M port has no the same priority as the other 100/10M port which FAP TM is enabled.
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 990000, 1);
+#else	
+                            bcmPktDma_EthSetPhyRate(swPort, 0, 990000, 1);
+#endif
+                            break;
+                        case SPEED_100MBIT:
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+			   //Agile QA-Bug #38053,The result of HPNA throughput (LAN Ethernt to LAN HPNA and LAN HPNA to LAN Ethernet) is very poor. We need set HPNA's FAP TM rate to the big one such as 200M which is confirmed to have good performance.	
+                            if(strcmp(dev->name,"eth4")==0)
+                            {
+                               //printk("###22set eth4 FAP TM rate to 200M\n");
+                                bcmPktDma_EthSetPhyRate(swPort, 1, 200000, 1);
+                            }
+                            else
+#endif
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 99000, 1);
+                            break;
+                        case SPEED_10MBIT:
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 9900, 1);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
 #ifdef SEPARATE_MAC_FOR_WAN_INTERFACES
 #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
-        if(strstr(dev->name,"ewan0")!=NULL) 
+        if(strstr(dev->name,"ewan0")!=NULL)
             val=kerSysGetMacAddress( dev->dev_addr,  0x13ffffff);
         else
 #endif
@@ -6717,7 +8164,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 #endif
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 #if defined(CONFIG_BCM963268)
                 if ( (extSwInfo.present == 0) || ((extSwInfo.present == 1) && (!IsExternalSwitchPort(swPort))) )
 #endif
@@ -6744,10 +8191,18 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
                             e2.priority = j;
 
-                            if(LOGICAL_PORT_TO_PHYSICAL_PORT(swPort) == i)
+                            if ((LOGICAL_PORT_TO_PHYSICAL_PORT(swPort) == i)
+#if defined(CONFIG_BCM96818)
+                            || (i == GPON_PORT_ID)
+#endif
+                            )
+                            {
                                 e2.queue = PKTDMA_ETH_DS_IUDMA;  /* WAN port mapped to DS FAP */
+                            }
                             else
+                            {
                                 e2.queue = PKTDMA_ETH_US_IUDMA;  /* other ports to US FAP */
+                            }
 
                             mapEthPortToRxIudma(e2.port, e2.queue);
                             enet_ioctl_ethsw_cosq_port_mapping(&e2);
@@ -6769,6 +8224,39 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 }
                 dev->priv_flags &= (~IFF_WANDEV);
                 dev->priv_flags |= IFF_HW_SWITCH;
+
+#if defined(CONFIG_BCM_GMAC)
+                if ( IsGmacPort(swPort) )
+                    gmac_set_wan_port( 0 );
+#endif
+                {
+                    IOCTL_MIB_INFO *mib =
+                        &((BcmEnet_devctrl *)netdev_priv(dev))->MibInfo;
+
+                    switch(mib->ulIfSpeed)
+                    {
+                        case SPEED_1000MBIT:
+//#if defined(AEI_VDSL_CUSTOMER_NCS)
+#if 0
+	//Per Lawrence, we remove the code of enabling Gigaport's FAP TM since it can't be reproduced in CTL lab.
+                	//QA-Bug#37910: STB connected to router through 1000M switch will have many packet loss.
+                	//If we disable 1000M port, the 1000M port has no the same priority as the other 100/10M port which FAP TM is enabled.
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 990000, 0);
+#else                
+                            bcmPktDma_EthSetPhyRate(swPort, 0, 990000, 0);
+#endif
+                            break;
+                        case SPEED_100MBIT:
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 99000, 0);
+                            break;
+                        case SPEED_10MBIT:
+                            bcmPktDma_EthSetPhyRate(swPort, 1, 9900, 0);
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
 #ifdef SEPARATE_MAC_FOR_WAN_INTERFACES
                 kerSysReleaseMacAddress(dev->dev_addr);
                 memmove(dev->dev_addr, vnet_dev[0]->dev_addr, ETH_ALEN);
@@ -6781,10 +8269,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 #endif
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM963268)
-#if defined(CONFIG_BCM963268)
-                if ( (extSwInfo.present == 0) || ((extSwInfo.present == 1) && (!IsExternalSwitchPort(swPort))) )
-#endif
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
                 {
                     struct ethswctl_data e2;
                     int i, j;
@@ -6801,17 +8286,28 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                             e2.port = i;
                             e2.priority = j;
                             /* All ports mapped to default iuDMA - Mar 2011 */
-                            /* US iuDMA for 63268 and DS iuDMA (ie FAP owned) for 6362 */
+                            /* US iuDMA for 63268/6828 and DS iuDMA (ie FAP owned) for 6362 */
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+                            /* Revert to initial config when a WAN port is deleted */
+                            e2.queue = restoreEthPortToRxIudmaConfig(e2.port);
+#else
                             e2.queue = PKTDMA_DEFAULT_IUDMA;
+#if defined(CONFIG_BCM96818)
+                            if (i == GPON_PORT_ID)
+                            {
+                                e2.queue = PKTDMA_ETH_DS_IUDMA;
+                            }
+#endif
+#endif
                             mapEthPortToRxIudma(e2.port, e2.queue);
                             enet_ioctl_ethsw_cosq_port_mapping(&e2);
                         }
                     }
-            }
+                }
 #endif  /* if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING) */
 #endif
             }
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96318)
             {
                 int tmpWanPort = pDevCtrl->wanPort;
                 if ( (pDevCtrl->unit == 1) && (swPort < MAX_EXT_SWITCH_PORTS) )
@@ -6827,7 +8323,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             if (pDevCtrl->unit == 1)
                 extsw_set_wanoe_portmap(pDevCtrl->wanPort);
             else
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 ethsw_port_based_vlan(pDevCtrl->EnetInfo[0].sw.port_map,
                                       pDevCtrl->wanPort,
                                       pDevCtrl->softSwitchingMap);
@@ -6842,6 +8338,14 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             break;
 
         case SIOCGWANPORT:
+        {
+            val = 0;
+            wanifnames = kmalloc(MAX_WAN_IFNAMES_LEN, GFP_KERNEL);
+            if( wanifnames == NULL ) {
+                printk(KERN_ERR "bcmenet:SIOCGWANPORT: kmalloc of %d bytes failed\n", MAX_WAN_IFNAMES_LEN);
+                return -ENOMEM;
+            }
+
             BCM_ENET_DEBUG("pDevCtrl->wanPort = 0x%x \n", pDevCtrl->wanPort);
             for (i = 0; i < MAX_SWITCH_PORTS-1; i++) {
 #if defined(CONFIG_BCM96816)
@@ -6851,28 +8355,32 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 if ((pDevCtrl->wanPort >> i) & 0x1) {
                     if (phyport_to_vport[i] > 0) {
                         len = strlen((vnet_dev[phyport_to_vport[i]])->name);
-                        if (atleast_one_added) {
-                            wanifnames[cum_len] = ',';
-                            cum_len += 1;
+                        if ((cum_len + len + 1) < MAX_WAN_IFNAMES_LEN) {
+                            if (atleast_one_added) {
+                                wanifnames[cum_len] = ',';
+                                cum_len += 1;
+                            }
+                            memcpy(wanifnames+cum_len, (vnet_dev[phyport_to_vport[i]])->name, len);
+                            cum_len += len;
+                            atleast_one_added = 1;
                         }
-                        memcpy(wanifnames+cum_len, (vnet_dev[phyport_to_vport[i]])->name, len);
-                        cum_len += len;
-                        atleast_one_added = 1;
                     }
                 }
             }
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
             for (i = 0; i < MAX_GPON_IFS; i++) {
                 pNetDev = gponifid_to_dev[i];
                 if (pNetDev != NULL) {
                     len = strlen(pNetDev->name);
-                    if (atleast_one_added) {
-                        wanifnames[cum_len] = ',';
-                        cum_len += 1;
+                    if ((cum_len + len + 1) < MAX_WAN_IFNAMES_LEN) {
+                        if (atleast_one_added) {
+                            wanifnames[cum_len] = ',';
+                            cum_len += 1;
+                        }
+                        memcpy(wanifnames+cum_len, pNetDev->name, len);
+                        cum_len += len;
+                        atleast_one_added = 1;
                     }
-                    memcpy(wanifnames+cum_len, pNetDev->name, len);
-                    cum_len += len;
-                    atleast_one_added = 1;
                 }
             }
 #endif
@@ -6887,14 +8395,16 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                        if ((pDevCtrl->wanPort6829 >> pNetDev->base_addr) & 0x1)
                        {
                           len = strlen(pNetDev->name);
-                          if (atleast_one_added)
-                          {
-                              wanifnames[cum_len] = ',';
-                              cum_len += 1;
+                          if ((cum_len + len + 1) < MAX_WAN_IFNAMES_LEN) {
+                              if (atleast_one_added)
+                              {
+                                  wanifnames[cum_len] = ',';
+                                  cum_len += 1;
+                              }
+                              memcpy(wanifnames+cum_len, pNetDev->name, len);
+                              cum_len += len;
+                              atleast_one_added = 1;
                           }
-                          memcpy(wanifnames+cum_len, pNetDev->name, len);
-                          cum_len += len;
-                          atleast_one_added = 1;
                        }
                    }
                }
@@ -6904,16 +8414,50 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             wanifnames[cum_len] = '\0';
             cum_len += 1;
             BCM_ENET_DEBUG("cum_len = %d \n", cum_len);
-            if (copy_to_user((void*)chardata, (void*)wanifnames, cum_len))
-                return -EFAULT;
+            if (copy_to_user((void*)chardata, (void*)wanifnames, cum_len)) {
+                val = -EFAULT;
+            }
             BCM_ENET_DEBUG("WAN interfaces: %s", chardata);
+            kfree(wanifnames);
+            break;
+        }
+
+        case SIOCGGMACPORT:
             val = 0;
+            wanifnames = kmalloc(MAX_WAN_IFNAMES_LEN, GFP_KERNEL);
+            if( wanifnames == NULL ) {
+                printk(KERN_ERR "bcmenet:SIOCGGMACPORT: kmalloc of %d bytes failed\n", MAX_WAN_IFNAMES_LEN);
+                return -ENOMEM;
+            }
+#if defined(CONFIG_BCM_GMAC)
+            BCM_ENET_DEBUG("pDevCtrl->gmacPort = 0x%x\n", pDevCtrl->gmacPort);
+            for (i = 0; i < MAX_SWITCH_PORTS*2-1; i++) {
+                if ((pDevCtrl->gmacPort >> i) & 0x1) {
+                    if (phyport_to_vport[i] > 0) {
+                        len = strlen((vnet_dev[phyport_to_vport[i]])->name);
+                        if (atleast_one_added) {
+                            wanifnames[cum_len] = ',';
+                            cum_len += 1;
+                        }
+                        memcpy(wanifnames+cum_len, (vnet_dev[phyport_to_vport[i]])->name, len);
+                        cum_len += len;
+                        atleast_one_added = 1;
+                    }
+                }
+            }
+#endif
+            wanifnames[cum_len] = '\0';
+            cum_len += 1;
+            if (copy_to_user((void*)chardata, (void*)wanifnames, cum_len))
+            	val = -EFAULT;
+            BCM_ENET_DEBUG("GMAC interfaces: %s\n", chardata);
+            kfree(wanifnames);
             break;
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
         case SIOCGPONIF:
             BCM_ENET_DEBUG("The op is %d \n", g->op);
-            BCM_ENET_DEBUG("The gem_map is %x \n", g->gem_map);
+            dumpGemIdxMap(g->gem_map_arr);
             BCM_ENET_DEBUG("The ifnum is %d \n", g->ifnumber);
             BCM_ENET_DEBUG("The ifname is %s \n", g->ifname);
             switch (g->op) {
@@ -6922,7 +8466,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 case SETGEMIDMAP:
                 case GETGEMIDMAP:
                 val = set_get_gem_map(g->op, g->ifname, g->ifnumber,
-                                      &g->gem_map);
+                                      g->gem_map_arr);
                 break;
 
                 /* Create a gpon virtual interface */
@@ -6942,7 +8486,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
                 /* Set multicast gem index */
                 case SETMCASTGEMID:
-                val = set_mcast_gem_id(g->gem_map);
+                val = set_mcast_gem_id(g->gem_map_arr);
                 break;
 
                 default:
@@ -6956,7 +8500,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
             switch(e->op) {
                 case ETHSWDUMPPAGE:
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                     // make sure 6829 is present
                     if ( IsExt6829(e->page) && (0 == bExt6829))
                     {
@@ -7058,6 +8602,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                                     e2.type = TYPE_SET;
                                     e2.priority = j;
                                     e2.queue = iudma_ch;
+
                                     mapEthPortToRxIudma(e2.port, e2.queue);
                                     retval += enet_ioctl_ethsw_cosq_port_mapping(&e2);
                                 }
@@ -7127,7 +8672,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     return enet_ioctl_default_txq_config(pDevCtrl, e);
                     break;
 
-#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && defined(CONFIG_BCM96816)
+#if defined(RXCHANNEL_BYTE_RATE_LIMIT) && (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 case ETHSWRXRATECFG:
                     BCM_ENET_DEBUG("ethswctl ETHSWRXRATECFG ioctl");
                     return enet_ioctl_rx_rate_config(e);
@@ -7156,7 +8701,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     enet_ioctl_test_config(e);
                     break;
 
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 case ETHSWPORTTAGREPLACE:
                     BCM_ENET_DEBUG("ethswctl ETHSWPORTTAGREPLACE ioctl");
                     return enet_ioctl_ethsw_port_tagreplace(e);
@@ -7245,7 +8790,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     return 0;
                     break;
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96816)
+#if !defined(CONFIG_BCM96368)
                 case ETHSWCOSRXCHMAP:
                     BCM_ENET_DEBUG("ethswctl ETHSWRXCOSCHMAP ioctl");
                     return enet_ioctl_ethsw_cosq_rxchannel_mapping(e);
@@ -7302,12 +8847,12 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     }
                     break;
 
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
                 case ETHSWPKTPAD:
                     BCM_ENET_DEBUG("ethswctl ETHSWPKTPAD ioctl");
                     return enet_ioctl_ethsw_pkt_padding(e);
                     break;
-#endif /*CONFIG_BCM96816*/
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
 
                 case ETHSWJUMBO:
                     BCM_ENET_DEBUG("ethswctl ETHSWJUMBO ioctl");
@@ -7346,7 +8891,6 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     break;
 
                 case ETHSWREGACCESS:
-                    BCM_ENET_DEBUG("ethswctl ETHSWREGACCESS ioctl");
                     val = enet_ioctl_ethsw_regaccess(e);
                     break;
 
@@ -7369,9 +8913,16 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 case ETHSWLINKSTATUS:
                     BCM_ENET_DEBUG("ethswctl ETHSWLINKSTATUS ioctl");
                     swPort = e->port;
-#if defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
                     if ( (extSwInfo.present == 1) && (e->unit == 0) )
                         swPort += MAX_EXT_SWITCH_PORTS;
+#endif
+#if defined(CONFIG_BCM_GMAC)
+                    if (IsGmacPort( swPort ) && IsLogPortWan(swPort) )
+                    {
+                        gmac_link_status_changed(GMAC_PORT_ID, e->status, 
+                            e->speed, e->duplex);
+                    }
 #endif
                     link_change_handler(swPort, e->status, e->speed, e->duplex);
                     val = 0;
@@ -7379,13 +8930,17 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 #if defined(SUPPORT_SWMDK)
                 case ETHSWKERNELPOLL:
-                    BCM_ENET_DEBUG("ethswctl ETHSWKERNELPOLL ioctl");
                     val = enet_ioctl_kernel_poll();
+                    // Return the ephy interrupt count
+                    if (copy_to_user((void*)(&e->status), (void*)&ephy_int_cnt, sizeof(e->status))) 
+                    {
+                        return -EFAULT;
+                    }
                     break;
 #endif
 
                 case ETHSWPHYCFG:
-                    BCM_ENET_DEBUG("ethswctl ETHSWLINKSTATUS ioctl");
+                    BCM_ENET_DEBUG("ethswctl ETHSWPHYCFG ioctl");
                     val = enet_ioctl_phy_cfg_get(dev, e);
                     break;
 
@@ -7419,6 +8974,28 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     val = enet_ioctl_ethsw_phy_mode(e, phy_id);
                     return val;
                     break;
+
+
+                case ETHSWGETIFNAME:
+                    BCM_ENET_DEBUG("ethswctl ETHSWPHYMODE ioctl");
+                    if ((phyport_to_vport[e->port] != -1) && 
+                        (vnet_dev[phyport_to_vport[e->port]] != NULL)) {
+                        char *ifname = vnet_dev[phyport_to_vport[e->port]]->name;
+                        unsigned int len = sizeof(vnet_dev[phyport_to_vport[e->port]]->name);
+                        if (copy_to_user((void*)&e->ifname, (void*)ifname, len)) {
+                            return -EFAULT;
+                        }
+                    } else {
+                        /* Return error as there is no interface for the given port */
+                        return -EFAULT;
+                    }
+                    return 0;
+                    break;
+
+                case ETHSWDEBUG:
+                    enet_ioctl_debug_conf(e);
+                    break;
+
 
                 default:
                     BCM_ENET_DEBUG("ethswctl unsupported ioctl");
@@ -7501,8 +9078,10 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     {
                         uint16 val;
                         down(&bcm_ethlock_switch_config);
-                        ethsw_phy_read_reg(ethctl->phy_addr & 0x1f, ethctl->phy_reg & 0x1f, 
-                            &val, (ethctl->flags & ETHCTL_FLAG_ACCESS_EXT_PHY)?1:0);
+                        ethsw_phyport_rreg2(ethctl->phy_addr,
+                                       ethctl->phy_reg & 0x1f, &val, ethctl->flags);
+                        BCM_ENET_DEBUG("phy_id: %d;   reg_num = %d  val = 0x%x\n",
+                                                    ethctl->phy_addr, ethctl->phy_reg, val);
                         up(&bcm_ethlock_switch_config);
                         ethctl->ret_val = val;
                     }
@@ -7514,8 +9093,10 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     {
                         uint16 val = ethctl->val;
                         down(&bcm_ethlock_switch_config);
-                        ethsw_phy_write_reg(ethctl->phy_addr & 0x1f, ethctl->phy_reg & 0x1f, 
-                            &val, (ethctl->flags & ETHCTL_FLAG_ACCESS_EXT_PHY)?1:0);
+                        ethsw_phyport_wreg2(ethctl->phy_addr, 
+                                       ethctl->phy_reg & 0x1f, &val, ethctl->flags);
+                        BCM_ENET_DEBUG("phy_id: %d; reg_num = %d  val = 0x%x\n",
+                                                    ethctl->phy_addr, ethctl->phy_reg, val);
                         up(&bcm_ethlock_switch_config);
                     }
                     break;
@@ -7571,6 +9152,42 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
         }
 #endif
 #if defined(AEI_VDSL_HPNA)
+        case SIOCGHPNALINKSTATUS:
+        {
+            PHY_STAT phys;
+            int link_status;
+
+            phys = AEI_ethsw_hpna_phy_stat(hpna_port);
+            link_status = phys.lnk;
+
+            if (copy_to_user((void *)data, (void *)&link_status, sizeof(int)))
+            {
+                return -EFAULT;
+            }
+            val = 0;
+            break;
+        }
+        case SIOCSHPNALINKSTATUS:
+        {
+            int link_status;
+
+            if (copy_from_user((void*)&link_status, data, sizeof(int)))
+                return -EFAULT;
+            else
+            {
+                if (link_status)
+                {
+                    if (netif_carrier_ok(vnet_dev[hpna_dev_index]) == 0)
+                        netif_carrier_on(vnet_dev[hpna_dev_index]);
+                }
+                else
+                {
+                    if (netif_carrier_ok(vnet_dev[hpna_dev_index]) != 0)
+                        netif_carrier_off(vnet_dev[hpna_dev_index]);
+                }
+            }
+            break;
+        }
         case SIOCSHPNAADMSTATE:
             {
                 int *state = (int *)&rq->ifr_data;
@@ -7578,10 +9195,10 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 hpna_admin_state = state[0];
                 hpna_mode = state[1];
 
-                /* C2000 has HPNA and WAN eth tied to internal switch, so do not do this on C2000. 
-                   Also, setting port 5 to 100 Mbps is going to make a lot of pause frames come out and stop traffic.                   
+                /* C2000 has HPNA and WAN eth tied to internal switch, so do not do this on C2000.
+                   Also, setting port 5 to 100 Mbps is going to make a lot of pause frames come out and stop traffic.
                    Actually seems like someone already copied similar functionality in ethsw_init_config() so might not have
-                   to do this at all for R1000/V1000/etc... 
+                   to do this at all for R1000/V1000/etc...
                  */
 #if defined(AEI_63168_CHIP)
                 ;
@@ -7590,7 +9207,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                 if (hpna_admin_state) {
                     uint32 val = 0;
 
-                    uint8 v8 = REG_PORT_STATE_LNK | REG_PORT_STATE_FDX | REG_PORT_STATE_100 | REG_PORT_STATE_OVERRIDE; //0x47
+                    uint8 v8 = REG_PORT_STATE_LNK | REG_PORT_STATE_FDX | REG_PORT_STATE_100 | REG_PORT_STATE_FLOWCTL | REG_PORT_STATE_OVERRIDE;
 
                     extsw_wreg(PAGE_CONTROL, REG_PORT5_STATE, (uint8 *)&v8, 1);
 
@@ -7598,7 +9215,7 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
                     val = swab32(val);
 
-                    val |= (REG_PAUSE_CAPBILITY_OVERRIDE | 
+                    val |= (REG_PAUSE_CAPBILITY_OVERRIDE |
                     REG_PAUSE_CAPBILITY_MIPS_TX | //need this to improve hpna throughput but doing this will mean no eth Qos!!!
                                                   //w/o it,throughput from 53115 into hpna cannot get above 65Mbps for large packet sizes > 512
                                                   //Even with it, throughput for >1 stream from 53115 into hpna is lower than 1 stream...
@@ -7607,13 +9224,13 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
                     REG_PAUSE_CAPBILITY_GMII1_TX | REG_PAUSE_CAPBILITY_GMII1_RX
 
                     //need this to cut wan/BA ftp server side error
-                    | REG_PAUSE_CAPBILITY_GMII0_TX 
+                    | REG_PAUSE_CAPBILITY_GMII0_TX
 
                     //need this to cut lan/BA ftp client side errors
-                    |  REG_PAUSE_CAPBILITY_EPHY0_TX |   
+                    |  REG_PAUSE_CAPBILITY_EPHY0_TX |
                     REG_PAUSE_CAPBILITY_EPHY1_TX |
                     REG_PAUSE_CAPBILITY_EPHY2_TX |
-                    REG_PAUSE_CAPBILITY_EPHY3_TX 
+                    REG_PAUSE_CAPBILITY_EPHY3_TX
                     );
 
                     val = swab32(val);
@@ -7643,18 +9260,36 @@ static int bcm63xx_enet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
             break;
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
-        case SIOCGETMULTICASTSTATS:
+        case SIOCGETDEVSTATS:
         {
             BcmEnet_devctrl *pEthCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
 
-            if (copy_to_user((void *)data, (void *)&pEthCtrl->multi_stats,
-                             sizeof(struct enet_multicast_stats)))
+            bcm63xx_enet_query(dev);
+
+            if (copy_to_user((void *)data, (void *)&pEthCtrl->dev_stats,
+                             sizeof(struct enet_dev_stats)))
             {
                 return -EFAULT;
             }
             val = 0;
             break;
         }
+#endif
+#if defined(AEI_VDSL_SMARTLED)
+    case SIOCINETTRAFFICBLINK:
+        if (copy_from_user((void*)&inetTrafficBlinkEnable, data, sizeof(UBOOL8)))
+        {
+            return -EFAULT;
+        }
+        val = 0;
+        break;
+    case SIOCINETAMBERSTATE:
+        if (copy_from_user((void*)&inetAmberEnable, data, sizeof(UBOOL8)))
+        {
+            return -EFAULT;
+        }
+        val = 0;
+        break;
 #endif
         default:
             val = -EOPNOTSUPP;
@@ -7671,8 +9306,9 @@ static int set_cur_txdma_channels(int num_channels)
     int i, j, tmp_channels;
     BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
 
+#if !defined(CONFIG_BCM_GMAC)
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
-  #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING) || defined(CONFIG_BCM963268)
+  #if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
     if (num_channels != ENET_TX_CHANNELS_MAX) {
   #else
     if (num_channels != 1) {
@@ -7681,6 +9317,7 @@ static int set_cur_txdma_channels(int num_channels)
                       num_channels);
         return -EINVAL;
     }
+#endif
 #endif
 
     if (cur_txdma_channels == num_channels) {
@@ -7821,8 +9458,9 @@ static int set_cur_rxdma_channels(int num_channels)
  */
 static int init_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 {
-    DmaStateRam *StateRam;
     BcmEnet_RxDma *rxdma;
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
 
     TRACE(("bcm63xxenet: init_rx_channel\n"));
     BCM_ENET_DEBUG("Initializing Rx channel %d \n", channel);
@@ -7830,31 +9468,30 @@ static int init_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
     /* setup the RX DMA channel */
     rxdma = pDevCtrl->rxdma[channel];
 
+    /* init rxdma structures */
+    rxdma->pktDmaRxInfo.rxDma = &dmaCtrl->chcfg[phy_chan * 2];
+    rxdma->rxIrq = get_rxIrq( channel );
+
+    /* disable the interrupts from device */
+    bcmPktDma_BcmHalInterruptDisable(channel, rxdma->rxIrq);
+
     /* Reset the DMA channel */
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 1 << (channel * 2);
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 0;
+    dmaCtrl->ctrl_channel_reset = 1 << (phy_chan * 2);
+    dmaCtrl->ctrl_channel_reset = 0;
 
     /* allocate RX BDs */
-    if (bcm63xx_alloc_rxdma_bds(channel,pDevCtrl) < 0)
+#if defined(ENET_RX_BDS_IN_PSM)
+    if (!rxdma->bdsAllocated) 
+#endif
     {
-        return -1;
+        if (bcm63xx_alloc_rxdma_bds(channel,pDevCtrl) < 0)
+            return -1;
     }
-    /*
-     * clear State RAM of DMA channels
-     */
-    StateRam = (DmaStateRam *)&pDevCtrl->dmaCtrl->stram.s[channel*2];
-    memset(StateRam, 0, sizeof(DmaStateRam));
+    
+   printk("ETH Init: Ch:%d - %d rx BDs at 0x%x\n",
+          channel, rxdma->pktDmaRxInfo.numRxBds, (unsigned int)rxdma->pktDmaRxInfo.rxBds);
 
-    /* setup receive dma register */
-    rxdma->pktDmaRxInfo.rxDma->cfg = 0;  /*initialize first (will enable later)*/
-    rxdma->pktDmaRxInfo.rxDma->maxBurst = DMA_MAX_BURST_LENGTH;
-    rxdma->pktDmaRxInfo.rxDma->intMask = 0;   /* mask all ints */
-    /* clr any pending interrupts on channel */
-    rxdma->pktDmaRxInfo.rxDma->intStat = DMA_DONE | DMA_NO_DESC | DMA_BUFF_DONE;
-    /* set to interrupt on packet complete and no descriptor available */
-    rxdma->pktDmaRxInfo.rxDma->intMask = DMA_DONE | DMA_NO_DESC | DMA_BUFF_DONE;
-    pDevCtrl->dmaCtrl->stram.s[channel * 2].baseDescPtr =
-        (uint32)VIRT_TO_PHY((uint32 *)rxdma->pktDmaRxInfo.rxBds);
+    setup_rxdma_channel( channel );
 
     bcmPktDma_EthInitRxChan(rxdma->pktDmaRxInfo.numRxBds, &rxdma->pktDmaRxInfo);
 
@@ -7865,11 +9502,18 @@ static int init_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
     enet_rx_set_bpm_alloc_trig( pDevCtrl, channel );
 #endif
 
+    /* initialize the receive buffers */
     if (init_buffers(pDevCtrl, channel)) {
         printk(KERN_NOTICE CARDNAME": Low memory.\n");
         uninit_buffers(pDevCtrl->rxdma[channel]);
-        return -1;
+        return -ENOMEM;
     }
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+    gbpm_resv_rx_buf( GBPM_PORT_ETH, channel, rxdma->pktDmaRxInfo.numRxBds,
+        (rxdma->pktDmaRxInfo.numRxBds * BPM_ENET_ALLOC_TRIG_PCT/100) );
+#endif
+
+//    bcm63xx_dump_rxdma(channel, rxdma);
     return 0;
 }
 
@@ -7879,6 +9523,8 @@ static int init_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 void uninit_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 {
     BcmEnet_RxDma *rxdma;
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
 
     TRACE(("bcm63xxenet: init_rx_channel\n"));
     BCM_ENET_DEBUG("un-initializing Rx channel %d \n", channel);
@@ -7886,9 +9532,17 @@ void uninit_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
     /* setup the RX DMA channel */
     rxdma = pDevCtrl->rxdma[channel];
 
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+#if defined(CONFIG_BCM_GMAC)
+    bcmPktDma_EthUnInitRxChan(&rxdma->pktDmaRxInfo);
+#endif
+#else
+    uninit_buffers(rxdma);
+#endif
+
     /* Reset the DMA channel */
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 1 << (channel * 2);
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 0;
+    dmaCtrl->ctrl_channel_reset = 1 << (phy_chan * 2);
+    dmaCtrl->ctrl_channel_reset = 0;
 
 #if !defined(ENET_RX_BDS_IN_PSM)
     /* remove the rx bd ring & rxBdsStdBy */
@@ -7897,7 +9551,7 @@ void uninit_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
     }
 #endif
 
-    uninit_buffers(rxdma);
+//    bcm63xx_dump_rxdma(channel, rxdma);
 }
 
 
@@ -7906,44 +9560,44 @@ void uninit_rx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
  */
 static int init_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 {
-    DmaStateRam *StateRam;
     BcmPktDma_EthTxDma *txdma;
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
 
     TRACE(("bcm63xxenet: init_txdma\n"));
     BCM_ENET_DEBUG("Initializing Tx channel %d \n", channel);
 
-    /* allocate and assign tx buffer descriptors */
-    txdma = pDevCtrl->txdma[channel];
-
     /* Reset the DMA channel */
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 1 << ((channel * 2) + 1);
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 0;
+    dmaCtrl->ctrl_channel_reset = 1 << ((phy_chan * 2) + 1);
+    dmaCtrl->ctrl_channel_reset = 0;
 
-    /* allocate TX BDs */
-    if (bcm63xx_alloc_txdma_bds(channel,pDevCtrl) < 0)
+    txdma = pDevCtrl->txdma[channel];
+    txdma->txDma = &dmaCtrl->chcfg[(phy_chan * 2) + 1];
+
+    /* allocate and assign tx buffer descriptors */
+#if defined(ENET_TX_BDS_IN_PSM)
+    if (!txdma->bdsAllocated) 
+#endif
     {
-        return -1;
+        /* allocate TX BDs */
+        if (bcm63xx_alloc_txdma_bds(channel,pDevCtrl) < 0)
+        {
+            return -1;
+        }
     }
 
-    /*
-     * clear State RAM of DMA channels
-     */
-    StateRam = (DmaStateRam *)&pDevCtrl->dmaCtrl->stram.s[(channel * 2) + 1];
-    memset(StateRam, 0, sizeof(DmaStateRam));
+    setup_txdma_channel( channel );
 
-    /* setup the TX DMA channel */
-    txdma = pDevCtrl->txdma[channel];
-    /* setup transmit dma register */
-    txdma->txDma->cfg = 0; /*initialize first (will enable later)*/
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
-    txdma->txDma->maxBurst = DMA_MAX_BURST_LENGTH | DMA_DESCSIZE_SEL;
-#else
-    txdma->txDma->maxBurst = DMA_MAX_BURST_LENGTH;
+    printk("ETH Init: Ch:%d - %d tx BDs at 0x%x\n", channel, txdma->numTxBds, (unsigned int)txdma->txBds);
+
+    bcmPktDma_EthInitTxChan(txdma->numTxBds, txdma);        
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    enet_bpm_set_tx_drop_thr( pDevCtrl, channel );
 #endif
-    txdma->txDma->intMask = 0;   /* mask all ints */
-    pDevCtrl->dmaCtrl->stram.s[(channel * 2) + 1].baseDescPtr =
-        (uint32)VIRT_TO_PHY((uint32 *)txdma->txBds);
+#endif
 
+//    bcm63xx_dump_txdma(channel, txdma);
     return 0;
 }
 
@@ -7953,16 +9607,21 @@ static int init_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 void uninit_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
 {
     BcmPktDma_EthTxDma *txdma;
+    volatile DmaRegs *dmaCtrl = get_dmaCtrl( channel );
+    int phy_chan = get_phy_chan( channel );
 
     TRACE(("bcm63xxenet: uninit_tx_channel\n"));
     BCM_ENET_DEBUG("un-initializing Tx channel %d \n", channel);
 
-    /* setup the RX DMA channel */
     txdma = pDevCtrl->txdma[channel];
 
+#if defined(CONFIG_BCM_GMAC)
+    bcmPktDma_EthUnInitTxChan(txdma);        
+#endif
+
     /* Reset the DMA channel */
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 1 << ((channel * 2) + 1);
-    pDevCtrl->dmaCtrl->ctrl_channel_reset = 0;
+    dmaCtrl->ctrl_channel_reset = 1 << ((phy_chan * 2) + 1);
+    dmaCtrl->ctrl_channel_reset = 0;
 
 #if !defined(ENET_TX_BDS_IN_PSM)
     /* remove the tx bd ring */
@@ -7970,10 +9629,11 @@ void uninit_tx_channel(BcmEnet_devctrl *pDevCtrl, int channel)
         kfree((void *)txdma->txBdsBase);
     }
 #endif
+//    bcm63xx_dump_txdma(channel, txdma);
 }
 
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
 
 static const char* gponif_name = "gpon%d";
 
@@ -8068,6 +9728,7 @@ static int create_gpon_vport(char *name)
     /* Set this flag to block forwarding of traffic between
        GPON virtual interfaces */
     dev->priv_flags       |= IFF_WANDEV;
+    dev->mtu = ENET_MAX_MTU_PAYLOAD_SIZE; /* GPON - Explicitly assign the MTU size based on buffer size allocated */
 
     /* For now, let us use this base_addr field to identify GPON port */
     /* TBD: Change this to a private field in pDevCtrl for all eth and gpon
@@ -8076,6 +9737,7 @@ static int create_gpon_vport(char *name)
     pDevCtrl->sw_port_id  = GPON_PORT_ID;
 
     netdev_path_set_hw_port(dev, GPON_PORT_ID, BLOG_GPONPHY);
+    dev->path.hw_subport_mcast_idx = NETDEV_PATH_HW_SUBPORTS_MAX;
 
     /* Set the default tx queue to 0 */
     pDevCtrl->default_txq = 0;
@@ -8230,23 +9892,26 @@ static int delete_all_gpon_vports(void)
 /* Set the multicast gem ID in GPON virtual interface                       */
 /* Inputs: multicast gem port index                                         */
 /****************************************************************************/
-static int set_mcast_gem_id(u32 gem_map)
+static int set_mcast_gem_id(uint8 *pgem_map_arr)
 {
     int i;
     int mcast_gemid;
     int ifIdx;
     int ifid;
     struct net_device *dev = NULL;
-    if (!gem_map)
+    bool found = false;
+
+    for (i = 0; i < MAX_GEM_IDS; i++) {
+        if (pgem_map_arr[i]) {
+            mcast_gemid = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
     {
         printk("Error - set_mcast_gem_id() : No gemIdx in gem_map\n");
         return -1;
-    }
-    for (i = 0; i < MAX_GEM_IDS; i++) {
-        if (gem_map & (1<<i)) {
-            mcast_gemid = i;
-            break;
-        }
     }
     for (ifIdx = 0; ifIdx < MAX_GPON_IFS_PER_GEM; ++ifIdx)
     {
@@ -8258,7 +9923,7 @@ static int set_mcast_gem_id(u32 gem_map)
         if (ifid >= 0 && ifid < MAX_GPON_IFS) {
             if (gponifid_to_dev[ifid] != NULL) {
                 dev = gponifid_to_dev[ifid];
-                netdev_path_set_hw_subport_mcast(dev, mcast_gemid);
+                netdev_path_set_hw_subport_mcast_idx(dev, mcast_gemid);
                 printk("mcast_gem <%d> added to if <%s>\n",mcast_gemid,dev->name);
             }
         }
@@ -8273,7 +9938,7 @@ static int set_mcast_gem_id(u32 gem_map)
 /*                     ptr to Free GEM mask for GetFree op                  */
 /* Returns: 0 on success; non-zero on failure                               */
 /****************************************************************************/
-static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *pgem_map)
+static int set_get_gem_map(int op, char *ifname, int ifnum, uint8 *pgem_map_arr)
 {
     int i, ifid = 0, count = 0, def_gem = 0;
     struct net_device *dev = NULL;
@@ -8302,41 +9967,41 @@ static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *pgem_map)
         pDevCtrl = (BcmEnet_devctrl *)netdev_priv(dev);
 
         if (op == GETGEMIDMAP) {
-            *pgem_map = 0;
+            initGemIdxMap(pgem_map_arr);
             /* Get the gem ids of given interface */
             for (i = 0; i < MAX_GEM_IDS; i++) {
                 if (is_gemid_mapped_to_gponif(i, ifid) == TRUE) {
-                    *pgem_map |= 1 << i;
+                    pgem_map_arr[i] = 1;
                 }
             }
         } else if (op == GETFREEGEMIDMAP) {
-            *pgem_map = 0;
+            initGemIdxMap(pgem_map_arr);
             /* Get the free gem ids */
             for (i = 0; i < MAX_GEM_IDS; i++) {
                 if (get_first_gemid_to_ifIdx_mapping(i) == UNASSIGED_IFIDX_VALUE) {
-                    *pgem_map |= 1 << i;
+                    pgem_map_arr[i] = 1;
                 }
             }
         } else if (op == SETGEMIDMAP) {
-//printk("Given gemmap is %x \n", *pgem_map);
+//printk("SETGEMIDMAP: Given gemmap is ");
+            dumpGemIdxMap(pgem_map_arr);
             /* Set the gem ids for given interface */
             for (i = 0; i < MAX_GEM_IDS; i++) {
                 /* Check if gem_id(=i) is already a member */
                 if (is_gemid_mapped_to_gponif(i, ifid) == TRUE) {
                     /* gem_id is already a member */
                     /* Check whether to remove it or not */
-                    if (!((*pgem_map >> i) & 1)) {
+                    if (!(pgem_map_arr[i])) {
                         /* It is not a member in the new
-                           gem_map, so remove it */
+                           gem_map_arr, so remove it */
                         remove_gemid_to_gponif_mapping(i, ifid);
-                        netdev_path_rem_hw_subport(dev, i);
                     } else {
                         count++;
                         if (count == 1)
                             def_gem = i;
                     }
                 }
-                else if ((*pgem_map >> i) & 1) {
+                else if (pgem_map_arr[i]) {
                     /* gem_id(=i) is not a member and is in the new
                        gem_map, so add it */
                     if (add_gemid_to_gponif_mapping(i, ifid) < 0)
@@ -8344,7 +10009,6 @@ static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *pgem_map)
                         printk("Error while adding gem<%d> to if<%s>\n",i,ifname);
                         return -ENXIO;
                     }
-                    netdev_path_add_hw_subport(dev, i);
                     count++;
                     if (count == 1)
                         def_gem = i;
@@ -8361,13 +10025,13 @@ static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *pgem_map)
         /* ifname is all */
         if (op == GETGEMIDMAP) {
             /* Give the details if there is an interface at given ifnumber */
-            *pgem_map = 0;
+            initGemIdxMap(pgem_map_arr);
             if (gponifid_to_dev[ifnum] != NULL) {
                 dev = gponifid_to_dev[ifnum];
                 /* Get the gem ids of given interface */
                 for (i = 0; i < MAX_GEM_IDS; i++) {
                     if (is_gemid_mapped_to_gponif(i, ifnum) == TRUE) {
-                        *pgem_map |= 1 << i;
+                        pgem_map_arr[i] = 1;
                     }
                 }
                 /* Get the interface name */
@@ -8382,15 +10046,56 @@ static int set_get_gem_map(int op, char *ifname, int ifnum, u32 *pgem_map)
 
     return 0;
 }
+
+/****************************************************************************/
+/* Dump the Gem Index Map                                                   */
+/* Inputs: Gem Index Map Array                                              */
+/* Outputs: None                                                            */
+/* Returns: None                                                            */
+/****************************************************************************/
+static void dumpGemIdxMap(uint8 *pgem_map_arr)
+{
+    int gemDumpIdx = 0;
+    bool gemIdxDumped = false;
+
+    BCM_ENET_DEBUG("GemIdx Map: ");
+    for (gemDumpIdx = 0; gemDumpIdx < MAX_GEM_IDS; gemDumpIdx++) 
+    {
+        if (pgem_map_arr[gemDumpIdx]) 
+        {
+            BCM_ENET_DEBUG("%d ", gemDumpIdx);
+            gemIdxDumped = true;
+        }
+    }
+    if (!gemIdxDumped) 
+    {
+        BCM_ENET_DEBUG("No gem idx set");
+    }
+}
+
+/****************************************************************************/
+/* Initialize the Gem Index Map                                                   */
+/* Inputs: Gem Index Map Array                                              */
+/* Outputs: None                                                            */
+/* Returns: None                                                            */
+/****************************************************************************/
+static void initGemIdxMap(uint8 *pgem_map_arr)
+{
+    int i=0;
+    for (i = 0; i < MAX_GEM_IDS; i++) 
+    {
+        pgem_map_arr[i] = 0;        
+    }
+}
 #endif
 
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 static int reset_switch_wrapper(void *ctxt)
 {
   return reset_switch(0);
 };
-#endif /*BCM96816*/
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
 static int __init bcmenet_module_init(void)
 {
     int status;
@@ -8410,6 +10115,9 @@ static int __init bcmenet_module_init(void)
 
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     gbpm_enet_status_hook_g = enet_bpm_status;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+    gbpm_enet_thresh_hook_g = enet_bpm_dump_tx_drop_thr;
+#endif
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
     gbpm_moca_thresh_hook_g = moca_bpm_dump_txq_thresh;
 #endif
@@ -8424,7 +10132,7 @@ static int __init bcmenet_module_init(void)
     {
         pending_channel[idx] = idx;
     }
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     initialize_gemid_to_ifIdx_mapping();
 #endif
 
@@ -8434,39 +10142,94 @@ static int __init bcmenet_module_init(void)
     bcmFun_reg(BCM_FUN_ID_ENET_LINK_CHG, link_change_handler_wrapper);
 #endif /*SUPPORT_SWMDK*/
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     bcmFun_reg(BCM_FUN_ID_RESET_SWITCH, reset_switch_wrapper);
     bcmFun_reg(BCM_FUN_ID_ENET_CHECK_SWITCH_LOCKUP, ethsw_is_switch_locked);
+    bcmFun_reg(BCM_FUN_ID_ENET_GET_PORT_BUF_USAGE, ethsw_get_port_buf_usage);
     ethsw_rreg_ext(PAGE_CONTROL, 0x0a, &defaultIPG, 1, global.Is6829);
-#endif /*BCM96816*/
+    /* initialize port mirroring cfg */
+    memset(gemMirrorCfg, 0, sizeof(gemMirrorCfg));
+
+#endif /*(defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))*/
+
+#if defined(CONFIG_BCM96828) && !defined(CONFIG_EPON_HGU)
+    bcmFun_reg(BCM_FUN_ID_ENET_HANDLE, bcm_fun_enet_drv_handler);
+#endif
+    /* Register ARL Entry clear routine */
+    bcmFun_reg(BCM_FUN_IN_ENET_CLEAR_ARL_ENTRY, remove_arl_entry_wrapper);
+#if defined(CONFIG_BCM_GMAC)
+    bcmFun_reg(BCM_FUN_ID_ENET_GMAC_ACTIVE, ChkGmacActive);
+    bcmFun_reg(BCM_FUN_ID_ENET_GMAC_PORT, ChkGmacPort);
+#endif
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     /* Add code for buffer quick free between enet and xtm - June 2010 */
     bcmPktDma_set_enet_recycle((RecycleFuncP)bcm63xx_enet_recycle);
 #endif /* defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE) */
 
+    if (extSwInfo.present == 1)
+        register_bridge_notifier(&br_notifier);
+
+    register_bridge_stp_notifier(&br_stp_handler);
 
     return status;
 }
 
+int bcm63xx_enet_getPortFromDev(struct net_device *dev, int *pUnit, int *pPort)
+{
+   int port;
+   int i;
+   
+   for (i = 1; i < (ARRAY_SIZE(vnet_dev) + 1); i++)
+   {
+      if (dev == vnet_dev[i])
+      {
+         break;
+      }
+   }
 
+   if ( i >= (ARRAY_SIZE(vnet_dev) + 1) )
+       return -1;
+
+   port = port_id_from_dev(dev);
+   if ( bcm63xx_enet_isExtSwPresent() && IsExternalSwitchPort(port))
+   {
+      *pUnit = 1;
+   }
+   else
+   {
+      *pUnit = 0;
+   }
+   *pPort = LOGICAL_PORT_TO_PHYSICAL_PORT(port);
+
+   return 0;
+
+}
+
+int bcm63xx_enet_getPortFromName(char *pIfName, int *pUnit, int *pPort)
+{
+   struct net_device *dev;
+   
+   dev = dev_get_by_name(&init_net, pIfName);
+   if (NULL == dev)
+   {
+      return -1;
+   }
+
+   if ( bcm63xx_enet_getPortFromDev(dev, pUnit, pPort) < 0 )
+   {
+      dev_put(dev);
+      return -1;
+   }
+
+   dev_put(dev);
+
+   return 0;
+}
 
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
 
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-/* configure ENET IQ thresholds for DQM */
-static void enet_set_iq_thresh_dqm(BcmEnet_devctrl *pDevCtrl, int channel,
-                                        uint16 loThresh, uint16 hiThresh)
-{
-    BcmPktDma_EthRxDma  *rxdma = &pDevCtrl->rxdma[channel]->pktDmaRxInfo;
-
-    rxdma->iqLoThreshDqm = loThresh;
-    rxdma->iqHiThreshDqm = hiThresh;
-    rxdma->iqDroppedDqm  = 0;
-    BCM_ENET_DEBUG("ENET: DQM Chnl=%d IQ Thresh lo=%d hi=%d\n",
-           channel, (int) rxdma->iqLoThreshDqm, (int) rxdma->iqHiThreshDqm );
-}
-
 /* Update CPU congestion status based on the DQM IQ thresholds */
 static void enet_iq_dqm_update_cong_status(BcmEnet_devctrl *pDevCtrl)
 {
@@ -8584,36 +10347,18 @@ static void enet_rx_set_iq_thresh( BcmEnet_devctrl *pDevCtrl, int chnl )
 {
     BcmPktDma_EthRxDma *rxdma = &pDevCtrl->rxdma[chnl]->pktDmaRxInfo;
 
-#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-    BCM_ENET_RX_DEBUG("Enet: Rx Chan=%d Owner=%d\n", chnl,
-        g_Eth_rx_iudma_ownership[chnl]);
-    if (g_Eth_rx_iudma_ownership[chnl] != HOST_OWNED)
-    {
-        enet_set_iq_thresh_dqm(pDevCtrl, chnl,
-                    enet_rx_dqm_iq_thresh[chnl].loThresh,
-                    enet_rx_dqm_iq_thresh[chnl].hiThresh);
-
-        bcmPktDma_EthSetIqDqmThresh(rxdma,
-                    enet_rx_dqm_iq_thresh[chnl].loThresh,
-                    enet_rx_dqm_iq_thresh[chnl].hiThresh);
-    }
-    else
-    {
-        rxdma->iqLoThresh = enet_rx_dma_iq_thresh[chnl].loThresh;
-        rxdma->iqHiThresh = enet_rx_dma_iq_thresh[chnl].hiThresh;
-    }
-
-    bcmPktDma_EthSetIqThresh(rxdma,
-                enet_rx_dma_iq_thresh[chnl].loThresh,
-                enet_rx_dma_iq_thresh[chnl].hiThresh);
-#else
-    bcmPktDma_EthSetIqThresh(rxdma,
-                enet_rx_dma_iq_thresh[chnl].loThresh,
-                enet_rx_dma_iq_thresh[chnl].hiThresh);
-
     BCM_ENET_RX_DEBUG("Enet: chan=%d iqLoThresh=%d iqHiThresh=%d\n",
         chnl, (int) rxdma->iqLoThresh, (int) rxdma->iqHiThresh );
+
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    bcmPktDma_EthSetIqDqmThresh(rxdma,
+                enet_rx_dqm_iq_thresh[chnl].loThresh,
+                enet_rx_dqm_iq_thresh[chnl].hiThresh);
 #endif
+
+    bcmPktDma_EthSetIqThresh(rxdma,
+                enet_rx_dma_iq_thresh[chnl].loThresh,
+                enet_rx_dma_iq_thresh[chnl].hiThresh);
 }
 
 
@@ -8713,6 +10458,127 @@ static void enet_iq_status(void)
 }
 #endif
 
+static uint32_t bridge_get_ext_phy_pmap(char *brName)
+{
+    unsigned int brPort = 0xFFFFFFFF;
+    struct net_device *dev;
+    uint32_t portMap = 0, port;
+
+    for(;;)
+    {
+        int unit;
+        
+        dev = bridge_get_next_port(brName, &brPort);
+        if (dev == NULL)
+            break;
+
+        if ( bcm63xx_enet_getPortFromDev(dev, &unit, &port) < 1 )
+          continue;
+
+        if (0 == unit)
+            continue;
+
+        portMap |= (1<<port);
+    }
+
+    return portMap;
+}
+
+static int bridge_notifier(struct notifier_block *nb, unsigned long event, void *brName)
+{
+    switch (event)
+    {
+        case BREVT_IF_CHANGED:
+            bridge_update_ext_pbvlan(brName);
+            break;
+    }
+    return NOTIFY_DONE;
+}
+
+static int bridge_stp_handler(struct notifier_block *nb, unsigned long event, void *portInfo)
+{
+    struct stpPortInfo *pInfo = (struct stpPortInfo *)portInfo;
+
+    switch (event)
+    {
+        case BREVT_STP_STATE_CHANGED:    
+        {
+            unsigned char stpVal;
+            int port;
+            int unit;
+
+            if ( bcm63xx_enet_getPortFromName(&pInfo->portName[0], &unit, &port ) < 0 )
+            {
+                break;
+            }
+
+            switch ( pInfo->stpState )
+            {
+               case BR_STATE_BLOCKING:
+                  stpVal = REG_PORT_STP_STATE_BLOCKING;
+                  break;
+                   
+               case BR_STATE_FORWARDING:
+                  stpVal = REG_PORT_STP_STATE_FORWARDING;
+                  break;
+        
+               case BR_STATE_LEARNING:
+                  stpVal = REG_PORT_STP_STATE_LEARNING;
+                  break;
+        
+               case BR_STATE_LISTENING:
+                  stpVal = REG_PORT_STP_STATE_LISTENING;
+                  break;
+        
+               case BR_STATE_DISABLED:
+                  stpVal = REG_PORT_STP_STATE_DISABLED;
+                  break;
+        
+               default:
+                  stpVal = REG_PORT_NO_SPANNING_TREE;
+                  break;
+            }
+            
+            ethsw_set_stp_mode(unit, port, stpVal);
+            break;
+        }
+    }
+    return NOTIFY_DONE;
+}
+
+
+static void bridge_update_ext_pbvlan(char *brName)
+{
+    unsigned int brPort = 0xFFFFFFFF;
+    struct net_device *dev;
+    uint32_t portMap, curMap, port;
+
+    if (extSwInfo.present == 0)
+        return;
+
+    curMap = bridge_get_ext_phy_pmap(brName);
+    if (curMap == 0)
+        return;
+
+    for(;;)
+    {
+        int unit;
+        
+        dev = bridge_get_next_port(brName, &brPort);
+        if (dev == NULL)
+           break;
+
+        if ( bcm63xx_enet_getPortFromDev(dev, &unit, &port) < 1 )
+           continue;
+
+        if (0 == unit)
+           continue;
+
+        portMap = (curMap) & (~(1<<port));
+        portMap |= (1<<MIPS_PORT_ID);
+        bcmsw_set_ext_switch_pbvlan(port, portMap);
+    }
+}
 
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 /*
@@ -8787,6 +10653,7 @@ static void enet_bpm_status(void)
 }
 
 
+
 /* Frees a buffer for an Eth RX channel to global BPM */
 static inline int enet_bpm_free_buf(BcmEnet_devctrl *pDevCtrl, int channel,
                 uint8 *pData)
@@ -8842,26 +10709,86 @@ static void enet_rx_set_bpm_alloc_trig( BcmEnet_devctrl *pDevCtrl, int chnl )
     BcmPktDma_EthRxDma *rxdma = &pDevCtrl->rxdma[chnl]->pktDmaRxInfo;
     uint32  allocTrig = rxdma->numRxBds * BPM_ENET_ALLOC_TRIG_PCT/100;
 
-#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-    if (g_Eth_rx_iudma_ownership[chnl] == HOST_OWNED)
-    {
-        rxdma->allocTrig = allocTrig;
-        rxdma->bulkAlloc = BPM_ENET_BULK_ALLOC_COUNT;
-    }
-    else
-    {
-        bcmPktDma_EthSetRxChanBpmThresh(rxdma,
-            allocTrig, BPM_ENET_BULK_ALLOC_COUNT);
         BCM_ENET_DEBUG( "Enet: Chan=%d BPM Rx allocTrig=%d bulkAlloc=%d\n",
-            chnl, (int) (rxdma->allocTrig), (int) (rxdma->bulkAlloc) );
-    }
-#else
+        chnl, (int) allocTrig, BPM_ENET_BULK_ALLOC_COUNT );
+
     bcmPktDma_EthSetRxChanBpmThresh(rxdma,
         allocTrig, BPM_ENET_BULK_ALLOC_COUNT);
-    BCM_ENET_DEBUG( "Enet: Chan=%d BPM Rx allocTrig=%d bulkAlloc=%d\n",
-        chnl, (int) (rxdma->allocTrig), (int) (rxdma->bulkAlloc) );
-#endif
 }
+
+
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+/* Dumps the TxDMA drop thresh for eth channels */
+static void enet_bpm_dma_dump_tx_drop_thr(void)
+{
+    int chnl;
+    BcmEnet_devctrl *pDevCtrl = (BcmEnet_devctrl *)netdev_priv(vnet_dev[0]);
+
+    for (chnl = 0; chnl < cur_txdma_channels; chnl++)
+    {
+        BcmPktDma_EthTxDma *txdma = pDevCtrl->txdma[chnl];
+        int q;
+
+        if (g_Eth_tx_iudma_ownership[chnl] != HOST_OWNED)
+             continue;
+
+        for ( q=0; q < ENET_TX_EGRESS_QUEUES_MAX; q++ )
+            printk("[HOST] ENET %4u %4u %10u %10u\n",
+               chnl, q,
+               (uint32_t) txdma->txDropThr[q], 
+               (uint32_t) txdma->txDropThrPkts[q]);
+    }
+}
+
+/* print the BPM TxQ Drop Thresh */
+static void enet_bpm_dump_tx_drop_thr(void)
+{
+    enet_bpm_dma_dump_tx_drop_thr();
+}
+
+
+/* init ENET TxQ drop thresholds */
+static void enet_bpm_init_tx_drop_thr(BcmEnet_devctrl *pDevCtrl, int chnl)
+{
+    BcmPktDma_EthTxDma *txdma = pDevCtrl->txdma[chnl];
+    int nr_tx_bds;
+
+    nr_tx_bds = bcmPktDma_EthGetTxBds( txdma, chnl );
+    BCM_ASSERT(nr_tx_bds > 0);
+    enet_bpm_dma_tx_drop_thr[chnl][0] =
+                    (nr_tx_bds * ENET_BPM_PCT_TXQ0_DROP_THRESH)/100;
+    enet_bpm_dma_tx_drop_thr[chnl][1] =
+                    (nr_tx_bds * ENET_BPM_PCT_TXQ1_DROP_THRESH)/100;
+    enet_bpm_dma_tx_drop_thr[chnl][2] =
+                    (nr_tx_bds * ENET_BPM_PCT_TXQ2_DROP_THRESH)/100;
+    enet_bpm_dma_tx_drop_thr[chnl][3] =
+                    (nr_tx_bds * ENET_BPM_PCT_TXQ3_DROP_THRESH)/100;
+
+    BCM_ENET_DEBUG("Enet: BPM DMA Init Tx Drop Thresh: chnl=%u txbds=%u thr[0]=%u thr[1]=%u thr[2]=%u thr[3]=%u\n",
+                chnl, nr_tx_bds, 
+                enet_bpm_dma_tx_drop_thr[chnl][0],
+                enet_bpm_dma_tx_drop_thr[chnl][1],
+                enet_bpm_dma_tx_drop_thr[chnl][2],
+                enet_bpm_dma_tx_drop_thr[chnl][3]);
+}
+
+
+static void enet_bpm_set_tx_drop_thr( BcmEnet_devctrl *pDevCtrl, int chnl )
+{
+    BcmPktDma_EthTxDma *txdma = pDevCtrl->txdma[chnl];
+    int q;
+    BCM_ENET_DEBUG("Enet: BPM Set Tx Chan=%d Owner=%d\n", chnl,
+        g_Eth_tx_iudma_ownership[chnl]);
+    if (g_Eth_tx_iudma_ownership[chnl] == HOST_OWNED)
+    {
+        for (q=0; q < ENET_TX_EGRESS_QUEUES_MAX; q++)
+            txdma->txDropThr[q] = enet_bpm_dma_tx_drop_thr[chnl][q];
+    }
+
+    bcmPktDma_EthSetTxChanBpmThresh(txdma, 
+        (uint16 *) &enet_bpm_dma_tx_drop_thr[chnl]);
+}
+#endif
 
 
 #if defined(CONFIG_BCM_MOCA_SOFT_SWITCHING)
@@ -8959,8 +10886,243 @@ static void moca_bpm_dump_txq_thresh(void)
 }
 #endif
 #endif
+#ifdef DYING_GASP_API
+int enet_send_dying_gasp_pkt(void)
+{
+    struct net_device *dev = NULL;
+    int i;
+    //printk("%s, Invoked \n", __FUNCTION__);
+    if (dg_skbp == NULL) {
+        BCM_ENET_DEBUG("%s No DG skb to send \n", __FUNCTION__);
+        return -1; 
+    }
+    for (i = 0; i < TOTAL_SWITCH_PORTS - 1; i++) 
+    {
+        dev = vnet_dev[phyport_to_vport[i]];
+        // out on Wan port
+        //printk("%s phys port %d vport %d flags %x %s\n", __FUNCTION__,
+        //          i, phyport_to_vport[i], dev->priv_flags,  dev->name);
+        if (dev && dev->priv_flags & IFF_WANDEV) {
+                /* copy src MAC from dev */
+                from_dg = 1;
+                memcpy(dg_skbp->data + ETH_ALEN, dev->dev_addr, ETH_ALEN);
+                bcm63xx_enet_xmit(SKBUFF_2_PNBUFF(dg_skbp), dev);
+                //BCM_ENET_DEBUG("%s DG sent out on wan port %s\n", __FUNCTION__, dev->name);
+                printk("%s DG sent out on wan port %s\n", __FUNCTION__, dev->name);
+                from_dg = 0;
+                break;
+        }
+    } // for
+    return 0;
+}
+#endif
+
+#if defined(CONFIG_BCM_GMAC)
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+volatile int fapDrv_getEnetRxEnabledStatus( int channel );
+#endif
+
+/* get GMAC's logical port id */
+int enet_gmac_log_port( void )
+{
+    int logPort = GMAC_PORT_ID;
+
+    if (extSwInfo.present == 1)
+    {
+        logPort += MAX_EXT_SWITCH_PORTS; 
+    }
+    return logPort;
+}
 
 
+/* Is the GMAC enabled and the port matches with GMAC's logical port? */
+static inline int IsGmacPort( int log_port )
+{
+    if ( gmac_info_pg->enabled && (log_port == enet_gmac_log_port() ) )
+        return 1;
+    else
+        return 0;
+}
+
+
+/* Is the GMAC enabled and the port matches with GMAC's logical port? */
+static inline int ChkGmacPort( void * ctxt )
+{
+    return IsGmacPort( *(int *)ctxt );
+}
+
+
+/* Is the GMAC port active? */
+static inline int ChkGmacActive( void *ctxt )
+{
+    return gmac_info_pg->active;
+}
+
+
+/* Is the logical port configured as WAN? */
+static inline int IsLogPortWan( int log_port )
+{
+    BcmEnet_devctrl *pDevCtrl;
+    pDevCtrl = netdev_priv(vnet_dev[0]);
+    ASSERT(pDevCtrl != NULL);
+
+    return ((pDevCtrl->wanPort >> log_port) & 0x1);
+}
+
+/* Physical port to virtual port mapping */
+struct net_device *enet_phyport_to_vport_dev(int port)
+{
+    int log_port = port;
+
+    ASSERT(port < TOTAL_SWITCH_PORTS);
+
+    if (extSwInfo.present)
+        log_port += MAX_EXT_SWITCH_PORTS;
+
+    return (vnet_dev[phyport_to_vport[log_port]]);
+}
+
+void enet_rxdma_channel_enable(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+    BcmEnet_RxDma *rxdma = pDevCtrl->rxdma[chan];
+
+    /* Enable the Rx channel */
+    bcmPktDma_EthRxEnable(&rxdma->pktDmaRxInfo);
+
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    /* Wait for Enet RX to be enabled in FAP */
+    while(!fapDrv_getEnetRxEnabledStatus( chan ));
+#endif
+}
+
+
+void enet_txdma_channel_enable(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+
+    /* Enable the Tx channel */
+    bcmPktDma_EthTxEnable(pDevCtrl->txdma[chan]);
+}
+
+
+int enet_add_rxdma_channel(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+    BcmEnet_RxDma *rxdma = pDevCtrl->rxdma[chan];
+
+    /* Stop the RXDMA (just a precaution) */
+    if (rxdma->pktDmaRxInfo.rxDma->cfg & DMA_ENABLE)
+    {
+        rxdma->pktDmaRxInfo.rxDma->cfg = DMA_PKT_HALT;
+        while(rxdma->pktDmaRxInfo.rxDma->cfg & DMA_ENABLE)
+        {
+            rxdma->pktDmaRxInfo.rxDma->cfg = DMA_PKT_HALT;
+        }
+    }
+
+    /* Allocate the BD ring and buffers */
+    if (init_rx_channel(pDevCtrl, chan)) 
+    {
+        uninit_rx_channel(pDevCtrl, chan);
+        return -1;
+    }
+
+    /* Enable the interrupts */
+    bcmPktDma_BcmHalInterruptEnable(chan, rxdma->rxIrq);
+
+    return 0;
+}
+
+
+int enet_del_rxdma_channel(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+    BcmEnet_RxDma *rxdma = pDevCtrl->rxdma[chan];
+
+    /* Stop the RXDMA channel */
+    if (rxdma->pktDmaRxInfo.rxDma->cfg & DMA_ENABLE)
+    {
+        rxdma->pktDmaRxInfo.rxDma->cfg = DMA_PKT_HALT;
+        while(rxdma->pktDmaRxInfo.rxDma->cfg & DMA_ENABLE)
+        {
+            rxdma->pktDmaRxInfo.rxDma->cfg = DMA_PKT_HALT;
+        }
+    }
+
+    /* Disable the interrupts */
+    bcmPktDma_BcmHalInterruptDisable(chan, rxdma->rxIrq);
+
+    /* Disable the Rx channel */
+    bcmPktDma_EthRxDisable(&rxdma->pktDmaRxInfo);
+
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    /* Wait for Enet RX to be disabled in FAP */
+    while(fapDrv_getEnetRxEnabledStatus( chan ));
+#endif
+
+    /*free the BD ring */
+    uninit_rx_channel(pDevCtrl, chan);
+
+    return 0;
+}
+
+
+int enet_add_txdma_channel(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+
+    if (init_tx_channel(pDevCtrl, chan)) 
+    {
+        uninit_tx_channel(pDevCtrl, chan);
+        return -1;
+    }
+
+    /* Enable the Tx channel */
+    bcmPktDma_EthTxEnable(pDevCtrl->txdma[chan]);
+
+    return 0;
+}
+
+
+int enet_del_txdma_channel(int chan)
+{
+    BcmEnet_devctrl *pDevCtrl = netdev_priv(vnet_dev[0]);
+
+    /* Disable the Tx channel */
+    bcmPktDma_EthTxDisable(pDevCtrl->txdma[chan]);
+
+    /*Un-allocate the BD ring */
+    uninit_tx_channel(pDevCtrl, chan);
+
+    return 0;
+}
+#endif
+/* 
+ * We need this function in non-gmac build as well.
+ * It searches both the internal and external switch ports.
+ */
+int enet_logport_to_phyid(int log_port)
+{
+    struct net_device *dev = vnet_dev[0];
+    BcmEnet_devctrl *priv = (BcmEnet_devctrl *)netdev_priv(dev);
+    int phy_id = -1;
+
+    ASSERT(log_port < (MAX_SWITCH_PORTS*2));
+
+    if (extSwInfo.present == 1) {
+        if (!IsExternalSwitchPort(log_port)) {
+            phy_id = priv->EnetInfo[0].sw.phy_id[LOGICAL_PORT_TO_PHYSICAL_PORT(log_port)];
+        } else { // yes, the port is on the external switch.
+            phy_id = priv->EnetInfo[1].sw.phy_id[log_port];
+        }
+    } else {
+        phy_id = priv->EnetInfo[0].sw.phy_id[log_port];
+    }
+
+    ASSERT(phy_id != -1);
+    return phy_id;
+}
 module_init(bcmenet_module_init);
 module_exit(bcmenet_module_cleanup);
 MODULE_LICENSE("GPL");

@@ -5,21 +5,21 @@
  * This package is an SSL implementation written
  * by Eric Young (eay@cryptsoft.com).
  * The implementation was written so as to conform with Netscapes SSL.
- * 
+ *
  * This library is free for commercial and non-commercial use as long as
  * the following conditions are aheared to.  The following conditions
  * apply to all code found in this distribution, be it the RC4, RSA,
  * lhash, DES, etc., code; not just the SSL code.  The SSL documentation
  * included with this distribution is covered by the same copyright terms
  * except that the holder is Tim Hudson (tjh@cryptsoft.com).
- * 
+ *
  * Copyright remains Eric Young's, and as such any Copyright notices in
  * the code are not to be removed.
  * If this package is used in a product, Eric Young should be given attribution
  * as the author of the parts of the library used.
  * This can be in the form of a textual message at program startup or
  * in documentation (online or textual) provided with the package.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -34,10 +34,10 @@
  *     Eric Young (eay@cryptsoft.com)"
  *    The word 'cryptographic' can be left out if the rouines from the library
  *    being used are not cryptographic related :-).
- * 4. If you include any Windows specific code (or a derivative thereof) from 
+ * 4. If you include any Windows specific code (or a derivative thereof) from
  *    the apps directory (application code) you must include an acknowledgement:
  *    "This product includes software written by Tim Hudson (tjh@cryptsoft.com)"
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY ERIC YOUNG ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -49,7 +49,7 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- * 
+ *
  * The licence and distribution terms for any publically available version or
  * derivative of this code cannot be changed.  i.e. this code cannot simply be
  * copied and put under another distribution licence
@@ -179,8 +179,8 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 	 * if possible, otherwise we complain. */
 
 	/* Examine last certificate in chain and see if it
- 	 * is self signed.
- 	 */
+	 * is self signed.
+	 */
 
 	i=sk_X509_num(ctx->chain);
 	x=sk_X509_value(ctx->chain,i-1);
@@ -195,7 +195,7 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 			 * match to avoid possible impersonation.
 			 */
 			ok = ctx->get_issuer(&xtmp, ctx, x);
-			if ((ok <= 0) || X509_cmp(x, xtmp)) 
+			if ((ok <= 0) || X509_cmp(x, xtmp))
 				{
 				ctx->error=X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT;
 				ctx->current_cert=x;
@@ -204,7 +204,7 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 				ok=cb(0,ctx);
 				if (!ok) goto end;
 				}
-			else 
+			else
 				{
 				/* We have a match: replace certificate with store version
 				 * so we get any trust settings.
@@ -683,7 +683,7 @@ static int cert_crl(X509_STORE_CTX *ctx, X509_CRL *crl, X509 *x)
 	rtmp.serialNumber = X509_get_serialNumber(x);
 	/* Sort revoked into serial number order if not already sorted.
 	 * Do this under a lock to avoid race condition.
- 	 */
+	 */
 	if (!sk_X509_REVOKED_is_sorted(crl->crl->revoked))
 		{
 		CRYPTO_w_lock(CRYPTO_LOCK_X509_CRL);
@@ -706,7 +706,7 @@ static int cert_crl(X509_STORE_CTX *ctx, X509_CRL *crl, X509 *x)
 
 	/* See if we have any critical CRL extensions: since we
 	 * currently don't handle any CRL extensions the CRL must be
-	 * rejected. 
+	 * rejected.
 	 * This code accesses the X509_CRL structure directly: applications
 	 * shouldn't do this.
 	 */
@@ -732,6 +732,10 @@ static int internal_verify(X509_STORE_CTX *ctx)
 	{
 	int i,ok=0,n;
 	X509 *xs,*xi;
+#ifdef AEI_VDSL_CUSTOMER_NCS
+        X509 *xs_temp = NULL, *xi_temp = NULL;
+        static int store_cert = -1;
+#endif
 	EVP_PKEY *pkey=NULL;
 	time_t *ptime;
 	int (*cb)();
@@ -769,6 +773,18 @@ static int internal_verify(X509_STORE_CTX *ctx)
 	while (n >= 0)
 		{
 		ctx->error_depth=n;
+#ifdef AEI_VDSL_CUSTOMER_NCS
+                if (-1 != store_cert) {
+                    int num = n;
+                    xs_temp = xs;
+                    xi_temp = xi;
+                    while (num >= store_cert) {
+                        xi = xs;
+                        xs = sk_X509_value(ctx->chain,num);
+                        num--;
+                    }
+                }
+#endif
 		if (!xs->valid)
 			{
 			if ((pkey=X509_get_pubkey(xi)) == NULL)
@@ -836,13 +852,30 @@ static int internal_verify(X509_STORE_CTX *ctx)
 			}
 
 		/* The last error (if any) is still in the error value */
-		ctx->current_cert=xs;
-		ok=(*cb)(1,ctx);
+                ctx->current_cert=xs;
+                ok=(*cb)(1,ctx);
 #ifdef AEI_VDSL_CUSTOMER_NCS
 		/* change the behavior of the certificate check,
 		 * only check the last certificate in the chain.
 		 */
-		if (n <= 0) goto end;
+                if (-1 != store_cert) {
+                    if (2 != ok) {
+                        store_cert = -1;
+                        xs = xs_temp;
+                        xi = xi_temp;
+                        continue;
+                    } else {
+                        goto end;
+                    }
+                } else {
+                    if (2 == ok) {
+                        store_cert = n;
+                        goto end;
+                    } else if (n <= 0) {
+                        goto end;
+                    }
+                }
+	//	if (n <= 0) goto end;
 #else
 		if (!ok) goto end;
 #endif
@@ -893,7 +926,7 @@ int X509_cmp_time(ASN1_TIME *ctm, time_t *cmp_time)
 	if ((*str == 'Z') || (*str == '-') || (*str == '+'))
 		{ *(p++)='0'; *(p++)='0'; }
 	else
-		{ 
+		{
 		*(p++)= *(str++);
 		*(p++)= *(str++);
 		/* Skip any fractional seconds... */
@@ -902,7 +935,7 @@ int X509_cmp_time(ASN1_TIME *ctm, time_t *cmp_time)
 			str++;
 			while ((*str >= '0') && (*str <= '9')) str++;
 			}
-		
+
 		}
 	*(p++)='Z';
 	*(p++)='\0';
@@ -998,7 +1031,7 @@ int X509_get_pubkey_parameters(EVP_PKEY *pkey, STACK_OF(X509) *chain)
 		EVP_PKEY_copy_parameters(ktmp2,ktmp);
 		EVP_PKEY_free(ktmp2);
 		}
-	
+
 	if (pkey != NULL) EVP_PKEY_copy_parameters(pkey,ktmp);
 	EVP_PKEY_free(ktmp);
 	return 1;

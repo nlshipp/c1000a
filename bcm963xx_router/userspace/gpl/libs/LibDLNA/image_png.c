@@ -74,7 +74,7 @@ probe_png (AVFormatContext *ctx,
 
   if (!stream_ctx_is_image (ctx, codecs, st))
     return NULL;
-  
+
   /* check for PNG compliant codec */
   if (codecs->vc->codec_id != CODEC_ID_PNG)
     return NULL;
@@ -83,7 +83,7 @@ probe_png (AVFormatContext *ctx,
     if (codecs->vc->width  <= png_profiles_mapping[i].max_width &&
         codecs->vc->height <= png_profiles_mapping[i].max_height)
       return png_profiles_mapping[i].profile;
-  
+
   return NULL;
 }
 

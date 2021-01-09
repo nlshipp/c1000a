@@ -15,7 +15,7 @@
 #define CTL_METHOD_RESTORE 	"RESTORE"
 #define CTL_METHOD_RESTORE_DEFAULT 	"RESTORE_DEFAULT"
 
-typedef enum 
+typedef enum
 {
    CTL_MSG_ACCESS_CFG_METHODCALL  = 0x01, 	// Method call, Ask RTD to Save/Restore cfg.xml
    CTL_MSG_ACCESS_CFG_SIGNAL      = 0x02, 	// Signal msg,  Ask RTD to Save cfg.xml
@@ -66,7 +66,7 @@ typedef enum
 //   CTL_MSG_CONFIG_WRITTEN             = 0x10000280, /**< Event sent when a config file is written. */
 
    CTL_MSG_SET_PPP_UP                 = 0x10000290, /* Sent to ppp when set ppp up manually */
-   CTL_MSG_SET_PPP_DOWN               = 0x10000291, /* Sent to ppp when set ppp down manually */  
+   CTL_MSG_SET_PPP_DOWN               = 0x10000291, /* Sent to ppp when set ppp down manually */
 
    CTL_MSG_DNSPROXY_DUMP_STATUS       = 0x100002A1, /* Tell dnsproxy to dump its current status */
    CTL_MSG_DNSPROXY_DUMP_STATS        = 0x100002A2, /* Tell dnsproxy to dump its statistics */
@@ -129,8 +129,15 @@ typedef enum
    CTL_MSG_REQUEST_FOR_PPP_CHANGE   = 0x100008A2,  /**< request for disconnect/connect ppp  */
 
 #ifdef AEI_SUPPORT_IPV6_STATICROUTE
-   CTL_MSG_IPV6_STATIC_ROUTE  = 0x100008D1,   
+   CTL_MSG_IPV6_STATIC_ROUTE  = 0x100008D1,
 #endif
+
+#if AEI_SUPPORT_PHYTYPE_IFNAME_CHANGE
+   CTL_MSG_IPV6_PHYTYPE_IFNAME = 0x100008D2,
+
+#endif
+   CTL_MSG_DATA_CENTER_READY		  = 0x100008D3, /* data_center has initialized completely */
+
 
 #if 0
    CTL_MSG_MOCA_WRITE_LOF           = 0x100008B1, /**< mocad reporting last operational frequency */
@@ -141,7 +148,7 @@ typedef enum
 
    CTL_MSG_QOS_DHCP_OPT60_COMMAND   = 0x100008C0, /**< QoS Vendor Class ID classification command */
    CTL_MSG_QOS_DHCP_OPT77_COMMAND   = 0x100008C1, /**< QoS User   Class ID classification command */
-   
+
    CTL_MSG_VOICE_CONFIG_CHANGED= 0x10002000,  /**< Voice Configuration parameter changed private event msg. */
    CTL_MSG_VODSL_BOUNDIFNAME_CHANGED = 0x10002001, /**< vodsl BoundIfName param has changed. */
    CTL_MSG_SHUTDOWN_VODSL= 0x10002002,  /**< Voice shutdown request. */
@@ -154,7 +161,7 @@ typedef enum
 #ifdef DMP_X_BROADCOM_COM_NTR_1
    CTL_MSG_VOICE_NTR_CONFIG_CHANGED    = 0x10002009, /**< Voice NTR Configuration parameter changed private event msg. */
 #endif /* DMP_X_BROADCOM_COM_NTR_1 */
-	
+
    CTL_MSG_VOICE_DIAG          = 0x10002100,  /**< request voice diagnostic to be run */
    CTL_MSG_VOICE_STATISTICS_REQUEST    = 0x10002101, /**< request for Voice call statistics */
    CTL_MSG_VOICE_STATISTICS_RESPONSE   = 0x10002102, /**< response for Voice call statistics */
@@ -241,7 +248,7 @@ typedef enum
 typedef struct ctl_msg_header
 {
     tsl_u32_t data_length; //this is the length of buffer
-    tsl_u8_t buffer[0];     //the buffer head address. 
+    tsl_u8_t buffer[0];     //the buffer head address.
 }CtlMsgHeader;
 
 /** Data body for CTL_MSG_DHCP6C_STATE_CHANGED message type.
@@ -290,7 +297,7 @@ typedef struct
  */
 typedef struct
 {
-   
+
    tsl_bool addressAssigned; /**< Have we been assigned an IP address ? */
    tsl_char_t ip[BUFLEN_32];   /**< New IP address, if addressAssigned==TRUE */
    tsl_char_t mask[BUFLEN_32]; /**< New netmask, if addressAssigned==TRUE */
@@ -309,8 +316,8 @@ typedef struct
 
 typedef struct
 {
-   tsl_bool logState;      
-   tsl_u32_t logLevel;  
+   tsl_bool logState;
+   tsl_u32_t logLevel;
    tsl_char_t moduleName[BUFLEN_32];
 } CtlLogLevelChangeMsgBody;
 
@@ -386,13 +393,21 @@ typedef struct
  *
  */
 typedef struct {
-    tsl_bool        isAdd; 
-    tsl_char_t      interface[BUFLEN_32];    /**< Interface */    
+    tsl_bool        isAdd;
+    tsl_char_t      interface[BUFLEN_32];    /**< Interface */
     tsl_char_t      destIPAddress[BUFLEN_256];    /**< DestIPAddress */
     tsl_char_t      destSubnetMask[BUFLEN_256];   /**< DestSubnetMask */
-    tsl_char_t      gatewayIPAddress[BUFLEN_256]; /**< GatewayIPAddress */    
+    tsl_char_t      gatewayIPAddress[BUFLEN_256]; /**< GatewayIPAddress */
     tsl_u32_t       forwardingPolicy; /**< ForwardingPolicy */
 } InforForStaticRoute;
+#endif
+
+#if AEI_SUPPORT_PHYTYPE_IFNAME_CHANGE
+typedef struct {
+    tsl_char_t      WANPhyType[BUFLEN_32];
+    tsl_char_t      IfName[BUFLEN_32];
+    tsl_int_t       isIP;
+} CtlPhyTypeIfNameMsgBody;
 #endif
 
 typedef struct

@@ -2,111 +2,106 @@
 /*
  * uniq implementation for busybox
  *
- * Copyright (C) 2003  Manuel Novoa III  <mjn3@codepoet.org>
+ * Copyright (C) 2005  Manuel Novoa III  <mjn3@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 /* BB_AUDIT SUSv3 compliant */
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/uniq.html */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <unistd.h>
-#include "busybox.h"
-#include "libcoreutils/coreutils.h"
+#include "libbb.h"
 
-static const char uniq_opts[] = "f:s:cdu\0\7\3\5\1\2\4";
-
-int uniq_main(int argc, char **argv)
+int uniq_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int uniq_main(int argc UNUSED_PARAM, char **argv)
 {
-	FILE *in, *out;
-	/* Note: Ignore the warning about dups and e0 being used uninitialized.
-	 * They will be initialized on the fist pass of the loop (since s0 is NULL). */
-	unsigned long dups, skip_fields, skip_chars, i;
-	const char *s0, *e0, *s1, *e1, *input_filename;
-	int opt;
-	int uniq_flags = 6;		/* -u */
+	const char *input_filename;
+	unsigned skip_fields, skip_chars, max_chars;
+	unsigned opt;
+	char *cur_line;
+	const char *cur_compare;
+
+	enum {
+		OPT_c = 0x1,
+		OPT_d = 0x2, /* print only dups */
+		OPT_u = 0x4, /* print only uniq */
+		OPT_f = 0x8,
+		OPT_s = 0x10,
+		OPT_w = 0x20,
+	};
 
 	skip_fields = skip_chars = 0;
+	max_chars = INT_MAX;
 
-	while ((opt = getopt(argc, argv, uniq_opts)) > 0) {
-		if (opt == 'f') {
-			skip_fields = bb_xgetularg10(optarg);
-		} else if (opt == 's') {
-			skip_chars = bb_xgetularg10(optarg);
-		} else if ((s0 = strchr(uniq_opts, opt)) != NULL) {
-			uniq_flags &= s0[4];
-			uniq_flags |= s0[7];
-		} else {
-			bb_show_usage();
+	opt_complementary = "f+:s+:w+";
+	opt = getopt32(argv, "cduf:s:w:", &skip_fields, &skip_chars, &max_chars);
+	argv += optind;
+
+	input_filename = argv[0];
+	if (input_filename) {
+		const char *output;
+
+		if (input_filename[0] != '-' || input_filename[1]) {
+			close(STDIN_FILENO); /* == 0 */
+			xopen(input_filename, O_RDONLY); /* fd will be 0 */
+		}
+		output = argv[1];
+		if (output) {
+			if (argv[2])
+				bb_show_usage();
+			if (output[0] != '-' || output[1]) {
+				// Won't work with "uniq - FILE" and closed stdin:
+				//close(STDOUT_FILENO);
+				//xopen3(output, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+				xmove_fd(xopen3(output, O_WRONLY | O_CREAT | O_TRUNC, 0666), STDOUT_FILENO);
+			}
 		}
 	}
 
-	input_filename = *(argv += optind);
+	cur_compare = cur_line = NULL; /* prime the pump */
 
-	in = xgetoptfile_sort_uniq(argv, "r");
-	if (*argv) {
-		++argv;
-	}
-	out = xgetoptfile_sort_uniq(argv, "w");
-	if (*argv && argv[1]) {
-		bb_show_usage();
-	}
+	do {
+		unsigned i;
+		unsigned long dups;
+		char *old_line;
+		const char *old_compare;
 
-	s0 = NULL;
-
-	/* gnu uniq ignores newlines */
-	while ((s1 = bb_get_chomped_line_from_file(in)) != NULL) {
-		e1 = s1;
-		for (i=skip_fields ; i ; i--) {
-			e1 = bb_skip_whitespace(e1);
-			while (*e1 && !isspace(*e1)) {
-				++e1;
-			}
-		}
-		for (i = skip_chars ; *e1 && i ; i--) {
-			++e1;
-		}
-		if (s0) {
-			if (strcmp(e0, e1) == 0) {
-				++dups;		/* Note: Testing for overflow seems excessive. */
-				continue;
-			}
-		DO_LAST:
-			if ((dups && (uniq_flags & 2)) || (!dups && (uniq_flags & 4))) {
-				bb_fprintf(out, "\0%7d\t" + (uniq_flags & 1), dups + 1);
-				bb_fprintf(out, "%s\n", s0);
-			}
-			free((void *)s0);
-		}
-
-		s0 = s1;
-		e0 = e1;
+		old_line = cur_line;
+		old_compare = cur_compare;
 		dups = 0;
-	}
 
-	if (s0) {
-		e1 = NULL;
-		goto DO_LAST;
-	}
+		/* gnu uniq ignores newlines */
+		while ((cur_line = xmalloc_fgetline(stdin)) != NULL) {
+			cur_compare = cur_line;
+			for (i = skip_fields; i; i--) {
+				cur_compare = skip_whitespace(cur_compare);
+				cur_compare = skip_non_whitespace(cur_compare);
+			}
+			for (i = skip_chars; *cur_compare && i; i--) {
+				++cur_compare;
+			}
 
-	bb_xferror(in, input_filename);
+			if (!old_line || strncmp(old_compare, cur_compare, max_chars)) {
+				break;
+			}
 
-	bb_fflush_stdout_and_exit(EXIT_SUCCESS);
+			free(cur_line);
+			++dups;	 /* testing for overflow seems excessive */
+		}
+
+		if (old_line) {
+			if (!(opt & (OPT_d << !!dups))) { /* (if dups, opt & OPT_u) */
+				if (opt & OPT_c) {
+					/* %7lu matches GNU coreutils 6.9 */
+					printf("%7lu ", dups + 1);
+				}
+				printf("%s\n", old_line);
+			}
+			free(old_line);
+		}
+	} while (cur_line);
+
+	die_if_ferror(stdin, input_filename);
+
+	fflush_stdout_and_exit(EXIT_SUCCESS);
 }

@@ -34,7 +34,18 @@ static struct xtables_target skiplog_target = {
 	.parse		= SKIPLOG_parse,
 };
 
+static struct xtables_target skiplog_target6 = {
+	.family		= AF_INET6,
+	.name		= "SKIPLOG",
+	.version	= IPTABLES_VERSION,
+	.size		= XT_ALIGN(0),
+	.userspacesize	= XT_ALIGN(0),
+	.help		= SKIPLOG_help,
+	.parse		= SKIPLOG_parse,
+};
+
 void _init(void)
 {
 	xtables_register_target(&skiplog_target);
+	xtables_register_target(&skiplog_target6);
 }

@@ -24,10 +24,6 @@
 #include <asm/watch.h>
 
 
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
-#include "bcm_map_part.h"
-#endif
-
 /*
  * Not all of the MIPS CPUs have the "wait" instruction available. Moreover,
  * the implementation of the "wait" feature differs between CPU families. This
@@ -58,7 +54,7 @@ extern void BcmPwrMngtSetASCR(unsigned int freq_div);
 
 #if defined(CONFIG_MIPS_BRCM)
 
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) || defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 extern unsigned int self_refresh_enabled;
 extern void BcmPwrMngtReduceCpuSpeed (void);
 extern void BcmPwrMngtResumeFullSpeed (void);
@@ -72,7 +68,7 @@ process context.) */
 
 static void brcm_wait(void)
 {
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) || defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 	BcmPwrMngtReduceCpuSpeed();
 #endif
 
@@ -99,7 +95,7 @@ static void brcm_wait(void)
 			".set pop\n");
 	}
 	else {
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE) || defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 		BcmPwrMngtResumeFullSpeed();
 #endif
 		raw_local_irq_enable();

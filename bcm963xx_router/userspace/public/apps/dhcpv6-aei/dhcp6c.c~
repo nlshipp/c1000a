@@ -2,7 +2,7 @@
 /*
  * Copyright (C) 1998 and 1999 WIDE Project.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -14,7 +14,7 @@
  * 3. Neither the name of the project nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE PROJECT AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -116,12 +116,12 @@ CtlDhcp6cStateChangedMsgBody ctldhcp6cMsgBody_Old;
 static int send_confirm=1;
 #ifdef CONFIG_IOT_RECONFIGURATION
 static struct authparam g_auth_param;
-//current only support one valid PD. 
+//current only support one valid PD.
 int got_valid_ia_pd=0;
 int got_valid_ia_na=0;
 #endif
 #endif
-//#define AEI_RENEW_OLD_PD 
+//#define AEI_RENEW_OLD_PD
 #ifdef AEI_RENEW_OLD_PD
 static int iReq = 1;
 #endif
@@ -208,7 +208,7 @@ static void info_printf __P((const char *, ...));
 #if 1 //brcm
 int updateDhcp6sConfDnsList __P((struct dhcp6_optinfo *));
 static void sendDnsEventMessage __P((const char *));
-static void sendDhcp6cEventMessage __P((void));
+//static void sendDhcp6cEventMessage __P((void));
 char *ifname_info;
 char *brcm_ptr;
 char brcm_ifname[32];
@@ -223,7 +223,7 @@ extern int client6_script __P((char *, int, struct dhcp6_optinfo *));
 
 #define MAX_TIMES_TO_RETRY_TR69 	(5)  // Try 5 times, interval 1 seconds.
 
-tsl_int_t tsl_strcmp(const char *s1, const char *s2) 
+tsl_int_t tsl_strcmp(const char *s1, const char *s2)
 {
    char emptyStr = '\0';
    char *str1 = (char *) s1;
@@ -249,7 +249,7 @@ tsl_int_t ctlUtl_getWANDeviceID(const char* WANAccessType)
 	tsl_char_t WANDeviceOID[256] = {0};
 	tsl_char_t *c_WANAccessType = NULL;
 	tsl_int_t  val_type;
-	
+
 	tr69_get_unfresh_leaf_data( CTLOID_IGD".WANDeviceNumberOfEntries",
 				& c_WANDeviceCount,
 				& val_type );
@@ -290,7 +290,7 @@ tsl_bool_t ctlUtl_genNewCtlObjectID(const char* srcOid, char* destOid, int iInde
 	//ctllog_debug("newId = %d \n", newId);
 	//ctllog_debug("new_Id = %s \n", new_Id);
 	//ctllog_debug("new_Id[0] = %c \n", new_Id[0]);
-	
+
 	while((p=strtok(NULL, delim)))
 	{
 		strcat(destOid, ".");
@@ -368,13 +368,13 @@ tsl_int_t getIPConnOID(char* strIPOID)
 	tsl_int_t type;
 	tsl_char_t * conntype = NULL;
 	tsl_int_t i_DeviceID = 1;
-	
+
 	do {
 		if( NULL == strIPOID ) {
 			perror("IpOid NULL!\n");
 			break;
 		}
-		
+
 		for( i=0; i<MAX_TIMES_TO_RETRY_TR69; i++) {
 			if( tr69_get_unfresh_leaf_data( CTLOID_IGD".X_AEI_COM_Physical_WAN",
 						& conntype,
@@ -422,11 +422,11 @@ ctl_layer_cfg_check( struct dhcp6_if *ifp,
 	   tsl_char_t *c_ipv6enable = NULL;
 	   tsl_char_t *ifName = NULL;
 	   /////////////////////////////////////////
-	   
+
 	   tsl_char_t strIPOID[256]={0};
 	   tsl_char_t strPara[256]={0};
 	   tsl_char_t strPPPOID[256]={0};
-	   
+
 	   if( getPppConnOID(strPPPOID) < 0 ) {
 		   perror( "Fail to get PPPConnOid\n" );
 		   return -1;
@@ -435,7 +435,7 @@ ctl_layer_cfg_check( struct dhcp6_if *ifp,
 		   perror( "Fail to get IPConnOid\n" );
 		   return -1;
 	   }
-	   
+
 	   sprintf(strPara, "%s.Enable", strIPOID);
 	   ret = tr69_get_unfresh_leaf_data( strPara,
 				   & c_ipv6enable,
@@ -460,7 +460,7 @@ ctl_layer_cfg_check( struct dhcp6_if *ifp,
 			   }
 		   }
 	   }
-   
+
 	   if (TSL_B_FALSE == found) {
 		   perror( "NOT found wan connection!" );
 		   return -1;
@@ -472,11 +472,16 @@ ctl_layer_cfg_check( struct dhcp6_if *ifp,
 	           &data_type);
 			if(!IS_EMPTY_STRING(data_val))
 			{
-		   		strcpy( wan_dhcpv6_ipv6_addr, data_val );
+				strcpy( wan_dhcpv6_ipv6_addr, data_val );
 				CTLMEM_FREE_BUF_AND_NULL_PTR(data_val);
 			}
-			else
+			else {
+                if(data_val) {
+                    CTLMEM_FREE_BUF_AND_NULL_PTR(data_val);
+                }
+
 				return -1;
+             }
 
 	   }
 
@@ -540,7 +545,7 @@ static int nl_open(void)
     sd = socket(PF_NETLINK, SOCK_RAW, NETLINK_RAD);
     if (sd < 0)
     {
-    	perror("DHCP6c: open socket failed!\n");
+	perror("DHCP6c: open socket failed!\n");
 		return -1;
     }
     memset(&nladdr, 0, sizeof(nladdr));
@@ -550,7 +555,7 @@ static int nl_open(void)
     /* interested in group 1<<0 */
     nladdr.nl_groups = 1;
 
-    if (bind(sd, (struct sockaddr*)&nladdr, sizeof(nladdr)) < 0) 
+    if (bind(sd, (struct sockaddr*)&nladdr, sizeof(nladdr)) < 0)
 	{
         nl_close(sd);
 		fprintf(stdout, "DHCP6c: bind socket failed!\n");
@@ -561,7 +566,7 @@ static int nl_open(void)
 
 static int nl_get_msg(int fd, fd_set ra)
 {
-	
+
 }
 
 static int get_ifname_from_datamodel(char **pp_ifname)
@@ -579,7 +584,7 @@ static int get_ifname_from_datamodel(char **pp_ifname)
 	tsl_char_t strPara[256]={0};
 	tsl_char_t strPPPOID[256]={0};
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	getIPConnOID(strIPOID);
 
 	do {
@@ -599,7 +604,7 @@ static int get_ifname_from_datamodel(char **pp_ifname)
         found = 1;
 
 
-                     
+
 	} while(0);
 
 
@@ -621,7 +626,7 @@ static int get_ifname_from_datamodel(char **pp_ifname)
         *pp_ifname = p_ifname;
         found = 1;
 
-                             
+
 	} while(0);
 
 	if (found) {
@@ -641,10 +646,10 @@ static int get_wan_conn_type(void)
 	int tr69_type = 0;
 	char *tr69_chr_val = NULL;
 	int bb_type = 1;		//1:Eth;	2:Moca
-	
+
 	if (tr69_get_unfresh_leaf_data(CTLOID_IGD".X_AEI_COM_Physical_WAN",
 					(tsl_void_t **)&tr69_chr_val,
-					(tsl_int_t *)&tr69_type ) < 0)		
+					(tsl_int_t *)&tr69_type ) < 0)
 	{
 		fprintf(stdout, "%s[%d]: get WAN physical type failed\n", __FILE__, __LINE__);
 		return -1;
@@ -674,7 +679,7 @@ static int get_router_lifetime_from_datamodel(void)
 	tsl_char_t strPara[256]={0};
 	tsl_char_t strPPPOID[256]={0};
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	getIPConnOID(strIPOID);
 
 	do {
@@ -694,7 +699,7 @@ static int get_router_lifetime_from_datamodel(void)
         found = 1;
 
 
-                     
+
 	} while(0);
 
 
@@ -715,7 +720,7 @@ static int get_router_lifetime_from_datamodel(void)
         route_lifetime = param_int;
         found = 1;
 
-                             
+
 	} while(0);
 
 	if (found) {
@@ -766,7 +771,7 @@ static int save_ra_info_to_datamodel(int Mbit, int Obit, int router_lifetime)
 	tsl_char_t strPara[256]={0};
 	tsl_char_t strPPPOID[256]={0};
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	getIPConnOID(strIPOID);
 
 	do {
@@ -789,9 +794,9 @@ static int save_ra_info_to_datamodel(int Mbit, int Obit, int router_lifetime)
          param_int = router_lifetime;
         sprintf(strPara, "%s.X_BROADCOM_COM_TMP_RALIFETIME", strIPOID);
 		tr69_set_unfresh_leaf_data(strPara, (void *)&param_int, TR69_NODE_LEAF_TYPE_INT);
-        
+
         found = 1;
-                     
+
 	} while(0);
 
 
@@ -816,10 +821,10 @@ static int save_ra_info_to_datamodel(int Mbit, int Obit, int router_lifetime)
          param_int = router_lifetime;
         sprintf(strPara, "%s.X_BROADCOM_COM_TMP_RALIFETIME", strPPPOID);
 		tr69_set_unfresh_leaf_data(strPara, (void *)&param_int, TR69_NODE_LEAF_TYPE_INT);
-        
+
         //found = 1;
 
-                             
+
 	} while(0);
 
 
@@ -836,14 +841,14 @@ static int is_MO_flags_changed(int Mbit, int Obit)
 	int dm_Mbit = -1;
 	int dm_Obit = -1;
 	int is_changed = 0;
-    
+
 	char *tr69_chr_val = NULL;
 
 	tsl_char_t strIPOID[256]={0};
 	tsl_char_t strPara[256]={0};
 	tsl_char_t strPPPOID[256]={0};
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	getIPConnOID(strIPOID);
 
 	do {
@@ -855,7 +860,7 @@ static int is_MO_flags_changed(int Mbit, int Obit)
 			break;
 		}
 		///
-		
+
 		sprintf(strPara, "%s.X_BROADCOM_COM_MBIT", strIPOID);
 		if (tr69_get_unfresh_leaf_data(strPara, (tsl_void_t **)&tr69_chr_val, (tsl_int_t *)&tr69_type) < 0)
 			break;
@@ -867,7 +872,7 @@ static int is_MO_flags_changed(int Mbit, int Obit)
         dm_Obit = (int)((long)tr69_chr_val);
 
         found = 1;
-                     
+
 	} while(0);
 
 
@@ -890,14 +895,14 @@ static int is_MO_flags_changed(int Mbit, int Obit)
 		if (tr69_get_unfresh_leaf_data(strPara, (tsl_void_t **)&tr69_chr_val, (tsl_int_t *)&tr69_type) < 0)
             break;
         dm_Obit = (int)((long)tr69_chr_val);
-        
+
         //found = 1;
 
-                             
+
 	} while(0);
 
-    
-	
+
+
 	if ((dm_Mbit == -1) || (dm_Obit == -1))
 		is_changed = 0;
 	else
@@ -910,7 +915,7 @@ static int is_MO_flags_changed(int Mbit, int Obit)
 			is_changed = 1;
 	}
 	fprintf(stdout, "rad: M/O, is_changed(%d)(%d,%d->%d,%d)\n", is_changed, dm_Mbit, dm_Obit, Mbit, Obit);
-	
+
 	return is_changed;
 }
 
@@ -942,21 +947,21 @@ static int isUserDefineMode()
 	char strPPPOID[256]={0};
     char *addrType=NULL;
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	sprintf(strPara, "%s.Enable", strPPPOID);
     tr69_get_unfresh_leaf_data(strPara,	&b_enable, &tr69_type );
-    fprintf(stdout, "%s[%d]: ===>>strPara=%s,b_enable=%d!\n", __FILE__, __LINE__, strPara,b_enable);    
-    if( TSL_B_FALSE == b_enable )  
+    fprintf(stdout, "%s[%d]: ===>>strPara=%s,b_enable=%d!\n", __FILE__, __LINE__, strPara,b_enable);
+    if( TSL_B_FALSE == b_enable )
         return 0;
     sprintf(strPara, "%s.X_BROADCOM_COM_IPv6AddressingType", strPPPOID);
     tr69_get_unfresh_leaf_data(strPara,	&addrType, &tr69_type );
-    fprintf(stdout, "%s[%d]: addrType=%s!\n", __FILE__, __LINE__, addrType); 
+    fprintf(stdout, "%s[%d]: addrType=%s!\n", __FILE__, __LINE__, addrType);
     if(!IS_EMPTY_STRING(addrType)&& cmsUtl_strcmp(addrType, CTLVS_STATIC)==0)
         return 1;
 
 //tr69_get_unfresh_leaf_data( CTLOID_IPV6_LAN_HOST_CFG ".IPv6DNSConfigType",&ipv6dnstype, &type );
-    
-   
+
+
     return ret;
 }
 static int gen_dhcp6c_conf(const char *ifName_info, tsl_bool dynamicIpEnabled, DHCPV6_MODE mode)
@@ -1051,14 +1056,14 @@ id-assoc na 1\n\
 	char strPara[256]={0};
 	char strPPPOID[256]={0};
 
-	getPppConnOID(strPPPOID);   
+	getPppConnOID(strPPPOID);
 	getIPConnOID(strIPOID);
 
- 	do {
+	do {
 		sprintf(strPara, "%s.Enable", strIPOID);
 		if( tr69_get_unfresh_leaf_data(strPara,	&b_enable, &tr69_type ) < 0 )
 			break;
-        
+
 		if( TSL_B_FALSE == b_enable ) {
 			fprintf( stdout,"WAN IPConn being Disabled.\n" );
 			break;
@@ -1067,14 +1072,14 @@ id-assoc na 1\n\
 		sprintf(strPara, "%s.X_AEI_COM_IPv6SitePrefix_BackUp", strIPOID);
 		if (tr69_get_unfresh_leaf_data(strPara, (void**)&pfx, (tsl_int_t *)&tr69_type) < 0)
 			break;
-      
+
 		sprintf(strPara, "%s.X_BROADCOM_COM_ExternalIPv6Address", strIPOID);
 		if(tr69_get_unfresh_leaf_data(strPara, (void**)&wan_ipv6_addr, &tr69_type)<0)
           break;
         found = 1;
-             
-	} while(0);   
-    
+
+	} while(0);
+
 	do {
 		if (found )
 			break;
@@ -1092,10 +1097,10 @@ id-assoc na 1\n\
 
         found = 1;
 
-                             
+
 	} while(0);
-    
-    
+
+
 	if (found == 1)
 	{
 		if (!IS_EMPTY_STRING(pfx))
@@ -1122,7 +1127,7 @@ id-assoc na 1\n\
 	{
 		if (!IS_EMPTY_STRING(wan_ipv6_addr))
 		{
-        	char* pTmp = strstr(wan_ipv6_addr, "/");
+		char* pTmp = strstr(wan_ipv6_addr, "/");
 			if(pTmp!=NULL)
 				*pTmp = '\0';
 			fprintf(stdout, "X_BROADCOM_COM_ExternalIPv6Address = %s\n", wan_ipv6_addr );
@@ -1277,10 +1282,10 @@ main(argc, argv)
 		usage();
 		exit(0);
 	}
-	
+
 #if defined(ACTION_TEC_IPV6_CODE_FOR_IOT) && defined(ACTION_TEC_IPV6_CODE_FOR_RAD)
 		rad_fd = nl_open();
-		if (rad_fd < 0) 
+		if (rad_fd < 0)
 		{
 			fprintf(stdout, "nl_open failed\n");
 			return -1;
@@ -1291,14 +1296,14 @@ main(argc, argv)
 			return -1;
 		}
 		memset(p_rad_nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
-	
+
 		rad_iov.iov_base = (void *)p_rad_nlh;
 		rad_iov.iov_len = NLMSG_SPACE(MAX_PAYLOAD);
 		rad_msg.msg_name = (void *)&rad_dest_addr;
 		rad_msg.msg_namelen = sizeof(rad_dest_addr);
 		rad_msg.msg_iov = &rad_iov;
-		rad_msg.msg_iovlen = 1; 
-	
+		rad_msg.msg_iovlen = 1;
+
 		FD_ZERO(&rad_fds);
 		FD_SET(rad_fd, &rad_fds);
 		timeout.tv_sec = 3;
@@ -1320,9 +1325,9 @@ main(argc, argv)
 		else if (retval)
 		{
 			status = recvmsg(rad_fd, &rad_msg, 0);
-			if (status < 0) 
+			if (status < 0)
 			{
-				nl_close(rad_fd);	
+				nl_close(rad_fd);
 				free(p_rad_nlh);
 				fprintf(stdout, "%s[%d]: recvmsg failed!\n", __FILE__, __LINE__);
 				return -1;
@@ -1330,7 +1335,7 @@ main(argc, argv)
 			p_rad_icmpv6 = (struct icmpv6_nd_ra *)NLMSG_DATA(p_rad_nlh);
 			fprintf(stdout, "Message length is %d,M bit %d,O bit %d,lifetime is %d\n",
 				p_rad_nlh->nlmsg_len,p_rad_icmpv6->managed,p_rad_icmpv6->other,ntohs(p_rad_icmpv6->rt_lifetime));
-			
+
 			/* check if Mbit and Obit is invalid */
 			rad_ra_Mbit = p_rad_icmpv6->managed;
 			rad_ra_Obit = p_rad_icmpv6->other;
@@ -1341,7 +1346,7 @@ main(argc, argv)
 				free(p_rad_nlh);
 				return -1;
 			}
-			
+
 			/* save ra info to datamode */
 			save_ra_info_to_datamodel(p_rad_icmpv6->managed, p_rad_icmpv6->other, p_rad_icmpv6->rt_lifetime);
 		}
@@ -1352,11 +1357,11 @@ main(argc, argv)
 			free(p_rad_nlh);
 			return -1;
 		}
-		fprintf(stdout, "%s[%d]: ifname=%s,rad_ra_Mbit=%d,rad_ra_Obit=%d!\n", 
+		fprintf(stdout, "%s[%d]: ifname=%s,rad_ra_Mbit=%d,rad_ra_Obit=%d!\n",
           __FILE__, __LINE__, p_ifname,rad_ra_Mbit,rad_ra_Obit);
         if(!isUserDefineMode())
 		gen_dhcp6c_conf(p_ifname, 1, get_dhcpv6_mode(rad_ra_Mbit, rad_ra_Obit));
-		fprintf(stdout, "dhcp6c mode when starting: %d\n", get_dhcpv6_mode(rad_ra_Mbit, rad_ra_Obit));						
+		fprintf(stdout, "dhcp6c mode when starting: %d\n", get_dhcpv6_mode(rad_ra_Mbit, rad_ra_Obit));
 #endif
 
 	memset(&ctldhcp6cMsgBody, 0, sizeof(CtlDhcp6cStateChangedMsgBody));
@@ -1367,7 +1372,7 @@ main(argc, argv)
 
 
 	setloglevel(debug);
-	
+
    ifname_info = argv[0];
 
    cmsUtl_strncpy(brcm_ifname, ifname_info, sizeof(brcm_ifname));
@@ -1383,7 +1388,7 @@ main(argc, argv)
    }
 
 	client6_init();
-	while (argc-- > 0) { 
+	while (argc-- > 0) {
 		if ((ifp = ifinit(argv[0])) == NULL) {
 			dprintf(LOG_ERR, FNAME, "failed to initialize %s",
 			    argv[0]);
@@ -1416,7 +1421,7 @@ main(argc, argv)
 #if defined(ACTION_TEC_IPV6_CODE_FOR_IOT) && defined(ACTION_TEC_IPV6_CODE_FOR_RAD)
 	nl_close(rad_fd);
 	rad_fd = -1;
-#endif	
+#endif
 	exit(0);
 }
 
@@ -1430,23 +1435,59 @@ usage()
 
 /*------------------------------------------------------------*/
 
+
+static tsl_int_t _get_link_local_address(tsl_char_t *lladdr, tsl_char_t *ifname)
+{
+    tsl_int_t rv = TSL_RV_ERR;
+    char cmd[100] = {0};
+
+    FILE *fp = NULL;
+    sprintf(cmd, "ip -6 address show %s",ifname);
+    if ((fp = popen(cmd, "r")) != NULL)
+    {
+        char line[1024] = {0};
+        while (fgets(line, sizeof(line), fp))
+        {
+            char* p = NULL;
+            p = strstr(line, "scope link");
+            if ( p != NULL)
+            {
+                p = strstr(line, "/");
+                strcpy(p, "\0");
+                p = strstr(line, "inet6");
+                if(p != NULL)
+                {
+                    sprintf(lladdr, "%s", p+6);
+                    rv = TSL_RV_SUC;
+                    break;
+                }
+            }
+
+        }
+        pclose(fp);
+    }
+
+    return rv;
+}
 void
 client6_init()
 {
 	struct addrinfo hints, *res;
 	static struct sockaddr_in6 sa6_allagent_storage;
-	int error, on = 1;
+    struct sockaddr_in6 bind_addr = {0};
 
+	int error, on = 1;
+    tsl_char_t lladdr[128] = "\0";
 	/* get our DUID */
 	if (get_duid(DUID_FILE, &client_duid, l2_ifname)) {
 #ifdef AEI_CONTROL_LAYER
 		if (get_duid(DUID_FILE, &client_duid, "br0")) {
-#endif		
+#endif
 		dprintf(LOG_ERR, FNAME, "failed to get a DUID");
 		exit(1);
 #ifdef AEI_CONTROL_LAYER
 		}
-#endif		
+#endif
 	}
 
 	if (dhcp6_ctl_authinit(ctlkeyfile, &ctlkey, &ctldigestlen) != 0) {
@@ -1510,12 +1551,27 @@ client6_init()
 	}
 #endif
 
+    /*QA-Bug #4304: use local link address and bind to wan interface.*/
+    memcpy(&bind_addr, (struct sockaddr_in6 *)(res->ai_addr), res->ai_addrlen);
+    
+    if(TSL_RV_ERR == _get_link_local_address(lladdr, ifname_info))
+    {
+        dprintf(LOG_ERR, FNAME, "_get_link_local_address error");
+        exit(1);
+    }
+    inet_pton(AF_INET6, lladdr, &(bind_addr.sin6_addr.s6_addr));
+    bind_addr.sin6_scope_id = if_nametoindex(ifname_info);
+
+
+
 	/*
 	 * According RFC3315 2.2, only the incoming port should be bound to UDP
 	 * port 546.  However, to have an interoperability with some servers,
 	 * the outgoing port is also bound to the DH6PORT_DOWNSTREAM.
 	 */
-	if (bind(sock, res->ai_addr, res->ai_addrlen) < 0) {
+	//if (bind(sock, res->ai_addr, res->ai_addrlen) < 0) {
+	if (bind(sock, &bind_addr, sizeof(bind_addr)) < 0) {
+
 		dprintf(LOG_ERR, FNAME, "bind: %s", strerror(errno));
 		exit(1);
 	}
@@ -1772,7 +1828,7 @@ client6_mainloop()
 
                 decline_all_ia( p_if );
             }
-        }				
+        }
 #endif
 
 #if defined(ACTION_TEC_IPV6_CODE_FOR_IOT) && defined(ACTION_TEC_IPV6_CODE_FOR_RAD)
@@ -1782,20 +1838,20 @@ client6_mainloop()
 					int tr69_type = 0;
 					char *tr69_chr_val = NULL;
 					int b_dhcp6senable;
-			
+
 					status = recvmsg(rad_fd, &rad_msg, 0);
-					if (status < 0) 
+					if (status < 0)
 					{
-						nl_close(rad_fd);	
+						nl_close(rad_fd);
 						free(p_rad_nlh);
-						fprintf(stdout, "%s[%d]: select, recvmsg failed!!!\n", __FILE__, __LINE__); 			
+						fprintf(stdout, "%s[%d]: select, recvmsg failed!!!\n", __FILE__, __LINE__);
 					}
 					else
-					{								
+					{
 						p_rad_icmpv6 = (struct icmpv6_nd_ra *)NLMSG_DATA(p_rad_nlh);
 						fprintf(stdout, "Message length is %d,M bit %d,O bit %d,lifetime is %d\n",
 							p_rad_nlh->nlmsg_len,p_rad_icmpv6->managed,p_rad_icmpv6->other,ntohs(p_rad_icmpv6->rt_lifetime));
-						
+
 						/* check if Mbit and Obit is invalid */
 						rad_ra_Mbit = p_rad_icmpv6->managed;
 						rad_ra_Obit = p_rad_icmpv6->other;
@@ -1806,59 +1862,59 @@ client6_mainloop()
 							free(p_rad_nlh);
 						}
 						else	//M and O flag is right
-						{					
+						{
 							/* check if M/O flags is changed */
 							if (is_MO_flags_changed(rad_ra_Mbit, rad_ra_Obit) == 1) //M and O flag is changed
 							{
 								char *p_ifname = NULL;
-								
+
 								if (get_ifname_from_datamodel(&p_ifname) < 0)
 								{
 									fprintf(stdout, "%s[%d]: select, get ifname from datamodel failed!\n", __FILE__, __LINE__);
 									nl_close(rad_fd);
-									free(p_rad_nlh);							
+									free(p_rad_nlh);
 								}
 								else	//get ifname right
 								{
 								    if(!isUserDefineMode())
 								        {
-									//re-generate conf file 				
+									//re-generate conf file
 									fprintf(stdout, "%s[%d]: ifname=%s!\n", __FILE__, __LINE__, p_ifname);
 									gen_dhcp6c_conf(p_ifname, 1, get_dhcpv6_mode(rad_ra_Mbit, rad_ra_Obit));
 									fprintf(stdout, "dhcp6c mode change: %d\n", get_dhcpv6_mode(rad_ra_Mbit, rad_ra_Obit));
-									
+
 									//reload dhcp6c
 									free_resources(NULL);
 									client6_reload();
 									//restart dhcp6c
-									dprintf(LOG_INFO, FNAME, "dhcp6c restarting!!!!!\n");							
+									dprintf(LOG_INFO, FNAME, "dhcp6c restarting!!!!!\n");
 									client6_startall(1);
 								}
-							}					
+							}
 						}
 						}
-						
+
 						/* Check if router lifetime is changed */
 						rad_ra_routelifetime = get_router_lifetime_from_datamodel();
 						/* save ra info to datamode */
 						save_ra_info_to_datamodel(p_rad_icmpv6->managed, p_rad_icmpv6->other, p_rad_icmpv6->rt_lifetime);
-						
+
 						/* check if Rouetr Lifetime is changed */
                         if(get_RA_config_type_from_datamodel()==1)//dynamic
                         {
-    						if ((rad_ra_routelifetime != p_rad_icmpv6->rt_lifetime) &&
-    							((p_rad_icmpv6->rt_lifetime == 0) || (rad_ra_routelifetime == 0)))
-    						{
-    							rad_ra_routelifetime = p_rad_icmpv6->rt_lifetime;
-    							tr69_get_unfresh_leaf_data( CTLOID_IPV6_LAN_HOST_CFG".DHCPv6ServerEnable",
-    									(tsl_void_t **)&tr69_chr_val,
-    									(tsl_int_t *)&tr69_type);
-    							b_dhcp6senable = (int)((long)tr69_chr_val);
-    							fprintf(stdout, "rad: b_dhcp6senable=%d\n", b_dhcp6senable);
-    							tr69_set_leaf_data( CTLOID_IPV6_LAN_HOST_CFG".DHCPv6ServerEnable",
-    									(tsl_void_t *)&b_dhcp6senable,
-    									TR69_NODE_LEAF_TYPE_BOOL);
-    						}	
+						if ((rad_ra_routelifetime != p_rad_icmpv6->rt_lifetime) &&
+							((p_rad_icmpv6->rt_lifetime == 0) || (rad_ra_routelifetime == 0)))
+						{
+							rad_ra_routelifetime = p_rad_icmpv6->rt_lifetime;
+							tr69_get_unfresh_leaf_data( CTLOID_IPV6_LAN_HOST_CFG".DHCPv6ServerEnable",
+									(tsl_void_t **)&tr69_chr_val,
+									(tsl_int_t *)&tr69_type);
+							b_dhcp6senable = (int)((long)tr69_chr_val);
+							fprintf(stdout, "rad: b_dhcp6senable=%d\n", b_dhcp6senable);
+							tr69_set_leaf_data( CTLOID_IPV6_LAN_HOST_CFG".DHCPv6ServerEnable",
+									(tsl_void_t *)&b_dhcp6senable,
+									TR69_NODE_LEAF_TYPE_BOOL);
+						}
                         }
 					}
 				}
@@ -1914,7 +1970,11 @@ get_ifname(bpp, lenp, ifbuf, ifbuflen)
 	if (*lenp < ifnamelen || ifnamelen > ifbuflen)
 		return (-1);
 
+#if defined(AEI_COVERITY_FIX)
+	memset(ifbuf, 0, ifnamelen);
+#else
 	memset(ifbuf, 0, sizeof(ifbuf));
+#endif
 	memcpy(ifbuf, *bpp, ifnamelen);
 	if (ifbuf[ifbuflen - 1] != '\0')
 		return (-1);	/* not null terminated */
@@ -2044,7 +2104,7 @@ client6_do_ctlcommand(buf, len)
 		return (DHCP6CTL_R_FAILURE);
 	}
 
-  	return (DHCP6CTL_R_DONE);
+	return (DHCP6CTL_R_DONE);
 }
 
 static void
@@ -2124,22 +2184,22 @@ static int all_ia_busy(ifp)
 {
     struct ia_conf *iac;
     int tot_ia_cnt=0;
-    int busy_ia_cnt=0;    
+    int busy_ia_cnt=0;
 	for (iac = TAILQ_FIRST(&ifp->iaconf_list); iac;
 	    iac = TAILQ_NEXT(iac, link)) {
 		tot_ia_cnt++;
-        
+
 		if (!TAILQ_EMPTY(&iac->iadata))
 		    {
                 ctllog_debug(LOG_NOTICE,FLNAME,LINENUM,FNAME,"iac->type=%d,iac->iaid=%d, busy now",iac->type,iac->iaid);
                 busy_ia_cnt++;
 		    }
 	     }
-              ctllog_debug(LOG_ERR,FLNAME,LINENUM,FNAME, "tot_ia_cnt=%d,busy_ia_cnt=%d",tot_ia_cnt,busy_ia_cnt);   
-       
+              ctllog_debug(LOG_ERR,FLNAME,LINENUM,FNAME, "tot_ia_cnt=%d,busy_ia_cnt=%d",tot_ia_cnt,busy_ia_cnt);
+
      if(tot_ia_cnt && tot_ia_cnt==busy_ia_cnt)
         {
-            ctllog_debug(LOG_NOTICE,FLNAME,LINENUM,FNAME,"==>all IA busy now");      
+            ctllog_debug(LOG_NOTICE,FLNAME,LINENUM,FNAME,"==>all IA busy now");
             return 1;
         }
      else
@@ -2208,16 +2268,16 @@ client6_timo(arg)
 				 char *wan_dhcpv6_ipv6_addr[64] = { 0 };
 				 if( ctl_layer_cfg_check( ifp, (char *)wan_dhcpv6_ipv6_addr ) == 0 ) {
 					 ev->state = DHCP6S_CONFIRM;
-		
+
 					 dprintf(LOG_INFO, FNAME, "wan_dhcpv6_ipv6_addr = %s\n", wan_dhcpv6_ipv6_addr);
 				 }
 
                 }
                 dprintf(LOG_NOTICE, FNAME,
 			    "will not send comfirm later");
-                send_confirm=0;  
+                send_confirm=0;
             }
-      
+
 //#endif
 
 		dhcp6_set_timeoparam(ev); /* XXX */
@@ -2227,7 +2287,7 @@ client6_timo(arg)
 	case DHCP6S_INFOREQ:
 #ifdef ACTION_TEC_IPV6_CODE_FOR_CONFIRM
        case DHCP6S_CONFIRM:
-#endif		
+#endif
 		client6_send(ev);
 		break;
 	case DHCP6S_RENEW:
@@ -2239,31 +2299,31 @@ client6_timo(arg)
 			{
 				dprintf(LOG_INFO, FNAME,"******DHCP6S_REBIND %d\n ",rmna);
 				struct dhcp6_eventdata * pevt =NULL;
-				for (pevt = TAILQ_FIRST(&ev->data_list); pevt; pevt = TAILQ_NEXT(pevt, link)) 
+				for (pevt = TAILQ_FIRST(&ev->data_list); pevt; pevt = TAILQ_NEXT(pevt, link))
 					{
 						if( pevt->type == DHCP6_EVDATA_IANA && 0 == rmna)
 							{
 							       char *wan_dhcpv6_ipv6_addr[64] = { 0 };
-							       if( ctl_layer_cfg_check( ifp, wan_dhcpv6_ipv6_addr ) == 0 ) 
+							       if( ctl_layer_cfg_check( ifp, wan_dhcpv6_ipv6_addr ) == 0 )
 							       {
 									remove_na_address(ifp,wan_dhcpv6_ipv6_addr, &rmna);
 									dprintf(LOG_INFO, FNAME,"*****RM_NA_Addr type[%d] ifname[%s]  wan[%s]",
-										pevt->type,ifp->ifname,wan_dhcpv6_ipv6_addr);							
+										pevt->type,ifp->ifname,wan_dhcpv6_ipv6_addr);
 							       }
 							}
 						else if( pevt->type == DHCP6_EVDATA_IAPD && 0 == rmpd )
 							{
 								char *wan_dhcpv6_ipv6_addr[64] = { 0 };
-							       if( ctl_layer_cfg_check( ifp, wan_dhcpv6_ipv6_addr ) == 0 ) 
+							       if( ctl_layer_cfg_check( ifp, wan_dhcpv6_ipv6_addr ) == 0 )
 							       {
 									remove_na_address(ifp,wan_dhcpv6_ipv6_addr, &rmpd);
 									dprintf(LOG_INFO, FNAME,"*****RM_PD_Addr type[%d] ifname[%s]  wan[%s]",
-										pevt->type,ifp->ifname,wan_dhcpv6_ipv6_addr);							
+										pevt->type,ifp->ifname,wan_dhcpv6_ipv6_addr);
 							       }
 							}
 					}
 			}
-#endif		
+#endif
 			client6_send(ev);
 		}
 		else {
@@ -2315,10 +2375,28 @@ client6_timo(arg)
 		client6_send(ev);
 		break;
 	}
+/*coverity CID:12833 added by libby*/
+#ifdef AEI_COVERITY_FIX
+   if(ev)
+   {
+     dhcp6_reset_timer(ev);
+   }
+#else
+    dhcp6_reset_timer(ev);
+#endif
 
-	dhcp6_reset_timer(ev);
-
-	return (ev->timer);
+#ifdef AEI_COVERITY_FIX
+    if(ev)
+    {
+	    return (ev->timer);
+    }
+    else
+    {
+        return NULL;
+    }
+#else
+    return (ev->timer);
+#endif
 }
 
 static int
@@ -2357,7 +2435,11 @@ construct_confdata(ifp, ev)
 			    "failed to create a new event data");
 			goto fail;
 		}
+#if defined(AEI_COVERITY_FIX)
+		memset(evd, 0, sizeof(*evd));
+#else
 		memset(evd, 0, sizeof(evd));
+#endif
 
 		memset(&iaparam, 0, sizeof(iaparam));
 		iaparam.iaid = iac->iaid;
@@ -2410,7 +2492,7 @@ construct_confdata(ifp, ev)
 		}
 	}
 #ifdef CDROUTER_TEST_DHCP6C
-     ctllog_debug(LOG_ERR,FLNAME,LINENUM,FNAME, "tot_ia_cnt=%d,busy_ia_cnt=%d",tot_ia_cnt,busy_ia_cnt);   
+     ctllog_debug(LOG_ERR,FLNAME,LINENUM,FNAME, "tot_ia_cnt=%d,busy_ia_cnt=%d",tot_ia_cnt,busy_ia_cnt);
     if(busy_ia_cnt==0)
         {
             all_ia_pre_order=1;
@@ -2425,7 +2507,7 @@ construct_confdata(ifp, ev)
 	if (ial)
 		free(ial);
 	dhcp6_remove_event(ev);	/* XXX */
-	
+
 	return (-1);
 }
 
@@ -2521,7 +2603,7 @@ construct_reqdata(ifp, optinfo, ev)
 	if (ial)
 		free(ial);
 	dhcp6_remove_event(ev);	/* XXX */
-	
+
 	return (-1);
 }
 
@@ -2612,7 +2694,7 @@ client6_send(ev)
 		break;
     case DHCP6S_DECLINE:
         dh6->dh6_msgtype = DH6_DECLINE;
-        break;		
+        break;
 #endif
 	case DHCP6S_RENEW:
 		dh6->dh6_msgtype = DH6_RENEW;
@@ -2664,7 +2746,7 @@ client6_send(ev)
 	case DHCP6S_RELEASE:
 #ifdef ACTION_TEC_IPV6_CODE_FOR_DECLINE
 	case DHCP6S_DECLINE:
-#endif		
+#endif
 		if (duidcpy(&optinfo.serverID, &ev->serverid)) {
 			dprintf(LOG_ERR, FNAME, "failed to copy server ID");
 			goto end;
@@ -2705,7 +2787,7 @@ client6_send(ev)
 			/*
 			 * Perhaps we are nervous too much, but without this
 			 * additional check, we would see an overflow in 248
-			 * days (of no responses). 
+			 * days (of no responses).
 			 */
 			et = MAX_ELAPSED_TIME;
 		} else {
@@ -2720,7 +2802,7 @@ client6_send(ev)
 	if (ev->state != DHCP6S_RELEASE &&
 #ifdef ACTION_TEC_IPV6_CODE_FOR_DECLINE
 	    ev->state != DHCP6S_DECLINE &&
-#endif		
+#endif
 	    dhcp6_copy_list(&optinfo.reqopt_list, &ifp->reqopt_list)) {
 		dprintf(LOG_ERR, FNAME, "failed to copy requested options");
 		goto end;
@@ -2749,9 +2831,9 @@ client6_send(ev)
 			{
 				iReq=2;
 				dh6->dh6_msgtype = DH6_RENEW;
-			}			
+			}
             }
-#endif			
+#endif
 			break;
 		case DHCP6_EVDATA_IANA:
 #ifdef ACTION_TEC_IPV6_CODE_FOR_CONFIRM
@@ -3011,7 +3093,7 @@ client6_recvadvert(ifp, dh6, len, optinfo)
 	 * includes a Status Code option containing the value NoPrefixAvail
 	 * [RFC3633 Section 11.1].
 	 * Likewise, the client MUST ignore any Advertise message that includes
-	 * a Status Code option containing the value NoAddrsAvail. 
+	 * a Status Code option containing the value NoAddrsAvail.
 	 * [RFC3315 Section 17.1.3].
 	 * We only apply this when we are going to request an address or
 	 * a prefix.
@@ -3203,7 +3285,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 	    state != DHCP6S_REQUEST &&
 #ifdef ACTION_TEC_IPV6_CODE_FOR_CONFIRM
            state != DHCP6S_CONFIRM &&
-#endif	    
+#endif
 	    state != DHCP6S_RENEW &&
 	    state != DHCP6S_REBIND &&
 	    state != DHCP6S_RELEASE &&
@@ -3299,7 +3381,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 		     d = TAILQ_NEXT(d, link), i++) {
 			info_printf("Domain search list[%d] %s",
 			    i, d->val_vbuf.dv_buf);
-#ifdef ACTION_TEC_IPV6_CODE_FOR_IOT                                             
+#ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
 			  if( i == 0 )
 			  {
 						 snprintf(ctldhcp6cMsgBody.namesearchlist, BUFLEN_128-1,"%s",d->val_vbuf.dv_buf);
@@ -3307,9 +3389,9 @@ client6_recvreply(ifp, dh6, len, optinfo)
 				   int nLen = strlen(ctldhcp6cMsgBody.namesearchlist);
 				   if( nLen > 0 )
 				   {
-					  ctldhcp6cMsgBody.namesearchlist[nLen-1] = '\0';	 
+					  ctldhcp6cMsgBody.namesearchlist[nLen-1] = '\0';
 				   }
-					  dprintf(LOG_INFO, FNAME, "***DNS from dhcpv6 search list %s\n",ctldhcp6cMsgBody.namesearchlist);	  
+					  dprintf(LOG_INFO, FNAME, "***DNS from dhcpv6 search list %s\n",ctldhcp6cMsgBody.namesearchlist);
 			  }
 #endif
 
@@ -3317,7 +3399,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 #ifdef CONFIG_IOT_RECONFIGURATION
 		if( state ==  DHCP6S_INFOREQ && infreq_reconf )
 			infreq_reconf = 0;
-#endif	             
+#endif
 	}
 
 	if (!TAILQ_EMPTY(&optinfo->ntp_list)) {
@@ -3445,11 +3527,13 @@ client6_recvreply(ifp, dh6, len, optinfo)
 	dhcp6_remove_event(ev);
 
 #ifdef ACTION_TEC_IPV6_CODE_FOR_DECLINE
+    if(ev)
+    {
 		if(  DHCP6S_REBIND == ev->state )
 		{
 			dprintf(LOG_INFO, FNAME,"&&&&&&&&DHCP6C_REBIND restore rm NA address flag1\n ");
 			struct dhcp6_eventdata * pevt =NULL;
-			for (pevt = TAILQ_FIRST(&ev->data_list); pevt; pevt = TAILQ_NEXT(pevt, link)) 
+			for (pevt = TAILQ_FIRST(&ev->data_list); pevt; pevt = TAILQ_NEXT(pevt, link))
 				{
 					if( pevt->type == DHCP6_EVDATA_IANA &&	1 == rmna)
 						{
@@ -3458,6 +3542,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 						}
 				}
 		}
+    }
 #endif
 
 	if (state == DHCP6S_RELEASE) {
@@ -3500,10 +3585,10 @@ client6_reconfigure(ifp, dh6, len, optinfo)
 	struct ia *ia;
 
 
-       /* RFC 3315, 19.4.1. 
+       /* RFC 3315, 19.4.1.
         * The client ignores the transaction-id field in the received Reconfigure
-        * message.  
-        */ 
+        * message.
+        */
        dprintf(LOG_DEBUG, FNAME, "XID should be zero.(%d)\n",ntohl(dh6->dh6_xid));
 
 	   /* A Reconfigure message must contain a Server ID option */
@@ -3525,11 +3610,11 @@ client6_reconfigure(ifp, dh6, len, optinfo)
                dprintf(LOG_INFO, FNAME, "client DUID mismatch");
                return (-1);
        }
-    	/* validate authentication */
-    	if (process_auth(&g_auth_param, dh6, len, optinfo)) {
-    		ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "failed to process authentication");
-    		return (-1);
-    	}  
+	/* validate authentication */
+	if (process_auth(&g_auth_param, dh6, len, optinfo)) {
+		ctllog_debug(LOG_INFO,FLNAME,LINENUM,FNAME, "failed to process authentication");
+		return (-1);
+	}
         if( optinfo->reconf_type == RECONF_TYPE_INFO)
         {
                 client6_reconfigure_info(ifp);
@@ -3729,8 +3814,8 @@ process_auth(authparam, dh6, len, optinfo)
 						memcpy(authparam->reconf_key,optinfo->reconfigauth_val,DHCP6_RECONFIGURE_AUTH_KEY_LENGTH);
 						authparam->reconf_key_type = optinfo->authalgorithm;
                         memcpy(g_auth_param.reconf_key,optinfo->reconfigauth_val,DHCP6_RECONFIGURE_AUTH_KEY_LENGTH);
-						g_auth_param.reconf_key_type = optinfo->authalgorithm; 
-						authenticated = 1; 
+						g_auth_param.reconf_key_type = optinfo->authalgorithm;
+						authenticated = 1;
 						dprintf(LOG_INFO, FNAME,
 										"GOT KEY");
 			 break;
@@ -3784,8 +3869,8 @@ process_auth(authparam, dh6, len, optinfo)
 		authparam->flags &= ~AUTHPARAM_FLAGS_NOPREVRD;
 #ifdef CONFIG_IOT_RECONFIGURATION
 		g_auth_param.prevrd = optinfo->authrd;
-		g_auth_param.flags &= ~AUTHPARAM_FLAGS_NOPREVRD;      
-#endif    
+		g_auth_param.flags &= ~AUTHPARAM_FLAGS_NOPREVRD;
+#endif
 	}
 
 	return (0);
@@ -3901,7 +3986,7 @@ int updateDhcp6sConfDnsList(struct dhcp6_optinfo *opt)
       strcat(nameserver, ",");
       strcat(nameserver, in6addr2str(&d->val_addr6, 0));
    }
-   
+
    sendDnsEventMessage(nameserver);
 
    return 0;
@@ -3926,7 +4011,7 @@ void sendDhcp6cEventMessage(void)
    CtlMsgHeader *msg=(CtlMsgHeader *) buf;
    CtlDhcp6cStateChangedMsgBody *dhcp6cBody = (CtlDhcp6cStateChangedMsgBody *) (msg->buffer);
    dbussend_hdl_st *ctlMsgHandle=NULL;
-   ctlMsgHandle = dbussend_init(); 
+   ctlMsgHandle = dbussend_init();
 #ifdef CONFIG_IOT_RECONFIGURATION
     got_valid_ia_pd=0;
     got_valid_ia_na=0;
@@ -3936,7 +4021,7 @@ void sendDhcp6cEventMessage(void)
 	   tsl_printf("dbussend_init fail\n");
 	   return -1;
    }
-   
+
    memcpy(dhcp6cBody, &ctldhcp6cMsgBody, sizeof(CtlDhcp6cStateChangedMsgBody));
    msg->data_length=sizeof(CtlDhcp6cStateChangedMsgBody);
    if (dbussend_sendmsg(ctlMsgHandle, CTL_MSG_TYPE(CTL_MSG_DHCP6C_STATE_CHANGED), NULL, msg, sizeof(CtlMsgHeader)+sizeof(CtlDhcp6cStateChangedMsgBody)) < 0)
@@ -3946,7 +4031,7 @@ void sendDhcp6cEventMessage(void)
 	   return -1;
    }else
    {
-		tsl_printf("===>>>sent out DHCP6C_STATUS_CHANGED\n");
+		//tsl_printf("===>>>sent out DHCP6C_STATUS_CHANGED\n");
    }
 
    dbussend_uninit(ctlMsgHandle);

@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 #
 #
-# AF using CBQ for a single interface eth0 
+# AF using CBQ for a single interface eth0
 # 4 AF classes using GRED and one BE using RED
 # Things you might want to change:
 #	- the device bandwidth (set at 10Mbits)
-#	- the bandwidth allocated for each AF class and the BE class	
+#	- the bandwidth allocated for each AF class and the BE class
 #	- the drop probability associated with each AF virtual queue
 #
 # AF DSCP values used (based on AF draft 04)
@@ -17,14 +17,14 @@
 # AF4 1. 0x22 2. 0x24 3. 0x26
 
 #
-# 
+#
 # A simple DSCP-class relationship formula used to generate
 # values in the for loop of this script; $drop stands for the
 # DP
 #	$dscp = ($class*8+$drop*2)
 #
 #  if you use GRIO buffer sharing, then GRED priority is set as follows:
-#  $gprio=$drop+1; 
+#  $gprio=$drop+1;
 #
 
 $TC = "/usr/src/iproute2-current/tc/tc";
@@ -32,7 +32,7 @@ $DEV = "dev lo";
 $DEV = "dev eth1";
 $DEV = "dev eth0";
 # the BE-class number
-$beclass = "5";  
+$beclass = "5";
 
 #GRIO buffer sharing on or off?
 $GRIO = "";
@@ -68,7 +68,7 @@ for $class (1..4) {
       "tcindex classid 2:$class\n";
     print "$TC qdisc add $DEV parent 2:$class gred setup DPs 3 default 2 ".
       "$GRIO\n";
-# 
+#
 # per DP setup
 #
     for $drop (1..3) {

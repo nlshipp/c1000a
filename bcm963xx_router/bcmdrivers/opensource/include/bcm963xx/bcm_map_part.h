@@ -20,6 +20,12 @@
 #ifndef __BCM_MAP_PART_H
 #define __BCM_MAP_PART_H
 
+#if defined(CONFIG_BCM96318)
+#include <6318_map_part.h>
+#endif
+#if defined(CONFIG_BCM96828)
+#include <6828_map_part.h>
+#endif
 #if defined(CONFIG_BCM963268)
 #include <63268_map_part.h>
 #endif
@@ -31,6 +37,9 @@
 #endif
 #if defined(CONFIG_BCM96816)
 #include <6816_map_part.h>
+#endif
+#if defined(CONFIG_BCM96818)
+#include <6818_map_part.h>
 #endif
 #if defined(CONFIG_BCM96362)
 #include <6362_map_part.h>

@@ -13,9 +13,9 @@ collection is crucial. Linux has a solid implementation.
 
 <p>
 The kernel patch (not required since linux-2.4.7) adds statistics counters
-from route cache process into 
+from route cache process into
 /proc/net/rt_cache_stat. A companion user mode program presents the statistics
-in a vmstat or iostat manner. The ratio between cache hits and misses gives 
+in a vmstat or iostat manner. The ratio between cache hits and misses gives
 the flow length.
 
 <p>
@@ -45,7 +45,7 @@ is ftp://robur.slu.se/pub/Linux/net-development/rt_cache_stat/
 
 <item><tt/-s NUMBER/ - whether to print header line. 0 inhibits header line,
 1 prescribes to print it once and 2 (this is default setting) forces header
-line each 20 lines. 
+line each 20 lines.
 
 </itemize>
 

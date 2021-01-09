@@ -1,13 +1,27 @@
 #ifndef __PKTDMA_DEFINES_H_INCLUDED__
 #define __PKTDMA_DEFINES_H_INCLUDED__
 
+#define XTMFREE_FORCE_FREE    1
+#define XTMFREE_NO_FORCE_FREE 0
+
+#if defined(CONFIG_BCM96816) || defined(CHIP_6816) || defined(CONFIG_BCM96818) || defined(CHIP_6818)
+#define ENET_TX_EGRESS_QUEUES_MAX  8
+#else
+#define ENET_TX_EGRESS_QUEUES_MAX  4
+#endif
+
 #if defined(CONFIG_BCM96362) && defined(CONFIG_BCM_PKTDMA)
 #define ENET_RX_CHANNELS_MAX CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS
 #define ENET_TX_CHANNELS_MAX CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS
-#elif defined(CONFIG_BCM96362) || (defined(CONFIG_BCM963268))
+#elif defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) \
+    || ( defined(CONFIG_BCM96818) && defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
 /* Increase these from 1 to 2 to support rx & tx splitting - Oct 2010 */
 #define ENET_RX_CHANNELS_MAX  2
 #define ENET_TX_CHANNELS_MAX  2
+
+#elif (defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)) && defined(CONFIG_BCM_FAP_PWRSAVE)
+#define ENET_RX_CHANNELS_MAX  3   // 1 iuDMA needed for Host when FAP is powered off
+#define ENET_TX_CHANNELS_MAX  3   // 1 iuDMA needed for Host when FAP is powered off
 #elif defined(CONFIG_BCM96368)
 #define ENET_RX_CHANNELS_MAX  2
 #define ENET_TX_CHANNELS_MAX  2
@@ -16,13 +30,8 @@
 #define ENET_TX_CHANNELS_MAX  4
 #endif
 
-#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 #define XTM_RX_CHANNELS_MAX   2
 #define XTM_TX_CHANNELS_MAX   16
-#else
-#define XTM_RX_CHANNELS_MAX   4
-#define XTM_TX_CHANNELS_MAX   16
-#endif
 
 /*
  * -----------------------------------------------------------------------------
@@ -89,12 +98,18 @@
 
 
 /* Host/MIPS: # of TXBDs for IuDMA managed by host */
-#define HOST_ENET_NR_TXBDS              180
+#define HOST_ENET_NR_TXBDS              200
+
+#if defined(CONFIG_BCM_DSL_GINP_RTX) || defined(SUPPORT_DSL_GINP_RTX)
+																/* 20 ms RTX buffering */
+#define HOST_XTM_NR_TXBDS               4700
+#else
 #define HOST_XTM_NR_TXBDS               400
+#endif
 
 #define MOCA_TXQ_DEPTH_MAX              3000
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 /* FAP: # of buffers assigned to RXBDs */
 #define FAP_ENET_NR_RXBDS               600     /* FAP chnl */
 #define FAP_XTM_NR_RXBDS                200
@@ -149,12 +164,12 @@
 
 
 /* Host/MIPS: # of TXBDs for IuDMA managed by host */
-#define HOST_ENET_NR_TXBDS              180
+#define HOST_ENET_NR_TXBDS              200
 #define HOST_XTM_NR_TXBDS               HOST_ENET_NR_RXBDS
 
 #define MOCA_TXQ_DEPTH_MAX              3000
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
 /* FAP: # of buffers assigned to RXBDs */
 #define FAP_ENET_NR_RXBDS               HOST_ENET_NR_RXBDS
 #define FAP_XTM_NR_RXBDS                HOST_XTM_NR_RXBDS

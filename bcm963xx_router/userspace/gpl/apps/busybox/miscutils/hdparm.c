@@ -2,54 +2,21 @@
 /*
  * hdparm implementation for busybox
  *
- *
  * Copyright (C) [2003] by [Matteo Croce] <3297627799@wind.it>
- *
  * Hacked by Tito <farmatito@tiscali.it> for size optimization.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- * 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
  * This program is based on the source code of hdparm: see below...
  * hdparm.c - Command line interface to get/set hard disk parameters
  *          - by Mark Lord (C) 1994-2002 -- freely distributable
  */
-
-#include <unistd.h>
-#include <string.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <ctype.h>
-#include <endian.h>
-#include <sys/ioctl.h>
-#include <sys/shm.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/times.h>
-#include <sys/mount.h>
-#include "busybox.h"
-#include <linux/types.h>
+#include "libbb.h"
+/* must be _after_ libbb.h: */
 #include <linux/hdreg.h>
-#include <linux/major.h>
-#include <asm/byteorder.h>
-
-
-#if (__BYTE_ORDER == __BIG_ENDIAN) && !defined(__USE_XOPEN)
-#define __USE_XOPEN
+#include <sys/mount.h>
+#if !defined(BLKGETSIZE64)
+# define BLKGETSIZE64 _IOR(0x12,114,size_t)
 #endif
 
 /* device types */
@@ -74,9 +41,9 @@
 #define RW_LONG			22  /* extra bytes in R/W LONG cmd ( < ATA-4)*/
 #define START_FW_REV            23  /* ASCII firmware revision */
 #define LENGTH_FW_REV		 4  /*  4 words (8 bytes or characters) */
-#define START_MODEL    		27  /* ASCII model number */
-#define LENGTH_MODEL    	20  /* 20 words (40 bytes or characters) */
-#define SECTOR_XFER_MAX	        47  /* r/w multiple: max sectors xfered */
+#define START_MODEL		27  /* ASCII model number */
+#define LENGTH_MODEL		20  /* 20 words (40 bytes or characters) */
+#define SECTOR_XFER_MAX		47  /* r/w multiple: max sectors xfered */
 #define DWORD_IO		48  /* can do double-word IO (ATA-1 only) */
 #define CAPAB_0			49  /* capabilities */
 #define CAPAB_1			50
@@ -85,7 +52,7 @@
 #define WHATS_VALID		53  /* what fields are valid */
 #define LCYLS_CUR		54  /* current logical cylinders */
 #define LHEADS_CUR		55  /* current logical heads */
-#define LSECTS_CUR	        56  /* current logical sectors/track */
+#define LSECTS_CUR		56  /* current logical sectors/track */
 #define CAPACITY_LSB		57  /* current capacity in sectors */
 #define CAPACITY_MSB		58
 #define SECTOR_XFER_CUR		59  /* r/w multiple: current sectors xfered */
@@ -96,7 +63,7 @@
 #define ADV_PIO_MODES		64  /* advanced PIO modes supported */
 				    /* multiword DMA xfer cycle time: */
 #define DMA_TIME_MIN		65  /*   - minimum */
-#define DMA_TIME_NORM		66  /*   - manufacturer's recommended	*/
+#define DMA_TIME_NORM		66  /*   - manufacturer's recommended */
 				    /* minimum PIO xfer cycle time: */
 #define PIO_NO_FLOW		67  /*   - without flow control */
 #define PIO_FLOW		68  /*   - with IORDY flow control */
@@ -119,14 +86,14 @@
 #define ENH_ERASE_TIME		90  /*   - enhanced */
 #define ADV_PWR			91  /* current advanced power management level
 				       in low byte, 0x40 in high byte. */
-#define PSWD_CODE		92  /* master password revision code	*/
+#define PSWD_CODE		92  /* master password revision code */
 #define HWRST_RSLT		93  /* hardware reset result */
-#define ACOUSTIC  		94  /* acoustic mgmt values ( >= ATA-6) */
+#define ACOUSTIC		94  /* acoustic mgmt values ( >= ATA-6) */
 #define LBA_LSB			100 /* LBA: maximum.  Currently only 48 */
 #define LBA_MID			101 /*      bits are used, but addr 103 */
 #define LBA_48_MSB		102 /*      has been reserved for LBA in */
 #define LBA_64_MSB		103 /*      the future. */
-#define RM_STAT 		127 /* removable media status notification feature set support */
+#define RM_STAT			127 /* removable media status notification feature set support */
 #define SECU_STATUS		128 /* security status */
 #define CFA_PWR_MODE		160 /* CFA power mode 1 */
 #define START_MEDIA             176 /* media serial number */
@@ -164,61 +131,6 @@
 
 #define CDROM 0x0005
 
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static const char *pkt_str[] = {
-	"Direct-access device",			/* word 0, bits 12-8 = 00 */
-	"Sequential-access device",		/* word 0, bits 12-8 = 01 */
-	"Printer",				/* word 0, bits 12-8 = 02 */
-	"Processor",				/* word 0, bits 12-8 = 03 */
-	"Write-once device",			/* word 0, bits 12-8 = 04 */
-	"CD-ROM",				/* word 0, bits 12-8 = 05 */
-	"Scanner",				/* word 0, bits 12-8 = 06 */
-	"Optical memory",			/* word 0, bits 12-8 = 07 */
-	"Medium changer",			/* word 0, bits 12-8 = 08 */
-	"Communications device",		/* word 0, bits 12-8 = 09 */
-	"ACS-IT8 device",			/* word 0, bits 12-8 = 0a */
-	"ACS-IT8 device",			/* word 0, bits 12-8 = 0b */
-	"Array controller",			/* word 0, bits 12-8 = 0c */
-	"Enclosure services",			/* word 0, bits 12-8 = 0d */
-	"Reduced block command device",		/* word 0, bits 12-8 = 0e */
-	"Optical card reader/writer",		/* word 0, bits 12-8 = 0f */
-	"",					/* word 0, bits 12-8 = 10 */
-	"",					/* word 0, bits 12-8 = 11 */
-	"",					/* word 0, bits 12-8 = 12 */
-	"",					/* word 0, bits 12-8 = 13 */
-	"",					/* word 0, bits 12-8 = 14 */
-	"",					/* word 0, bits 12-8 = 15 */
-	"",					/* word 0, bits 12-8 = 16 */
-	"",					/* word 0, bits 12-8 = 17 */
-	"",					/* word 0, bits 12-8 = 18 */
-	"",					/* word 0, bits 12-8 = 19 */
-	"",					/* word 0, bits 12-8 = 1a */
-	"",					/* word 0, bits 12-8 = 1b */
-	"",					/* word 0, bits 12-8 = 1c */
-	"",					/* word 0, bits 12-8 = 1d */
-	"",					/* word 0, bits 12-8 = 1e */
-	"Unknown",				/* word 0, bits 12-8 = 1f */
-};
-static const char *ata1_cfg_str[] = {			/* word 0 in ATA-1 mode */
-	"reserved",				/* bit 0 */
-	"hard sectored",			/* bit 1 */
-	"soft sectored",			/* bit 2 */
-	"not MFM encoded ",			/* bit 3 */
-	"head switch time > 15us",		/* bit 4 */
-	"spindle motor control option",		/* bit 5 */
-	"fixed drive",				/* bit 6 */
-	"removable drive",			/* bit 7 */
-	"disk xfer rate <= 5Mbs",		/* bit 8 */
-	"disk xfer rate > 5Mbs, <= 10Mbs",	/* bit 9 */
-	"disk xfer rate > 5Mbs",		/* bit 10 */
-	"rotational speed tol.",		/* bit 11 */
-	"data strobe offset option",		/* bit 12 */
-	"track offset option",			/* bit 13 */
-	"format speed tolerance gap reqd",	/* bit 14 */
-	"ATAPI"					/* bit 14 */
-};
-#endif
-
 /* word 1: number of logical cylinders */
 #define LCYLS_MAX		0x3fff /* maximum allowable value */
 
@@ -228,7 +140,7 @@ static const char *ata1_cfg_str[] = {			/* word 0 in ATA-1 mode */
  */
 #define STBY_NID_VAL		0x37c8  /*     (a) and     (b) */
 #define STBY_ID_VAL		0x738c	/*     (a) and not (b) */
-#define PWRD_NID_VAL 		0x8c73	/* not (a) and     (b) */
+#define PWRD_NID_VAL		0x8c73	/* not (a) and     (b) */
 #define PWRD_ID_VAL		0xc837	/* not (a) and not (b) */
 
 /* words 47 & 59: sector_xfer_max & sector_xfer_cur */
@@ -236,8 +148,7 @@ static const char *ata1_cfg_str[] = {			/* word 0 in ATA-1 mode */
 #define MULTIPLE_SETTING_VALID  0x0100  /* 1=multiple sector setting is valid */
 
 /* word 49: capabilities 0 */
-#define STD_STBY  	  	0x2000  /* 1=standard values supported (ATA);
-					   0=vendor specific values */
+#define STD_STBY		0x2000  /* 1=standard values supported (ATA); 0=vendor specific values */
 #define IORDY_SUP		0x0800  /* 1=support; 0=may be supported */
 #define IORDY_OFF		0x0400  /* 1=may be disabled */
 #define LBA_SUP			0x0200  /* 1=Logical Block Address support */
@@ -254,7 +165,7 @@ static const char *ata1_cfg_str[] = {			/* word 0 in ATA-1 mode */
 #define MODE			0xff00  /* the mode is in the MSBs */
 
 /* word 53: whats_valid */
-#define OK_W88     	   	0x0004	/* the ultra_dma info is valid */
+#define OK_W88			0x0004	/* the ultra_dma info is valid */
 #define OK_W64_70		0x0002  /* see above for word descriptions */
 #define OK_W54_58		0x0001  /* current cyl, head, sector, cap. info valid */
 
@@ -274,77 +185,7 @@ static const char *ata1_cfg_str[] = {			/* word 0 in ATA-1 mode */
 /* NOVAL_0 or  NOVAL_1 means device does not report version */
 
 /* word 81: minor version number */
-#define MINOR_MAX		0x1C
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static const char *minor_str[] = {				/* word 81 value: */
-	"device does not report version",		/* 0x0000	*/
-	"ATA-1 X3T9.2 781D prior to revision 4",	/* 0x0001	*/
-	"ATA-1 published, ANSI X3.221-1994",		/* 0x0002	*/
-	"ATA-1 X3T9.2 781D revision 4",			/* 0x0003	*/
-	"ATA-2 published, ANSI X3.279-1996",		/* 0x0004	*/
-	"ATA-2 X3T10 948D prior to revision 2k",	/* 0x0005	*/
-	"ATA-3 X3T10 2008D revision 1",			/* 0x0006	*/
-	"ATA-2 X3T10 948D revision 2k",			/* 0x0007	*/
-	"ATA-3 X3T10 2008D revision 0",			/* 0x0008	*/
-	"ATA-2 X3T10 948D revision 3",			/* 0x0009	*/
-	"ATA-3 published, ANSI X3.298-199x",		/* 0x000a	*/
-	"ATA-3 X3T10 2008D revision 6",			/* 0x000b	*/
-	"ATA-3 X3T13 2008D revision 7 and 7a",		/* 0x000c	*/
-	"ATA/ATAPI-4 X3T13 1153D revision 6",		/* 0x000d	*/
-	"ATA/ATAPI-4 T13 1153D revision 13",		/* 0x000e	*/
-	"ATA/ATAPI-4 X3T13 1153D revision 7",		/* 0x000f	*/
-	"ATA/ATAPI-4 T13 1153D revision 18",		/* 0x0010	*/
-	"ATA/ATAPI-4 T13 1153D revision 15",		/* 0x0011	*/
-	"ATA/ATAPI-4 published, ANSI NCITS 317-1998",	/* 0x0012	*/
-	"ATA/ATAPI-5 T13 1321D revision 3",
-	"ATA/ATAPI-4 T13 1153D revision 14",		/* 0x0014	*/
-	"ATA/ATAPI-5 T13 1321D revision 1",		/* 0x0015	*/
-	"ATA/ATAPI-5 published, ANSI NCITS 340-2000",	/* 0x0016	*/
-	"ATA/ATAPI-4 T13 1153D revision 17",		/* 0x0017	*/
-	"ATA/ATAPI-6 T13 1410D revision 0",		/* 0x0018	*/
-	"ATA/ATAPI-6 T13 1410D revision 3a",		/* 0x0019	*/
-	"Reserved",					/* 0x001a	*/
-	"ATA/ATAPI-6 T13 1410D revision 2",		/* 0x001b	*/
-	"ATA/ATAPI-6 T13 1410D revision 1",		/* 0x001c	*/
-	"reserved"					/* 0x001d	*/
-	"reserved"					/* 0x001e	*/
-	"reserved"					/* 0x001f-0xfffe*/
-};
-#endif
-static const char actual_ver[] = {
-			/* word 81 value: */
-	0,		/* 0x0000	WARNING: 	*/
-	1,		/* 0x0001	WARNING: 	*/
-	1,		/* 0x0002	WARNING: 	*/
-	1,		/* 0x0003	WARNING: 	*/
-	2,		/* 0x0004	WARNING:   This array 		*/
-	2,		/* 0x0005	WARNING:   corresponds 		*/
-	3,		/* 0x0006	WARNING:   *exactly*		*/
-	2,		/* 0x0007	WARNING:   to the ATA/		*/
-	3,		/* 0x0008	WARNING:   ATAPI version	*/
-	2,		/* 0x0009	WARNING:   listed in	 	*/
-	3,		/* 0x000a	WARNING:   the 		 	*/
-	3,		/* 0x000b	WARNING:   minor_str 		*/
-	3,		/* 0x000c	WARNING:   array		*/
-	4,		/* 0x000d	WARNING:   above.		*/
-	4,		/* 0x000e	WARNING:  			*/
-	4,		/* 0x000f	WARNING:   if you change 	*/
-	4,		/* 0x0010	WARNING:   that one,      	*/
-	4,		/* 0x0011	WARNING:   change this one	*/
-	4,		/* 0x0012	WARNING:   too!!!        	*/
-	5,		/* 0x0013	WARNING:	*/
-	4,		/* 0x0014	WARNING:	*/
-	5,		/* 0x0015	WARNING:	*/
-	5,		/* 0x0016	WARNING:	*/
-	4,		/* 0x0017	WARNING:	*/
-	6,		/* 0x0018	WARNING:	*/
-	6,		/* 0x0019	WARNING:	*/
-	0,		/* 0x001a	WARNING:	*/
-	6,		/* 0x001b	WARNING:	*/
-	6,		/* 0x001c	WARNING:	*/
-	0		/* 0x001d-0xfffe    		*/
-};
-
+#define MINOR_MAX		0x22
 /* words 82-84: cmds/feats supported */
 #define CMDS_W82		0x77ff  /* word 82: defined command locations*/
 #define CMDS_W83		0x3fff  /* word 83: defined command locations*/
@@ -352,352 +193,512 @@ static const char actual_ver[] = {
 #define SUPPORT_48_BIT		0x0400
 #define NUM_CMD_FEAT_STR	48
 
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static const char *cmd_feat_str[] = {
-	"",					/* word 82 bit 15: obsolete  */
-	"NOP cmd",				/* word 82 bit 14 */
-	"READ BUFFER cmd",			/* word 82 bit 13 */
-	"WRITE BUFFER cmd",			/* word 82 bit 12 */
-	"",					/* word 82 bit 11: obsolete  */
-	"Host Protected Area feature set",	/* word 82 bit 10 */
-	"DEVICE RESET cmd",			/* word 82 bit  9 */
-	"SERVICE interrupt",			/* word 82 bit  8 */
-	"Release interrupt",			/* word 82 bit  7 */
-	"Look-ahead",				/* word 82 bit  6 */
-	"Write cache",				/* word 82 bit  5 */
-	"PACKET command feature set",		/* word 82 bit  4 */
-	"Power Management feature set",		/* word 82 bit  3 */
-	"Removable Media feature set",		/* word 82 bit  2 */
-	"Security Mode feature set",		/* word 82 bit  1 */
-	"SMART feature set",			/* word 82 bit  0 */
-						/* --------------*/
-	"",					/* word 83 bit 15: !valid bit */
-	"",					/* word 83 bit 14:  valid bit */
-	"FLUSH CACHE EXT command",		/* word 83 bit 13 */
-	"Mandatory FLUSH CACHE command ",	/* word 83 bit 12 */
-	"Device Configuration Overlay feature set ",
-	"48-bit Address feature set ",		/* word 83 bit 10 */
-	"",
-	"SET MAX security extension",		/* word 83 bit  8 */
-	"Address Offset Reserved Area Boot",	/* word 83 bit  7 */
-	"SET FEATURES subcommand required to spinup after power up",
-	"Power-Up In Standby feature set",	/* word 83 bit  5 */
-	"Removable Media Status Notification feature set",
-	"Adv. Power Management feature set",/* word 83 bit  3 */
-	"CFA feature set",			/* word 83 bit  2 */
-	"READ/WRITE DMA QUEUED",		/* word 83 bit  1 */
-	"DOWNLOAD MICROCODE cmd", 		/* word 83 bit  0 */
-						/* --------------*/
-	"",					/* word 84 bit 15: !valid bit */
-	"",					/* word 84 bit 14:  valid bit */
-	"",					/* word 84 bit 13:  reserved */
-	"",					/* word 84 bit 12:  reserved */
-	"",					/* word 84 bit 11:  reserved */
-	"",					/* word 84 bit 10:  reserved */
-	"",					/* word 84 bit  9:  reserved */
-	"",					/* word 84 bit  8:  reserved */
-	"",					/* word 84 bit  7:  reserved */
-	"",					/* word 84 bit  6:  reserved */
-	"General Purpose Logging feature set",	/* word 84 bit  5 */
-	"",					/* word 84 bit  4:  reserved */
-	"Media Card Pass Through Command feature set ",
-	"Media serial number ",			/* word 84 bit  2 */
-	"SMART self-test ",			/* word 84 bit  1 */
-	"SMART error logging "			/* word 84 bit  0 */
-};
-#endif
-
-
 /* words 85-87: cmds/feats enabled */
 /* use cmd_feat_str[] to display what commands and features have
  * been enabled with words 85-87
  */
 
 /* words 89, 90, SECU ERASE TIME */
-#define ERASE_BITS		0x00ff
+#define ERASE_BITS      0x00ff
 
 /* word 92: master password revision */
 /* NOVAL_0 or  NOVAL_1 means no support for master password revision */
 
 /* word 93: hw reset result */
-#define CBLID			0x2000  /* CBLID status */
-#define RST0			0x0001  /* 1=reset to device #0 */
-#define DEV_DET			0x0006  /* how device num determined */
-#define JUMPER_VAL		0x0002  /* device num determined by jumper */
-#define CSEL_VAL		0x0004  /* device num determined by CSEL_VAL */
+#define CBLID           0x2000  /* CBLID status */
+#define RST0            0x0001  /* 1=reset to device #0 */
+#define DEV_DET         0x0006  /* how device num determined */
+#define JUMPER_VAL      0x0002  /* device num determined by jumper */
+#define CSEL_VAL        0x0004  /* device num determined by CSEL_VAL */
 
 /* word 127: removable media status notification feature set support */
-#define RM_STAT_BITS 		0x0003
-#define RM_STAT_SUP		0x0001
+#define RM_STAT_BITS    0x0003
+#define RM_STAT_SUP     0x0001
 
 /* word 128: security */
-#define SECU_ENABLED	0x0002
-#define SECU_LEVEL		0x0010
-#define NUM_SECU_STR	6
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static const char *secu_str[] = {
-	"supported",			/* word 128, bit 0 */
-	"enabled",			/* word 128, bit 1 */
-	"locked",			/* word 128, bit 2 */
-	"frozen",			/* word 128, bit 3 */
-	"expired: security count",	/* word 128, bit 4 */
-	"supported: enhanced erase"	/* word 128, bit 5 */
-};
-#endif
+#define SECU_ENABLED    0x0002
+#define SECU_LEVEL      0x0010
+#define NUM_SECU_STR    6
 
 /* word 160: CFA power mode */
-#define VALID_W160		0x8000  /* 1=word valid */
-#define PWR_MODE_REQ		0x2000  /* 1=CFA power mode req'd by some cmds*/
-#define PWR_MODE_OFF		0x1000  /* 1=CFA power moded disabled */
-#define MAX_AMPS		0x0fff  /* value = max current in ma */
+#define VALID_W160              0x8000  /* 1=word valid */
+#define PWR_MODE_REQ            0x2000  /* 1=CFA power mode req'd by some cmds*/
+#define PWR_MODE_OFF            0x1000  /* 1=CFA power moded disabled */
+#define MAX_AMPS                0x0fff  /* value = max current in ma */
 
 /* word 255: integrity */
-#define SIG			0x00ff  /* signature location */
-#define SIG_VAL			0x00A5  /* signature value */
+#define SIG                     0x00ff  /* signature location */
+#define SIG_VAL                 0x00a5  /* signature value */
 
-#define VERSION "v5.4"
+#define TIMING_BUF_MB           1
+#define TIMING_BUF_BYTES        (TIMING_BUF_MB * 1024 * 1024)
 
-#define TIMING_MB		64
-#define TIMING_BUF_MB		1
-#define TIMING_BUF_BYTES	(TIMING_BUF_MB * 1024 * 1024)
-#define TIMING_BUF_COUNT	(timing_MB / TIMING_BUF_MB)
-#define BUFCACHE_FACTOR		2
+#undef DO_FLUSHCACHE            /* under construction: force cache flush on -W0 */
 
-#undef DO_FLUSHCACHE		/* under construction: force cache flush on -W0 */
+
+#define IS_GET 1
+#define IS_SET 2
+
+
+enum { fd = 3 };
+
+
+struct globals {
+	smallint get_identity, get_geom;
+	smallint do_flush;
+	smallint do_ctimings, do_timings;
+	smallint reread_partn;
+	smallint set_piomode, noisy_piomode;
+	smallint getset_readahead;
+	smallint getset_readonly;
+	smallint getset_unmask;
+	smallint getset_mult;
+#ifdef HDIO_GET_QDMA
+	smallint getset_dma_q;
+#endif
+	smallint getset_nowerr;
+	smallint getset_keep;
+	smallint getset_io32bit;
+	int piomode;
+	unsigned long Xreadahead;
+	unsigned long readonly;
+	unsigned long unmask;
+	unsigned long mult;
+#ifdef HDIO_SET_QDMA
+	unsigned long dma_q;
+#endif
+	unsigned long nowerr;
+	unsigned long keep;
+	unsigned long io32bit;
+#if ENABLE_FEATURE_HDPARM_HDIO_GETSET_DMA
+	unsigned long dma;
+	smallint getset_dma;
+#endif
+#ifdef HDIO_DRIVE_CMD
+	smallint set_xfermode, get_xfermode;
+	smallint getset_dkeep;
+	smallint getset_standby;
+	smallint getset_lookahead;
+	smallint getset_prefetch;
+	smallint getset_defects;
+	smallint getset_wcache;
+	smallint getset_doorlock;
+	smallint set_seagate;
+	smallint set_standbynow;
+	smallint set_sleepnow;
+	smallint get_powermode;
+	smallint getset_apmmode;
+	int xfermode_requested;
+	unsigned long dkeep;
+	unsigned long standby_requested; /* 0..255 */
+	unsigned long lookahead;
+	unsigned long prefetch;
+	unsigned long defects;
+	unsigned long wcache;
+	unsigned long doorlock;
+	unsigned long apmmode;
+#endif
+	IF_FEATURE_HDPARM_GET_IDENTITY(        smallint get_IDentity;)
+	IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(  smallint getset_busstate;)
+	IF_FEATURE_HDPARM_HDIO_DRIVE_RESET(    smallint perform_reset;)
+	IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(  smallint perform_tristate;)
+	IF_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF(smallint unregister_hwif;)
+	IF_FEATURE_HDPARM_HDIO_SCAN_HWIF(      smallint scan_hwif;)
+	IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(  unsigned long busstate;)
+	IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(  unsigned long tristate;)
+	IF_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF(unsigned long hwif;)
+#if ENABLE_FEATURE_HDPARM_HDIO_SCAN_HWIF
+	unsigned long hwif_data;
+	unsigned long hwif_ctrl;
+	unsigned long hwif_irq;
+#endif
+#ifdef DO_FLUSHCACHE
+	unsigned char flushcache[4] = { WIN_FLUSHCACHE, 0, 0, 0 };
+#endif
+} FIX_ALIASING;
+#define G (*(struct globals*)&bb_common_bufsiz1)
+struct BUG_G_too_big {
+	char BUG_G_too_big[sizeof(G) <= COMMON_BUFSIZE ? 1 : -1];
+};
+#define get_identity       (G.get_identity           )
+#define get_geom           (G.get_geom               )
+#define do_flush           (G.do_flush               )
+#define do_ctimings        (G.do_ctimings            )
+#define do_timings         (G.do_timings             )
+#define reread_partn       (G.reread_partn           )
+#define set_piomode        (G.set_piomode            )
+#define noisy_piomode      (G.noisy_piomode          )
+#define getset_readahead   (G.getset_readahead       )
+#define getset_readonly    (G.getset_readonly        )
+#define getset_unmask      (G.getset_unmask          )
+#define getset_mult        (G.getset_mult            )
+#define getset_dma_q       (G.getset_dma_q           )
+#define getset_nowerr      (G.getset_nowerr          )
+#define getset_keep        (G.getset_keep            )
+#define getset_io32bit     (G.getset_io32bit         )
+#define piomode            (G.piomode                )
+#define Xreadahead         (G.Xreadahead             )
+#define readonly           (G.readonly               )
+#define unmask             (G.unmask                 )
+#define mult               (G.mult                   )
+#define dma_q              (G.dma_q                  )
+#define nowerr             (G.nowerr                 )
+#define keep               (G.keep                   )
+#define io32bit            (G.io32bit                )
+#define dma                (G.dma                    )
+#define getset_dma         (G.getset_dma             )
+#define set_xfermode       (G.set_xfermode           )
+#define get_xfermode       (G.get_xfermode           )
+#define getset_dkeep       (G.getset_dkeep           )
+#define getset_standby     (G.getset_standby         )
+#define getset_lookahead   (G.getset_lookahead       )
+#define getset_prefetch    (G.getset_prefetch        )
+#define getset_defects     (G.getset_defects         )
+#define getset_wcache      (G.getset_wcache          )
+#define getset_doorlock    (G.getset_doorlock        )
+#define set_seagate        (G.set_seagate            )
+#define set_standbynow     (G.set_standbynow         )
+#define set_sleepnow       (G.set_sleepnow           )
+#define get_powermode      (G.get_powermode          )
+#define getset_apmmode     (G.getset_apmmode         )
+#define xfermode_requested (G.xfermode_requested     )
+#define dkeep              (G.dkeep                  )
+#define standby_requested  (G.standby_requested      )
+#define lookahead          (G.lookahead              )
+#define prefetch           (G.prefetch               )
+#define defects            (G.defects                )
+#define wcache             (G.wcache                 )
+#define doorlock           (G.doorlock               )
+#define apmmode            (G.apmmode                )
+#define get_IDentity       (G.get_IDentity           )
+#define getset_busstate    (G.getset_busstate        )
+#define perform_reset      (G.perform_reset          )
+#define perform_tristate   (G.perform_tristate       )
+#define unregister_hwif    (G.unregister_hwif        )
+#define scan_hwif          (G.scan_hwif              )
+#define busstate           (G.busstate               )
+#define tristate           (G.tristate               )
+#define hwif               (G.hwif                   )
+#define hwif_data          (G.hwif_data              )
+#define hwif_ctrl          (G.hwif_ctrl              )
+#define hwif_irq           (G.hwif_irq               )
+
 
 /* Busybox messages and functions */
-
-const char * const bb_msg_shared_mem	="could not %s sharedmem buf";
-const char * const bb_msg_op_not_supp	=" operation not supported on %s disks";
-
-static void bb_ioctl(int fd, int request, void *argp, const char *string)
+#if ENABLE_IOCTL_HEX2STR_ERROR
+static int ioctl_alt_func(/*int fd,*/ int cmd, unsigned char *args, int alt, const char *string)
 {
-	if (ioctl (fd, request, argp) != 0)
-		bb_perror_msg(" %s", string);
+	if (!ioctl(fd, cmd, args))
+		return 0;
+	args[0] = alt;
+	return bb_ioctl_or_warn(fd, cmd, args, string);
+}
+#define ioctl_alt_or_warn(cmd,args,alt) ioctl_alt_func(cmd,args,alt,#cmd)
+#else
+static int ioctl_alt_func(/*int fd,*/ int cmd, unsigned char *args, int alt)
+{
+	if (!ioctl(fd, cmd, args))
+		return 0;
+	args[0] = alt;
+	return bb_ioctl_or_warn(fd, cmd, args);
+}
+#define ioctl_alt_or_warn(cmd,args,alt) ioctl_alt_func(cmd,args,alt)
+#endif
+
+static void on_off(int value)
+{
+	puts(value ? " (on)" : " (off)");
 }
 
-static void if_printf(unsigned long i, char *fmt, ... )
+static void print_flag_on_off(int get_arg, const char *s, unsigned long arg)
 {
-		va_list ap;
-		va_start(ap, fmt);
-		if (i)
-			vprintf(fmt, ap);
-		va_end(ap);
-}
-
-static void on_off (unsigned int value);
-
-static void if_printf_on_off(unsigned long get_arg,const char *fmt, unsigned long arg)
-{
-	if (get_arg)
-	{
-		printf(fmt, arg);
+	if (get_arg) {
+		printf(" setting %s to %ld", s, arg);
 		on_off(arg);
 	}
 }
 
-static void bb_ioctl_on_off(int fd, int request, void *argp, const char *string,
-							 const char * fmt)
+static void print_value_on_off(const char *str, unsigned long argp)
 {
-	if (ioctl (fd, request, &argp) != 0)
-		bb_perror_msg(" %s", string);
-	else
-	{
-		printf(fmt, (unsigned long) argp);
-		on_off((unsigned long) argp);
-	}
+	printf(" %s\t= %2ld", str, argp);
+	on_off(argp != 0);
 }
 
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static void if_else_printf(unsigned long i, char *fmt1, char *fmt2, ... )
+#if ENABLE_FEATURE_HDPARM_GET_IDENTITY
+static void print_ascii(const char *p, int length)
 {
-		va_list ap;
-		va_start(ap, fmt2);
-		if (i)
-			vprintf(fmt1, ap);
-		else
-			vprintf(fmt2, ap);
-		va_end(ap);
-}
-
-static void print_ascii(uint16_t *p, uint8_t length);
-
-static void xprint_ascii(uint16_t *val ,int i, char * string, int n)
-{
-	if(val[i])
-	{
-		printf("\t%-20s",string);
-		print_ascii(&val[i], n);
-	}
-}
-
-static void if_strcat(unsigned long test, char *modes, char *string)
-{
-	if (test)
-		strcat(modes,string);
-}
+#if BB_BIG_ENDIAN
+#define LE_ONLY(x)
+	enum { ofs = 0 };
+#else
+#define LE_ONLY(x) x
+	/* every 16bit word is big-endian (i.e. inverted) */
+	/* accessing bytes in 1,0, 3,2, 5,4... sequence */
+	int ofs = 1;
 #endif
 
-static void sync_and_sleep(int i)
-{
-	sync();
-	sleep(i);
+	length *= 2;
+	/* find first non-space & print it */
+	while (length && p[ofs] != ' ') {
+		p++;
+		LE_ONLY(ofs = -ofs;)
+		length--;
+	}
+	while (length && p[ofs]) {
+		bb_putchar(p[ofs]);
+		p++;
+		LE_ONLY(ofs = -ofs;)
+		length--;
+	}
+	bb_putchar('\n');
+#undef LE_ONLY
 }
 
-static uint16_t check_if_min_and_set_val(uint16_t a, uint16_t b)
+static void xprint_ascii(uint16_t *val, int i, const char *string, int n)
 {
-	if( a < b)
-		a = b;
-	return a;
+	if (val[i]) {
+		printf("\t%-20s", string);
+		print_ascii((void*)&val[i], n);
+	}
 }
 
-static uint16_t check_if_maj_and_set_val(uint16_t a, uint16_t b)
-{
-	if( a > b)
-		a = b;
-	return a;
-}
-
-static unsigned long int set_flag(char *p, char max)
-{
-	if (*p >= '0' && *p <=  max )
-		return 1;
-	return 0;
-}
-
-/* end of  busybox specific stuff */
-
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
 static uint8_t mode_loop(uint16_t mode_sup, uint16_t mode_sel, int cc, uint8_t *have_mode)
 {
 	uint16_t ii;
 	uint8_t err_dma = 0;
 
-	for(ii = 0; ii <= MODE_MAX; ii++)
-	{
-		if(mode_sel & 0x0001)
-		{
-			printf("*%cdma%u ",cc,ii);
-			if(*have_mode)
+	for (ii = 0; ii <= MODE_MAX; ii++) {
+		if (mode_sel & 0x0001) {
+			printf("*%cdma%u ", cc, ii);
+			if (*have_mode)
 				err_dma = 1;
 			*have_mode = 1;
-		}
-		else if(mode_sup & 0x0001)
-			printf("%cdma%u ",cc,ii);
+		} else if (mode_sup & 0x0001)
+			printf("%cdma%u ", cc, ii);
 
-		mode_sup >>=1;
-		mode_sel >>=1;
+		mode_sup >>= 1;
+		mode_sel >>= 1;
 	}
 	return err_dma;
 }
 
-static void print_ascii(uint16_t *p, uint8_t length) {
-	uint8_t ii;
-	char cl;
+static const char pkt_str[] ALIGN1 =
+	"Direct-access device" "\0"             /* word 0, bits 12-8 = 00 */
+	"Sequential-access device" "\0"         /* word 0, bits 12-8 = 01 */
+	"Printer" "\0"                          /* word 0, bits 12-8 = 02 */
+	"Processor" "\0"                        /* word 0, bits 12-8 = 03 */
+	"Write-once device" "\0"                /* word 0, bits 12-8 = 04 */
+	"CD-ROM" "\0"                           /* word 0, bits 12-8 = 05 */
+	"Scanner" "\0"                          /* word 0, bits 12-8 = 06 */
+	"Optical memory" "\0"                   /* word 0, bits 12-8 = 07 */
+	"Medium changer" "\0"                   /* word 0, bits 12-8 = 08 */
+	"Communications device" "\0"            /* word 0, bits 12-8 = 09 */
+	"ACS-IT8 device" "\0"                   /* word 0, bits 12-8 = 0a */
+	"ACS-IT8 device" "\0"                   /* word 0, bits 12-8 = 0b */
+	"Array controller" "\0"                 /* word 0, bits 12-8 = 0c */
+	"Enclosure services" "\0"               /* word 0, bits 12-8 = 0d */
+	"Reduced block command device" "\0"     /* word 0, bits 12-8 = 0e */
+	"Optical card reader/writer" "\0"       /* word 0, bits 12-8 = 0f */
+;
 
-	/* find first non-space & print it */
-	for(ii = 0; ii< length; ii++)
-	{
-		if(((char) 0x00ff&((*p)>>8)) != ' ')
-			break;
-		if((cl = (char) 0x00ff&(*p)) != ' ')
-		{
-			if_printf((cl != '\0'),"%c",cl);
-			p++;
-			ii++;
-			break;
-		}
-		p++;
-	}
-	/* print the rest */
-	for(; ii< length; ii++)
-	{
-		if(!(*p))
-			break; /* some older devices have NULLs */
-		printf("%c%c",(char)0x00ff&((*p)>>8),(char)(*p)&0x00ff);
-		p++;
-	}
-	printf("\n");
-}
+static const char ata1_cfg_str[] ALIGN1 =       /* word 0 in ATA-1 mode */
+	"reserved" "\0"                         /* bit 0 */
+	"hard sectored" "\0"                    /* bit 1 */
+	"soft sectored" "\0"                    /* bit 2 */
+	"not MFM encoded " "\0"                 /* bit 3 */
+	"head switch time > 15us" "\0"          /* bit 4 */
+	"spindle motor control option" "\0"     /* bit 5 */
+	"fixed drive" "\0"                      /* bit 6 */
+	"removable drive" "\0"                  /* bit 7 */
+	"disk xfer rate <= 5Mbs" "\0"           /* bit 8 */
+	"disk xfer rate > 5Mbs, <= 10Mbs" "\0"  /* bit 9 */
+	"disk xfer rate > 5Mbs" "\0"            /* bit 10 */
+	"rotational speed tol." "\0"            /* bit 11 */
+	"data strobe offset option" "\0"        /* bit 12 */
+	"track offset option" "\0"              /* bit 13 */
+	"format speed tolerance gap reqd" "\0"  /* bit 14 */
+	"ATAPI"                                 /* bit 14 */
+;
 
-/* identify() is the only extern function used across two source files.  The
-   others, though, were declared in hdparm.c with global scope; since other
-   functions in that file have static (file) scope, I assume the difference is
-   intentional. */
-static void identify (uint16_t *id_supplied, const char *devname)
+static const char minor_str[] ALIGN1 =
+	/* word 81 value: */
+	"Unspecified" "\0"                                  /* 0x0000 */
+	"ATA-1 X3T9.2 781D prior to rev.4" "\0"             /* 0x0001 */
+	"ATA-1 published, ANSI X3.221-1994" "\0"            /* 0x0002 */
+	"ATA-1 X3T9.2 781D rev.4" "\0"                      /* 0x0003 */
+	"ATA-2 published, ANSI X3.279-1996" "\0"            /* 0x0004 */
+	"ATA-2 X3T10 948D prior to rev.2k" "\0"             /* 0x0005 */
+	"ATA-3 X3T10 2008D rev.1" "\0"                      /* 0x0006 */
+	"ATA-2 X3T10 948D rev.2k" "\0"                      /* 0x0007 */
+	"ATA-3 X3T10 2008D rev.0" "\0"                      /* 0x0008 */
+	"ATA-2 X3T10 948D rev.3" "\0"                       /* 0x0009 */
+	"ATA-3 published, ANSI X3.298-199x" "\0"            /* 0x000a */
+	"ATA-3 X3T10 2008D rev.6" "\0"                      /* 0x000b */
+	"ATA-3 X3T13 2008D rev.7 and 7a" "\0"               /* 0x000c */
+	"ATA/ATAPI-4 X3T13 1153D rev.6" "\0"                /* 0x000d */
+	"ATA/ATAPI-4 T13 1153D rev.13" "\0"                 /* 0x000e */
+	"ATA/ATAPI-4 X3T13 1153D rev.7" "\0"                /* 0x000f */
+	"ATA/ATAPI-4 T13 1153D rev.18" "\0"                 /* 0x0010 */
+	"ATA/ATAPI-4 T13 1153D rev.15" "\0"                 /* 0x0011 */
+	"ATA/ATAPI-4 published, ANSI INCITS 317-1998" "\0"  /* 0x0012 */
+	"ATA/ATAPI-5 T13 1321D rev.3" "\0"                  /* 0x0013 */
+	"ATA/ATAPI-4 T13 1153D rev.14" "\0"                 /* 0x0014 */
+	"ATA/ATAPI-5 T13 1321D rev.1" "\0"                  /* 0x0015 */
+	"ATA/ATAPI-5 published, ANSI INCITS 340-2000" "\0"  /* 0x0016 */
+	"ATA/ATAPI-4 T13 1153D rev.17" "\0"                 /* 0x0017 */
+	"ATA/ATAPI-6 T13 1410D rev.0" "\0"                  /* 0x0018 */
+	"ATA/ATAPI-6 T13 1410D rev.3a" "\0"                 /* 0x0019 */
+	"ATA/ATAPI-7 T13 1532D rev.1" "\0"                  /* 0x001a */
+	"ATA/ATAPI-6 T13 1410D rev.2" "\0"                  /* 0x001b */
+	"ATA/ATAPI-6 T13 1410D rev.1" "\0"                  /* 0x001c */
+	"ATA/ATAPI-7 published, ANSI INCITS 397-2005" "\0"  /* 0x001d */
+	"ATA/ATAPI-7 T13 1532D rev.0" "\0"                  /* 0x001e */
+	"reserved" "\0"                                     /* 0x001f */
+	"reserved" "\0"                                     /* 0x0020 */
+	"ATA/ATAPI-7 T13 1532D rev.4a" "\0"                 /* 0x0021 */
+	"ATA/ATAPI-6 published, ANSI INCITS 361-2002" "\0"  /* 0x0022 */
+	"reserved"                                          /* 0x0023-0xfffe */
+;
+static const char actual_ver[MINOR_MAX + 2] ALIGN1 = {
+	   /* word 81 value: */
+	0, /* 0x0000 WARNING: actual_ver[] array */
+	1, /* 0x0001 WARNING: corresponds        */
+	1, /* 0x0002 WARNING: *exactly*          */
+	1, /* 0x0003 WARNING: to the ATA/        */
+	2, /* 0x0004 WARNING: ATAPI version      */
+	2, /* 0x0005 WARNING: listed in          */
+	3, /* 0x0006 WARNING: the                */
+	2, /* 0x0007 WARNING: minor_str          */
+	3, /* 0x0008 WARNING: array              */
+	2, /* 0x0009 WARNING: above.             */
+	3, /* 0x000a WARNING:                    */
+	3, /* 0x000b WARNING: If you change      */
+	3, /* 0x000c WARNING: that one,          */
+	4, /* 0x000d WARNING: change this one    */
+	4, /* 0x000e WARNING: too!!!             */
+	4, /* 0x000f */
+	4, /* 0x0010 */
+	4, /* 0x0011 */
+	4, /* 0x0012 */
+	5, /* 0x0013 */
+	4, /* 0x0014 */
+	5, /* 0x0015 */
+	5, /* 0x0016 */
+	4, /* 0x0017 */
+	6, /* 0x0018 */
+	6, /* 0x0019 */
+	7, /* 0x001a */
+	6, /* 0x001b */
+	6, /* 0x001c */
+	7, /* 0x001d */
+	7, /* 0x001e */
+	0, /* 0x001f */
+	0, /* 0x0020 */
+	7, /* 0x0021 */
+	6, /* 0x0022 */
+	0  /* 0x0023-0xfffe */
+};
+
+static const char cmd_feat_str[] ALIGN1 =
+	"" "\0"                                     /* word 82 bit 15: obsolete  */
+	"NOP cmd" "\0"                              /* word 82 bit 14 */
+	"READ BUFFER cmd" "\0"                      /* word 82 bit 13 */
+	"WRITE BUFFER cmd" "\0"                     /* word 82 bit 12 */
+	"" "\0"                                     /* word 82 bit 11: obsolete  */
+	"Host Protected Area feature set" "\0"      /* word 82 bit 10 */
+	"DEVICE RESET cmd" "\0"                     /* word 82 bit  9 */
+	"SERVICE interrupt" "\0"                    /* word 82 bit  8 */
+	"Release interrupt" "\0"                    /* word 82 bit  7 */
+	"Look-ahead" "\0"                           /* word 82 bit  6 */
+	"Write cache" "\0"                          /* word 82 bit  5 */
+	"PACKET command feature set" "\0"           /* word 82 bit  4 */
+	"Power Management feature set" "\0"         /* word 82 bit  3 */
+	"Removable Media feature set" "\0"          /* word 82 bit  2 */
+	"Security Mode feature set" "\0"            /* word 82 bit  1 */
+	"SMART feature set" "\0"                    /* word 82 bit  0 */
+	                                            /* -------------- */
+	"" "\0"                                     /* word 83 bit 15: !valid bit */
+	"" "\0"                                     /* word 83 bit 14:  valid bit */
+	"FLUSH CACHE EXT cmd" "\0"                  /* word 83 bit 13 */
+	"Mandatory FLUSH CACHE cmd " "\0"           /* word 83 bit 12 */
+	"Device Configuration Overlay feature set " "\0"
+	"48-bit Address feature set " "\0"          /* word 83 bit 10 */
+	"" "\0"
+	"SET MAX security extension" "\0"           /* word 83 bit  8 */
+	"Address Offset Reserved Area Boot" "\0"    /* word 83 bit  7 */
+	"SET FEATURES subcommand required to spinup after power up" "\0"
+	"Power-Up In Standby feature set" "\0"      /* word 83 bit  5 */
+	"Removable Media Status Notification feature set" "\0"
+	"Adv. Power Management feature set" "\0"    /* word 83 bit  3 */
+	"CFA feature set" "\0"                      /* word 83 bit  2 */
+	"READ/WRITE DMA QUEUED" "\0"                /* word 83 bit  1 */
+	"DOWNLOAD MICROCODE cmd" "\0"               /* word 83 bit  0 */
+	                                            /* -------------- */
+	"" "\0"                                     /* word 84 bit 15: !valid bit */
+	"" "\0"                                     /* word 84 bit 14:  valid bit */
+	"" "\0"                                     /* word 84 bit 13:  reserved */
+	"" "\0"                                     /* word 84 bit 12:  reserved */
+	"" "\0"                                     /* word 84 bit 11:  reserved */
+	"" "\0"                                     /* word 84 bit 10:  reserved */
+	"" "\0"                                     /* word 84 bit  9:  reserved */
+	"" "\0"                                     /* word 84 bit  8:  reserved */
+	"" "\0"                                     /* word 84 bit  7:  reserved */
+	"" "\0"                                     /* word 84 bit  6:  reserved */
+	"General Purpose Logging feature set" "\0"  /* word 84 bit  5 */
+	"" "\0"                                     /* word 84 bit  4:  reserved */
+	"Media Card Pass Through Command feature set " "\0"
+	"Media serial number " "\0"                 /* word 84 bit  2 */
+	"SMART self-test " "\0"                     /* word 84 bit  1 */
+	"SMART error logging "                      /* word 84 bit  0 */
+;
+
+static const char secu_str[] ALIGN1 =
+	"supported" "\0"                /* word 128, bit 0 */
+	"enabled" "\0"                  /* word 128, bit 1 */
+	"locked" "\0"                   /* word 128, bit 2 */
+	"frozen" "\0"                   /* word 128, bit 3 */
+	"expired: security count" "\0"  /* word 128, bit 4 */
+	"supported: enhanced erase"     /* word 128, bit 5 */
+;
+
+// Parse 512 byte disk identification block and print much crap.
+static void identify(uint16_t *val) NORETURN;
+static void identify(uint16_t *val)
 {
-
-	char *id_file = NULL;
-	FILE *fl;
-	uint16_t val[256], ii, jj, kk;
+	uint16_t ii, jj, kk;
 	uint16_t like_std = 1, std = 0, min_std = 0xffff;
 	uint16_t dev = NO_DEV, eqpt = NO_DEV;
 	uint8_t  have_mode = 0, err_dma = 0;
 	uint8_t  chksum = 0;
 	uint32_t ll, mm, nn, oo;
-	__u64 bbbig; /* (:) */
+	uint64_t bbbig; /* (:) */
+	const char *strng;
+#if BB_BIG_ENDIAN
+	uint16_t buf[256];
 
-	if (id_supplied)
-	{
-#if __BYTE_ORDER == __BIG_ENDIAN
-		swab(id_supplied, val, sizeof(val));
-#else
-		memcpy(val, id_supplied, sizeof(val));
+	// Adjust for endianness
+	swab(val, buf, sizeof(buf));
+	val = buf;
 #endif
-	}
-	else
-	{
-		id_file = xcalloc(1, strlen(devname)+22);
-		sprintf(id_file, "/proc/ide/%s/identify", devname);
-		/* open the file, read in all the info and close it */
-		if (id_file == NULL)
-			fl = stdin;
-		else
-			fl = bb_xfopen(id_file, "r");
-
-		/* calculate checksum over all bytes */
-		for(ii = GEN_CONFIG; ii<=INTEGRITY; ii++)
-		{
-			unsigned int scratch;
-			if(1 != fscanf(fl,"%04x",&scratch))
-				break;
-			val[ii] = (uint16_t)scratch;
-			chksum += val[ii] + (val[ii] >> 8);
-		}
-		fclose(fl);
-		/*bb_fclose_nonstdin(fl);*/
-		if(ii < (INTEGRITY+1))
-			bb_error_msg_and_die("Input file wrong format or length");
-	}
-	chksum &= 0xff;
-
-	/* check if we recognise the device type */
-	printf("\n");
-	if(!(val[GEN_CONFIG] & NOT_ATA))
-	{
+	/* check if we recognize the device type */
+	bb_putchar('\n');
+	if (!(val[GEN_CONFIG] & NOT_ATA)) {
 		dev = ATA_DEV;
 		printf("ATA device, with ");
-	}
-	else if(val[GEN_CONFIG]==CFA_SUPPORT_VAL)
-	{
+	} else if (val[GEN_CONFIG]==CFA_SUPPORT_VAL) {
 		dev = ATA_DEV;
 		like_std = 4;
 		printf("CompactFlash ATA device, with ");
-	}
-	else if(!(val[GEN_CONFIG] & NOT_ATAPI))
-	{
+	} else if (!(val[GEN_CONFIG] & NOT_ATAPI)) {
 		dev = ATAPI_DEV;
 		eqpt = (val[GEN_CONFIG] & EQPT_TYPE) >> SHIFT_EQPT;
-		printf("ATAPI %s, with ", pkt_str[eqpt]);
+		printf("ATAPI %s, with ", eqpt <= 0xf ? nth_string(pkt_str, eqpt) : "unknown");
 		like_std = 3;
-	}
-	else
-		/*"Unknown device type:\n\tbits 15&14 of general configuration word 0 both set to 1.\n"*/
-		bb_error_msg_and_die("Unknown device type");
+	} else
+		/* "Unknown device type:\n\tbits 15&14 of general configuration word 0 both set to 1.\n" */
+		bb_error_msg_and_die("unknown device type");
 
-	if_printf(!(val[GEN_CONFIG] & MEDIA_REMOVABLE),"non-");
-	printf("removable media\n");
-
+	printf("%sremovable media\n", !(val[GEN_CONFIG] & MEDIA_REMOVABLE) ? "non-" : "");
 	/* Info from the specific configuration word says whether or not the
 	 * ID command completed correctly.  It is only defined, however in
 	 * ATA/ATAPI-5 & 6; it is reserved (value theoretically 0) in prior
@@ -705,14 +706,14 @@ static void identify (uint16_t *id_supplied, const char *devname)
 	 * specific, it should be safe to check it now, even though we don't
 	 * know yet what standard this device is using.
 	 */
-	if((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==STBY_ID_VAL) ||
-	   (val[CONFIG]==PWRD_NID_VAL) || (val[CONFIG]==PWRD_ID_VAL) )
-	{
+	if ((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==STBY_ID_VAL)
+	 || (val[CONFIG]==PWRD_NID_VAL) || (val[CONFIG]==PWRD_ID_VAL)
+	) {
 		like_std = 5;
-		if_printf(((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==STBY_ID_VAL)),
-					"powers-up in standby; SET FEATURES subcmd spins-up.\n");
-		if_printf((((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==PWRD_NID_VAL)) && (val[GEN_CONFIG] & INCOMPLETE)),
-					"\n\tWARNING: ID response incomplete.\n\tFollowing data may be incorrect.\n\n");
+		if ((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==STBY_ID_VAL))
+			printf("powers-up in standby; SET FEATURES subcmd spins-up.\n");
+		if (((val[CONFIG]==STBY_NID_VAL) || (val[CONFIG]==PWRD_NID_VAL)) && (val[GEN_CONFIG] & INCOMPLETE))
+			printf("\n\tWARNING: ID response incomplete.\n\tFollowing data may be incorrect.\n\n");
 	}
 
 	/* output the model and serial numbers and the fw revision */
@@ -725,560 +726,441 @@ static void identify (uint16_t *id_supplied, const char *devname)
 	/* major & minor standards version number (Note: these words were not
 	 * defined until ATA-3 & the CDROM std uses different words.) */
 	printf("Standards:");
-	if(eqpt != CDROM)
-	{
-		if(val[MINOR] && (val[MINOR] <= MINOR_MAX))
-		{
-			like_std=check_if_min_and_set_val(like_std, 3);
+	if (eqpt != CDROM) {
+		if (val[MINOR] && (val[MINOR] <= MINOR_MAX)) {
+			if (like_std < 3) like_std = 3;
 			std = actual_ver[val[MINOR]];
-			if_printf(std,"\n\tUsed: %s ",minor_str[val[MINOR]]);
+			if (std) printf("\n\tUsed: %s ", nth_string(minor_str, val[MINOR]));
 
 		}
 		/* looks like when they up-issue the std, they obsolete one;
 		 * thus, only the newest 4 issues need be supported. (That's
 		 * what "kk" and "min_std" are all about.) */
-		if(val[MAJOR] && (val[MAJOR] !=NOVAL_1))
-		{
+		if (val[MAJOR] && (val[MAJOR] != NOVAL_1)) {
 			printf("\n\tSupported: ");
 			jj = val[MAJOR] << 1;
 			kk = like_std >4 ? like_std-4: 0;
-			for(ii = 14; (ii >0)&&(ii>kk); ii--)
-			{
-				if(jj & 0x8000)
-				{
+			for (ii = 14; (ii >0)&&(ii>kk); ii--) {
+				if (jj & 0x8000) {
 					printf("%u ", ii);
-					if(like_std < ii)
-					{
+					if (like_std < ii) {
 						like_std = ii;
 						kk = like_std >4 ? like_std-4: 0;
 					}
-					min_std=check_if_maj_and_set_val(min_std, ii);
+					if (min_std > ii) min_std = ii;
 				}
 				jj <<= 1;
 			}
-			like_std=check_if_min_and_set_val(like_std, 3);
+			if (like_std < 3) like_std = 3;
 		}
 		/* Figure out what standard the device is using if it hasn't told
 		 * us.  If we know the std, check if the device is using any of
 		 * the words from the next level up.  It happens.
 		 */
-		like_std=check_if_min_and_set_val(like_std, std);
+		if (like_std < std) like_std = std;
 
-		if(((std == 5) || (!std && (like_std < 6))) &&
+		if (((std == 5) || (!std && (like_std < 6))) &&
 			((((val[CMDS_SUPP_1] & VALID) == VALID_VAL) &&
 			((	val[CMDS_SUPP_1] & CMDS_W83) > 0x00ff)) ||
 			(((	val[CMDS_SUPP_2] & VALID) == VALID_VAL) &&
-			(	val[CMDS_SUPP_2] & CMDS_W84) ) ) )
-		{
+			(	val[CMDS_SUPP_2] & CMDS_W84) ) )
+		) {
 			like_std = 6;
-		}
-		else if(((std == 4) || (!std && (like_std < 5))) &&
-			((((val[INTEGRITY] 	& SIG) == SIG_VAL) && !chksum) ||
+		} else if (((std == 4) || (!std && (like_std < 5))) &&
+			((((val[INTEGRITY]	& SIG) == SIG_VAL) && !chksum) ||
 			((	val[HWRST_RSLT] & VALID) == VALID_VAL) ||
 			(((	val[CMDS_SUPP_1] & VALID) == VALID_VAL) &&
 			((	val[CMDS_SUPP_1] & CMDS_W83) > 0x001f)) ) )
 		{
 			like_std = 5;
-		}
-		else if(((std == 3) || (!std && (like_std < 4))) &&
+		} else if (((std == 3) || (!std && (like_std < 4))) &&
 				((((val[CMDS_SUPP_1] & VALID) == VALID_VAL) &&
 				(((	val[CMDS_SUPP_1] & CMDS_W83) > 0x0000) ||
 				((	val[CMDS_SUPP_0] & CMDS_W82) > 0x000f))) ||
 				((	val[CAPAB_1] & VALID) == VALID_VAL) ||
 				((	val[WHATS_VALID] & OK_W88) && val[ULTRA_DMA]) ||
-				((	val[RM_STAT] & RM_STAT_BITS) == RM_STAT_SUP) ) )
-		{
+				((	val[RM_STAT] & RM_STAT_BITS) == RM_STAT_SUP) )
+		) {
 			like_std = 4;
-		}
-		else if(((std == 2) || (!std && (like_std < 3))) &&
-			   ((val[CMDS_SUPP_1] & VALID) == VALID_VAL) )
-		{
+		} else if (((std == 2) || (!std && (like_std < 3)))
+		 && ((val[CMDS_SUPP_1] & VALID) == VALID_VAL)
+		) {
 			like_std = 3;
-		}
-		else if(((std == 1) || (!std && (like_std < 2))) &&
+		} else if (((std == 1) || (!std && (like_std < 2))) &&
 				((val[CAPAB_0] & (IORDY_SUP | IORDY_OFF)) ||
 				(val[WHATS_VALID] & OK_W64_70)) )
 		{
 			like_std = 2;
 		}
-		if(!std)
-			printf("\n\tLikely used: %u\n",like_std);
-		else if(like_std > std)
-		 	printf("& some of %u\n",like_std);
+
+		if (!std)
+			printf("\n\tLikely used: %u\n", like_std);
+		else if (like_std > std)
+			printf("& some of %u\n", like_std);
 		else
-			printf("\n");
-	}
-	else
-	{
+			bb_putchar('\n');
+	} else {
 		/* TBD: do CDROM stuff more thoroughly.  For now... */
-	  	kk = 0;
-		if(val[CDR_MINOR] == 9)
-		{
+		kk = 0;
+		if (val[CDR_MINOR] == 9) {
 			kk = 1;
 			printf("\n\tUsed: ATAPI for CD-ROMs, SFF-8020i, r2.5");
 		}
-		if(val[CDR_MAJOR] && (val[CDR_MAJOR] !=NOVAL_1))
-		{
+		if (val[CDR_MAJOR] && (val[CDR_MAJOR] !=NOVAL_1)) {
 			kk = 1;
 			printf("\n\tSupported: CD-ROM ATAPI");
 			jj = val[CDR_MAJOR] >> 1;
-			for(ii = 1; ii <15; ii++)
-			{
-				if_printf((jj & 0x0001),"-%u ", ii);
+			for (ii = 1; ii < 15; ii++) {
+				if (jj & 0x0001) printf("-%u ", ii);
 				jj >>= 1;
 			}
 		}
-		if_else_printf((!kk),"\n\tLikely used CD-ROM ATAPI-1\n","\n");
+		puts(kk ? "" : "\n\tLikely used CD-ROM ATAPI-1");
 		/* the cdrom stuff is more like ATA-2 than anything else, so: */
 		like_std = 2;
 	}
 
-	if(min_std == 0xffff)
+	if (min_std == 0xffff)
 		min_std = like_std > 4 ? like_std - 3 : 1;
 
 	printf("Configuration:\n");
 	/* more info from the general configuration word */
-	if((eqpt != CDROM) && (like_std == 1))
-	{
+	if ((eqpt != CDROM) && (like_std == 1)) {
 		jj = val[GEN_CONFIG] >> 1;
-		for(ii = 1; ii < 15; ii++)
-		{
-			if_printf((jj & 0x0001),"\t%s\n",ata1_cfg_str[ii]);
+		for (ii = 1; ii < 15; ii++) {
+			if (jj & 0x0001)
+				printf("\t%s\n", nth_string(ata1_cfg_str, ii));
 			jj >>=1;
 		}
 	}
-	if(dev == ATAPI_DEV)
-	{
-		printf("\tDRQ response: "); /* Data Request (DRQ) */
-		switch(val[GEN_CONFIG] & DRQ_RESPONSE_TIME)
-		{
-			case DRQ_3MS_VAL :
-				printf("3ms.\n");
-				break;
-			case DRQ_INTR_VAL :
-				printf("<=10ms with INTRQ\n");
-				break;
-			case DRQ_50US_VAL :
-				printf("50us.\n");
-				break;
-			default :
-				printf("unknown.\n");
-				break;
-		}
-		printf("\tPacket size: ");
-		switch(val[GEN_CONFIG] & PKT_SIZE_SUPPORTED)
-		{
-			case PKT_SIZE_12_VAL :
-				printf("12 bytes\n");
-				break;
-			case PKT_SIZE_16_VAL :
-				printf("16 bytes\n");
-				break;
-			default :
-				printf("Unknown\n");
-				break;
-		}
-	}
-	else
-	{
+	if (dev == ATAPI_DEV) {
+		if ((val[GEN_CONFIG] & DRQ_RESPONSE_TIME) ==  DRQ_3MS_VAL)
+			strng = "3ms";
+		else if ((val[GEN_CONFIG] & DRQ_RESPONSE_TIME) ==  DRQ_INTR_VAL)
+			strng = "<=10ms with INTRQ";
+		else if ((val[GEN_CONFIG] & DRQ_RESPONSE_TIME) ==  DRQ_50US_VAL)
+			strng ="50us";
+		else
+			strng = "unknown";
+		printf("\tDRQ response: %s\n\tPacket size: ", strng); /* Data Request (DRQ) */
+
+		if ((val[GEN_CONFIG] & PKT_SIZE_SUPPORTED) == PKT_SIZE_12_VAL)
+			strng = "12 bytes";
+		else if ((val[GEN_CONFIG] & PKT_SIZE_SUPPORTED) == PKT_SIZE_16_VAL)
+			strng = "16 bytes";
+		else
+			strng = "unknown";
+		puts(strng);
+	} else {
 		/* addressing...CHS? See section 6.2 of ATA specs 4 or 5 */
 		ll = (uint32_t)val[LBA_SECTS_MSB] << 16 | val[LBA_SECTS_LSB];
-		mm = 0; bbbig = 0;
-		if ( (ll > 0x00FBFC10) && (!val[LCYLS]))
-		  	printf("\tCHS addressing not supported\n");
-		else
-		{
+		mm = 0;
+		bbbig = 0;
+		if ((ll > 0x00FBFC10) && (!val[LCYLS]))
+			printf("\tCHS addressing not supported\n");
+		else {
 			jj = val[WHATS_VALID] & OK_W54_58;
-			printf("\tLogical\t\tmax\tcurrent\n\tcylinders\t%u\t%u\n\theads\t\t%u\t%u\n\tsectors/track\t%u\t%u\n\t--\n",
-					val[LCYLS],jj?val[LCYLS_CUR]:0, val[LHEADS],jj?val[LHEADS_CUR]:0, val[LSECTS],jj?val[LSECTS_CUR]:0);
+			printf("\tLogical\t\tmax\tcurrent\n"
+				"\tcylinders\t%u\t%u\n"
+				"\theads\t\t%u\t%u\n"
+				"\tsectors/track\t%u\t%u\n"
+				"\t--\n",
+				val[LCYLS],
+				jj ? val[LCYLS_CUR] : 0,
+				val[LHEADS],
+				jj ? val[LHEADS_CUR] : 0,
+				val[LSECTS],
+				jj ? val[LSECTS_CUR] : 0);
 
-			if_printf(((min_std == 1) && (val[TRACK_BYTES] || val[SECT_BYTES])),
-						"\tbytes/track: %u\tbytes/sector: %u\n",val[TRACK_BYTES], val[SECT_BYTES]);
+			if ((min_std == 1) && (val[TRACK_BYTES] || val[SECT_BYTES]))
+				printf("\tbytes/track: %u\tbytes/sector: %u\n",
+					val[TRACK_BYTES], val[SECT_BYTES]);
 
-			if(jj)
-			{
+			if (jj) {
 				mm = (uint32_t)val[CAPACITY_MSB] << 16 | val[CAPACITY_LSB];
-				if(like_std < 3)
-				{
-					 /* check Endian of capacity bytes */
+				if (like_std < 3) {
+					/* check Endian of capacity bytes */
 					nn = val[LCYLS_CUR] * val[LHEADS_CUR] * val[LSECTS_CUR];
 					oo = (uint32_t)val[CAPACITY_LSB] << 16 | val[CAPACITY_MSB];
-					if(abs(mm - nn) > abs(oo - nn))
+					if (abs(mm - nn) > abs(oo - nn))
 						mm = oo;
 				}
-				printf("\tCHS current addressable sectors:%11u\n",mm);
+				printf("\tCHS current addressable sectors:%11u\n", mm);
 			}
 		}
 		/* LBA addressing */
-		printf("\tLBA    user addressable sectors:%11u\n",ll);
-		if( ((val[CMDS_SUPP_1] & VALID) == VALID_VAL) &&
-		     (val[CMDS_SUPP_1] & SUPPORT_48_BIT) )
-		{
-			bbbig = (__u64)val[LBA_64_MSB] 	<< 48 |
-			        (__u64)val[LBA_48_MSB] 	<< 32 |
-			        (__u64)val[LBA_MID] 	<< 16 |
-					val[LBA_LSB] ;
-			printf("\tLBA48  user addressable sectors:%11llu\n",bbbig);
+		printf("\tLBA    user addressable sectors:%11u\n", ll);
+		if (((val[CMDS_SUPP_1] & VALID) == VALID_VAL)
+		 && (val[CMDS_SUPP_1] & SUPPORT_48_BIT)
+		) {
+			bbbig = (uint64_t)val[LBA_64_MSB] << 48 |
+			        (uint64_t)val[LBA_48_MSB] << 32 |
+			        (uint64_t)val[LBA_MID] << 16 |
+					val[LBA_LSB];
+			printf("\tLBA48  user addressable sectors:%11"PRIu64"\n", bbbig);
 		}
 
 		if (!bbbig)
-			bbbig = (__u64)(ll>mm ? ll : mm); /* # 512 byte blocks */
-		printf("\tdevice size with M = 1024*1024: %11llu MBytes\n",bbbig>>11);
-		bbbig = (bbbig<<9)/1000000;
-		printf("\tdevice size with M = 1000*1000: %11llu MBytes ",bbbig);
+			bbbig = (uint64_t)(ll>mm ? ll : mm); /* # 512 byte blocks */
+		printf("\tdevice size with M = 1024*1024: %11"PRIu64" MBytes\n", bbbig>>11);
+		bbbig = (bbbig << 9) / 1000000;
+		printf("\tdevice size with M = 1000*1000: %11"PRIu64" MBytes ", bbbig);
 
-		if_else_printf((bbbig > 1000),"(%llu GB)\n","\n",bbbig/1000);
-
+		if (bbbig > 1000)
+			printf("(%"PRIu64" GB)\n", bbbig/1000);
+		else
+			bb_putchar('\n');
 	}
 
 	/* hw support of commands (capabilities) */
 	printf("Capabilities:\n\t");
 
-	if(dev == ATAPI_DEV)
-	{
-		if(eqpt != CDROM)
-			if_printf((val[CAPAB_0] & CMD_Q_SUP),"Cmd queuing, ");
-
-		if_printf((val[CAPAB_0] & OVLP_SUP),"Cmd overlap, ");
+	if (dev == ATAPI_DEV) {
+		if (eqpt != CDROM && (val[CAPAB_0] & CMD_Q_SUP))
+			printf("Cmd queuing, ");
+		if (val[CAPAB_0] & OVLP_SUP)
+			printf("Cmd overlap, ");
 	}
-	if_printf((val[CAPAB_0] & LBA_SUP),"LBA, ");
+	if (val[CAPAB_0] & LBA_SUP) printf("LBA, ");
 
-	if(like_std != 1)
-	{
-		printf("IORDY");
-		if_printf((!(val[CAPAB_0] & IORDY_SUP)),"(may be)");
-		if_else_printf((val[CAPAB_0] & IORDY_OFF),"(can","(cannot");
-		printf(" be disabled)\n");
-	}
-	else
+	if (like_std != 1) {
+		printf("IORDY%s(can%s be disabled)\n",
+			!(val[CAPAB_0] & IORDY_SUP) ? "(may be)" : "",
+			(val[CAPAB_0] & IORDY_OFF) ? "" :"not");
+	} else
 		printf("no IORDY\n");
 
-	if((like_std == 1) && val[BUF_TYPE])
-	{
-		kk = val[BUF_TYPE];
-		printf("\tBuffer type: %04x: ",kk);
-		if_else_printf((kk < 2),"single port, single-sector","dual port, multi-sector");
-		if_printf((kk > 2)," with read caching ability");
-		printf("\n");
+	if ((like_std == 1) && val[BUF_TYPE]) {
+		printf("\tBuffer type: %04x: %s%s\n", val[BUF_TYPE],
+			(val[BUF_TYPE] < 2) ? "single port, single-sector" : "dual port, multi-sector",
+			(val[BUF_TYPE] > 2) ? " with read caching ability" : "");
 	}
-	jj = 0;
-	if((min_std == 1) && (val[BUFFER__SIZE] && (val[BUFFER__SIZE] != NOVAL_1)))
-	{
-		printf("\tBuffer size: %.1fkB",(float)val[BUFFER__SIZE]/2);
-		jj = 1;
-	}
-	if((min_std < 4) && (val[RW_LONG]))
-	{
-		printf("\tbytes avail on r/w long: %u",val[RW_LONG]);
-		jj = 1;
-	}
-	if((eqpt != CDROM) && (like_std > 3))
-	{
-		printf("\tQueue depth: %u",(val[QUEUE_DEPTH] & DEPTH_BITS)+1);
-		jj = 1;
-	}
-	if_printf(jj,"\n");
 
-	if(dev == ATA_DEV)
-	{
-		if(like_std == 1)
-			printf("\tCan%s perform double-word IO\n",(!val[DWORD_IO]) ?"not":"");
-		else
-		{
-			printf("\tStandby timer values: spec'd by ");
-			if_else_printf((val[CAPAB_0] & STD_STBY),"Standard","Vendor");
-			if((like_std > 3) && ((val[CAPAB_1] & VALID) == VALID_VAL))
-				printf(", %s device specific minimum\n",(val[CAPAB_1] & MIN_STANDBY_TIMER)?"with":"no");
+	if ((min_std == 1) && (val[BUFFER__SIZE] && (val[BUFFER__SIZE] != NOVAL_1))) {
+		printf("\tBuffer size: %.1fkB\n", (float)val[BUFFER__SIZE]/2);
+	}
+	if ((min_std < 4) && (val[RW_LONG])) {
+		printf("\tbytes avail on r/w long: %u\n", val[RW_LONG]);
+	}
+	if ((eqpt != CDROM) && (like_std > 3)) {
+		printf("\tQueue depth: %u\n", (val[QUEUE_DEPTH] & DEPTH_BITS) + 1);
+	}
+
+	if (dev == ATA_DEV) {
+		if (like_std == 1)
+			printf("\tCan%s perform double-word IO\n", (!val[DWORD_IO]) ? "not" : "");
+		else {
+			printf("\tStandby timer values: spec'd by %s",
+				(val[CAPAB_0] & STD_STBY) ? "standard" : "vendor");
+			if ((like_std > 3) && ((val[CAPAB_1] & VALID) == VALID_VAL))
+				printf(", %s device specific minimum\n",
+					(val[CAPAB_1] & MIN_STANDBY_TIMER) ? "with" : "no");
 			else
-			  printf("\n");
+				bb_putchar('\n');
 		}
 		printf("\tR/W multiple sector transfer: ");
-		if((like_std < 3) && !(val[SECTOR_XFER_MAX] & SECTOR_XFER))
+		if ((like_std < 3) && !(val[SECTOR_XFER_MAX] & SECTOR_XFER))
 			printf("not supported\n");
-		else
-		{
-			printf("Max = %u\tCurrent = ",val[SECTOR_XFER_MAX] & SECTOR_XFER);
-			if_else_printf((val[SECTOR_XFER_CUR] & MULTIPLE_SETTING_VALID),
-							"%u\n","?\n",val[SECTOR_XFER_CUR] & SECTOR_XFER);
+		else {
+			printf("Max = %u\tCurrent = ", val[SECTOR_XFER_MAX] & SECTOR_XFER);
+			if (val[SECTOR_XFER_CUR] & MULTIPLE_SETTING_VALID)
+				printf("%u\n", val[SECTOR_XFER_CUR] & SECTOR_XFER);
+			else
+				printf("?\n");
 		}
-		if((like_std > 3) && (val[CMDS_SUPP_1] & 0x0008))
-		{
+		if ((like_std > 3) && (val[CMDS_SUPP_1] & 0x0008)) {
 			/* We print out elsewhere whether the APM feature is enabled or
 			   not.  If it's not enabled, let's not repeat the info; just print
 			   nothing here. */
 			printf("\tAdvancedPM level: ");
-			if ( (val[ADV_PWR] & 0xFF00) == 0x4000 )
-			{
+			if ((val[ADV_PWR] & 0xFF00) == 0x4000) {
 				uint8_t apm_level = val[ADV_PWR] & 0x00FF;
 				printf("%u (0x%x)\n", apm_level, apm_level);
 			}
 			else
 				printf("unknown setting (0x%04x)\n", val[ADV_PWR]);
 		}
-		if(like_std > 5)
-		{
-			if_printf(val[ACOUSTIC],"\tRecommended acoustic management value: %u, current value: %u\n",
-									(val[ACOUSTIC] >> 8) & 0x00ff, val[ACOUSTIC] & 0x00ff);
+		if (like_std > 5 && val[ACOUSTIC]) {
+			printf("\tRecommended acoustic management value: %u, current value: %u\n",
+				(val[ACOUSTIC] >> 8) & 0x00ff,
+				val[ACOUSTIC] & 0x00ff);
 		}
-	}
-	else
-	{
+	} else {
 		 /* ATAPI */
-		if(eqpt != CDROM)
-			if_printf((val[CAPAB_0] & SWRST_REQ),"\tATA sw reset required\n");
+		if (eqpt != CDROM && (val[CAPAB_0] & SWRST_REQ))
+			printf("\tATA sw reset required\n");
 
-		if(val[PKT_REL] || val[SVC_NBSY])
-		{
+		if (val[PKT_REL] || val[SVC_NBSY]) {
 			printf("\tOverlap support:");
-			if_printf(val[PKT_REL]," %uus to release bus.",val[PKT_REL]);
-			if_printf(val[SVC_NBSY]," %uus to clear BSY after SERVICE cmd.",val[SVC_NBSY]);
-			printf("\n");
+			if (val[PKT_REL])
+				printf(" %uus to release bus.", val[PKT_REL]);
+			if (val[SVC_NBSY])
+				printf(" %uus to clear BSY after SERVICE cmd.",
+					val[SVC_NBSY]);
+			bb_putchar('\n');
 		}
 	}
 
 	/* DMA stuff. Check that only one DMA mode is selected. */
 	printf("\tDMA: ");
-	if(!(val[CAPAB_0] & DMA_SUP))
+	if (!(val[CAPAB_0] & DMA_SUP))
 		printf("not supported\n");
-	else
-	{
-		if_printf((val[DMA_MODE] && !val[SINGLE_DMA] && !val[MULTI_DMA]),
-					" sdma%u\n",(val[DMA_MODE] & MODE) >> 8);
-		if(val[SINGLE_DMA])
-		{
+	else {
+		if (val[DMA_MODE] && !val[SINGLE_DMA] && !val[MULTI_DMA])
+			printf(" sdma%u\n", (val[DMA_MODE] & MODE) >> 8);
+		if (val[SINGLE_DMA]) {
 			jj = val[SINGLE_DMA];
 			kk = val[SINGLE_DMA] >> 8;
-			err_dma += mode_loop(jj,kk,'s',&have_mode);
+			err_dma += mode_loop(jj, kk, 's', &have_mode);
 		}
-		if(val[MULTI_DMA])
-		{
+		if (val[MULTI_DMA]) {
 			jj = val[MULTI_DMA];
 			kk = val[MULTI_DMA] >> 8;
-			err_dma += mode_loop(jj,kk,'m',&have_mode);
+			err_dma += mode_loop(jj, kk, 'm', &have_mode);
 		}
-		if((val[WHATS_VALID] & OK_W88) && val[ULTRA_DMA])
-		{
+		if ((val[WHATS_VALID] & OK_W88) && val[ULTRA_DMA]) {
 			jj = val[ULTRA_DMA];
 			kk = val[ULTRA_DMA] >> 8;
-			err_dma += mode_loop(jj,kk,'u',&have_mode);
+			err_dma += mode_loop(jj, kk, 'u', &have_mode);
 		}
-		if_printf((err_dma || !have_mode),"(?)");
-		printf("\n");
+		if (err_dma || !have_mode) printf("(?)");
+		bb_putchar('\n');
 
-		if_printf(((dev == ATAPI_DEV) && (eqpt != CDROM) && (val[CAPAB_0] & DMA_IL_SUP)),
-					"\t     Interleaved DMA support\n");
+		if ((dev == ATAPI_DEV) && (eqpt != CDROM) && (val[CAPAB_0] & DMA_IL_SUP))
+			printf("\t\tInterleaved DMA support\n");
 
-		if((val[WHATS_VALID] & OK_W64_70) &&
-		   (val[DMA_TIME_MIN] || val[DMA_TIME_NORM]))
-		{
-			printf("\t     Cycle time:");
-			if_printf(val[DMA_TIME_MIN]," min=%uns",val[DMA_TIME_MIN]);
-			if_printf(val[DMA_TIME_NORM]," recommended=%uns",val[DMA_TIME_NORM]);
-			printf("\n");
+		if ((val[WHATS_VALID] & OK_W64_70)
+		 && (val[DMA_TIME_MIN] || val[DMA_TIME_NORM])
+		) {
+			printf("\t\tCycle time:");
+			if (val[DMA_TIME_MIN]) printf(" min=%uns", val[DMA_TIME_MIN]);
+			if (val[DMA_TIME_NORM]) printf(" recommended=%uns", val[DMA_TIME_NORM]);
+			bb_putchar('\n');
 		}
 	}
 
 	/* Programmed IO stuff */
 	printf("\tPIO: ");
-        /* If a drive supports mode n (e.g. 3), it also supports all modes less
+	/* If a drive supports mode n (e.g. 3), it also supports all modes less
 	 * than n (e.g. 3, 2, 1 and 0).  Print all the modes. */
-	if((val[WHATS_VALID] & OK_W64_70) && (val[ADV_PIO_MODES] & PIO_SUP))
-	{
+	if ((val[WHATS_VALID] & OK_W64_70) && (val[ADV_PIO_MODES] & PIO_SUP)) {
 		jj = ((val[ADV_PIO_MODES] & PIO_SUP) << 3) | 0x0007;
-		for(ii = 0; ii <= PIO_MODE_MAX ; ii++)
-		{
-			if_printf((jj & 0x0001),"pio%d ",ii);
+		for (ii = 0; ii <= PIO_MODE_MAX; ii++) {
+			if (jj & 0x0001) printf("pio%d ", ii);
 			jj >>=1;
 		}
-		printf("\n");
-	}
-	else if(((min_std < 5) || (eqpt == CDROM)) && (val[PIO_MODE] & MODE) )
-	{
-		for(ii = 0; ii <= val[PIO_MODE]>>8; ii++)
-			printf("pio%d ",ii);
-		printf("\n");
-	}
-	else
-		printf("unknown\n");
+		bb_putchar('\n');
+	} else if (((min_std < 5) || (eqpt == CDROM)) && (val[PIO_MODE] & MODE)) {
+		for (ii = 0; ii <= val[PIO_MODE]>>8; ii++)
+			printf("pio%d ", ii);
+		bb_putchar('\n');
+	} else
+		puts("unknown");
 
-	if(val[WHATS_VALID] & OK_W64_70)
-	{
-		if(val[PIO_NO_FLOW] || val[PIO_FLOW])
-		{
-			printf("\t     Cycle time:");
-			if_printf(val[PIO_NO_FLOW]," no flow control=%uns", val[PIO_NO_FLOW]);
-			if_printf(val[PIO_FLOW],"  IORDY flow control=%uns", val[PIO_FLOW]);
-			printf("\n");
+	if (val[WHATS_VALID] & OK_W64_70) {
+		if (val[PIO_NO_FLOW] || val[PIO_FLOW]) {
+			printf("\t\tCycle time:");
+			if (val[PIO_NO_FLOW])
+				printf(" no flow control=%uns", val[PIO_NO_FLOW]);
+			if (val[PIO_FLOW])
+				printf("  IORDY flow control=%uns", val[PIO_FLOW]);
+			bb_putchar('\n');
 		}
 	}
 
-	if((val[CMDS_SUPP_1] & VALID) == VALID_VAL)
-	{
-		printf("Commands/features:\n\tEnabled\tSupported:\n");
+	if ((val[CMDS_SUPP_1] & VALID) == VALID_VAL) {
+		printf("Commands/features:\n"
+			"\tEnabled\tSupported:\n");
 		jj = val[CMDS_SUPP_0];
 		kk = val[CMDS_EN_0];
-		for(ii = 0; ii < NUM_CMD_FEAT_STR; ii++)
-		{
-			if((jj & 0x8000) && (*cmd_feat_str[ii] != '\0'))
-			{
-				if_else_printf((kk & 0x8000),"\t   *","\t");
-				printf("\t%s\n",cmd_feat_str[ii]);
+		for (ii = 0; ii < NUM_CMD_FEAT_STR; ii++) {
+			const char *feat_str = nth_string(cmd_feat_str, ii);
+			if ((jj & 0x8000) && (*feat_str != '\0')) {
+				printf("\t%s\t%s\n", (kk & 0x8000) ? "   *" : "", feat_str);
 			}
-			jj <<=1; kk<<=1;
-			if(ii%16 == 15)
-			{
+			jj <<= 1;
+			kk <<= 1;
+			if (ii % 16 == 15) {
 				jj = val[CMDS_SUPP_0+1+(ii/16)];
 				kk = val[CMDS_EN_0+1+(ii/16)];
 			}
-			if(ii == 31)
-			{
-				if((val[CMDS_SUPP_2] & VALID) != VALID_VAL)
+			if (ii == 31) {
+				if ((val[CMDS_SUPP_2] & VALID) != VALID_VAL)
 					ii +=16;
 			}
 		}
 	}
-	if_printf(((val[RM_STAT] & RM_STAT_BITS) == RM_STAT_SUP),
-				"\tRemovable Media Status Notification feature set supported\n");
-
+	/* Removable Media Status Notification feature set */
+	if ((val[RM_STAT] & RM_STAT_BITS) == RM_STAT_SUP)
+		printf("\t%s supported\n", nth_string(cmd_feat_str, 27));
 
 	/* security */
-	if((eqpt != CDROM) && (like_std > 3) &&
-	   (val[SECU_STATUS] || val[ERASE_TIME] || val[ENH_ERASE_TIME]))
-	{
-		printf("Security: \n");
-		if_printf((val[PSWD_CODE] && (val[PSWD_CODE] != NOVAL_1)),
-					"\tMaster password revision code = %u\n",val[PSWD_CODE]);
+	if ((eqpt != CDROM) && (like_std > 3)
+	 && (val[SECU_STATUS] || val[ERASE_TIME] || val[ENH_ERASE_TIME])
+	) {
+		printf("Security:\n");
+		if (val[PSWD_CODE] && (val[PSWD_CODE] != NOVAL_1))
+			printf("\tMaster password revision code = %u\n", val[PSWD_CODE]);
 		jj = val[SECU_STATUS];
-		if(jj)
-		{
-			for(ii = 0; ii < NUM_SECU_STR; ii++)
-			{
-				if_else_printf((!(jj & 0x0001)),"\tnot\t%s\n", "\t\t%s\n", secu_str[ii]);
+		if (jj) {
+			for (ii = 0; ii < NUM_SECU_STR; ii++) {
+				printf("\t%s\t%s\n",
+					(!(jj & 0x0001)) ? "not" : "",
+					nth_string(secu_str, ii));
 				jj >>=1;
 			}
-			if(val[SECU_STATUS] & SECU_ENABLED)
-			{
-				printf("\tSecurity level ");
-				if_else_printf((val[SECU_STATUS] & SECU_LEVEL),"maximum\n","high\n");
+			if (val[SECU_STATUS] & SECU_ENABLED) {
+				printf("\tSecurity level %s\n",
+					(val[SECU_STATUS] & SECU_LEVEL) ? "maximum" : "high");
 			}
 		}
 		jj =  val[ERASE_TIME]     & ERASE_BITS;
 		kk =  val[ENH_ERASE_TIME] & ERASE_BITS;
-		if(jj || kk)
-		{
-			printf("\t");
-			if_printf(jj,"%umin for SECURITY ERASE UNIT. ", jj==ERASE_BITS ? 508 : jj<<1);
-			if_printf(kk,"%umin for ENHANCED SECURITY ERASE UNIT.", kk==ERASE_BITS ? 508 : kk<<1);
-			printf("\n");
+		if (jj || kk) {
+			bb_putchar('\t');
+			if (jj) printf("%umin for %sSECURITY ERASE UNIT. ", jj==ERASE_BITS ? 508 : jj<<1, "");
+			if (kk) printf("%umin for %sSECURITY ERASE UNIT. ", kk==ERASE_BITS ? 508 : kk<<1, "ENHANCED ");
+			bb_putchar('\n');
 		}
 	}
 
 	/* reset result */
-	if((val[HWRST_RSLT] & VALID) == VALID_VAL)
-	{
-		printf("HW reset results:\n");
-		if_else_printf((val[HWRST_RSLT] & CBLID),"\tCBLID- above Vih\n","\tCBLID- below Vih\n");
-
-		if(val[HWRST_RSLT] & RST0)
-		{
-			printf("\tDevice num = 0");
-			jj = val[HWRST_RSLT];
-		}
+	jj = val[HWRST_RSLT];
+	if ((jj & VALID) == VALID_VAL) {
+		oo = (jj & RST0);
+		if (!oo)
+			jj >>= 8;
+		if ((jj & DEV_DET) == JUMPER_VAL)
+			strng = " determined by the jumper";
+		else if ((jj & DEV_DET) == CSEL_VAL)
+			strng = " determined by CSEL";
 		else
-		{
-			printf("\tDevice num = 1");
-			jj = val[HWRST_RSLT] >> 8;
-		}
-
-		if((jj & DEV_DET) == JUMPER_VAL)
-			printf(" determined by the jumper");
-		else if((jj & DEV_DET) == CSEL_VAL)
-			printf(" determined by CSEL");
-		printf("\n");
+			strng = "";
+		printf("HW reset results:\n"
+			"\tCBLID- %s Vih\n"
+			"\tDevice num = %i%s\n",
+			(val[HWRST_RSLT] & CBLID) ? "above" : "below",
+			!(oo), strng);
 	}
 
 	/* more stuff from std 5 */
-	if((like_std > 4) && (eqpt != CDROM))
-	{
-		if(val[CFA_PWR_MODE] & VALID_W160)
-		{
-			printf("CFA power mode 1:\n\t");
-			if_else_printf((val[CFA_PWR_MODE] & PWR_MODE_OFF),"disabled","enabled");
-
-			if_printf((val[CFA_PWR_MODE] & PWR_MODE_REQ)," and required by some commands");
-			printf("\n");
-
-			if_printf((val[CFA_PWR_MODE] & MAX_AMPS),"\tMaximum current = %uma\n",val[CFA_PWR_MODE] & MAX_AMPS);
+	if ((like_std > 4) && (eqpt != CDROM)) {
+		if (val[CFA_PWR_MODE] & VALID_W160) {
+			printf("CFA power mode 1:\n"
+				"\t%s%s\n",
+				(val[CFA_PWR_MODE] & PWR_MODE_OFF) ? "disabled" : "enabled",
+				(val[CFA_PWR_MODE] & PWR_MODE_REQ) ? " and required by some commands" : "");
+			if (val[CFA_PWR_MODE] & MAX_AMPS)
+				printf("\tMaximum current = %uma\n", val[CFA_PWR_MODE] & MAX_AMPS);
 		}
-		if((val[INTEGRITY] & SIG) == SIG_VAL)
-		{
-			printf("Checksum: ");
-			if_printf(chksum,"in");
-			printf("correct\n");
+		if ((val[INTEGRITY] & SIG) == SIG_VAL) {
+			printf("Checksum: %scorrect\n", chksum ? "in" : "");
 		}
 	}
 
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 #endif
-
-static int verbose = 0, get_identity = 0, get_geom = 0, noisy = 1, quiet = 0;
-static int flagcount = 0, do_flush = 0, is_scsi_hd = 0, is_xt_hd = 0;
-static int do_ctimings, do_timings = 0;
-
-static unsigned long set_readahead= 0, get_readahead= 0, Xreadahead= 0;
-static unsigned long set_readonly = 0, get_readonly = 0, readonly = 0;
-static unsigned long set_unmask   = 0, get_unmask   = 0, unmask   = 0;
-static unsigned long set_mult     = 0, get_mult     = 0, mult     = 0;
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA
-static unsigned long set_dma      = 0, get_dma      = 0, dma      = 0;
-#endif
-static unsigned long set_dma_q	  = 0, get_dma_q    = 0, dma_q	  = 0;
-static unsigned long set_nowerr   = 0, get_nowerr   = 0, nowerr   = 0;
-static unsigned long set_keep     = 0, get_keep     = 0, keep     = 0;
-static unsigned long set_io32bit  = 0, get_io32bit  = 0, io32bit  = 0;
-static unsigned long set_piomode  = 0, noisy_piomode= 0;
-static int piomode = 0;
-#ifdef HDIO_DRIVE_CMD
-static unsigned long set_dkeep    = 0, get_dkeep    = 0, dkeep    = 0;
-static unsigned long set_standby  = 0, get_standby  = 0, standby_requested= 0;
-static unsigned long set_xfermode = 0, get_xfermode = 0;
-static int xfermode_requested= 0;
-static unsigned long set_lookahead= 0, get_lookahead= 0, lookahead= 0;
-static unsigned long set_prefetch = 0, get_prefetch = 0, prefetch = 0;
-static unsigned long set_defects  = 0, get_defects  = 0, defects  = 0;
-static unsigned long set_wcache   = 0, get_wcache   = 0, wcache   = 0;
-static unsigned long set_doorlock = 0, get_doorlock = 0, doorlock = 0;
-static unsigned long set_seagate  = 0, get_seagate  = 0;
-static unsigned long set_standbynow = 0, get_standbynow = 0;
-static unsigned long set_sleepnow   = 0, get_sleepnow   = 0;
-static unsigned long get_powermode  = 0;
-static unsigned long set_apmmode = 0, get_apmmode= 0, apmmode = 0;
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static int get_IDentity = 0;
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF
-static int	unregister_hwif = 0;
-static int	hwif = 0;
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_SCAN_HWIF
-static int	scan_hwif = 0;
-static int	hwif_data = 0;
-static int	hwif_ctrl = 0;
-static int	hwif_irq = 0;
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-static int	set_busstate = 0, get_busstate = 0, busstate = 0;
-#endif
-static int	reread_partn = 0;
-
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET
-static int	perform_reset = 0;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET */
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-static int	perform_tristate = 0,	tristate = 0;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF */
 
 // Historically, if there was no HDIO_OBSOLETE_IDENTITY, then
 // then the HDIO_GET_IDENTITY only returned 142 bytes.
@@ -1291,681 +1173,412 @@ static int	perform_tristate = 0,	tristate = 0;
 // On a really old system, it will not, and we will be confused.
 // Too bad, really.
 
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static const char *cfg_str[] =
-{	"",	     " HardSect",   " SoftSect",  " NotMFM",
-	" HdSw>15uSec", " SpinMotCtl", " Fixed",     " Removeable",
-	" DTR<=5Mbs",   " DTR>5Mbs",   " DTR>10Mbs", " RotSpdTol>.5%",
-	" dStbOff",     " TrkOff",     " FmtGapReq", " nonMagnetic"
-};
+#if ENABLE_FEATURE_HDPARM_GET_IDENTITY
+static const char cfg_str[] ALIGN1 =
+	"""\0"            "HardSect""\0"   "SoftSect""\0"  "NotMFM""\0"
+	"HdSw>15uSec""\0" "SpinMotCtl""\0" "Fixed""\0"     "Removeable""\0"
+	"DTR<=5Mbs""\0"   "DTR>5Mbs""\0"   "DTR>10Mbs""\0" "RotSpdTol>.5%""\0"
+	"dStbOff""\0"     "TrkOff""\0"     "FmtGapReq""\0" "nonMagnetic"
+;
 
-static const char *BuffType[]	= {"unknown", "1Sect", "DualPort", "DualPortCache"};
+static const char BuffType[] ALIGN1 =
+	"unknown""\0"     "1Sect""\0"      "DualPort""\0"  "DualPortCache"
+;
 
-static void dump_identity (const struct hd_driveid *id)
+static NOINLINE void dump_identity(const struct hd_driveid *id)
 {
 	int i;
-	char pmodes[64] = {0,}, dmodes[128]={0,}, umodes[128]={0,};
-	const unsigned short int *id_regs= (const void*) id;
-	unsigned long capacity;
+	const unsigned short *id_regs = (const void*) id;
 
 	printf("\n Model=%.40s, FwRev=%.8s, SerialNo=%.20s\n Config={",
 				id->model, id->fw_rev, id->serial_no);
-	for (i=0; i<=15; i++)
-		if_printf((id->config & (1<<i)),"%s", cfg_str[i]);
-
-	printf(" }\n RawCHS=%u/%u/%u, TrkSize=%u, SectSize=%u, ECCbytes=%u\n",
-				id->cyls, id->heads, id->sectors, id->track_bytes,
-				id->sector_bytes, id->ecc_bytes);
-
-	if (id->buf_type > 3)
-		printf("%s%u", " BuffType=", id->buf_type);
-	else
-		printf("%s%s", " BuffType=", BuffType[id->buf_type]);
-
-	printf(", BuffSize=%ukB, MaxMultSect=%u", id->buf_size/2, id->max_multsect);
-	if (id->max_multsect)
-	{
+	for (i = 0; i <= 15; i++) {
+		if (id->config & (1<<i))
+			printf(" %s", nth_string(cfg_str, i));
+	}
+	printf(" }\n RawCHS=%u/%u/%u, TrkSize=%u, SectSize=%u, ECCbytes=%u\n"
+		" BuffType=(%u) %s, BuffSize=%ukB, MaxMultSect=%u",
+		id->cyls, id->heads, id->sectors, id->track_bytes,
+		id->sector_bytes, id->ecc_bytes,
+		id->buf_type,
+		nth_string(BuffType, (id->buf_type > 3) ? 0 : id->buf_type),
+		id->buf_size/2, id->max_multsect);
+	if (id->max_multsect) {
 		printf(", MultSect=");
-		if (!(id->multsect_valid&1))
+		if (!(id->multsect_valid & 1))
 			printf("?%u?", id->multsect);
 		else if (id->multsect)
 			printf("%u", id->multsect);
 		else
 			printf("off");
 	}
-	printf("\n");
-	if (id->tPIO <= 5)
-	{
-		strcat(pmodes, "pio0 ");
-		if_strcat((id->tPIO >= 1), pmodes, "pio1 ");
-		if_strcat((id->tPIO >= 2), pmodes, "pio2 ");
+	bb_putchar('\n');
 
+	if (!(id->field_valid & 1))
+		printf(" (maybe):");
+
+	printf(" CurCHS=%u/%u/%u, CurSects=%lu, LBA=%s", id->cur_cyls, id->cur_heads,
+		id->cur_sectors,
+		(BB_BIG_ENDIAN) ?
+			(unsigned long)(id->cur_capacity0 << 16) | id->cur_capacity1 :
+			(unsigned long)(id->cur_capacity1 << 16) | id->cur_capacity0,
+			((id->capability&2) == 0) ? "no" : "yes");
+
+	if (id->capability & 2)
+		printf(", LBAsects=%u", id->lba_capacity);
+
+	printf("\n IORDY=%s",
+		(id->capability & 8)
+			? ((id->capability & 4) ? "on/off" : "yes")
+			: "no");
+
+	if (((id->capability & 8) || (id->field_valid & 2)) && (id->field_valid & 2))
+		printf(", tPIO={min:%u,w/IORDY:%u}", id->eide_pio, id->eide_pio_iordy);
+
+	if ((id->capability & 1) && (id->field_valid & 2))
+		printf(", tDMA={min:%u,rec:%u}", id->eide_dma_min, id->eide_dma_time);
+
+	printf("\n PIO modes:  ");
+	if (id->tPIO <= 5) {
+		printf("pio0 ");
+		if (id->tPIO >= 1) printf("pio1 ");
+		if (id->tPIO >= 2) printf("pio2 ");
 	}
-	if_printf((!(id->field_valid&1))," (maybe):");
-#if __BYTE_ORDER == __BIG_ENDIAN
-	capacity = (id->cur_capacity0 << 16) | id->cur_capacity1;
-#else
-	capacity = (id->cur_capacity1 << 16) | id->cur_capacity0;
-#endif
-	printf(" CurCHS=%u/%u/%u, CurSects=%lu, LBA=%s",id->cur_cyls, id->cur_heads,
-								 					id->cur_sectors, capacity ,
-								 			((id->capability&2)==0)?"no":"yes");
-
-	if_printf((id->capability&2),", LBAsects=%u", id->lba_capacity);
-
-	if (id->capability&1)
-	{
-		if (id->dma_1word | id->dma_mword)
-		{
-			if_strcat((id->dma_1word & 0x100),	dmodes, "*");
-			if_strcat((id->dma_1word & 1),		dmodes, "sdma0 ");
-			if_strcat((id->dma_1word & 0x200),	dmodes, "*");
-			if_strcat((id->dma_1word & 2),		dmodes, "sdma1 ");
-			if_strcat((id->dma_1word & 0x400),	dmodes, "*");
-			if_strcat((id->dma_1word & 4), 		dmodes, "sdma2 ");
-			if_strcat((id->dma_1word & 0xf800),	dmodes, "*");
-			if_strcat((id->dma_1word & 0xf8),	dmodes, "sdma? ");
-			if_strcat((id->dma_mword & 0x100),	dmodes, "*");
-			if_strcat((id->dma_mword & 1),		dmodes, "mdma0 ");
-			if_strcat((id->dma_mword & 0x200),	dmodes, "*");
-			if_strcat((id->dma_mword & 2),		dmodes, "mdma1 ");
-			if_strcat((id->dma_mword & 0x400),	dmodes, "*");
-			if_strcat((id->dma_mword & 4),		dmodes, "mdma2 ");
-			if_strcat((id->dma_mword & 0xf800),	dmodes, "*");
-			if_strcat((id->dma_mword & 0xf8),	dmodes, "mdma? ");
+	if (id->field_valid & 2) {
+		static const masks_labels_t pio_modes = {
+			.masks = { 1, 2, ~3 },
+			.labels = "pio3 \0""pio4 \0""pio? \0",
+		};
+		print_flags(&pio_modes, id->eide_pio_modes);
+	}
+	if (id->capability & 1) {
+		if (id->dma_1word | id->dma_mword) {
+			static const int dma_wmode_masks[] = { 0x100, 1, 0x200, 2, 0x400, 4, 0xf800, 0xf8 };
+			printf("\n DMA modes:  ");
+			print_flags_separated(dma_wmode_masks,
+				"*\0""sdma0 \0""*\0""sdma1 \0""*\0""sdma2 \0""*\0""sdma? \0",
+				id->dma_1word, NULL);
+			print_flags_separated(dma_wmode_masks,
+				"*\0""mdma0 \0""*\0""mdma1 \0""*\0""mdma2 \0""*\0""mdma? \0",
+				id->dma_mword, NULL);
 		}
 	}
-	printf("\n IORDY=");
-	if (id->capability&8)
-		printf((id->capability&4) ? "on/off" : "yes");
-	else
-		printf("no");
+	if (((id->capability & 8) || (id->field_valid & 2)) && id->field_valid & 4) {
+		static const masks_labels_t ultra_modes1 = {
+			.masks = { 0x100, 0x001, 0x200, 0x002, 0x400, 0x004 },
+			.labels = "*\0""udma0 \0""*\0""udma1 \0""*\0""udma2 \0",
+		};
 
-	if ((id->capability&8) || (id->field_valid&2))
-	{
-		if (id->field_valid&2)
-		{
-			printf(", tPIO={min:%u,w/IORDY:%u}", id->eide_pio, id->eide_pio_iordy);
-			if_strcat((id->eide_pio_modes & 1), pmodes, "pio3 ");
-			if_strcat((id->eide_pio_modes & 2), pmodes, "pio4 ");
-			if_strcat((id->eide_pio_modes &~3), pmodes, "pio? ");
-		}
-		if (id->field_valid&4)
-		{
-			if_strcat((id->dma_ultra & 0x100),umodes,"*");
-			if_strcat((id->dma_ultra & 0x001),umodes,"udma0 ");
-			if_strcat((id->dma_ultra & 0x200),umodes,"*");
-			if_strcat((id->dma_ultra & 0x002),umodes,"udma1 ");
-			if_strcat((id->dma_ultra & 0x400),umodes,"*");
-			if_strcat((id->dma_ultra & 0x004),umodes,"udma2 ");
+		printf("\n UDMA modes: ");
+		print_flags(&ultra_modes1, id->dma_ultra);
 #ifdef __NEW_HD_DRIVE_ID
-			if (id->hw_config & 0x2000)
-			{
+		if (id->hw_config & 0x2000) {
 #else /* !__NEW_HD_DRIVE_ID */
-			if (id->word93 & 0x2000)
-			{
+		if (id->word93 & 0x2000) {
 #endif /* __NEW_HD_DRIVE_ID */
-				if_strcat((id->dma_ultra & 0x0800),umodes,"*");
-				if_strcat((id->dma_ultra & 0x0008),umodes,"udma3 ");
-				if_strcat((id->dma_ultra & 0x1000),umodes,"*");
-				if_strcat((id->dma_ultra & 0x0010),umodes,"udma4 ");
-				if_strcat((id->dma_ultra & 0x2000),umodes,"*");
-				if_strcat((id->dma_ultra & 0x0020),umodes,"udma5 ");
-				if_strcat((id->dma_ultra & 0x4000),umodes,"*");
-				if_strcat((id->dma_ultra & 0x0040),umodes,"udma6 ");
-				if_strcat((id->dma_ultra & 0x8000),umodes,"*");
-				if_strcat((id->dma_ultra & 0x0080),umodes,"udma7 ");
+			static const masks_labels_t ultra_modes2 = {
+				.masks = { 0x0800, 0x0008, 0x1000, 0x0010,
+					0x2000, 0x0020, 0x4000, 0x0040,
+					0x8000, 0x0080 },
+				.labels = "*\0""udma3 \0""*\0""udma4 \0"
+					"*\0""udma5 \0""*\0""udma6 \0"
+					"*\0""udma7 \0"
+			};
+			print_flags(&ultra_modes2, id->dma_ultra);
+		}
+	}
+	printf("\n AdvancedPM=%s", (!(id_regs[83] & 8)) ? "no" : "yes");
+	if (id_regs[83] & 8) {
+		if (!(id_regs[86] & 8))
+			printf(": disabled (255)");
+		else if ((id_regs[91] & 0xFF00) != 0x4000)
+			printf(": unknown setting");
+		else
+			printf(": mode=0x%02X (%u)", id_regs[91] & 0xFF, id_regs[91] & 0xFF);
+	}
+	if (id_regs[82] & 0x20)
+		printf(" WriteCache=%s", (id_regs[85] & 0x20) ? "enabled" : "disabled");
+#ifdef __NEW_HD_DRIVE_ID
+	if ((id->minor_rev_num && id->minor_rev_num <= 31)
+	 || (id->major_rev_num && id->minor_rev_num <= 31)
+	) {
+		printf("\n Drive conforms to: %s: ",
+			(id->minor_rev_num <= 31) ? nth_string(minor_str, id->minor_rev_num) : "unknown");
+		if (id->major_rev_num != 0x0000 /* NOVAL_0 */
+		 && id->major_rev_num != 0xFFFF /* NOVAL_1 */
+		) {
+			for (i = 0; i <= 15; i++) {
+				if (id->major_rev_num & (1<<i))
+					printf(" ATA/ATAPI-%u", i);
 			}
 		}
 	}
-	if_printf(((id->capability&1) && (id->field_valid&2)),
-				", tDMA={min:%u,rec:%u}", id->eide_dma_min, id->eide_dma_time);
-	printf("\n PIO modes:  %s", pmodes);
-	if_printf((*dmodes),"\n DMA modes:  %s", dmodes);
-	if_printf((*umodes),"\n UDMA modes: %s", umodes);
-
-	printf("\n AdvancedPM=%s",((id_regs[83]&8)==0)?"no":"yes");
-	if (id_regs[83] & 8)
-	{
-		if (!(id_regs[86]&8))
-			printf(": disabled (255)");
-		else if ((id_regs[91]&0xFF00)!=0x4000)
-			printf(": unknown setting");
-		else
-			printf(": mode=0x%02X (%u)",id_regs[91]&0xFF,id_regs[91]&0xFF);
-	}
-	if_printf( (id_regs[82]&0x20)," WriteCache=%s",(id_regs[85]&0x20) ? "enabled" : "disabled");
-#ifdef __NEW_HD_DRIVE_ID
-	if ((id->minor_rev_num && id->minor_rev_num <= 31) || (id->major_rev_num && id->minor_rev_num <= 31))
-	{
-		printf("\n Drive conforms to: ");
-		if_else_printf((id->minor_rev_num <= 31),"%s: ","unknown: ", minor_str[id->minor_rev_num]);
-		if (id->major_rev_num < 31)
-		{
-			for (i=0; i <= 15; i++)
-				if_printf((id->major_rev_num & (1<<i))," %u", i);
-		}
-	}
 #endif /* __NEW_HD_DRIVE_ID */
-	printf("\n\n * signifies the current active mode\n\n");
+	printf("\n\n * current active mode\n\n");
 }
 #endif
 
-static void flush_buffer_cache (int fd)
+static void flush_buffer_cache(/*int fd*/ void)
 {
-	fsync (fd);				/* flush buffers */
-	bb_ioctl(fd, BLKFLSBUF, NULL,"BLKFLSBUF" ) ;/* do it again, big time */
+	fsync(fd);				/* flush buffers */
+	ioctl_or_warn(fd, BLKFLSBUF, NULL); /* do it again, big time */
 #ifdef HDIO_DRIVE_CMD
 	sleep(1);
-	if (ioctl(fd, HDIO_DRIVE_CMD, NULL) && errno != EINVAL)	/* await completion */
+	if (ioctl(fd, HDIO_DRIVE_CMD, NULL) && errno != EINVAL) {	/* await completion */
+		if (ENABLE_IOCTL_HEX2STR_ERROR) /* To be coherent with ioctl_or_warn */
 			bb_perror_msg("HDIO_DRIVE_CMD");
+		else
+			bb_perror_msg("ioctl %#x failed", HDIO_DRIVE_CMD);
+	}
 #endif
 }
 
-static int seek_to_zero (int fd)
+static void seek_to_zero(/*int fd*/ void)
 {
-	if (lseek(fd, (off_t) 0, SEEK_SET))
-		return 1;
-	return 0;
+	xlseek(fd, (off_t) 0, SEEK_SET);
 }
 
-static int read_big_block (int fd, char *buf)
+static void read_big_block(/*int fd,*/ char *buf)
 {
+	int i;
 
-	const char *string;
-	int i, rc;
-	if ((rc = read(fd, buf, TIMING_BUF_BYTES)) != TIMING_BUF_BYTES)
-	{
-		switch(rc)
-		{
-			case -1:
-				string = "read()";
-				break;
-			case  0:
-				string = "read() hit EOF - device too small";
-				break;
-			default:
-				string = "read(%u) returned %u bytes";
-		}
-		bb_error_msg(string, TIMING_BUF_BYTES, rc);
-		return 1;
-	}
-
+	xread(fd, buf, TIMING_BUF_BYTES);
 	/* access all sectors of buf to ensure the read fully completed */
 	for (i = 0; i < TIMING_BUF_BYTES; i += 512)
 		buf[i] &= 1;
-	return 0;
 }
 
-static double correction = 0.0;
-
-static void do_time (int flag, int fd)
-/*
-	flag = 0 time_cache
-	flag = 1 time_device
-*/
+static unsigned dev_size_mb(/*int fd*/ void)
 {
-	int i;
-	char *buf;
-	double elapsed;
-	struct itimerval e1, e2;
-	int shmid;
-	int timing_MB = TIMING_MB;
+	union {
+		unsigned long long blksize64;
+		unsigned blksize32;
+	} u;
 
-	if ((shmid = shmget(IPC_PRIVATE, TIMING_BUF_BYTES, 0600)) == -1)
-	{
-		bb_error_msg (bb_msg_shared_mem,"allocate"); /*"could not allocate sharedmem buf"*/
-		return;
+	if (0 == ioctl(fd, BLKGETSIZE64, &u.blksize64)) { // bytes
+		u.blksize64 /= (1024 * 1024);
+	} else {
+		xioctl(fd, BLKGETSIZE, &u.blksize32); // sectors
+		u.blksize64 = u.blksize32 / (2 * 1024);
 	}
-	if (shmctl(shmid, SHM_LOCK, NULL) == -1)
-	{
-		bb_error_msg (bb_msg_shared_mem,"lock"); /*"could not lock sharedmem buf"*/
-		(void) shmctl(shmid, IPC_RMID, NULL);
-		return;
-	}
-	if ((buf = shmat(shmid, (char *) 0, 0)) == (char *) -1)
-	{
-		bb_error_msg (bb_msg_shared_mem,"attach"); /*"could not attach sharedmem buf"*/
-		(void) shmctl(shmid, IPC_RMID, NULL);
-		return;
-	}
-	if (shmctl(shmid, IPC_RMID, NULL) == -1)
-		bb_error_msg ("shmctl(,IPC_RMID,)");
-
-	/* Clear out the device request queues & give them time to complete */
-	sync_and_sleep(3);
-
-	if(flag  == 0) /* Time cache */
-	{
-		/* Calculate a correction factor for the basic
-		* overhead of doing a read() from the buffer cache.
-		* To do this, we read the data once to "cache it" and
-		* to force full preallocation of our timing buffer,
-		* and then we re-read it 10 times while timing it.
-		*
-		* getitimer() is used rather than gettimeofday() because
-		* it is much more consistent (on my machine, at least).
-		*/
-		setitimer(ITIMER_REAL, &(struct itimerval){{1000,0},{1000,0}}, NULL);
-		if (seek_to_zero (fd))
-			return;
-		if (read_big_block (fd, buf))
-			return;
-		printf(" Timing buffer-cache reads:   ");
-		fflush(stdout);
-
-		/* Clear out the device request queues & give them time to complete */
-		sync_and_sleep(1);
-
-		/* Time re-reading from the buffer-cache */
-		getitimer(ITIMER_REAL, &e1);
-		for (i = (BUFCACHE_FACTOR * TIMING_BUF_COUNT) ; i > 0; --i)
-		{
-			if (seek_to_zero (fd))
-				goto quit;
-			if (read_big_block (fd, buf))
-				goto quit;
-		}
-		getitimer(ITIMER_REAL, &e2);
-		correction = (e1.it_value.tv_sec - e2.it_value.tv_sec) + ((e1.it_value.tv_usec - e2.it_value.tv_usec) / 1000000.0);
-
-		/* Now remove the lseek() from the correction factor */
-		getitimer(ITIMER_REAL, &e1);
-		for (i = (BUFCACHE_FACTOR * TIMING_BUF_COUNT) ; i > 0; --i)
-		{
-			if (seek_to_zero (fd))
-				goto quit;
-		}
-		getitimer(ITIMER_REAL, &e2);
-		correction -= (e1.it_value.tv_sec - e2.it_value.tv_sec)
-		+ ((e1.it_value.tv_usec - e2.it_value.tv_usec) / 1000000.0);
-
-		if ((BUFCACHE_FACTOR * timing_MB) >= correction)  /* more than 1MB/s */
-			printf("%2d MB in %5.2f seconds =%6.2f MB/sec\n",
-				(BUFCACHE_FACTOR * timing_MB),  correction,
-				(BUFCACHE_FACTOR * timing_MB) / correction);
-		else
-			printf("%2d MB in %5.2f seconds =%6.2f kB/sec\n",
-				(BUFCACHE_FACTOR * timing_MB),  correction,
-				(BUFCACHE_FACTOR * timing_MB) / correction * 1024);
-		correction /= BUFCACHE_FACTOR;
-
-		flush_buffer_cache(fd);
-		sleep(1);
-	}
-	else /* Time device */
-	{
-		printf(" Timing buffered disk reads:  ");
-		fflush(stdout);
-
-		/*
-		* getitimer() is used rather than gettimeofday() because
-		* it is much more consistent (on my machine, at least).
-		*/
-		setitimer(ITIMER_REAL, &(struct itimerval){{1000,0},{1000,0}}, NULL);
-
-		/* Now do the timings for real */
-		getitimer(ITIMER_REAL, &e1);
-		for (i = TIMING_BUF_COUNT; i > 0; --i)
-		{
-			if (read_big_block (fd, buf))
-				goto quit;
-		}
-		getitimer(ITIMER_REAL, &e2);
-
-		elapsed =	(e1.it_value.tv_sec - e2.it_value.tv_sec) + ((e1.it_value.tv_usec - e2.it_value.tv_usec) / 1000000.0);
-
-		if (timing_MB >= elapsed)  /* more than 1MB/s */
-			printf("%2d MB in %5.2f seconds =%6.2f MB/sec\n",timing_MB, elapsed, timing_MB / elapsed);
-		else
-			printf("%2d MB in %5.2f seconds =%6.2f kB/sec\n",timing_MB, elapsed, timing_MB / elapsed * 1024);
-
-		/*"Hmm.. suspicious results: probably not enough free memory for a proper test.");*/
-		if (elapsed <= (correction * 2))
-					bb_error_msg(bb_msg_memory_exhausted);
-
-#if 0  /* the "estimate" is just plain wrong for many systems.. */
-		else if (correction != 0.0) {
-			printf(" Estimating raw driver speed: ");
-			elapsed -= correction;
-			if (timing_MB >= elapsed)  /* more than 1MB/s */
-				printf("%2d MB in %5.2f seconds =%6.2f MB/sec\n",
-					timing_MB, elapsed, timing_MB / elapsed);
-			else
-				printf("%2d MB in %5.2f seconds =%6.2f kB/sec\n",
-					timing_MB, elapsed, timing_MB / elapsed * 1024);
-		}
-#endif
-	}
-quit:
-	if (-1 == shmdt(buf))
-		bb_error_msg (bb_msg_shared_mem,"detach"); /*"could not detach sharedmem buf"*/
+	if (u.blksize64 > UINT_MAX)
+		return UINT_MAX;
+	return u.blksize64;
 }
 
-
-static void no_scsi (void)
+static void print_timing(unsigned m, unsigned elapsed_us)
 {
-	/*" operation not supported on SCSI disks"*/
-	if (is_scsi_hd)
-		bb_error_msg_and_die(bb_msg_op_not_supp,"SCSI");
+	unsigned sec = elapsed_us / 1000000;
+	unsigned hs = (elapsed_us % 1000000) / 10000;
+
+	printf("%5u MB in %u.%02u seconds = %u kB/s\n",
+		m, sec, hs,
+		/* "| 1" prevents div-by-0 */
+		(unsigned) ((unsigned long long)m * (1024 * 1000000) / (elapsed_us | 1))
+		// ~= (m * 1024) / (elapsed_us / 1000000)
+		// = kb / elapsed_sec
+	);
 }
 
-static void no_xt (void)
+static void do_time(int cache /*,int fd*/)
+/* cache=1: time cache: repeatedly read N MB at offset 0
+ * cache=0: time device: linear read, starting at offset 0
+ */
 {
-	if (is_xt_hd)
-		bb_error_msg_and_die(bb_msg_op_not_supp,"XT");
-}
+	unsigned max_iterations, iterations;
+	unsigned start; /* doesn't need to be long long */
+	unsigned elapsed, elapsed2;
+	unsigned total_MB;
+	char *buf = xmalloc(TIMING_BUF_BYTES);
 
-static void on_off (unsigned int value)
-{
-	printf(value ? " (on)\n" : " (off)\n");
-}
+	if (mlock(buf, TIMING_BUF_BYTES))
+		bb_perror_msg_and_die("mlock");
 
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-static void bus_state_value (unsigned int value)
-{
-	const char *string;
-
-	switch (value)
-	{
-		case BUSSTATE_ON:
-			string = " (on)\n";
-			break;
-		case BUSSTATE_OFF:
-			string = " (off)\n";
-			break;
-		case BUSSTATE_TRISTATE:
-			string = " (tristate)\n";
-			break;
-		default:
-			string = " (unknown: %d)\n";
-			break;
+	/* Clear out the device request queues & give them time to complete.
+	 * NB: *small* delay. User is expected to have a clue and to not run
+	 * heavy io in parallel with measurements. */
+	sync();
+	sleep(1);
+	if (cache) { /* Time cache */
+		seek_to_zero();
+		read_big_block(buf);
+		printf("Timing buffer-cache reads: ");
+	} else { /* Time device */
+		printf("Timing buffered disk reads:");
 	}
-	printf(string, value);
+	fflush_all();
+
+	/* Now do the timing */
+	iterations = 0;
+	/* Max time to run (small for cache, avoids getting
+	 * huge total_MB which can overlow unsigned type) */
+	elapsed2 = 510000; /* cache */
+	max_iterations = UINT_MAX;
+	if (!cache) {
+		elapsed2 = 3000000; /* not cache */
+		/* Don't want to read past the end! */
+		max_iterations = dev_size_mb() / TIMING_BUF_MB;
+	}
+	start = monotonic_us();
+	do {
+		if (cache)
+			seek_to_zero();
+		read_big_block(buf);
+		elapsed = (unsigned)monotonic_us() - start;
+		++iterations;
+	} while (elapsed < elapsed2 && iterations < max_iterations);
+	total_MB = iterations * TIMING_BUF_MB;
+	//printf(" elapsed:%u iterations:%u ", elapsed, iterations);
+	if (cache) {
+		/* Cache: remove lseek() and monotonic_us() overheads
+		 * from elapsed */
+		start = monotonic_us();
+		do {
+			seek_to_zero();
+			elapsed2 = (unsigned)monotonic_us() - start;
+		} while (--iterations);
+		//printf(" elapsed2:%u ", elapsed2);
+		elapsed -= elapsed2;
+		total_MB *= 2; // BUFCACHE_FACTOR (why?)
+		flush_buffer_cache();
+	}
+	print_timing(total_MB, elapsed);
+	munlock(buf, TIMING_BUF_BYTES);
+	free(buf);
+}
+
+#if ENABLE_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
+static void bus_state_value(unsigned value)
+{
+	if (value == BUSSTATE_ON)
+		on_off(1);
+	else if (value == BUSSTATE_OFF)
+		on_off(0);
+	else if (value == BUSSTATE_TRISTATE)
+		printf(" (tristate)\n");
+	else
+		printf(" (unknown: %d)\n", value);
 }
 #endif
 
 #ifdef HDIO_DRIVE_CMD
-static void interpret_standby (unsigned int standby)
+static void interpret_standby(uint8_t standby)
 {
 	printf(" (");
-	switch(standby)
-	{
-		case 0:
-			printf("off");
-			break;
-		case 252:
-			printf("21 minutes");
-			break;
-		case 253:
-			printf("vendor-specific");
-			break;
-		case 254:
-			printf("?reserved");
-			break;
-		case 255:
-			printf("21 minutes + 15 seconds");
-			break;
-		default:
-			if (standby <= 240)
-			{
-				unsigned int secs = standby * 5;
-				unsigned int mins = secs / 60;
-				secs %= 60;
-				if_printf(mins,"%u minutes", mins);
-				if_printf((mins && secs)," + ");
-				if_printf(secs,"%u seconds", secs);
-			}
-			else if (standby <= 251)
-			{
-				unsigned int mins = (standby - 240) * 30;
-				unsigned int hrs  = mins / 60;
-				mins %= 60;
-				if_printf(hrs,"%u hours", hrs);
-				if_printf((hrs && mins)," + ");
-				if_printf(mins,"%u minutes", mins);
-			}
-			else
-				printf("illegal value");
-			break;
+	if (standby == 0) {
+		printf("off");
+	} else if (standby <= 240 || standby == 252 || standby == 255) {
+		/* standby is in 5 sec units */
+		unsigned t = standby * 5;
+		printf("%u minutes %u seconds", t / 60, t % 60);
+	} else if (standby <= 251) {
+		unsigned t = (standby - 240); /* t is in 30 min units */;
+		printf("%u.%c hours", t / 2, (t & 1) ? '5' : '0');
 	}
+	if (standby == 253)
+		printf("vendor-specific");
+	if (standby == 254)
+		printf("reserved");
 	printf(")\n");
 }
 
-struct xfermode_entry {
-    int val;
-    const char *name;
+static const uint8_t xfermode_val[] ALIGN1 = {
+	 8,      9,     10,     11,     12,     13,     14,     15,
+	16,     17,     18,     19,     20,     21,     22,     23,
+	32,     33,     34,     35,     36,     37,     38,     39,
+	64,     65,     66,     67,     68,     69,     70,     71
+};
+/* NB: we save size by _not_ storing terninating NUL! */
+static const char xfermode_name[][5] ALIGN1 = {
+	"pio0", "pio1", "pio2", "pio3", "pio4", "pio5", "pio6", "pio7",
+	"sdma0","sdma1","sdma2","sdma3","sdma4","sdma5","sdma6","sdma7",
+	"mdma0","mdma1","mdma2","mdma3","mdma4","mdma5","mdma6","mdma7",
+	"udma0","udma1","udma2","udma3","udma4","udma5","udma6","udma7"
 };
 
-static const struct xfermode_entry xfermode_table[] = {
-    { 8,    "pio0" },
-    { 9,    "pio1" },
-    { 10,   "pio2" },
-    { 11,   "pio3" },
-    { 12,   "pio4" },
-    { 13,   "pio5" },
-    { 14,   "pio6" },
-    { 15,   "pio7" },
-    { 16,   "sdma0" },
-    { 17,   "sdma1" },
-    { 18,   "sdma2" },
-    { 19,   "sdma3" },
-    { 20,   "sdma4" },
-    { 21,   "sdma5" },
-    { 22,   "sdma6" },
-    { 23,   "sdma7" },
-    { 32,   "mdma0" },
-    { 33,   "mdma1" },
-    { 34,   "mdma2" },
-    { 35,   "mdma3" },
-    { 36,   "mdma4" },
-    { 37,   "mdma5" },
-    { 38,   "mdma6" },
-    { 39,   "mdma7" },
-    { 64,   "udma0" },
-    { 65,   "udma1" },
-    { 66,   "udma2" },
-    { 67,   "udma3" },
-    { 68,   "udma4" },
-    { 69,   "udma5" },
-    { 70,   "udma6" },
-    { 71,   "udma7" },
-    { 0, NULL }
-};
-
-static int translate_xfermode(char * name)
+static int translate_xfermode(const char *name)
 {
-	const struct xfermode_entry *tmp;
-	char *endptr;
-	int val = -1;
+	int val;
+	unsigned i;
 
-
-	for (tmp = xfermode_table; tmp->name != NULL; ++tmp)
-	{
-		if (!strcmp(name, tmp->name))
-			return tmp->val;
-
+	for (i = 0; i < ARRAY_SIZE(xfermode_val); i++) {
+		if (!strncmp(name, xfermode_name[i], 5))
+			if (strlen(name) <= 5)
+				return xfermode_val[i];
 	}
-
-	val = strtol(name, &endptr, 10);
-	if (*endptr == '\0')
+	/* Negative numbers are invalid and are caught later */
+	val = bb_strtoi(name, NULL, 10);
+	if (!errno)
 		return val;
-
 	return -1;
 }
 
-static void interpret_xfermode (unsigned int xfermode)
+static void interpret_xfermode(unsigned xfermode)
 {
 	printf(" (");
-	switch(xfermode) {
-		case 0:
-			printf("default PIO mode");
-			break;
-		case 1:
-			printf("default PIO mode, disable IORDY");
-			break;
-		case 8:
-		case 9:
-		case 10:
-		case 11:
-		case 12:
-		case 13:
-		case 14:
-		case 15:
-			printf("PIO flow control mode%u", xfermode-8);
-			break;
-		case 16:
-		case 17:
-		case 18:
-		case 19:
-		case 20:
-		case 21:
-		case 22:
-		case 23:
-			printf("singleword DMA mode%u", xfermode-16);
-			break;
-		case 32:
-		case 33:
-		case 34:
-		case 35:
-		case 36:
-		case 37:
-		case 38:
-		case 39:
-			printf("multiword DMA mode%u", xfermode-32);
-			break;
-		case 64:
-		case 65:
-		case 66:
-		case 67:
-		case 68:
-		case 69:
-		case 70:
-		case 71:
-			printf("UltraDMA mode%u", xfermode-64);
-			break;
-		default:
-			printf("unknown, probably not valid");
-			break;
-	}
+	if (xfermode == 0)
+		printf("default PIO mode");
+	else if (xfermode == 1)
+		printf("default PIO mode, disable IORDY");
+	else if (xfermode >= 8 && xfermode <= 15)
+		printf("PIO flow control mode%u", xfermode - 8);
+	else if (xfermode >= 16 && xfermode <= 23)
+		printf("singleword DMA mode%u", xfermode - 16);
+	else if (xfermode >= 32 && xfermode <= 39)
+		printf("multiword DMA mode%u", xfermode - 32);
+	else if (xfermode >= 64 && xfermode <= 71)
+		printf("UltraDMA mode%u", xfermode - 64);
+	else
+		printf("unknown");
 	printf(")\n");
 }
 #endif /* HDIO_DRIVE_CMD */
 
-#ifndef VXVM_MAJOR
-#define VXVM_MAJOR 199
-#endif
-
-#ifndef CCISS_MAJOR
-#define CCISS_MAJOR 104
-#endif
-
-static void process_dev (char *devname)
+static void print_flag(int flag, const char *s, unsigned long value)
 {
-	int fd;
-	static long parm, multcount;
-	struct stat stat_buf;
+	if (flag)
+		printf(" setting %s to %ld\n", s, value);
+}
+
+static void process_dev(char *devname)
+{
+	/*int fd;*/
+	long parm, multcount;
 #ifndef HDIO_DRIVE_CMD
 	int force_operation = 0;
 #endif
-	if (stat(devname,&stat_buf))
-		bb_perror_msg_and_die(devname);
+	/* Please restore args[n] to these values after each ioctl
+	   except for args[2] */
+	unsigned char args[4] = { WIN_SETFEATURES, 0, 0, 0 };
+	const char *fmt = " %s\t= %2ld";
 
-	switch(major(stat_buf.st_rdev))
-	{
-#ifdef SCSI_DISK0_MAJOR
-		case (SCSI_DISK0_MAJOR):
-		case (SCSI_DISK1_MAJOR):
-		case (SCSI_DISK2_MAJOR):
-		case (SCSI_DISK3_MAJOR):
-		case (SCSI_DISK4_MAJOR):
-		case (SCSI_DISK5_MAJOR):
-		case (SCSI_DISK6_MAJOR):
-		case (SCSI_DISK7_MAJOR):
-#else
-		case (SCSI_DISK_MAJOR):
-#endif
-#ifdef MD_MAJOR
-		case (MD_MAJOR):
-#endif
-		case (VXVM_MAJOR):
-#ifdef LVM_BLK_MAJOR
-		case (LVM_BLK_MAJOR):
-#endif
-		case (CCISS_MAJOR):
-			is_scsi_hd = 1;
-			break;
-#ifdef XT_DISK_MAJOR
-		case (XT_DISK_MAJOR):
-			is_xt_hd = 1;
-			break;
-#endif
-		case IDE0_MAJOR:
-		case IDE1_MAJOR:
-#ifdef IDE2_MAJOR
-		case IDE2_MAJOR:
-#endif
-#ifdef IDE3_MAJOR
-		case IDE3_MAJOR:
-#endif
-#ifdef IDE4_MAJOR
-		case IDE4_MAJOR:
-#endif
-#ifdef IDE5_MAJOR
-		case IDE5_MAJOR:
-#endif
-#ifdef IDE6_MAJOR
-		case IDE6_MAJOR:
-#endif
-#ifdef IDE7_MAJOR
-		case IDE7_MAJOR:
-#endif
-#ifdef IDE8_MAJOR
-		case IDE8_MAJOR:
-#endif
-#ifdef IDE9_MAJOR
-		case IDE9_MAJOR:
-#endif
-			break;	/* do nothing */
-		default:
-			bb_error_msg_and_die("%s not supported",devname);
+	/*fd = xopen_nonblocking(devname);*/
+	xmove_fd(xopen_nonblocking(devname), fd);
+	printf("\n%s:\n", devname);
+
+	if (getset_readahead == IS_SET) {
+		print_flag(getset_readahead, "fs readahead", Xreadahead);
+		ioctl_or_warn(fd, BLKRASET, (int *)Xreadahead);
 	}
-
-	fd = bb_xopen (devname, O_RDONLY|O_NONBLOCK);
-	if_printf( (!quiet),"\n%s:\n", devname);
-
-	if (set_readahead)
-	{
-		if_printf(get_readahead," setting fs readahead to %ld\n", Xreadahead);
-		bb_ioctl(fd, BLKRASET,(int *)Xreadahead,"BLKRASET");
-	}
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF
-	if (unregister_hwif)
-	{
-		no_scsi();
-		printf(" attempting to unregister hwif#%u\n", hwif);
-		bb_ioctl(fd, HDIO_UNREGISTER_HWIF,(int *)hwif,"HDIO_UNREGISTER_HWIF");
+#if ENABLE_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF
+	if (unregister_hwif) {
+		printf(" attempting to unregister hwif#%lu\n", hwif);
+		ioctl_or_warn(fd, HDIO_UNREGISTER_HWIF, (int *)(unsigned long)hwif);
 	}
 #endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_SCAN_HWIF
-	if (scan_hwif)
-	{
-		int	args[3];
-		no_scsi();
-		printf(" attempting to scan hwif (0x%x, 0x%x, %u)\n", hwif_data, hwif_ctrl, hwif_irq);
+#if ENABLE_FEATURE_HDPARM_HDIO_SCAN_HWIF
+	if (scan_hwif == IS_SET) {
+		printf(" attempting to scan hwif (0x%lx, 0x%lx, %lu)\n", hwif_data, hwif_ctrl, hwif_irq);
 		args[0] = hwif_data;
 		args[1] = hwif_ctrl;
 		args[2] = hwif_irq;
-		bb_ioctl(fd, HDIO_SCAN_HWIF, args, "HDIO_SCAN_HWIF");
+		ioctl_or_warn(fd, HDIO_SCAN_HWIF, args);
+		args[0] = WIN_SETFEATURES;
+		args[1] = 0;
 	}
 #endif
-	if (set_piomode)
-	{
-		no_scsi();
-		no_xt();
-
-		if (noisy_piomode)
-		{
+	if (set_piomode) {
+		if (noisy_piomode) {
 			printf(" attempting to ");
 			if (piomode == 255)
 				printf("auto-tune PIO mode\n");
@@ -1976,897 +1589,496 @@ static void process_dev (char *devname)
 			else
 				printf("set UDMA mode to %d\n", (piomode-200));
 		}
-		bb_ioctl(fd, HDIO_SET_PIO_MODE, (int *)piomode, "HDIO_SET_PIO_MODE");
+		ioctl_or_warn(fd, HDIO_SET_PIO_MODE, (int *)(unsigned long)piomode);
 	}
-	if (set_io32bit)
-	{
-		no_scsi();
-		no_xt();
-		if_printf(get_io32bit," setting 32-bit IO_support flag to %ld\n", io32bit);
-		bb_ioctl(fd, HDIO_SET_32BIT, (int *)io32bit, "HDIO_SET_32BIT");
+	if (getset_io32bit == IS_SET) {
+		print_flag(getset_io32bit, "32-bit IO_support flag", io32bit);
+		ioctl_or_warn(fd, HDIO_SET_32BIT, (int *)io32bit);
 	}
-	if (set_mult)
-	{
-		no_scsi();
-		no_xt();
-		if_printf(get_mult, " setting multcount to %ld\n", mult);
-		if(ioctl(fd, HDIO_SET_MULTCOUNT, mult))
-			bb_perror_msg("HDIO_SET_MULTCOUNT");
-#ifndef HDIO_DRIVE_CMD
-		else
-			force_operation = 1;
+	if (getset_mult == IS_SET) {
+		print_flag(getset_mult, "multcount", mult);
+#ifdef HDIO_DRIVE_CMD
+		ioctl_or_warn(fd, HDIO_SET_MULTCOUNT, (void *)mult);
+#else
+		force_operation |= (!ioctl_or_warn(fd, HDIO_SET_MULTCOUNT, (void *)mult));
 #endif
 	}
-	if (set_readonly)
-	{
-		if_printf_on_off(get_readonly," setting readonly to %ld", readonly);
-		bb_ioctl(fd, BLKROSET, &readonly, "BLKROSET");
+	if (getset_readonly == IS_SET) {
+		print_flag_on_off(getset_readonly, "readonly", readonly);
+		ioctl_or_warn(fd, BLKROSET, &readonly);
 	}
-	if (set_unmask)
-	{
-		no_scsi();
-		no_xt();
-		if_printf_on_off(get_unmask," setting unmaskirq to %ld", unmask);
-		bb_ioctl(fd, HDIO_SET_UNMASKINTR, (int *)unmask, "HDIO_SET_UNMASKINTR");
+	if (getset_unmask == IS_SET) {
+		print_flag_on_off(getset_unmask, "unmaskirq", unmask);
+		ioctl_or_warn(fd, HDIO_SET_UNMASKINTR, (int *)unmask);
 	}
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA
-	if (set_dma)
-	{
-		no_scsi();
-		if_printf_on_off(get_dma," setting using_dma to %ld", dma);
-		bb_ioctl(fd, HDIO_SET_DMA, (int *)dma, "HDIO_SET_DMA");
+#if ENABLE_FEATURE_HDPARM_HDIO_GETSET_DMA
+	if (getset_dma == IS_SET) {
+		print_flag_on_off(getset_dma, "using_dma", dma);
+		ioctl_or_warn(fd, HDIO_SET_DMA, (int *)dma);
 	}
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA */
-	if (set_dma_q)
-	{
-		no_scsi();
-		if_printf_on_off(get_dma_q," setting DMA queue_depth to %ld", dma_q);
-		bb_ioctl(fd, HDIO_SET_QDMA, (int *)dma_q, "HDIO_SET_QDMA");
+#endif /* FEATURE_HDPARM_HDIO_GETSET_DMA */
+#ifdef HDIO_SET_QDMA
+	if (getset_dma_q == IS_SET) {
+		print_flag_on_off(getset_dma_q, "DMA queue_depth", dma_q);
+		ioctl_or_warn(fd, HDIO_SET_QDMA, (int *)dma_q);
 	}
-	if (set_nowerr)
-	{
-		no_scsi();
-		no_xt();
-		if_printf_on_off(get_nowerr," setting nowerr to %ld", nowerr);
-		bb_ioctl(fd, HDIO_SET_NOWERR, (int *)nowerr,"HDIO_SET_NOWERR");
+#endif
+	if (getset_nowerr == IS_SET) {
+		print_flag_on_off(getset_nowerr, "nowerr", nowerr);
+		ioctl_or_warn(fd, HDIO_SET_NOWERR, (int *)nowerr);
 	}
-	if (set_keep)
-	{
-		no_scsi();
-		no_xt();
-		if_printf_on_off(get_keep," setting keep_settings to %ld", keep);
-		bb_ioctl(fd, HDIO_SET_KEEPSETTINGS, (int *)keep,"HDIO_SET_KEEPSETTINGS");
+	if (getset_keep == IS_SET) {
+		print_flag_on_off(getset_keep, "keep_settings", keep);
+		ioctl_or_warn(fd, HDIO_SET_KEEPSETTINGS, (int *)keep);
 	}
 #ifdef HDIO_DRIVE_CMD
-	if (set_doorlock)
-	{
-		unsigned char args[4] = {0,0,0,0};
-		no_scsi();
-		no_xt();
-
+	if (getset_doorlock == IS_SET) {
 		args[0] = doorlock ? WIN_DOORLOCK : WIN_DOORUNLOCK;
-		if_printf_on_off(get_doorlock," setting drive doorlock to %ld", doorlock);
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args,"HDIO_DRIVE_CMD(doorlock)");
+		args[2] = 0;
+		print_flag_on_off(getset_doorlock, "drive doorlock", doorlock);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
+		args[0] = WIN_SETFEATURES;
 	}
-	if (set_dkeep)
-	{
+	if (getset_dkeep == IS_SET) {
 		/* lock/unlock the drive's "feature" settings */
-		unsigned char args[4] = {WIN_SETFEATURES,0,0,0};
-		no_scsi();
-		no_xt();
-
-		if_printf_on_off(get_dkeep," setting drive keep features to %ld", dkeep);
+		print_flag_on_off(getset_dkeep, "drive keep features", dkeep);
 		args[2] = dkeep ? 0x66 : 0xcc;
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args,"HDIO_DRIVE_CMD(keepsettings)");
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
 	}
-	if (set_defects)
-	{
-		unsigned char args[4] = {WIN_SETFEATURES,0,0x04,0};
-		no_scsi();
+	if (getset_defects == IS_SET) {
 		args[2] = defects ? 0x04 : 0x84;
-		if_printf(get_defects," setting drive defect-mgmt to %ld\n", defects);
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args,"HDIO_DRIVE_CMD(defectmgmt)");
+		print_flag(getset_defects, "drive defect-mgmt", defects);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
 	}
-	if (set_prefetch)
-	{
-		unsigned char args[4] = {WIN_SETFEATURES,0,0xab,0};
-		no_scsi();
-		no_xt();
-
+	if (getset_prefetch == IS_SET) {
 		args[1] = prefetch;
-		if_printf(get_prefetch," setting drive prefetch to %ld\n", prefetch);
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args, "HDIO_DRIVE_CMD(setprefetch)");
+		args[2] = 0xab;
+		print_flag(getset_prefetch, "drive prefetch", prefetch);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
+		args[1] = 0;
 	}
-	if (set_xfermode)
-	{
-		unsigned char args[4] = {WIN_SETFEATURES,0,3,0};
-		no_scsi();
-		no_xt();
-
+	if (set_xfermode) {
 		args[1] = xfermode_requested;
-		if (get_xfermode)
-		{
-			printf(" setting xfermode to %d", xfermode_requested);
-			interpret_xfermode(xfermode_requested);
-		}
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args,"HDIO_DRIVE_CMD(setxfermode)");
+		args[2] = 3;
+		print_flag(1, "xfermode", xfermode_requested);
+		interpret_xfermode(xfermode_requested);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
+		args[1] = 0;
 	}
-	if (set_lookahead)
-	{
-		unsigned char args[4] = {WIN_SETFEATURES,0,0,0};
-		no_scsi();
-		no_xt();
-
+	if (getset_lookahead == IS_SET) {
 		args[2] = lookahead ? 0xaa : 0x55;
-		if_printf_on_off(get_lookahead," setting drive read-lookahead to %ld", lookahead);
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args, "HDIO_DRIVE_CMD(setreadahead)");
+		print_flag_on_off(getset_lookahead, "drive read-lookahead", lookahead);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
 	}
-	if (set_apmmode)
-	{
-		unsigned char args[4] = {WIN_SETFEATURES,0,0,0};
-		no_scsi();
-		apmmode=check_if_min_and_set_val(apmmode,1);
-		apmmode=check_if_maj_and_set_val(apmmode,255);
-		if_printf(get_apmmode," setting APM level to");
-		if (apmmode==255)
-		{
-			/* disable Advanced Power Management */
-			args[2] = 0x85; /* feature register */
-			if_printf(get_apmmode," disabled\n");
-		}
-		else
-		{
-			/* set Advanced Power Management mode */
-			args[2] = 0x05; /* feature register */
-			args[1] = apmmode; /* sector count register */
-			if_printf(get_apmmode," 0x%02lX (%ld)\n",apmmode,apmmode);
-		}
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args,"HDIO_DRIVE_CMD");
+	if (getset_apmmode == IS_SET) {
+		/* feature register */
+		args[2] = (apmmode == 255) ? 0x85 /* disable */ : 0x05 /* set */;
+		args[1] = apmmode; /* sector count register 1-255 */
+		printf(" setting APM level to %s 0x%02lX (%ld)\n",
+			(apmmode == 255) ? "disabled" : "",
+			apmmode, apmmode);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
+		args[1] = 0;
 	}
-	if (set_wcache)
-	{
+	if (getset_wcache == IS_SET) {
 #ifdef DO_FLUSHCACHE
 #ifndef WIN_FLUSHCACHE
 #define WIN_FLUSHCACHE 0xe7
 #endif
-		unsigned char flushcache[4] = {WIN_FLUSHCACHE,0,0,0};
 #endif /* DO_FLUSHCACHE */
-		unsigned char args[4] = {WIN_SETFEATURES,0,0,0};
-		no_scsi();
-		no_xt();
 		args[2] = wcache ? 0x02 : 0x82;
-		if_printf_on_off(get_wcache," setting drive write-caching to %ld", wcache);
+		print_flag_on_off(getset_wcache, "drive write-caching", wcache);
 #ifdef DO_FLUSHCACHE
-		if (!wcache && ioctl(fd, HDIO_DRIVE_CMD, &flushcache))
-			bb_perror_msg ("HDIO_DRIVE_CMD(flushcache)");
+		if (!wcache)
+			ioctl_or_warn(fd, HDIO_DRIVE_CMD, &flushcache);
 #endif /* DO_FLUSHCACHE */
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args, "HDIO_DRIVE_CMD(setcache)");
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
 #ifdef DO_FLUSHCACHE
-		if (!wcache && ioctl(fd, HDIO_DRIVE_CMD, &flushcache))
-			bb_perror_msg ("HDIO_DRIVE_CMD(flushcache)");
+		if (!wcache)
+			ioctl_or_warn(fd, HDIO_DRIVE_CMD, &flushcache);
 #endif /* DO_FLUSHCACHE */
 	}
-	if (set_standbynow)
-	{
+
+	/* In code below, we do not preserve args[0], but the rest
+	   is preserved, including args[2] */
+	args[2] = 0;
+
+	if (set_standbynow) {
 #ifndef WIN_STANDBYNOW1
 #define WIN_STANDBYNOW1 0xE0
 #endif
 #ifndef WIN_STANDBYNOW2
 #define WIN_STANDBYNOW2 0x94
 #endif
-		unsigned char args1[4] = {WIN_STANDBYNOW1,0,0,0};
-		unsigned char args2[4] = {WIN_STANDBYNOW2,0,0,0};
-		no_scsi();
-		if_printf(get_standbynow," issuing standby command\n");
-		if (ioctl(fd, HDIO_DRIVE_CMD, &args1)
-		 && ioctl(fd, HDIO_DRIVE_CMD, &args2))
-			bb_perror_msg("HDIO_DRIVE_CMD(standby)");
+		printf(" issuing standby command\n");
+		args[0] = WIN_STANDBYNOW1;
+		ioctl_alt_or_warn(HDIO_DRIVE_CMD, args, WIN_STANDBYNOW2);
 	}
-	if (set_sleepnow)
-	{
+	if (set_sleepnow) {
 #ifndef WIN_SLEEPNOW1
 #define WIN_SLEEPNOW1 0xE6
 #endif
 #ifndef WIN_SLEEPNOW2
 #define WIN_SLEEPNOW2 0x99
 #endif
-		unsigned char args1[4] = {WIN_SLEEPNOW1,0,0,0};
-		unsigned char args2[4] = {WIN_SLEEPNOW2,0,0,0};
-		no_scsi();
-		if_printf(get_sleepnow," issuing sleep command\n");
-		if (ioctl(fd, HDIO_DRIVE_CMD, &args1)
-		 && ioctl(fd, HDIO_DRIVE_CMD, &args2))
-			bb_perror_msg("HDIO_DRIVE_CMD(sleep)");
+		printf(" issuing sleep command\n");
+		args[0] = WIN_SLEEPNOW1;
+		ioctl_alt_or_warn(HDIO_DRIVE_CMD, args, WIN_SLEEPNOW2);
 	}
-	if (set_seagate)
-	{
-		unsigned char args[4] = {0xfb,0,0,0};
-		no_scsi();
-		no_xt();
-		if_printf(get_seagate," disabling Seagate auto powersaving mode\n");
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args, "HDIO_DRIVE_CMD(seagatepwrsave)");
+	if (set_seagate) {
+		args[0] = 0xfb;
+		printf(" disabling Seagate auto powersaving mode\n");
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
 	}
-	if (set_standby)
-	{
-		unsigned char args[4] = {WIN_SETIDLE1,standby_requested,0,0};
-		no_scsi();
-		no_xt();
-		if (get_standby)
-		{
-			printf(" setting standby to %lu", standby_requested);
-			interpret_standby(standby_requested);
-		}
-		bb_ioctl(fd, HDIO_DRIVE_CMD, &args, "HDIO_DRIVE_CMD(setidle1)");
+	if (getset_standby == IS_SET) {
+		args[0] = WIN_SETIDLE1;
+		args[1] = standby_requested;
+		print_flag(1, "standby", standby_requested);
+		interpret_standby(standby_requested);
+		ioctl_or_warn(fd, HDIO_DRIVE_CMD, &args);
+		args[1] = 0;
 	}
 #else	/* HDIO_DRIVE_CMD */
-	if (force_operation)
-	{
+	if (force_operation) {
 		char buf[512];
-		flush_buffer_cache(fd);
+		flush_buffer_cache();
 		if (-1 == read(fd, buf, sizeof(buf)))
-			bb_error_msg("access failed");
+			bb_perror_msg("read of 512 bytes failed");
 	}
 #endif	/* HDIO_DRIVE_CMD */
-
-	if (!flagcount)
-		verbose = 1;
-
-	if ((verbose && !is_scsi_hd && !is_xt_hd) || get_mult || get_identity)
-	{
-		no_scsi();
+	if (getset_mult || get_identity) {
 		multcount = -1;
-		if (ioctl(fd, HDIO_GET_MULTCOUNT, &multcount))
-		{
-			if ((verbose && !is_xt_hd) || get_mult)
+		if (ioctl(fd, HDIO_GET_MULTCOUNT, &multcount)) {
+			/* To be coherent with ioctl_or_warn. */
+			if (getset_mult && ENABLE_IOCTL_HEX2STR_ERROR)
 				bb_perror_msg("HDIO_GET_MULTCOUNT");
-		}
-		else if (verbose | get_mult)
-		{
-			printf(" multcount    = %2ld", multcount);
-			on_off(multcount);
-		}
-	}
-	if ((verbose && !is_scsi_hd && !is_xt_hd) || get_io32bit)
-	{
-		no_scsi();
-		no_xt();
-		if(ioctl(fd, HDIO_GET_32BIT, &parm))
-			bb_perror_msg("HDIO_GET_32BIT");
-		else
-		{
-			printf(" IO_support   =%3ld (", parm);
-			switch (parm)
-			{
-				case 0:
-					printf("default ");
-				case 2:
-					printf("16-bit)\n");
-					break;
-				case 1:
-					printf("32-bit)\n");
-					break;
-				case 3:
-					printf("32-bit w/sync)\n");
-					break;
-				case 8:
-					printf("Request-Queue-Bypass)\n");
-					break;
-				default:
-					printf("\?\?\?)\n");
-				/*esac*/
-			}
+			else
+				bb_perror_msg("ioctl %#x failed", HDIO_GET_MULTCOUNT);
+		} else if (getset_mult) {
+			printf(fmt, "multcount", multcount);
+			on_off(multcount != 0);
 		}
 	}
-	if ((verbose && !is_scsi_hd && !is_xt_hd) || get_unmask)
-	{
-		no_scsi();
-		no_xt();
-		bb_ioctl_on_off(fd, HDIO_GET_UNMASKINTR,(unsigned long *)parm,
-						"HDIO_GET_UNMASKINTR"," unmaskirq    = %2ld");
+	if (getset_io32bit) {
+		if (!ioctl_or_warn(fd, HDIO_GET_32BIT, &parm)) {
+			printf(" IO_support\t=%3ld (", parm);
+			if (parm == 0)
+				printf("default 16-bit)\n");
+			else if (parm == 2)
+				printf("16-bit)\n");
+			else if (parm == 1)
+				printf("32-bit)\n");
+			else if (parm == 3)
+				printf("32-bit w/sync)\n");
+			else if (parm == 8)
+				printf("Request-Queue-Bypass)\n");
+			else
+				printf("\?\?\?)\n");
+		}
 	}
-
-
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA
-	if ((verbose && !is_scsi_hd) || get_dma) {
-		no_scsi();
-		if(ioctl(fd, HDIO_GET_DMA, &parm))
-			bb_perror_msg("HDIO_GET_DMA");
-		else
-		{
-			printf(" using_dma    = %2ld", parm);
+	if (getset_unmask) {
+		if (!ioctl_or_warn(fd, HDIO_GET_UNMASKINTR, &parm))
+			print_value_on_off("unmaskirq", parm);
+	}
+#if ENABLE_FEATURE_HDPARM_HDIO_GETSET_DMA
+	if (getset_dma) {
+		if (!ioctl_or_warn(fd, HDIO_GET_DMA, &parm)) {
+			printf(fmt, "using_dma", parm);
 			if (parm == 8)
 				printf(" (DMA-Assisted-PIO)\n");
 			else
-				on_off(parm);
+				on_off(parm != 0);
 		}
 	}
 #endif
-	if (get_dma_q)
-	{
-		no_scsi();
-		bb_ioctl_on_off (fd, HDIO_GET_QDMA,(unsigned long *)parm,
-						  "HDIO_GET_QDMA"," queue_depth  = %2ld");
+#ifdef HDIO_GET_QDMA
+	if (getset_dma_q) {
+		if (!ioctl_or_warn(fd, HDIO_GET_QDMA, &parm))
+			print_value_on_off("queue_depth", parm);
 	}
-	if ((verbose && !is_scsi_hd && !is_xt_hd) || get_keep)
-	{
-		no_scsi();
-		no_xt();
-		bb_ioctl_on_off (fd, HDIO_GET_KEEPSETTINGS,(unsigned long *)parm,
-							"HDIO_GET_KEEPSETTINGS"," keepsettings = %2ld");
-	}
-
-	if (get_nowerr)
-	{
-		no_scsi();
-		no_xt();
-		bb_ioctl_on_off  (fd, HDIO_GET_NOWERR,(unsigned long *)&parm,
-							" HDIO_GET_NOWERR"," nowerr       = %2ld");
-	}
-	if (verbose || get_readonly)
-	{
-		bb_ioctl_on_off(fd, BLKROGET,(unsigned long *)parm,
-						  " BLKROGET"," readonly     = %2ld");
-	}
-	if ((verbose && !is_scsi_hd) || get_readahead)
-	{
-		bb_ioctl_on_off (fd, BLKRAGET, (unsigned long *) parm,
-							" BLKRAGET"," readahead    = %2ld");
-	}
-	if (verbose || get_geom)
-	{
-		static const char msg[] = " geometry     = %u/%u/%u, sectors = %ld, start = %ld\n";
-		static struct hd_geometry g;
-#ifdef HDIO_GETGEO_BIG
-		static struct hd_big_geometry bg;
 #endif
+	if (getset_keep) {
+		if (!ioctl_or_warn(fd, HDIO_GET_KEEPSETTINGS, &parm))
+			print_value_on_off("keepsettings", parm);
+	}
+	if (getset_nowerr) {
+		if (!ioctl_or_warn(fd, HDIO_GET_NOWERR, &parm))
+			print_value_on_off("nowerr", parm);
+	}
+	if (getset_readonly) {
+		if (!ioctl_or_warn(fd, BLKROGET, &parm))
+			print_value_on_off("readonly", parm);
+	}
+	if (getset_readahead) {
+		if (!ioctl_or_warn(fd, BLKRAGET, &parm))
+			print_value_on_off("readahead", parm);
+	}
+	if (get_geom) {
+		if (!ioctl_or_warn(fd, BLKGETSIZE, &parm)) {
+			struct hd_geometry g;
 
-		if (ioctl(fd, BLKGETSIZE, &parm))
-			bb_perror_msg("BLKGETSIZE");
-#ifdef HDIO_GETGEO_BIG
-		else if (!ioctl(fd, HDIO_GETGEO_BIG, &bg))
-			printf(msg, bg.cylinders, bg.heads, bg.sectors, parm, bg.start);
-#endif
-		else if (ioctl(fd, HDIO_GETGEO, &g))
-			bb_perror_msg("HDIO_GETGEO");
-		else
-			printf(msg, g.cylinders, g.heads, g.sectors, parm, g.start);
+			if (!ioctl_or_warn(fd, HDIO_GETGEO, &g))
+				printf(" geometry\t= %u/%u/%u, sectors = %ld, start = %ld\n",
+					g.cylinders, g.heads, g.sectors, parm, g.start);
+		}
 	}
 #ifdef HDIO_DRIVE_CMD
-	if (get_powermode)
-	{
+	if (get_powermode) {
 #ifndef WIN_CHECKPOWERMODE1
 #define WIN_CHECKPOWERMODE1 0xE5
 #endif
 #ifndef WIN_CHECKPOWERMODE2
 #define WIN_CHECKPOWERMODE2 0x98
 #endif
-		unsigned char args[4] = {WIN_CHECKPOWERMODE1,0,0,0};
 		const char *state;
-		no_scsi();
-		if (ioctl(fd, HDIO_DRIVE_CMD, &args)
-			 && (args[0] = WIN_CHECKPOWERMODE2) /* try again with 0x98 */
-		 	&& ioctl(fd, HDIO_DRIVE_CMD, &args))
-		{
+
+		args[0] = WIN_CHECKPOWERMODE1;
+		if (ioctl_alt_or_warn(HDIO_DRIVE_CMD, args, WIN_CHECKPOWERMODE2)) {
 			if (errno != EIO || args[0] != 0 || args[1] != 0)
 				state = "unknown";
 			else
 				state = "sleeping";
-		}
-		else
+		} else
 			state = (args[2] == 255) ? "active/idle" : "standby";
+		args[1] = args[2] = 0;
 
 		printf(" drive state is:  %s\n", state);
 	}
 #endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET
-	if (perform_reset)
-	{
-		no_scsi();
-		no_xt();
-		bb_ioctl(fd, HDIO_DRIVE_RESET, NULL, "HDIO_DRIVE_RESET");
+#if ENABLE_FEATURE_HDPARM_HDIO_DRIVE_RESET
+	if (perform_reset) {
+		ioctl_or_warn(fd, HDIO_DRIVE_RESET, NULL);
 	}
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET */
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-	if (perform_tristate)
-	{
-		unsigned char args[4] = {0,tristate,0,0};
-		no_scsi();
-		no_xt();
-		bb_ioctl(fd, HDIO_TRISTATE_HWIF, &args, "HDIO_TRISTATE_HWIF");
+#endif /* FEATURE_HDPARM_HDIO_DRIVE_RESET */
+#if ENABLE_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
+	if (perform_tristate) {
+		args[0] = 0;
+		args[1] = tristate;
+		ioctl_or_warn(fd, HDIO_TRISTATE_HWIF, &args);
 	}
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF */
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-	if (get_identity)
-	{
-		static struct hd_driveid id;
+#endif /* FEATURE_HDPARM_HDIO_TRISTATE_HWIF */
+#if ENABLE_FEATURE_HDPARM_GET_IDENTITY
+	if (get_identity) {
+		struct hd_driveid id;
 
-		no_scsi();
-		no_xt();
-
-		if (!ioctl(fd, HDIO_GET_IDENTITY, &id))
-		{
-			if (multcount != -1)
-			{
+		if (!ioctl(fd, HDIO_GET_IDENTITY, &id))	{
+			if (multcount != -1) {
 				id.multsect = multcount;
 				id.multsect_valid |= 1;
-			}
-			else
+			} else
 				id.multsect_valid &= ~1;
 			dump_identity(&id);
-		}
-		else if (errno == -ENOMSG)
+		} else if (errno == -ENOMSG)
 			printf(" no identification info available\n");
-		else
+		else if (ENABLE_IOCTL_HEX2STR_ERROR)  /* To be coherent with ioctl_or_warn */
 			bb_perror_msg("HDIO_GET_IDENTITY");
-	}
-
-	if (get_IDentity)
-	{
-		unsigned char args[4+512] = {WIN_IDENTIFY,0,0,1,};
-		unsigned i;
-
-		no_scsi();
-		no_xt();
-
-		if (ioctl(fd, HDIO_DRIVE_CMD, &args))
-		{
-			args[0] = WIN_PIDENTIFY;
-			if (ioctl(fd, HDIO_DRIVE_CMD, &args))
-			{
-				bb_perror_msg("HDIO_DRIVE_CMD(identify)");
-				goto identify_abort;
-			}
-		}
-		for(i=0; i<(sizeof args)/2; i+=2)
-		    __le16_to_cpus((uint16_t *)(&args[i]));
-
-		identify((void *)&args[4], NULL);
-identify_abort:
-	/* VOID */;
-	}
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-	if (set_busstate)
-	{
-		no_scsi();
-		if (get_busstate)
-		{
-			printf(" setting bus state to %d", busstate);
-			bus_state_value(busstate);
-		}
-		bb_ioctl(fd, HDIO_SET_BUSSTATE, (int *)busstate, "HDIO_SET_BUSSTATE");
-	}
-#endif
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-	if (get_busstate)
-	{
-		no_scsi();
-		if (ioctl(fd, HDIO_GET_BUSSTATE, &parm))
-			bb_perror_msg("HDIO_GET_BUSSTATE");
 		else
-		{
-			printf(" busstate     = %2ld", parm);
+			bb_perror_msg("ioctl %#x failed", HDIO_GET_IDENTITY);
+	}
+
+	if (get_IDentity) {
+		unsigned char args1[4+512]; /* = { ... } will eat 0.5k of rodata! */
+
+		memset(args1, 0, sizeof(args1));
+		args1[0] = WIN_IDENTIFY;
+		args1[3] = 1;
+		if (!ioctl_alt_or_warn(HDIO_DRIVE_CMD, args1, WIN_PIDENTIFY))
+			identify((void *)(args1 + 4));
+	}
+#endif
+#if ENABLE_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
+	if (getset_busstate == IS_SET) {
+		print_flag(1, "bus state", busstate);
+		bus_state_value(busstate);
+		ioctl_or_warn(fd, HDIO_SET_BUSSTATE, (int *)(unsigned long)busstate);
+	}
+	if (getset_busstate) {
+		if (!ioctl_or_warn(fd, HDIO_GET_BUSSTATE, &parm)) {
+			printf(fmt, "bus state", parm);
 			bus_state_value(parm);
 		}
 	}
 #endif
 	if (reread_partn)
-		bb_ioctl(fd, BLKRRPART, NULL, "BLKRRPART");
-
+		ioctl_or_warn(fd, BLKRRPART, NULL);
 
 	if (do_ctimings)
-		do_time(0,fd); 		/*time cache  */
+		do_time(1 /*,fd*/); /* time cache */
 	if (do_timings)
-		do_time(1,fd);		/*time device */
+		do_time(0 /*,fd*/); /* time device */
 	if (do_flush)
-		flush_buffer_cache (fd);
-	close (fd);
+		flush_buffer_cache();
+	close(fd);
 }
 
-static char * GET_NUMBER(char *p, unsigned long *flag, unsigned long *num)
+#if ENABLE_FEATURE_HDPARM_GET_IDENTITY
+static int fromhex(unsigned char c)
 {
-	*num = 0;
-	while (isdigit(*p)) {
-		*flag = 1;
-		*num = (*num * 10) + (*p++ - '0');
-	}
-	return p;
-}
-
-static char * GET_STRING(char *p, unsigned long *flag, int *num)
-{
-	char *tmpstr;
-	char name[32];
-	tmpstr = name;
-	tmpstr[0] = '\0';
-	while (isalnum(*p) && (tmpstr - name) < 31) {
-		tmpstr[0] = *p++;
-		tmpstr[1] = '\0';
-		++tmpstr;
-	}
-	*num = translate_xfermode(name);
-	if (*num == -1)
-		*flag = 0;
-	else
-		*flag = 1;
-	return p;
-}
-
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-static int fromhex (unsigned char c)
-{
-	if (c >= 'a' && c <= 'f')
-		return 10 + (c - 'a');
-	if (c >= '0' && c <= '9')
+	if (isdigit(c))
 		return (c - '0');
+	if (c >= 'a' && c <= 'f')
+		return (c - ('a' - 10));
 	bb_error_msg_and_die("bad char: '%c' 0x%02x", c, c);
 }
 
-static int identify_from_stdin (void)
+static void identify_from_stdin(void) NORETURN;
+static void identify_from_stdin(void)
 {
-	unsigned short sbuf[800];
-	unsigned char  buf[1600], *b = (unsigned char *)buf;
-	int i, count = read(0, buf, 1280);
+	uint16_t sbuf[256];
+	unsigned char buf[1280];
+	unsigned char *b = (unsigned char *)buf;
+	int i;
 
-	if (count != 1280)
-		bb_error_msg_and_die("read(1280 bytes) failed (rc=%d)", count);
-	for (i = 0; count >= 4; ++i)
-	{
-		sbuf[i] = (fromhex(b[0]) << 12) | (fromhex(b[1]) << 8) | (fromhex(b[2]) << 4) | fromhex(b[3]);
-		__le16_to_cpus((uint16_t *)(&sbuf[i]));
-		b += 5;
-		count -= 5;
+	xread(STDIN_FILENO, buf, 1280);
+
+	// Convert the newline-separated hex data into an identify block.
+
+	for (i = 0; i < 256; i++) {
+		int j;
+		for (j = 0; j < 4; j++)
+			sbuf[i] = (sbuf[i] << 4) + fromhex(*(b++));
 	}
-	identify(sbuf, NULL);
-	return 0;
+
+	// Parse the data.
+
+	identify(sbuf);
 }
+#else
+void identify_from_stdin(void);
 #endif
 
-static void missing_arg(int arg, char c, char* add)
+/* busybox specific stuff */
+static int parse_opts(unsigned long *value, int min, int max)
 {
-	if (!arg)
-		bb_error_msg("-%c: missing value %s", c, (add!=NULL)? add :"");
+	if (optarg) {
+		*value = xatol_range(optarg, min, max);
+		return IS_SET;
+	}
+	return IS_GET;
 }
+static int parse_opts_0_max(unsigned long *value, int max)
+{
+	return parse_opts(value, 0, max);
+}
+static int parse_opts_0_1(unsigned long *value)
+{
+	return parse_opts(value, 0, 1);
+}
+static int parse_opts_0_INTMAX(unsigned long *value)
+{
+	return parse_opts(value, 0, INT_MAX);
+}
+
+static void parse_xfermode(int flag, smallint *get, smallint *set, int *value)
+{
+	if (flag) {
+		*get = IS_GET;
+		if (optarg) {
+			*value = translate_xfermode(optarg);
+			*set = (*value > -1);
+		}
+	}
+}
+
+/*------- getopt short options --------*/
+static const char hdparm_options[] ALIGN1 =
+	"gfu::n::p:r::m::c::k::a::B:tT"
+	IF_FEATURE_HDPARM_GET_IDENTITY("iI")
+	IF_FEATURE_HDPARM_HDIO_GETSET_DMA("d::")
+#ifdef HDIO_DRIVE_CMD
+	"S:D:P:X:K:A:L:W:CyYzZ"
+#endif
+	IF_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF("U:")
+#ifdef HDIO_GET_QDMA
+#ifdef HDIO_SET_QDMA
+	"Q:"
+#else
+	"Q"
+#endif
+#endif
+	IF_FEATURE_HDPARM_HDIO_DRIVE_RESET("w")
+	IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF("x::b:")
+	IF_FEATURE_HDPARM_HDIO_SCAN_HWIF("R:");
+/*-------------------------------------*/
 
 /* our main() routine: */
+int hdparm_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int hdparm_main(int argc, char **argv)
 {
-	char c, *p;
+	int c;
+	int flagcount = 0;
 
-	++argv;
-	if (!--argc)
-		bb_show_usage();
-
-	while (argc--)
-	{
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-		if (!strcmp("-Istdin", *argv))
-		{
-			exit(identify_from_stdin());
-		}
-#endif
-		p = *argv++;
-		if (*p == '-')
-		{
-			if (!*++p)
-				bb_show_usage();
-			while ((c = *p++))
-			{
-				++flagcount;
-				switch (c)
-				{
-					case 'V':
-						/*bb_error_msg_and_die("%s", VERSION);*/
-						/* We have to return 0 here and not 1 */
-						printf("%s %s\n",bb_applet_name, VERSION);
-						exit(EXIT_SUCCESS);
-					case 'v':
-						verbose = 1;
-						break;
-#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
-					case 'I':
-						get_IDentity = 1;
-						break;
-					case 'i':
-						get_identity = 1;
-						break;
-#endif
-					case 'g':
-						get_geom = 1;
-						break;
-					case 'f':
-						do_flush = 1;
-						break;
-					case 'q':
-						quiet = 1;
-						noisy = 0;
-						break;
-					case 'u':
-						get_unmask = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_unmask = set_flag(p,'1'))==1)
-							unmask  = *p++ - '0';
-						break;
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA
-					case 'd':
-						get_dma = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_dma = set_flag(p,'9'))==1)
-							dma = *p++ - '0';
-						break;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA */
-					case 'n':
-						get_nowerr = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_nowerr = set_flag(p,'1'))==1)
-							nowerr  = *p++ - '0';
-						break;
-					case 'p':
-						noisy_piomode = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_STRING(p,&set_piomode,&piomode);
-						break;
-					case 'r':
-						get_readonly = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_readonly = set_flag(p,'1'))==1)
-							readonly  = *p++ - '0';
-						break;
-					case 'm':
-						get_mult = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_mult,&mult);
-						break;
-					case 'c':
-						get_io32bit = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_io32bit,&io32bit);
-						break;
+	while ((c = getopt(argc, argv, hdparm_options)) >= 0) {
+		flagcount++;
+		IF_FEATURE_HDPARM_GET_IDENTITY(get_IDentity |= (c == 'I'));
+		IF_FEATURE_HDPARM_GET_IDENTITY(get_identity |= (c == 'i'));
+		get_geom |= (c == 'g');
+		do_flush |= (c == 'f');
+		if (c == 'u') getset_unmask    = parse_opts_0_1(&unmask);
+	IF_FEATURE_HDPARM_HDIO_GETSET_DMA(
+		if (c == 'd') getset_dma       = parse_opts_0_max(&dma, 9);
+	)
+		if (c == 'n') getset_nowerr    = parse_opts_0_1(&nowerr);
+		parse_xfermode((c == 'p'), &noisy_piomode, &set_piomode, &piomode);
+		if (c == 'r') getset_readonly  = parse_opts_0_1(&readonly);
+		if (c == 'm') getset_mult      = parse_opts_0_INTMAX(&mult /*32*/);
+		if (c == 'c') getset_io32bit   = parse_opts_0_INTMAX(&io32bit /*8*/);
+		if (c == 'k') getset_keep      = parse_opts_0_1(&keep);
+		if (c == 'a') getset_readahead = parse_opts_0_INTMAX(&Xreadahead);
+		if (c == 'B') getset_apmmode   = parse_opts(&apmmode, 1, 255);
+		do_flush |= do_timings |= (c == 't');
+		do_flush |= do_ctimings |= (c == 'T');
 #ifdef HDIO_DRIVE_CMD
-					case 'S':
-						get_standby = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_standby,&standby_requested);
-						missing_arg(set_standby, c, NULL);
-						break;
-
-					case 'D':
-						get_defects = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_defects,&defects);
-						missing_arg(set_defects, c, NULL);
-						break;
-					case 'P':
-						get_prefetch = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_prefetch,&prefetch);
-						missing_arg(set_prefetch, c, NULL);
-						break;
-
-					case 'X':
-						get_xfermode = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_STRING(p,&set_xfermode,&xfermode_requested);
-						missing_arg(set_xfermode, c, NULL);
-						break;
-
-					case 'K':
-						get_dkeep = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_dkeep = set_flag(p,'1'))==1)
-							dkeep  = *p++ - '0';
-						else
-							goto missing_arg_error;
-						break;
-
-					case 'A':
-						get_lookahead = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_lookahead = set_flag(p,'1'))==1)
-							lookahead  = *p++ - '0';
-						else
-							goto missing_arg_error;
-						break;
-
-					case 'L':
-						get_doorlock = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_doorlock = set_flag(p,'1'))==1)
-							doorlock  = *p++ - '0';
-						else
-							goto missing_arg_error;
-						break;
-
-					case 'W':
-						get_wcache = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_wcache = set_flag(p,'1'))==1)
-							wcache  = *p++ - '0';
-						else
-missing_arg_error:
-							missing_arg(1, c, "(0/1)");
-						break;
-
-					case 'C':
-						get_powermode = noisy;
-						noisy = 1;
-						break;
-
-					case 'y':
-						get_standbynow = noisy;
-						noisy = 1;
-						set_standbynow = 1;
-						break;
-
-					case 'Y':
-						get_sleepnow = noisy;
-						noisy = 1;
-						set_sleepnow = 1;
-						break;
-
-					case 'z':
-						reread_partn = 1;
-						break;
-
-					case 'Z':
-						get_seagate = noisy;
-						noisy = 1;
-						set_seagate = 1;
-						break;
-#endif /* HDIO_DRIVE_CMD */
-					case 'k':
-						get_keep = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_keep = set_flag(p,'1'))==1)
-							keep  = *p++ - '0';
-						break;
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF
-					case 'U':
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if(! p)
-							goto expected_hwif_error; /* "expected hwif_nr" */
-
-						sscanf(p++, "%i", &hwif);
-
-						unregister_hwif = 1;
-						break;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF */
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_SCAN_HWIF
-					case 'R':
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if(! p)
-							goto expected_hwif_error; /* "expected hwif_data" */
-
-						sscanf(p++, "%i", &hwif_data);
-
-						if (argc && isdigit(**argv))
-							p = *argv++, --argc;
-						else
-							goto expected_hwif_error; /* "expected hwif_ctrl" */
-
-						sscanf(p, "%i", &hwif_ctrl);
-
-						if (argc && isdigit(**argv))
-							p = *argv++, --argc;
-						else
-expected_hwif_error:
-							bb_error_msg_and_die("expected hwif value"); /* "expected hwif_irq" */
-
-						sscanf(p, "%i", &hwif_irq);
-
-						*p = '\0';
-
-						scan_hwif = 1;
-						break;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_SCAN_HWIF */
-					case 'Q':
+		if (c == 'S') getset_standby  = parse_opts_0_max(&standby_requested, 255);
+		if (c == 'D') getset_defects  = parse_opts_0_INTMAX(&defects);
+		if (c == 'P') getset_prefetch = parse_opts_0_INTMAX(&prefetch);
+		parse_xfermode((c == 'X'), &get_xfermode, &set_xfermode, &xfermode_requested);
+		if (c == 'K') getset_dkeep     = parse_opts_0_1(&prefetch);
+		if (c == 'A') getset_lookahead = parse_opts_0_1(&lookahead);
+		if (c == 'L') getset_doorlock  = parse_opts_0_1(&doorlock);
+		if (c == 'W') getset_wcache    = parse_opts_0_1(&wcache);
+		get_powermode |= (c == 'C');
+		set_standbynow |= (c == 'y');
+		set_sleepnow |= (c == 'Y');
+		reread_partn |= (c == 'z');
+		set_seagate |= (c == 'Z');
+#endif
+		IF_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF(if (c == 'U') unregister_hwif = parse_opts_0_INTMAX(&hwif));
 #ifdef HDIO_GET_QDMA
-						get_dma_q = noisy;
-						noisy = 1;
-#ifdef HDIO_SET_QDMA
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_dma_q,&dma_q);
-#ifdef HDIO_GET_QDMA
-						dma_q = -dma_q;
-#endif
-#endif
-#endif
-						break;
-
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET
-					case 'w':
-						perform_reset = 1;
-						break;
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET */
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-					case 'x':
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((perform_tristate = set_flag(p,'1'))==1)
-							tristate  = *p++ - '0';
-						else
-							missing_arg(1, c, "(0/1)");
-						break;
-
-#endif /* CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF */
-					case 'a':
-						get_readahead = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_readahead,&Xreadahead);
-						break;
-					case 'B':
-						get_apmmode = noisy;
-						noisy = 1;
-						if (!*p && argc && isalnum(**argv))
-							p = *argv++, --argc;
-						p=GET_NUMBER(p,&set_apmmode,&apmmode);
-						missing_arg(set_apmmode, c, "(1-255)");
-						break;
-					case 't':
-						do_timings = 1;
-						do_flush = 1;
-						break;
-					case 'T':
-						do_ctimings = 1;
-						do_flush = 1;
-						break;
-#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
-					case 'b':
-						get_busstate = noisy;
-						noisy = 1;
-						if (!*p && argc && isdigit(**argv))
-							p = *argv++, --argc;
-						if((set_busstate = set_flag(p,'2'))==1)
-							busstate  = *p++ - '0';
-						break;
-#endif
-					case 'h':
-					default:
-						bb_show_usage();
-				}
-			}
-			if (!argc)
-				bb_show_usage();
-		} else {
-			process_dev (p);
+		if (c == 'Q') {
+			getset_dma_q = parse_opts_0_INTMAX(&dma_q);
 		}
+#endif
+		IF_FEATURE_HDPARM_HDIO_DRIVE_RESET(perform_reset = (c == 'r'));
+		IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(if (c == 'x') perform_tristate = parse_opts_0_1(&tristate));
+		IF_FEATURE_HDPARM_HDIO_TRISTATE_HWIF(if (c == 'b') getset_busstate = parse_opts_0_max(&busstate, 2));
+#if ENABLE_FEATURE_HDPARM_HDIO_SCAN_HWIF
+		if (c == 'R') {
+			scan_hwif = parse_opts_0_INTMAX(&hwif_data);
+			hwif_ctrl = xatoi_u((argv[optind]) ? argv[optind] : "");
+			hwif_irq  = xatoi_u((argv[optind+1]) ? argv[optind+1] : "");
+			/* Move past the 2 additional arguments */
+			argv += 2;
+			argc -= 2;
+		}
+#endif
 	}
-	return 0 ;
+	/* When no flags are given (flagcount = 0), -acdgkmnru is assumed. */
+	if (!flagcount) {
+		getset_mult = getset_io32bit = getset_unmask = getset_keep = getset_readonly = getset_readahead = get_geom = IS_GET;
+		IF_FEATURE_HDPARM_HDIO_GETSET_DMA(getset_dma = IS_GET);
+	}
+	argv += optind;
+
+	if (!*argv) {
+		if (ENABLE_FEATURE_HDPARM_GET_IDENTITY && !isatty(STDIN_FILENO))
+			identify_from_stdin(); /* EXIT */
+		bb_show_usage();
+	}
+
+	do {
+		process_dev(*argv++);
+	} while (*argv);
+
+	return EXIT_SUCCESS;
 }

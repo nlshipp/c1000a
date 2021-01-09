@@ -134,7 +134,11 @@
 #define SIOC_BRCM_GLOBAL_BASE    0x89c0
 #define SIOCGIFTRANSSTART  (SIOC_BRCM_GLOBAL_BASE+0)    /* Used by SNMP */
 #define SIOCCIFSTATS  (SIOC_BRCM_GLOBAL_BASE+1)  /* Clean up the Stats of a device */
-#define SIOCGPRIVIFFLAGS	(SIOC_BRCM_GLOBAL_BASE+2)
+#define SIOCDEVISWANDEV (SIOC_BRCM_GLOBAL_BASE+2)
+#define SIOCDEVISBRDEV  (SIOC_BRCM_GLOBAL_BASE+3)
+#if defined(AEI_VDSL_IOCTL_IFSTATS)
+#define SIOCGIFSTATS  (SIOC_BRCM_GLOBAL_BASE+10)
+#endif
 #endif //defined(CONFIG_MIPS_BRCM)
 
 /* Device private ioctl calls */

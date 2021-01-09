@@ -202,6 +202,10 @@ struct jffs2_inode_cache {
 
 #define INOCACHE_HASHSIZE 128
 
+#if defined(CONFIG_MIPS_BRCM)
+#define INO_FLAGS_COMPR_NONE		0x80
+#endif
+
 #define write_ofs(c) ((c)->nextblock->offset + (c)->sector_size - (c)->nextblock->free_size)
 
 /*

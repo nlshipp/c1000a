@@ -649,4 +649,12 @@ config WATCHDOG
 	  certain amount of time, the watchdog device assumes the system has
 	  hung, and will cause the hardware to reboot.
 
+# brcm begin
+config SYSINFO
+	bool "sysinfo"
+	default y
+	help
+	  The system status report utility.
+# brcm end
+
 endmenu

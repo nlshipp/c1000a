@@ -5,19 +5,7 @@
  * Copyright (c) 1988, 1993, 1994
  *	The Regents of the University of California.  All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Original copyright notice is retained at the end of this file.
  *
@@ -38,74 +26,68 @@
  * - correct "-" option usage
  * - multiple "-u unsetenv" support
  * - GNU long option support
- * - save errno after exec failed before bb_perror_msg()
+ * - use xfunc_error_retval
  */
 
+/* This is a NOEXEC applet. Be very careful! */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
-#include <getopt.h>
-#include "busybox.h"
+#include "libbb.h"
 
+#if ENABLE_FEATURE_ENV_LONG_OPTIONS
+static const char env_longopts[] ALIGN1 =
+	"ignore-environment\0" No_argument       "i"
+	"unset\0"              Required_argument "u"
+	;
+#endif
 
-static const struct option env_long_options[] = {
-	{ "ignore-environment", 0, NULL, 'i' },
-	{ "unset", 1, NULL, 'u' },
-	{ 0, 0, 0, 0 }
-};
-
-extern int env_main(int argc, char** argv)
+int env_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int env_main(int argc UNUSED_PARAM, char **argv)
 {
-	char **ep, *p;
-	char *cleanenv[1] = { NULL };
-	unsigned long opt;
+	unsigned opts;
 	llist_t *unset_env = NULL;
-	extern char **environ;
 
-	bb_opt_complementaly = "u*";
-	bb_applet_long_options = env_long_options;
-
-	opt = bb_getopt_ulflags(argc, argv, "+iu:", &unset_env);
-
+	opt_complementary = "u::";
+#if ENABLE_FEATURE_ENV_LONG_OPTIONS
+	applet_long_options = env_longopts;
+#endif
+	opts = getopt32(argv, "+iu:", &unset_env);
 	argv += optind;
-	if (*argv && (argv[0][0] == '-') && !argv[0][1]) {
-		opt |= 1;
+	if (argv[0] && LONE_DASH(argv[0])) {
+		opts |= 1;
 		++argv;
 	}
-
-	if(opt & 1)
-		environ = cleanenv;
-	else if(opt & 2) {
-		while(unset_env) {
-			unsetenv(unset_env->data);
-			unset_env = unset_env->link;
-		}
+	if (opts & 1) {
+		clearenv();
+	}
+	while (unset_env) {
+		char *var = llist_pop(&unset_env);
+		/* This does not handle -uVAR=VAL
+		 * (coreutils _sets_ the variable in that case): */
+		/*unsetenv(var);*/
+		/* This does, but uses somewhan undocumented feature that
+		 * putenv("name_without_equal_sign") unsets the variable: */
+		putenv(var);
 	}
 
-	while (*argv && ((p = strchr(*argv, '=')) != NULL)) {
+	while (*argv && (strchr(*argv, '=') != NULL)) {
 		if (putenv(*argv) < 0) {
 			bb_perror_msg_and_die("putenv");
 		}
 		++argv;
 	}
 
-	if (*argv) {
-		int er;
-
-		execvp(*argv, argv);
-		er = errno;
-		bb_perror_msg("%s", *argv);     /* Avoid multibyte problems. */
-		return (er == ENOENT) ? 127 : 126;   /* SUSv3-mandated exit codes. */
+	if (argv[0]) {
+		BB_EXECVP_or_die(argv);
 	}
 
-	for (ep = environ; *ep; ep++) {
-		puts(*ep);
+	if (environ) { /* clearenv() may set environ == NULL! */
+		char **ep;
+		for (ep = environ; *ep; ep++) {
+			puts(*ep);
+		}
 	}
 
-	bb_fflush_stdout_and_exit(0);
+	fflush_stdout_and_exit(EXIT_SUCCESS);
 }
 
 /*
@@ -140,5 +122,3 @@ extern int env_main(int argc, char** argv)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-

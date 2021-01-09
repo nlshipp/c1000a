@@ -3,122 +3,51 @@
  * Mini rmmod implementation for busybox
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 2008 Timo Teras <timo.teras@iki.fi>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <fcntl.h>
-#include <string.h>
-#include <sys/syscall.h>
-#include "busybox.h"
+#include "libbb.h"
+#include "modutils.h"
 
-#ifdef CONFIG_FEATURE_2_6_MODULES
-static inline void filename2modname(char *modname, const char *filename)
+int rmmod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int rmmod_main(int argc UNUSED_PARAM, char **argv)
 {
-	const char *afterslash;
-	unsigned int i;
-
-	afterslash = strrchr(filename, '/');
-	if (!afterslash)
-		afterslash = filename;
-	else
-		afterslash++;
-
-	/* Convert to underscores, stop at first . */
-	for (i = 0; afterslash[i] && afterslash[i] != '.'; i++) {
-		if (afterslash[i] == '-')
-			modname[i] = '_';
-		else
-			modname[i] = afterslash[i];
-	}
-	modname[i] = '\0';
-}
-#endif
-
-extern int rmmod_main(int argc, char **argv)
-{
-	int n, ret = EXIT_SUCCESS;
-	size_t nmod = 0; /* number of modules */
-	size_t pnmod = -1; /* previous number of modules */
-	unsigned int flags = O_NONBLOCK|O_EXCL;
-#ifdef CONFIG_FEATURE_QUERY_MODULE_INTERFACE
-	void *buf; /* hold the module names which we ignore but must get */
-	size_t bufsize = 0;
-#endif
+	int n;
+	unsigned flags = O_NONBLOCK | O_EXCL;
 
 	/* Parse command line. */
-	while ((n = getopt(argc, argv, "a")) != EOF) {
-		switch (n) {
-			case 'w':       // --wait
-				flags &= ~O_NONBLOCK;
-				break;
-			case 'f':       // --force
-				flags |= O_TRUNC;
-				break;
-			case 'a':
-				/* Unload _all_ unused modules via NULL delete_module() call */
-				/* until the number of modules does not change */
-#ifdef CONFIG_FEATURE_QUERY_MODULE_INTERFACE
-				buf = xmalloc(bufsize = 256);
-#endif
-				while (nmod != pnmod) {
-					if (syscall(__NR_delete_module, NULL, flags) < 0) {
-						if (errno==EFAULT)
-							return(ret);
-						bb_perror_msg_and_die("rmmod");
-					}
-					pnmod = nmod;
-#ifdef CONFIG_FEATURE_QUERY_MODULE_INTERFACE
-					/* 1 == QM_MODULES */
-					if (my_query_module(NULL, 1, &buf, &bufsize, &nmod)) {
-						bb_perror_msg_and_die("QM_MODULES");
-					}
-#endif
-				}
-#if defined CONFIG_FEATURE_CLEAN_UP && CONFIG_FEATURE_QUERY_MODULE_INTERFACE
-				free(buf);
-#endif
-				return EXIT_SUCCESS;
-			default:
-				bb_show_usage();
-		}
+	n = getopt32(argv, "wfas"); // -s ignored
+	argv += optind;
+	if (n & 1)	// --wait
+		flags &= ~O_NONBLOCK;
+	if (n & 2)	// --force
+		flags |= O_TRUNC;
+	if (n & 4) {
+		/* Unload _all_ unused modules via NULL delete_module() call */
+		if (bb_delete_module(NULL, flags) != 0 && errno != EFAULT)
+			bb_perror_msg_and_die("rmmod");
+		return EXIT_SUCCESS;
 	}
 
-	if (optind == argc)
+	if (!*argv)
 		bb_show_usage();
 
-	{
-		for (n = optind; n < argc; n++) {
-#ifdef CONFIG_FEATURE_2_6_MODULES
-			char module_name[strlen(argv[n]) + 1];
-			filename2modname(module_name, argv[n]);
-#else
-#define module_name		argv[n]
-#endif
-			if (syscall(__NR_delete_module, module_name, flags) < 0) {
-				bb_perror_msg("%s", argv[n]);
-				ret = EXIT_FAILURE;
-			}
-		}
+	n = ENABLE_FEATURE_2_4_MODULES && get_linux_version_code() < KERNEL_VERSION(2,6,0);
+	while (*argv) {
+		char modname[MODULE_NAME_LEN];
+		const char *bname;
+
+		bname = bb_basename(*argv++);
+		if (n)
+			safe_strncpy(modname, bname, MODULE_NAME_LEN);
+		else
+			filename2modname(bname, modname);
+		if (bb_delete_module(modname, flags))
+			bb_error_msg_and_die("can't unload '%s': %s",
+					     modname, moderror(errno));
 	}
 
-	return(ret);
+	return EXIT_SUCCESS;
 }

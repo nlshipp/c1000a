@@ -1,33 +1,39 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
+<:label-BRCM:2011:DUAL/GPL:standard
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+  :>
 */                       
 
-#ifndef __BCM6368_MAP_H
-#define __BCM6368_MAP_H
+#ifndef __BCM6368_MAP_PART_H
+#define __BCM6368_MAP_PART_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifndef __BCM6368_MAP_H
+#define __BCM6368_MAP_H
 
 #include "bcmtypes.h"
 
@@ -45,9 +51,29 @@ extern "C" {
 #define USB_EHCI_BASE        0x10001500  /* USB host registers */
 #define USB_OHCI_BASE        0x10001600  /* USB host registers */
 #define USBH_CFG_BASE        0xb0001700
+#define SAR_BASE             0xb0001800
 #define SAR_DMA_BASE         0xb0005000  /* ATM SAR DMA control registers */
 #define SWITCH_DMA_BASE      0xb0006800
 #define SWITCH_BASE          0xb0f00000
+#define IPSEC_DMA_BASE       0xb0006000
+
+/*
+** NAND Controller Registers
+*/
+typedef struct NandCtrlRegs {
+    uint32 NandRevision;            /* NAND Revision */
+    uint32 NandCmdStart;            /* Nand Flash Command Start */
+    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
+    uint32 NandCmdAddr;             /* Nand Flash Command Address */
+    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
+    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
+#define NBC_AUTO_DEV_ID_CFG 0x40000000
+    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
+} NandCtrlRegs;
+
+#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
+
+#endif
 
 typedef struct MemoryControl
 {
@@ -549,6 +575,8 @@ typedef struct GpioControl {
 #define EPHY_RST_3              (1<<8)
 #define EPHY_RST_2              (1<<7)
 #define EPHY_RST_1              (1<<6)
+#define EPHY_RST_SHIFT		0x6
+#define EPHY_RST_MASK		(0xf<<EPHY_RST_SHIFT)
 #define EPHY_PWR_DOWN_4         (1<<5)
 #define EPHY_PWR_DOWN_3         (1<<4)
 #define EPHY_PWR_DOWN_2         (1<<3)
@@ -556,7 +584,7 @@ typedef struct GpioControl {
 #define EPHY_PWR_DOWN_DLL       (1<<1)
 #define EPHY_PWR_DOWN_BIAS      (1<<0)
     uint32      StrapBus;                   /* 40 */
-#define UTOPIA_MASTER_ON        (1<<14)
+#define UTOPIA_MASTER_ON        (1<<6)
 #define MISC_STRAP_BUS_BOOT_SEL_MASK     0x3
 #define MISC_STRAP_BUS_BOOT_SEL_SHIFT    0
 #define MISC_STRAP_BUS_BOOT_PARALLEL     0x03
@@ -1018,6 +1046,25 @@ typedef struct USBControl {
 
 #define USBH ((volatile USBControl * const) USBH_CFG_BASE)
 
+
+
+
+/*
+** SAR Registers
+*/
+
+#define SAR_TX_CTL_REGS (SAR_BASE + 0x00000060) /* SAR Tx Control Registers */
+#define SAR_TX_CTL_REGS_SZ  0x00000020
+#define SAR_RX_CTL_REGS (SAR_BASE + 0x00000080) /* SAR Rx Control Registers */
+#define SAR_RX_CTL_REGS_SZ  0x00000030
+#define SAR_RX_VCAM_REGS (SAR_BASE + 0x00000140) /* SAR  Rx ATM VPI_VCI CAM Table Reg Registers */
+#define SAR_RX_VCAM_REGS_SZ  0x00000080
+#define SAR_RX_PBUF_REGS (SAR_BASE + 0x00000300) /* SAR Rx Packet Buffer Control Registers */
+#define SAR_RX_PBUF_REGS_SZ  0x00000060
+#define SAR_MIB_REGS (SAR_BASE + 0x00000600) /* SAR  Atm MIB Counters Registers */
+#define SAR_MIB_REGS_SZ  0x000000C0
+
+
 typedef struct EthSwMIBRegs {
     unsigned int TxOctetsLo;
     unsigned int TxOctetsHi;
@@ -1071,21 +1118,6 @@ typedef struct EthSwMIBRegs {
 
 #define ETHSWMIBREG ((volatile EthSwMIBRegs * const) (SWITCH_BASE + 0x2000))
 
-/*
-** NAND Controller Registers
-*/
-typedef struct NandCtrlRegs {
-    uint32 NandRevision;            /* NAND Revision */
-    uint32 NandCmdStart;            /* Nand Flash Command Start */
-    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
-    uint32 NandCmdAddr;             /* Nand Flash Command Address */
-    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
-    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
-#define NBC_AUTO_DEV_ID_CFG 0x40000000
-    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
-} NandCtrlRegs;
-
-#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
 #ifdef __cplusplus
 }
 #endif

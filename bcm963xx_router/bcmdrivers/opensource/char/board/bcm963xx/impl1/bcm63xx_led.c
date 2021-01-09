@@ -1,20 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2002 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
-:>
+    Copyright 2000-2011 Broadcom Corporation
+
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */
 /***************************************************************************
  * File Name  : bcm63xx_led.c
@@ -47,7 +56,7 @@ extern spinlock_t bcm_gpio_spinlock;
 #define kVerySlowBlinkCount     3          // 500ms
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
 #define kOneSecondBlinkCount 7          //1 second
-#endif  
+#endif
 #define kLedOff             0
 #define kLedOn              1
 
@@ -70,6 +79,9 @@ typedef struct {
     short ledRedGpio;               // GPIO # for Fail LED
     BOARD_LED_STATE ledState;       // current led state
     short blinkCountDown;           // Count for blink states
+#if defined(AEI_VOIP_LED)
+    short mwiState;
+#endif
 } LED_CTRL, *PLED_CTRL;
 
 static BP_LED_INFO bpLedInfo[] =
@@ -89,6 +101,16 @@ static BP_LED_INFO bpLedInfo[] =
     {kLedUsb, BpGetUsbLedGpio, NULL},
     {kLedPower, BpGetBootloaderPowerOnLedGpio, BpGetBootloaderStopLedGpio},
     {kLedSes, BpGetWirelessSesLedGpio, BpGetWirelessFailSesLedGpio},
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    {AEI_kLedWlanAct, BpGetWirelessLedGpioAct, NULL},
+    {AEI_kLedWlan, BpGetWirelessLedGpioGreen, BpGetWirelessLedGpioRed},
+    {AEI_kLedWlanGreen, BpGetWirelessLedGpioGreen, NULL},
+    {AEI_kLedWlanRed, BpGetWirelessLedGpioRed, NULL},
+#endif
+#if defined(AEI_63168_CHIP)
+    {kLedEnetWan, BpGetEnetWanLedGpio, NULL},
+#endif
+
 #endif
     {kLedEnd, NULL, NULL}
 };
@@ -122,13 +144,13 @@ static void ledTimerExpire(void);
 //**************************************************************************************
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 /* ken, Set HW control for WAN Data LED. */
-void AEI_SetWanLedHwControl(BOARD_LED_NAME ledName,PLED_CTRL pLed,int enable) 
+void AEI_SetWanLedHwControl(BOARD_LED_NAME ledName,PLED_CTRL pLed,int enable)
 {
 #if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
     if (ledName == kLedWanData)
     {
         if(enable)
-                LED->ledHWDis &= ~GPIO_NUM_TO_MASK(pLed->ledGreenGpio);            
+                LED->ledHWDis &= ~GPIO_NUM_TO_MASK(pLed->ledGreenGpio);
         else
             LED->ledHWDis |= GPIO_NUM_TO_MASK(pLed->ledGreenGpio);
     }
@@ -182,13 +204,13 @@ static void setLed (PLED_CTRL pLed, unsigned short led_state, unsigned short led
     /* spinlock to protect access to GPIODir, GPIOio */
     spin_lock_irqsave(&bcm_gpio_spinlock, flags);
 
-#if defined(CONFIG_BCM96328)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96318)
     /* Enable LED controller to drive this GPIO */
     if (!(led_gpio & BP_GPIO_SERIAL))
         GPIO->GPIOMode |= GPIO_NUM_TO_MASK(led_gpio);
 #endif
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     /* Enable LED controller to drive this GPIO */
     if (!(led_gpio & BP_GPIO_SERIAL))
         GPIO->LEDCtrl |= GPIO_NUM_TO_MASK(led_gpio);
@@ -200,9 +222,9 @@ static void setLed (PLED_CTRL pLed, unsigned short led_state, unsigned short led
 
 #endif
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
 #ifdef AEI_63168_CHIP
-    if ((led_gpio & BP_GPIO_NUM_MASK) > 31) 
+    if ((led_gpio & BP_GPIO_NUM_MASK) > 31)
     {
         GPIO->GPIODir |= GPIO_NUM_TO_MASK(led_gpio);
         if( gpio_state )
@@ -214,7 +236,7 @@ static void setLed (PLED_CTRL pLed, unsigned short led_state, unsigned short led
             GPIO->GPIOio &= ~GPIO_NUM_TO_MASK(led_gpio); //off
         }
     }
-    else 
+    else
     {
         LED->ledMode &= ~(LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
         if( gpio_state )
@@ -251,7 +273,6 @@ static void setLed (PLED_CTRL pLed, unsigned short led_state, unsigned short led
 }
 
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
-/* toggle the LED */
 static void wpsledToggle(PLED_CTRL pLed)
 {
     short led_gpio;
@@ -280,7 +301,15 @@ static void wpsledToggle(PLED_CTRL pLed)
     if((BP_GPIO_NUM_MASK & led_gpio)>=24 && (BP_GPIO_NUM_MASK & led_gpio)<=31)
         printk("####set NAND FLASH incorrectly (%d),LEDCtl(%x)\n",(BP_GPIO_NUM_MASK & led_gpio),GPIO->LEDCtrl);
 
-        LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+        if ((led_gpio & BP_GPIO_NUM_MASK) > 31)
+        {
+            GPIO->GPIODir |= GPIO_NUM_TO_MASK(led_gpio);
+            GPIO->GPIOio ^= (GPIO_NUM_TO_MASK(led_gpio));
+        }
+        else
+        {
+            LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+        }
 #else
 
         if (led_gpio & BP_GPIO_SERIAL) {
@@ -301,6 +330,70 @@ static void wpsledToggle(PLED_CTRL pLed)
     }
 }
 #endif
+
+#if defined(AEI_VOIP_LED) 
+static void voipAmberledToggle(PLED_CTRL pLed)
+{
+    short led_gpio;
+    short i;
+    static unsigned short state;
+
+    if (state == 0)
+        state = 1;
+    else
+        state = 0;
+
+    for (i=0;i<2;i++)/*To amber color*/
+    {
+        if (i==0)
+            led_gpio = pLed->ledGreenGpio;
+        else
+            led_gpio = pLed->ledRedGpio;
+
+        if (led_gpio == -1)
+            return;
+
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
+        if((BP_GPIO_NUM_MASK & led_gpio)>=2 && (BP_GPIO_NUM_MASK & led_gpio)<=7)
+            printk("####set NAND FLASH gpio incorrectly (%d),LEDCtl(%x)\n",(BP_GPIO_NUM_MASK & led_gpio),GPIO->LEDCtrl);
+
+        if((BP_GPIO_NUM_MASK & led_gpio)>=24 && (BP_GPIO_NUM_MASK & led_gpio)<=31)
+            printk("####set NAND FLASH incorrectly (%d),LEDCtl(%x)\n",(BP_GPIO_NUM_MASK & led_gpio),GPIO->LEDCtrl);
+
+#ifdef AEI_63168_CHIP
+        if ((led_gpio & BP_GPIO_NUM_MASK) > 31)
+        {
+            GPIO->GPIODir |= GPIO_NUM_TO_MASK(led_gpio);
+            GPIO->GPIOio ^= (GPIO_NUM_TO_MASK(led_gpio));
+        }
+        else
+        {
+            LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+        }
+#else
+        LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+#endif
+#else
+
+        if (led_gpio & BP_GPIO_SERIAL) {
+            while (GPIO->SerialLedCtrl & SER_LED_BUSY);
+            GPIO->SerialLed ^= GPIO_NUM_TO_MASK(led_gpio);
+        }
+        else {
+            unsigned long flags;
+
+            spin_lock_irqsave(&bcm_gpio_spinlock, flags);
+            GPIO->GPIODir |= GPIO_NUM_TO_MASK(led_gpio);
+            GPIO->GPIOio ^= GPIO_NUM_TO_MASK(led_gpio);
+
+            spin_unlock_irqrestore(&bcm_gpio_spinlock, flags);
+        }
+
+#endif
+    }
+}
+#endif
+/* toggle the LED */
 static void ledToggle(PLED_CTRL pLed)
 {
     short led_gpio;
@@ -309,14 +402,26 @@ static void ledToggle(PLED_CTRL pLed)
     if (led_gpio == -1)
         return;
 
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
     if((BP_GPIO_NUM_MASK & led_gpio)>=2 && (BP_GPIO_NUM_MASK & led_gpio)<=7)
         printk("####set NAND FLASH gpio incorrectly (%d),LEDCtl(%x)\n",(BP_GPIO_NUM_MASK & led_gpio),GPIO->LEDCtrl);
 
     if((BP_GPIO_NUM_MASK & led_gpio)>=24 && (BP_GPIO_NUM_MASK & led_gpio)<=31)
         printk("####set NAND FLASH incorrectly (%d),LEDCtl(%x)\n",(BP_GPIO_NUM_MASK & led_gpio),GPIO->LEDCtrl);
 
+#ifdef AEI_63168_CHIP
+    if ((led_gpio & BP_GPIO_NUM_MASK) > 31)
+    {
+        GPIO->GPIODir |= GPIO_NUM_TO_MASK(led_gpio);
+        GPIO->GPIOio ^= (GPIO_NUM_TO_MASK(led_gpio));
+    }
+    else
+    {
+        LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+    }
+#else
     LED->ledMode ^= (LED_MODE_MASK << GPIO_NUM_TO_LED_MODE_SHIFT(led_gpio));
+#endif
 #else
 
     if (led_gpio & BP_GPIO_SERIAL) {
@@ -359,7 +464,7 @@ static void ledTimerStart(void)
 // restart the timer according to ledState
 static void ledTimerExpire(void)
 {
-    int i;
+    int i,voip_reg_toggle_flag;
     PLED_CTRL pCurLed;
     unsigned long flags;
 
@@ -414,6 +519,45 @@ static void ledTimerExpire(void)
             gTimerOnRequests++;
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;
+#if defined(AEI_VOIP_LED)
+        case kLedStateAmberBlinkContinues:
+            if (pCurLed->blinkCountDown-- == 0)
+            {
+                pCurLed->blinkCountDown = kFastBlinkCount;
+                voipAmberledToggle(pCurLed);
+            }  
+            gTimerOnRequests++;
+            spin_unlock_irqrestore(&brcm_ledlock, flags);
+            break;
+        case kLedStateMWIBlinkContinues:
+            if (pCurLed->blinkCountDown-- == 0)
+            {
+                if(pCurLed->mwiState==0)
+                {
+                    pCurLed->blinkCountDown = kSlowBlinkCount;
+                    pCurLed->mwiState++;
+                }
+                else if(pCurLed->mwiState==1)
+                {
+                    pCurLed->blinkCountDown = kVerySlowBlinkCount;
+                    pCurLed->mwiState++;
+                }
+                else if(pCurLed->mwiState==2)
+                {
+                    pCurLed->blinkCountDown = kOneSecondBlinkCount;
+                    pCurLed->mwiState++;
+                }
+                else if(pCurLed->mwiState==3)
+                {
+                    pCurLed->blinkCountDown = kVerySlowBlinkCount;
+                    pCurLed->mwiState = 0;
+                }
+                ledToggle(pCurLed);
+            } 
+            gTimerOnRequests++;
+            spin_unlock_irqrestore(&brcm_ledlock, flags);
+            break;
+#endif
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
         case kLedStateAmberSlowBlinkContinues:
             if (pCurLed->blinkCountDown-- == 0)
@@ -507,21 +651,21 @@ static void ledTimerExpire(void)
             gTimerOnRequests++;
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;        
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_BELLALIANT) 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
         case kLedStateUserWANGreenRedVerySlowBlinkContinues:
             if (pCurLed->blinkCountDown-- == 0)
             {
                 pCurLed->blinkCountDown = kVerySlowBlinkCount;
                 if(gWANLedRunningCounter == 0)
                 {
-                    AEI_SetWanLedHwControl(kLedWanData,pCurLed,1);         
-                   setLed(pCurLed, kLedOff, kLedRed);                    
+                    AEI_SetWanLedHwControl(kLedWanData,pCurLed,1);
+                   setLed(pCurLed, kLedOff, kLedRed);
                    setLed(pCurLed, kLedOn, kLedGreen);
                     gWANLedRunningCounter = 1;
                 }
                 else
                 {
-                    AEI_SetWanLedHwControl(kLedWanData,pCurLed,0);            
+                    AEI_SetWanLedHwControl(kLedWanData,pCurLed,0);
                     setLed(pCurLed, kLedOff, kLedGreen);
                     setLed(pCurLed, kLedOn, kLedRed);
                     gWANLedRunningCounter = 0;
@@ -540,7 +684,7 @@ static void ledTimerExpire(void)
             gTimerOnRequests++;
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             break;
-#endif            
+#endif
         default:
             spin_unlock_irqrestore(&brcm_ledlock, flags);
             printk("Invalid state = %d\n", pCurLed->ledState);
@@ -570,19 +714,19 @@ void __init boardLedInit(void)
     PBP_LED_INFO pInfo;
     unsigned short i;
     short gpio;
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     ETHERNET_MAC_INFO EnetInfo;
 #endif
 
     spin_lock_init(&brcm_ledlock);
 
-#if !(defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268))
+#if !(defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828))
     /* Set blink rate for hardware LEDs. */
     GPIO->LEDCtrl &= ~LED_INTERVAL_SET_MASK;
     GPIO->LEDCtrl |= LED_INTERVAL_SET_80MS;
 #else
 #if defined(AEI_63168_CHIP)
-    GPIO->GPIOCtrl |= 0x000FFFF0;
+    GPIO->GPIOCtrl |= 0x000FFFC0;
 #endif
 #endif
 
@@ -592,7 +736,7 @@ void __init boardLedInit(void)
         printk( "LED memory allocation error.\n" );
         return;
     }
-    
+
     /* Initialize LED control */
     for (i = 0; i < kLedEnd; i++) {
         gLedCtrl[i].ledGreenGpio = -1;
@@ -614,15 +758,15 @@ void __init boardLedInit(void)
 #if defined(AEI_VDSL_CUSTOMER_NCS)
         if (pInfo->ledName == kLedPower)
         {
-            continue;  
-        }     
+            continue;
+        }
 #endif
 
         setLed(&gLedCtrl[pInfo->ledName], kLedOff, kLedGreen);
         setLed(&gLedCtrl[pInfo->ledName], kLedOff, kLedRed);
     }
 
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     if( BpGetEthernetMacInfo( &EnetInfo, 1 ) == BP_SUCCESS )
     {
         if ( EnetInfo.sw.ledInfo[0].duplexLed != BP_NOT_DEFINED )
@@ -685,7 +829,10 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
         // in the board parameters, change the state to kLedStateSlowBlinkContinues.
         if( ledState == kLedStateFail && pLed->ledRedGpio == -1 )
             ledState = kLedStateSlowBlinkContinues;
-
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) && defined(AEI_VOIP_LED)
+        if(ledState==kLedStateOn && pLed->ledState==kLedStateMWIBlinkContinues)
+            return;
+#endif
         // Save current LED state
         pLed->ledState = ledState;
 
@@ -695,10 +842,10 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
 
         // Disable HW control for WAN Data LED. 
         // It will be enabled only if LED state is On
- #if defined(AEI_VDSL_CUSTOMER_NCS)       
+ #if defined(AEI_VDSL_CUSTOMER_NCS)
         AEI_SetWanLedHwControl(ledName,pLed,0);
 #else
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
         if (ledName == kLedWanData)
             LED->ledHWDis |= GPIO_NUM_TO_MASK(pLed->ledGreenGpio);
 #elif defined(CONFIG_BCM96368)
@@ -714,10 +861,10 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
         switch (ledState) {
         case kLedStateOn:
             // Enable SAR to control INET LED
-#if defined(AEI_VDSL_CUSTOMER_NCS)            
+#if defined(AEI_VDSL_CUSTOMER_NCS)
             AEI_SetWanLedHwControl(ledName,pLed,1);
 #else
-#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362)
+#if defined(CONFIG_BCM96328) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96318)|| defined(CONFIG_BCM96828)
             if (ledName == kLedWanData)
                 LED->ledHWDis &= ~GPIO_NUM_TO_MASK(pLed->ledGreenGpio);
 #elif defined(CONFIG_BCM96368)
@@ -740,7 +887,7 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
             setLed (pLed, kLedOn, kLedRed);
             break;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS)            
+#if defined(AEI_VDSL_CUSTOMER_NCS)
         case kLedStateAmber:
             setLed (pLed, kLedOn, kLedGreen);
             setLed (pLed, kLedOn, kLedRed);
@@ -764,6 +911,17 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
             break;
 
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#if defined(AEI_VOIP_LED)
+        case kLedStateAmberBlinkContinues:
+            pLed->blinkCountDown = kFastBlinkCount;
+            gTimerOnRequests++;
+            break;
+        case kLedStateMWIBlinkContinues:
+            pLed->blinkCountDown = kVerySlowBlinkCount;
+            pLed->mwiState = 0;
+            gTimerOnRequests++;
+            break;
+#endif
         case kLedStateAmberSlowBlinkContinues:
 			gPowerLedStatus = 3;
             pLed->blinkCountDown = kOneSecondBlinkCount;
@@ -797,12 +955,12 @@ void boardLedCtrl(BOARD_LED_NAME ledName, BOARD_LED_STATE ledState)
         case kLedStateUserWANGreenRedVerySlowBlinkContinues:      /*rotate between green and red in a 1 second on/off interval*/
             pLed->blinkCountDown = kVerySlowBlinkCount;
             gTimerOnRequests++;
-            break;        
+            break;
         case kLedStatePowerOneSecondBlinkContinues:
             pLed->blinkCountDown = kOneSecondBlinkCount;
             gTimerOnRequests++;
             break;
-#endif        
+#endif
         default:
             printk("Invalid led state\n");
         }

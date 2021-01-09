@@ -1,25 +1,29 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
-
+    
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
     Unless you and Broadcom execute a separate written software license
     agreement governing use of this software, this software is licensed
     to you under the terms of the GNU General Public License version 2
-    (the “GPL”), available at http://www.broadcom.com/licenses/GPLv2.php,
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
     with the following added to such license:
-
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */                       
 
 /**************************************************************************
@@ -73,6 +77,7 @@ extern "C" {
 #define VOICECFG_LE88266x2_LE89010_STR "LE88266x2_89010"
 #define VOICECFG_LE88266x2_STR         "LE88266x2"
 #define VOICECFG_LE88266_STR           "LE88266"
+#define VOICECFG_ZL88601_STR           "ZL88601"
 
 #define VOICECFG_SI3217X_STR           "SI3217X"
 #define VOICECFG_SI32176_STR           "SI32176"
@@ -90,9 +95,16 @@ extern "C" {
 /* Non-daughtercard defines */
 #define VOICECFG_6368MVWG_STR                     "MVWG"
 
+#define VOICE_OPTION_DECT_PROMPT_STR        "DECT Type Installed (0-#       :"
+#define VOICE_OPTION_NO_DECT_STR            "No DECT"
+#define VOICE_OPTION_INT_DECT_STR           "Internal DECT"
+#define VOICE_OPTION_EXT_DECT_STR           "External DECT"
 
+#define VOICE_OPTION_DECT_ERROR_STR         "Invalid data"
+#define VOICE_OPTION_DECT_MASK              0x0000000f
 
-
+#define BP_DECT_POPULATED 1 
+#define BP_DECT_NOT_POPULATED 0 
 /* Maximum number of devices in the system (on the board).
 ** Devices can refer to DECT, SLAC/SLIC, or SLAC/DAA combo. */
 #define BP_MAX_VOICE_DEVICES           5 
@@ -121,6 +133,93 @@ extern "C" {
 #define BP_FLAG_MODNAME_TESTNAME6            (1 << 6)
 #define BP_FLAG_MODNAME_TESTNAME7            (1 << 7)
 #define BP_FLAG_MODNAME_TESTNAME8            (1 << 8)
+
+#define BP_NULL_DEVICE_MACRO_NEW     \
+{                                \
+   BP_VD_NONE,                   \
+   BP_SPI_SS_NOT_REQUIRED,       \
+   BP_RESET_NOT_REQUIRED,        \
+   {                             \
+      { BP_VOICE_CHANNEL_INACTIVE, BP_VCTYPE_NONE, BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE, BP_VOICE_CHANNEL_NARROWBAND, BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS, BP_VOICE_CHANNEL_ENDIAN_BIG, BP_TIMESLOT_INVALID, BP_TIMESLOT_INVALID }, \
+      { BP_VOICE_CHANNEL_INACTIVE, BP_VCTYPE_NONE, BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE, BP_VOICE_CHANNEL_NARROWBAND, BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS, BP_VOICE_CHANNEL_ENDIAN_BIG, BP_TIMESLOT_INVALID, BP_TIMESLOT_INVALID }, \
+   }                             \
+}
+
+/* 
+ * Use this macro for boards which do not support DECT in place of the 
+ * channel list in the voice parameters struct. 
+ */
+#define BP_DECT_NOT_SUPPORTED { BP_NULL_CHANNEL_DESCRIPTION_MACRO }
+
+
+/*
+ * Use this macro for boards which support internal DECT.
+ */
+#define BP_DECT_INTERNAL  {							\
+   { 														\
+      BP_VOICE_CHANNEL_ACTIVE,					\
+      BP_VCTYPE_DECT,								\
+      BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE,		\
+      BP_VOICE_CHANNEL_WIDEBAND,					\
+      BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS,	\
+      BP_VOICE_CHANNEL_ENDIAN_BIG,				\
+      BP_TIMESLOT_INVALID,							\
+      BP_TIMESLOT_INVALID							\
+   },														\
+   {  													\
+      BP_VOICE_CHANNEL_ACTIVE,					\
+      BP_VCTYPE_DECT,								\
+      BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE,		\
+      BP_VOICE_CHANNEL_WIDEBAND,					\
+      BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS,	\
+      BP_VOICE_CHANNEL_ENDIAN_BIG,				\
+      BP_TIMESLOT_INVALID,							\
+      BP_TIMESLOT_INVALID							\
+   },														\
+   { 														\
+      BP_VOICE_CHANNEL_ACTIVE,					\
+      BP_VCTYPE_DECT,								\
+      BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE,		\
+      BP_VOICE_CHANNEL_WIDEBAND,					\
+      BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS,	\
+      BP_VOICE_CHANNEL_ENDIAN_BIG,				\
+      BP_TIMESLOT_INVALID,							\
+      BP_TIMESLOT_INVALID							\
+   },														\
+   {  													\
+      BP_VOICE_CHANNEL_ACTIVE,					\
+      BP_VCTYPE_DECT,								\
+      BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE,		\
+      BP_VOICE_CHANNEL_WIDEBAND,					\
+      BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS,	\
+      BP_VOICE_CHANNEL_ENDIAN_BIG,				\
+      BP_TIMESLOT_INVALID,							\
+      BP_TIMESLOT_INVALID							\
+   },														\
+			   											\
+   BP_NULL_CHANNEL_DESCRIPTION_MACRO			\
+}
+	
+#define BP_MAX_SUPPORTED_DC 20
+#define BP_MAX_DECT_DEVICE 2
+#define BP_MAX_DC_SPI_DEVICE 3
+#define BP_NULL_CHANNEL_DESCRIPTION_MACRO     \
+      { BP_VOICE_CHANNEL_NONE, BP_VCTYPE_NONE, BP_VOICE_CHANNEL_PCMCOMP_MODE_NONE, BP_VOICE_CHANNEL_NARROWBAND, BP_VOICE_CHANNEL_SAMPLE_SIZE_16BITS, BP_VOICE_CHANNEL_ENDIAN_BIG, BP_TIMESLOT_INVALID, BP_TIMESLOT_INVALID } 
+
+#define BP_ISI_ZSI_SPIID_6818 7
+#define BP_ISI_ZSI_SPIID      3
+#define BP_ISI_ZSI_SPIID_6328 6
+
+/* To avoid conflict with GPIO pin defines */
+#define BP_NOT_CONNECTED 100
+#define BP_DEDICATED_PIN 101
+
+typedef enum
+{
+   BP_VOICE_NO_DECT,
+   BP_VOICE_INT_DECT,
+   BP_VOICE_EXT_DECT
+}BP_VOICE_DECT_TYPE;
 
 /* 
 ** Device-specific definitions 
@@ -154,6 +253,7 @@ typedef enum
    BP_VD_ZARLINK_9530,
    BP_VD_ZARLINK_89136,
    BP_VD_ZARLINK_89336,
+   BP_VD_ZARLINK_88601,  
    BP_VD_MAX,
 } BP_VOICE_DEVICE_TYPE;
 
@@ -177,6 +277,7 @@ typedef enum
 
 typedef enum
 {
+   BP_VOICE_CHANNEL_NONE=-1,
    BP_VOICE_CHANNEL_ACTIVE,
    BP_VOICE_CHANNEL_INACTIVE,
 } BP_VOICE_CHANNEL_STATUS;
@@ -229,7 +330,6 @@ typedef struct
 
 } BP_VOICE_CHANNEL;
 
-/* TODO: This structure could possibly be turned into union if needed */
 typedef struct
 {
    int                  spiDevId;               /* SPI device id */
@@ -255,8 +355,62 @@ typedef struct
    unsigned short       resetGpio;              /* Reset GPIO */
    BP_VOICE_CHANNEL     channel[BP_MAX_CHANNELS_PER_DEVICE];   /* Device channels */
 
+} BP_VOICE_DEVICE_MID_LAYER;
+
+typedef struct 
+{
+   int 					nDeviceType;			/* Specific type of device (Le88267, Si32176, etc.) */
+   int 					nSPI_SS_Bx;				/* SPI Control */
+   int 					nRstPin;				/* Reset pin */
+   BP_VOICE_CHANNEL     channel[BP_MAX_CHANNELS_PER_DEVICE];	/* Device channels */
+  
 } BP_VOICE_DEVICE;
 
+typedef enum
+{
+   SPI_DEV_0,
+   SPI_DEV_1,
+   SPI_DEV_2,
+   SPI_DEV_3,
+   SPI_DEV_4,
+   SPI_DEV_5,
+   SPI_DEV_6,
+   SPI_DEV_7
+   
+} BP_SPI_PORT;
+
+typedef enum
+{
+   BP_SPI_SS_NOT_REQUIRED=-1,
+   BP_SPI_SS_B1,
+   BP_SPI_SS_B2,
+   BP_SPI_SS_B3,
+   
+} BP_SPI_SIGNAL;
+
+typedef enum
+{
+   BP_RESET_NOT_REQUIRED=-1,
+   BP_RESET_FXS1,
+   BP_RESET_FXS2,
+   BP_RESET_FXO
+   
+} BP_RESET_PIN;
+
+typedef struct 
+{
+   int numSpiPort;
+   int numGpio;
+   
+} BP_VOICE_SPI_PORT_CS;
+
+typedef struct
+{
+   int nDeviceType;
+   int nSPI_SS_Bx;
+   BP_VOICE_CHANNEL voiceChDes;
+   
+} BP_VOICE_CHANNEL_ATT;
 
 /*
 ** Main structure for defining the board parameters and used by boardHal
@@ -270,20 +424,53 @@ typedef struct VOICE_BOARD_PARMS
    unsigned int            numFxoLines;            /* Number of FXO lines in the system */
    unsigned int            numDectLines;           /* Number of DECT lines in the system */
    unsigned int            numFailoverRelayPins;   /* Number of GPIO pins controling PSTN failover relays */
-   BP_VOICE_DEVICE         voiceDevice[BP_MAX_VOICE_DEVICES];  /* Voice devices in the system */
+   BP_VOICE_DEVICE_MID_LAYER voiceDevice[BP_MAX_VOICE_DEVICES];  /* Voice devices in the system */
    BP_PSTN_RELAY_CONTROL   pstnRelayCtrl;          /* Control for PSTN failover relays */
    BP_DECT_UART_CONTROL    dectUartControl;        /* Control for external DECT UART */
    unsigned int            deviceProfile;          /* Battery configuration, if required */
    unsigned int            flags;                  /* General-purpose flags */
+   
 } VOICE_BOARD_PARMS, *PVOICE_BOARD_PARMS;
 
-/* --- End of voice-specific structures and enums --- */
+typedef struct 
+{
+   char                    szBoardId[BP_BOARD_ID_LEN];      /* daughtercard id string */
+   unsigned int            numFxsLines;                     /* Number of FXS lines in the system */
+   unsigned int            numFxoLines;                     /* Number of FXO lines in the system */
+   BP_VOICE_DEVICE         voiceDevice[BP_MAX_VOICE_DEVICES];  /* Voice devices in the system */   
+   unsigned int            deviceProfile;                   /* Battery configuration, if required */
+   unsigned int            flags;                           /* General-purpose flags */
+   
+} VOICE_DAUGHTER_BOARD_PARMS, *PVOICE_DAUGHTER_BOARD_PARMS;
 
+typedef struct 
+{
+   char szBaseBoardId[BP_BOARD_ID_LEN];
+   BP_VOICE_SPI_PORT_CS 	voiceSpiPortCs[BP_MAX_DC_SPI_DEVICE];
+   int 						fxsoRstGpio[3];
+   int 						dectRstGpio;
+   int 						relay1CtrlGpio;
+   int 						relay2CtrlGpio;	
+   BP_VOICE_CHANNEL    	    dectChDes[BP_MAX_CHANNELS_PER_DEVICE*BP_MAX_DECT_DEVICE+1];   /* Device channels */
+   VOICE_DAUGHTER_BOARD_PARMS* pDcParms[BP_MAX_SUPPORTED_DC];
+   
+} VOICE_BOARD_PARMS_NEW, *PVOICE_BOARD_PARMS_NEW;
+
+/* Function prototypes */
+int BpDectPopulated( void ); 
 int BpGetVoiceParms( char* pszBoardId, VOICE_BOARD_PARMS* voiceParms, char* pszBaseBoardId );
 int BpSetVoiceBoardId( char *pszBoardId );
 int BpGetVoiceBoardId( char *pszBoardId );
 int BpGetVoiceBoardIds( char *pszBoardIds, int nBoardIdsSize, char *pszBaseBoardId );
+int BpGetVoiceDectType( char *pszBoardId );
+void BpSetDectPopulatedData( int BpData );
+unsigned int BpGetVoiceDectNum(PVOICE_BOARD_PARMS_NEW *ppBpVoice);
 
+#if !defined(_CFE_)
+void PrintAllParms(VOICE_BOARD_PARMS *parms);
+#endif
+
+unsigned int BpGetZSISpiDevID( void ); 
 
 #ifdef __cplusplus
 }

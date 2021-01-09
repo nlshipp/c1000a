@@ -38,6 +38,8 @@ typedef struct
     char *    X_ACTIONTEC_COM_VDSL_TRSPT_MODE;	/**< X_ACTIONTEC_COM_VDSL_TRSPT_MODE */
     char *    X_ACTIONTEC_COM_ADSL_TRSPT_MODE;	/**< X_ACTIONTEC_COM_ADSL_TRSPT_MODE */
     char *    X_ACTIONTEC_COM_ETH_TRSPT_MODE;	/**< X_ACTIONTEC_COM_ETH_TRSPT_MODE */
+    UINT32    X_ACTIONTEC_COM_RESTORE_DEFAULT_FLAG;	/**< X_ACTIONTEC_COM_RESTORE_DEFAULT_FLAG */
+    UINT32    X_ACTIONTEC_COM_PVC_SELECT;	/**< X_ACTIONTEC_COM_PVC_SELECT */
 } IGDObject;
 
 /*! \brief _IGDObject is used internally to represent IGDObject */
@@ -68,6 +70,7 @@ typedef struct
     char *    provisioningCode;	/**< ProvisioningCode */
     UINT32    upTime;	/**< UpTime */
     DATETIME  firstUseDate;	/**< FirstUseDate */
+    DATETIME  X_ACTIONTEC_COM_NTPFirstSyncDate;	/**< X_ACTIONTEC_COM_NTPFirstSyncDate */
     DATETIME  firstUseDateTmp;	/**< FirstUseDateTmp */
 #ifdef DMP_X_BROADCOM_COM_BASELINE_1
     UINT32    X_BROADCOM_COM_NumberOfCpuThreads;	/**< X_BROADCOM_COM_NumberOfCpuThreads */
@@ -96,6 +99,9 @@ typedef struct
     char *    X_ACTIONTEC_COM_InetLEDColor;	/**< X_ACTIONTEC_COM_InetLEDColor */
     UBOOL8    X_ACTIONTEC_COM_ScheduledReboot;	/**< X_ACTIONTEC_COM_ScheduledReboot */
     DATETIME  X_ACTIONTEC_COM_RebootTime;	/**< X_ACTIONTEC_COM_RebootTime */
+#ifdef DMP_TR98IPV6_1
+    UBOOL8    X_00247B_IPv6Capable;	/**< X_00247B_IPv6Capable */
+#endif
 } IGDDeviceInfoObject;
 
 /*! \brief _IGDDeviceInfoObject is used internally to represent IGDDeviceInfoObject */
@@ -370,24 +376,9 @@ typedef IGDUpnpDisServiceObject _IGDUpnpDisServiceObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.X_00247B_Firewall.
- *
- * MDMOID_IGD_X00247_B_FIREWALL 17
- */
-typedef struct
-{
-    MdmObjectId _oid;	/**< for internal use only */
-    UBOOL8    enable;	/**< Enable */
-} IGDX00247BFirewallObject;
-
-/*! \brief _IGDX00247BFirewallObject is used internally to represent IGDX00247BFirewallObject */
-typedef IGDX00247BFirewallObject _IGDX00247BFirewallObject;
-
-
-
 /*! \brief Obj struct for InternetGatewayDevice.Firewall.
  *
- * MDMOID_IGD_FIREWALL 18
+ * MDMOID_IGD_FIREWALL 17
  */
 typedef struct
 {
@@ -400,6 +391,23 @@ typedef struct
 
 /*! \brief _IGDFirewallObject is used internally to represent IGDFirewallObject */
 typedef IGDFirewallObject _IGDFirewallObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_00247B_IPv6Firewall.
+ *
+ * MDMOID_IGDI_PV6_FIREWALL 18
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    DATETIME  lastChange;	/**< LastChange */
+    UBOOL8    X_00247B_StealthMode;	/**< X_00247B_StealthMode */
+} IGDIPv6FirewallObject;
+
+/*! \brief _IGDIPv6FirewallObject is used internally to represent IGDIPv6FirewallObject */
+typedef IGDIPv6FirewallObject _IGDIPv6FirewallObject;
 
 
 
@@ -468,6 +476,8 @@ typedef struct
     UBOOL8    showPassword;	/**< ShowPassword */
     char *    X_ACTIONTEC_COM_ConsoleUsername;	/**< X_ACTIONTEC_COM_ConsoleUsername */
     char *    X_ACTIONTEC_COM_ConsolePassword;	/**< X_ACTIONTEC_COM_ConsolePassword */
+    char *    X_ACTIONTEC_COM_SupportConsoleName;	/**< X_ACTIONTEC_COM_SupportConsoleName */
+    char *    X_ACTIONTEC_COM_SupportConsolePassword;	/**< X_ACTIONTEC_COM_SupportConsolePassword */
 } LoginCfgObject;
 
 /*! \brief _LoginCfgObject is used internally to represent LoginCfgObject */
@@ -630,7 +640,7 @@ typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     char *    status;	/**< Status */
-    char *    answerTypeAnswerType;	/**< AnswerTypeAnswerType */
+    char *    answerType;	/**< AnswerType */
     char *    hostNameReturned;	/**< HostNameReturned */
     char *    IPAddress;	/**< IPAddress */
     char *    DNSServerIP;	/**< DNSServerIP */
@@ -1140,6 +1150,7 @@ typedef struct
     DATETIME  X_ACTIONTEC_COM_LastPeriodicInform;	/**< X_ACTIONTEC_COM_LastPeriodicInform */
     UINT32    X_ACTIONTEC_COM_AuthenticationFailures;	/**< X_ACTIONTEC_COM_AuthenticationFailures */
     DATETIME  X_ACTIONTEC_COM_LastTR069Upgrade;	/**< X_ACTIONTEC_COM_LastTR069Upgrade */
+    UINT32    X_ACTIONTEC_COM_AdjustValue;	/**< X_ACTIONTEC_COM_AdjustValue */
 } ManagementServerObject;
 
 /*! \brief _ManagementServerObject is used internally to represent ManagementServerObject */
@@ -1188,6 +1199,7 @@ typedef struct
     DATETIME  daylightSavingsStart;	/**< DaylightSavingsStart */
     DATETIME  daylightSavingsEnd;	/**< DaylightSavingsEnd */
     SINT32    X_ACTIONTEC_COM_UpdateFrequency;	/**< X_ACTIONTEC_COM_UpdateFrequency */
+    UINT32    X_ACTIONTEC_COM_AdjustValue;	/**< X_ACTIONTEC_COM_AdjustValue */
 } TimeServerCfgObject;
 
 /*! \brief _TimeServerCfgObject is used internally to represent TimeServerCfgObject */
@@ -1255,12 +1267,6 @@ typedef struct
     UBOOL8    bridgeEnable;	/**< BridgeEnable */
     char *    bridgeStatus;	/**< BridgeStatus */
     char *    bridgeName;	/**< BridgeName */
-#ifdef DMP_BRIDGINGPORTVLAN_1
-    UINT32    portNumberOfEntries;	/**< PortNumberOfEntries */
-#endif
-#ifdef DMP_BRIDGINGPORTVLAN_1
-    UINT32    VLANNumberOfEntries;	/**< VLANNumberOfEntries */
-#endif
     UINT32    VLANID;	/**< VLANID */
 #ifdef DMP_BRIDGINGPORTVLAN_1
     UINT32    portNumberOfEntries;	/**< PortNumberOfEntries */
@@ -1501,8 +1507,9 @@ typedef struct
     char *    schedulerAlgorithm;	/**< SchedulerAlgorithm */
     SINT32    shapingRate;	/**< ShapingRate */
     UINT32    shapingBurstSize;	/**< ShapingBurstSize */
-    char *    X_ACTIONTEC_COM_QueueName;	/**< X_ACTIONTEC_COM_QueueName */
+    SINT32    X_BROADCOM_COM_MinBitRate;	/**< X_BROADCOM_COM_MinBitRate */
     char *    X_BROADCOM_COM_QueueName;	/**< X_BROADCOM_COM_QueueName */
+    char *    X_ACTIONTEC_COM_QueueName;	/**< X_ACTIONTEC_COM_QueueName */
     SINT32    X_BROADCOM_COM_DslLatency;	/**< X_BROADCOM_COM_DslLatency */
     SINT32    X_BROADCOM_COM_PtmPriority;	/**< X_BROADCOM_COM_PtmPriority */
     UINT32    X_BROADCOM_COM_QueueId;	/**< X_BROADCOM_COM_QueueId */
@@ -1761,6 +1768,9 @@ typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    isUpgraded;	/**< IsUpgraded */
+    UINT32    ctcDownloadState;	/**< CtcDownloadState */
+    UINT32    recentlyDownloadedPartition;	/**< RecentlyDownloadedPartition */
+    UBOOL8    download3715Needed;	/**< Download3715Needed */
 } EponSwUpgradeStatusObject;
 
 /*! \brief _EponSwUpgradeStatusObject is used internally to represent EponSwUpgradeStatusObject */
@@ -1877,6 +1887,9 @@ typedef struct
     char *    X_ACTIONTEC_COM_LanDnsType1;	/**< X_ACTIONTEC_COM_LanDnsType1 */
     char *    X_ACTIONTEC_COM_LanDnsType2;	/**< X_ACTIONTEC_COM_LanDnsType2 */
     UBOOL8    X_ACTIONTEC_COM_AutoReserve;	/**< X_ACTIONTEC_COM_AutoReserve */
+    UBOOL8    X_ACTIONTEC_COM_ReserveEnable;	/**< X_ACTIONTEC_COM_ReserveEnable */
+    char *    X_ACTIONTEC_COM_MinReserveAddress;	/**< X_ACTIONTEC_COM_MinReserveAddress */
+    char *    X_ACTIONTEC_COM_MaxReserveAddress;	/**< X_ACTIONTEC_COM_MaxReserveAddress */
 } LanHostCfgObject;
 
 /*! \brief _LanHostCfgObject is used internally to represent LanHostCfgObject */
@@ -2017,6 +2030,7 @@ typedef struct
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    enable;	/**< Enable */
     char *    manualadd;	/**< manualadd */
+    char *    vendorClassID;	/**< VendorClassID */
     char *    chaddr;	/**< Chaddr */
     char *    chaddrMask;	/**< ChaddrMask */
     char *    minAddress;	/**< MinAddress */
@@ -2027,6 +2041,7 @@ typedef struct
     char *    domainName;	/**< DomainName */
     char *    IPRouters;	/**< IPRouters */
     SINT32    DHCPLeaseTime;	/**< DHCPLeaseTime */
+    UINT32    lastActiveTime;	/**< LastActiveTime */
 } DHCPConditionalServingObject;
 
 /*! \brief _DHCPConditionalServingObject is used internally to represent DHCPConditionalServingObject */
@@ -2051,41 +2066,16 @@ typedef DHCPStaticAddressObject _DHCPStaticAddressObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_00247B_IPv6LANHostConfigManagement.
- *
- * MDMOID_BI_PV6_LAN_HOST_CFG 93
- */
-typedef struct
-{
-    MdmObjectId _oid;	/**< for internal use only */
-    char *    IPv6DNSConfigType;	/**< IPv6DNSConfigType */
-    char *    IPv6DNSServers;	/**< IPv6DNSServers */
-    char *    IPv6DNSWANConnection;	/**< IPv6DNSWANConnection */
-    UBOOL8    enable;	/**< Enable */
-    UBOOL8    statefulDHCPv6Server;	/**< StatefulDHCPv6Server */
-    char *    minInterfaceID;	/**< MinInterfaceID */
-    char *    maxInterfaceID;	/**< MaxInterfaceID */
-    SINT32    DHCPv6LeaseTime;	/**< DHCPv6LeaseTime */
-    char *    IPv6ULAPrefix;	/**< IPv6ULAPrefix */
-    char *    IPv6CurrPrefixID;	/**< IPv6CurrPrefixID */
-    UINT32    IPv6RALifetime;	/**< IPv6RALifetime */
-    UINT32    IPv6SubnetNum;	/**< IPv6SubnetNum */
-} X00247BIPv6LanHostCfgObject;
-
-/*! \brief _X00247BIPv6LanHostCfgObject is used internally to represent X00247BIPv6LanHostCfgObject */
-typedef X00247BIPv6LanHostCfgObject _X00247BIPv6LanHostCfgObject;
-
-
-
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_BROADCOM_COM_IPv6LANHostConfigManagement.
  *
- * MDMOID_I_PV6_LAN_HOST_CFG 94
+ * MDMOID_I_PV6_LAN_HOST_CFG 93
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    DHCPv6ServerEnable;	/**< DHCPv6ServerEnable */
     UBOOL8    statefulDHCPv6Server;	/**< StatefulDHCPv6Server */
+    char *    addressingType;	/**< AddressingType */
     char *    minInterfaceID;	/**< MinInterfaceID */
     char *    maxInterfaceID;	/**< MaxInterfaceID */
     SINT32    DHCPv6LeaseTime;	/**< DHCPv6LeaseTime */
@@ -2106,7 +2096,7 @@ typedef IPv6LanHostCfgObject _IPv6LanHostCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_BROADCOM_COM_IPv6LANHostConfigManagement.RadvdConfigManagement.
  *
- * MDMOID_RADVD_CONFIG_MGT 95
+ * MDMOID_RADVD_CONFIG_MGT 94
  */
 typedef struct
 {
@@ -2121,7 +2111,7 @@ typedef RadvdConfigMgtObject _RadvdConfigMgtObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_BROADCOM_COM_IPv6LANHostConfigManagement.RadvdConfigManagement.ULAPrefixInfo.
  *
- * MDMOID_ULA_PREFIX_INFO 96
+ * MDMOID_ULA_PREFIX_INFO 95
  */
 typedef struct
 {
@@ -2140,7 +2130,7 @@ typedef ULAPrefixInfoObject _ULAPrefixInfoObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_BROADCOM_COM_IPv6LANHostConfigManagement.RadvdConfigManagement.PrefixInformation.{i}.
  *
- * MDMOID_PREFIX_INFO 97
+ * MDMOID_PREFIX_INFO 96
  */
 typedef struct
 {
@@ -2159,7 +2149,7 @@ typedef PrefixInfoObject _PrefixInfoObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_BROADCOM_COM_IPv6LANHostConfigManagement.X_BROADCOM_COM_MldSnoopingConfig.
  *
- * MDMOID_MLD_SNOOPING_CFG 98
+ * MDMOID_MLD_SNOOPING_CFG 97
  */
 typedef struct
 {
@@ -2175,7 +2165,7 @@ typedef MldSnoopingCfgObject _MldSnoopingCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANEthernetInterfaceConfig.{i}.
  *
- * MDMOID_LAN_ETH_INTF 99
+ * MDMOID_LAN_ETH_INTF 98
  */
 typedef struct
 {
@@ -2192,6 +2182,12 @@ typedef struct
     SINT32    X_BROADCOM_COM_dot1qPvid;	/**< X_BROADCOM_COM_dot1qPvid */
     UINT32    X_BROADCOM_COM_VLAN_Enable;	/**< X_BROADCOM_COM_VLAN_Enable */
     char *    X_BROADCOM_COM_VLAN_TagList;	/**< X_BROADCOM_COM_VLAN_TagList */
+    UBOOL8    X_BROADCOM_COM_GMAC_Enabled;	/**< X_BROADCOM_COM_GMAC_Enabled */
+    UINT32    X_ACTIONTEC_COM_UpTime;	/**< X_ACTIONTEC_COM_UpTime */
+    UINT32    X_ACTIONTEC_COM_PacketsSent_30Min;	/**< X_ACTIONTEC_COM_PacketsSent_30Min */
+    UINT32    X_ACTIONTEC_COM_PacketsReceived_30Min;	/**< X_ACTIONTEC_COM_PacketsReceived_30Min */
+    UINT32    X_ACTIONTEC_COM_PacketsSent_Recently;	/**< X_ACTIONTEC_COM_PacketsSent_Recently */
+    UINT32    X_ACTIONTEC_COM_PacketsReceived_Recently;	/**< X_ACTIONTEC_COM_PacketsReceived_Recently */
 } LanEthIntfObject;
 
 /*! \brief _LanEthIntfObject is used internally to represent LanEthIntfObject */
@@ -2201,13 +2197,13 @@ typedef LanEthIntfObject _LanEthIntfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANEthernetInterfaceConfig.{i}.Stats.
  *
- * MDMOID_LAN_ETH_INTF_STATS 100
+ * MDMOID_LAN_ETH_INTF_STATS 99
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
-    UINT32    bytesSent;	/**< BytesSent */
-    UINT32    bytesReceived;	/**< BytesReceived */
+    char *    bytesSent;	/**< BytesSent */
+    char *    bytesReceived;	/**< BytesReceived */
     UINT32    packetsSent;	/**< PacketsSent */
     UINT32    packetsReceived;	/**< PacketsReceived */
     UINT32    X_BROADCOM_COM_PacketsSent;	/**< X_BROADCOM_COM_PacketsSent */
@@ -2236,10 +2232,29 @@ typedef struct
 #endif
     char *    X_ACTIONTEC_COM_DiagnosticsState;	/**< X_ACTIONTEC_COM_DiagnosticsState */
     UINT32    X_ACTIONTEC_COM_DiagnosticsInterval;	/**< X_ACTIONTEC_COM_DiagnosticsInterval */
-    char *    X_ACTIONTEC_COM_UnicastReceivedDataRate;	/**< X_ACTIONTEC_COM_UnicastReceivedDataRate */
-    char *    X_ACTIONTEC_COM_UnicastSentDataRate;	/**< X_ACTIONTEC_COM_UnicastSentDataRate */
-    char *    X_ACTIONTEC_COM_MulticastReceivedDataRate;	/**< X_ACTIONTEC_COM_MulticastReceivedDataRate */
-    char *    X_ACTIONTEC_COM_MulticastSentDataRate;	/**< X_ACTIONTEC_COM_MulticastSentDataRate */
+    DATETIME  X_ACTIONTEC_COM_DiagnosticCompletionTime;	/**< X_ACTIONTEC_COM_DiagnosticCompletionTime */
+    UINT32    X_ACTIONTEC_COM_UnicastReceivedDataRate;	/**< X_ACTIONTEC_COM_UnicastReceivedDataRate */
+    UINT32    X_ACTIONTEC_COM_UnicastSentDataRate;	/**< X_ACTIONTEC_COM_UnicastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_UnicastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_UnicastDiscardedPacketCount */
+    UINT32    X_ACTIONTEC_COM_MulticastReceivedDataRate;	/**< X_ACTIONTEC_COM_MulticastReceivedDataRate */
+    UINT32    X_ACTIONTEC_COM_MulticastSentDataRate;	/**< X_ACTIONTEC_COM_MulticastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_MulticastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_MulticastDiscardedPacketCount */
+    UINT32    X_ACTIONTEC_COM_PacketsSent_30Min;	/**< X_ACTIONTEC_COM_PacketsSent_30Min */
+    UINT32    X_ACTIONTEC_COM_PacketsReceived_30Min;	/**< X_ACTIONTEC_COM_PacketsReceived_30Min */
+    UINT32    X_ACTIONTEC_COM_PacketsSent_Recently;	/**< X_ACTIONTEC_COM_PacketsSent_Recently */
+    UINT32    X_ACTIONTEC_COM_PacketsReceived_Recently;	/**< X_ACTIONTEC_COM_PacketsReceived_Recently */
+    UINT32    X_ACTIONTEC_COM_BasePacketsSent;	/**< X_ACTIONTEC_COM_BasePacketsSent */
+    UINT32    X_ACTIONTEC_COM_BasePacketsReceived;	/**< X_ACTIONTEC_COM_BasePacketsReceived */
+    UINT32    X_ACTIONTEC_COM_BaseUnicastPacketsSent;	/**< X_ACTIONTEC_COM_BaseUnicastPacketsSent */
+    UINT32    X_ACTIONTEC_COM_BaseUnicastPacketsReceived;	/**< X_ACTIONTEC_COM_BaseUnicastPacketsReceived */
+    UINT32    X_ACTIONTEC_COM_BaseMulticastPacketsSent;	/**< X_ACTIONTEC_COM_BaseMulticastPacketsSent */
+    UINT32    X_ACTIONTEC_COM_BaseMulticastPacketsReceived;	/**< X_ACTIONTEC_COM_BaseMulticastPacketsReceived */
+    UINT32    X_ACTIONTEC_COM_BaseBroadcastPacketsSent;	/**< X_ACTIONTEC_COM_BaseBroadcastPacketsSent */
+    UINT32    X_ACTIONTEC_COM_BaseBroadcastPacketsReceived;	/**< X_ACTIONTEC_COM_BaseBroadcastPacketsReceived */
+    UINT32    X_ACTIONTEC_COM_BaseDiscardPacketsSent;	/**< X_ACTIONTEC_COM_BaseDiscardPacketsSent */
+    UINT32    X_ACTIONTEC_COM_BaseDiscardPacketsReceived;	/**< X_ACTIONTEC_COM_BaseDiscardPacketsReceived */
+    UINT32    X_ACTIONTEC_COM_BaseBytesSent;	/**< X_ACTIONTEC_COM_BaseBytesSent */
+    UINT32    X_ACTIONTEC_COM_BaseBytesReceived;	/**< X_ACTIONTEC_COM_BaseBytesReceived */
 } LanEthIntfStatsObject;
 
 /*! \brief _LanEthIntfStatsObject is used internally to represent LanEthIntfStatsObject */
@@ -2249,7 +2264,7 @@ typedef LanEthIntfStatsObject _LanEthIntfStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANUSBInterfaceConfig.{i}.
  *
- * MDMOID_LAN_USB_INTF 101
+ * MDMOID_LAN_USB_INTF 100
  */
 typedef struct
 {
@@ -2272,7 +2287,7 @@ typedef LanUsbIntfObject _LanUsbIntfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANUSBInterfaceConfig.{i}.Stats.
  *
- * MDMOID_LAN_USB_INTF_STATS 102
+ * MDMOID_LAN_USB_INTF_STATS 101
  */
 typedef struct
 {
@@ -2297,7 +2312,7 @@ typedef LanUsbIntfStatsObject _LanUsbIntfStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.
  *
- * MDMOID_LAN_WLAN 103
+ * MDMOID_LAN_WLAN 102
  */
 typedef struct
 {
@@ -2413,7 +2428,7 @@ typedef LanWlanObject _LanWlanObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.AssociatedDevice.{i}.
  *
- * MDMOID_LAN_WLAN_ASSOCIATED_DEVICE_ENTRY 104
+ * MDMOID_LAN_WLAN_ASSOCIATED_DEVICE_ENTRY 103
  */
 typedef struct
 {
@@ -2438,7 +2453,7 @@ typedef LanWlanAssociatedDeviceEntryObject _LanWlanAssociatedDeviceEntryObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.WEPKey.{i}.
  *
- * MDMOID_LAN_WLAN_WEP_KEY 105
+ * MDMOID_LAN_WLAN_WEP_KEY 104
  */
 typedef struct
 {
@@ -2454,7 +2469,7 @@ typedef LanWlanWepKeyObject _LanWlanWepKeyObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.PreSharedKey.{i}.
  *
- * MDMOID_LAN_WLAN_PRE_SHARED_KEY 106
+ * MDMOID_LAN_WLAN_PRE_SHARED_KEY 105
  */
 typedef struct
 {
@@ -2473,7 +2488,7 @@ typedef LanWlanPreSharedKeyObject _LanWlanPreSharedKeyObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.APWMMParameter.{i}.
  *
- * MDMOID_LAN_WLAN_AP_WMM 107
+ * MDMOID_LAN_WLAN_AP_WMM 106
  */
 typedef struct
 {
@@ -2492,7 +2507,7 @@ typedef LanWlanApWmmObject _LanWlanApWmmObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.STAWMMParameter.{i}.
  *
- * MDMOID_LAN_WLAN_STA_WMM 108
+ * MDMOID_LAN_WLAN_STA_WMM 107
  */
 typedef struct
 {
@@ -2511,7 +2526,7 @@ typedef LanWlanStaWmmObject _LanWlanStaWmmObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.Stats.
  *
- * MDMOID_LAN_WLAN_STATS 109
+ * MDMOID_LAN_WLAN_STATS 108
  */
 typedef struct
 {
@@ -2558,7 +2573,7 @@ typedef LanWlanStatsObject _LanWlanStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.WPS.
  *
- * MDMOID_WP_S 110
+ * MDMOID_WP_S 109
  */
 typedef struct
 {
@@ -2588,7 +2603,7 @@ typedef LanWlanWPSObject _LanWlanWPSObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.WPS.Registrar.{i}.
  *
- * MDMOID_WPS_REGISTRAR 111
+ * MDMOID_WPS_REGISTRAR 110
  */
 typedef struct
 {
@@ -2605,7 +2620,7 @@ typedef LanWlanWPSRegistrarObject _LanWlanWPSRegistrarObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.
  *
- * MDMOID_WLAN_ADAPTER 112
+ * MDMOID_WLAN_ADAPTER 111
  */
 typedef struct
 {
@@ -2619,7 +2634,7 @@ typedef WlanAdapterObject _WlanAdapterObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlBaseCfg.
  *
- * MDMOID_WL_BASE_CFG 113
+ * MDMOID_WL_BASE_CFG 112
  */
 typedef struct
 {
@@ -2701,6 +2716,9 @@ typedef struct
     SINT32    wlWdsSec;	/**< WlWdsSec */
     char *    wlWdsKey;	/**< WlWdsKey */
     SINT32    wlWdsSecEnable;	/**< WlWdsSecEnable */
+    SINT32    wlEnableUre;	/**< WlEnableUre */
+    SINT32    wlStaRetryTime;	/**< WlStaRetryTime */
+    SINT32    aeiwlDisabledByGui;	/**< AeiwlDisabledByGui */
 } WlBaseCfgObject;
 
 /*! \brief _WlBaseCfgObject is used internally to represent WlBaseCfgObject */
@@ -2710,7 +2728,7 @@ typedef WlBaseCfgObject _WlBaseCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlStaticWdsCfg.{i}.
  *
- * MDMOID_WL_STATIC_WDS_CFG 114
+ * MDMOID_WL_STATIC_WDS_CFG 113
  */
 typedef struct
 {
@@ -2727,7 +2745,7 @@ typedef WlStaticWdsCfgObject _WlStaticWdsCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlWdsCfg.{i}.
  *
- * MDMOID_WL_WDS_CFG 115
+ * MDMOID_WL_WDS_CFG 114
  */
 typedef struct
 {
@@ -2744,7 +2762,7 @@ typedef WlWdsCfgObject _WlWdsCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlScanWdsCfg.{i}.
  *
- * MDMOID_WL_SCAN_WDS_CFG 116
+ * MDMOID_WL_SCAN_WDS_CFG 115
  */
 typedef struct
 {
@@ -2761,7 +2779,7 @@ typedef WlScanWdsCfgObject _WlScanWdsCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlMimoCfg.
  *
- * MDMOID_WL_MIMO_CFG 117
+ * MDMOID_WL_MIMO_CFG 116
  */
 typedef struct
 {
@@ -2777,6 +2795,8 @@ typedef struct
     char *    wlNmode;	/**< WlNmode */
     SINT32    wlNReqd;	/**< WlNReqd */
     SINT32    wlStbcTx;	/**< WlStbcTx */
+    SINT32    wlStbcRx;	/**< WlStbcRx */
+    UBOOL8    X_ACTIONTEC_COM_MIMOPowerSave;	/**< X_ACTIONTEC_COM_MIMOPowerSave */
 } WlMimoCfgObject;
 
 /*! \brief _WlMimoCfgObject is used internally to represent WlMimoCfgObject */
@@ -2786,7 +2806,7 @@ typedef WlMimoCfgObject _WlMimoCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlSesCfg.
  *
- * MDMOID_WL_SES_CFG 118
+ * MDMOID_WL_SES_CFG 117
  */
 typedef struct
 {
@@ -2814,7 +2834,7 @@ typedef WlSesCfgObject _WlSesCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.WlVirtIntfCfg.{i}.
  *
- * MDMOID_WL_VIRT_INTF_CFG 119
+ * MDMOID_WL_VIRT_INTF_CFG 118
  */
 typedef struct
 {
@@ -2847,6 +2867,7 @@ typedef struct
     SINT32    wlDisableWme;	/**< WlDisableWme */
     char *    wlFltMacMode;	/**< WlFltMacMode */
     SINT32    wlEnableWmf;	/**< WlEnableWmf */
+    SINT32    wlEnableHspot;	/**< WlEnableHspot */
     UBOOL8    wl_wps_auto_operate;	/**< wl_wps_auto_operate */
 } WlVirtIntfCfgObject;
 
@@ -2857,7 +2878,7 @@ typedef WlVirtIntfCfgObject _WlVirtIntfCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.VirtIntf.{i}.WlMacFltCfg.{i}.
  *
- * MDMOID_WL_MAC_FLT 120
+ * MDMOID_WL_MAC_FLT 119
  */
 typedef struct
 {
@@ -2874,7 +2895,7 @@ typedef WlMacFltObject _WlMacFltObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.VirtIntf.{i}.WlKey64Cfg.{i}.
  *
- * MDMOID_WL_KEY64_CFG 121
+ * MDMOID_WL_KEY64_CFG 120
  */
 typedef struct
 {
@@ -2889,7 +2910,7 @@ typedef WlKey64CfgObject _WlKey64CfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.VirtIntf.{i}.WlKey128Cfg.{i}.
  *
- * MDMOID_WL_KEY128_CFG 122
+ * MDMOID_WL_KEY128_CFG 121
  */
 typedef struct
 {
@@ -2904,7 +2925,7 @@ typedef WlKey128CfgObject _WlKey128CfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WlanAdapter.VirtIntf.{i}.WlWpsCfg.
  *
- * MDMOID_WL_WPS_CFG 123
+ * MDMOID_WL_WPS_CFG 122
  */
 typedef struct
 {
@@ -2915,6 +2936,28 @@ typedef struct
 
 /*! \brief _WlWpsCfgObject is used internally to represent WlWpsCfgObject */
 typedef WlWpsCfgObject _WlWpsCfgObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.WLANConfiguration.{i}.X_BROADCOM_COM_WLANVirtMbssConfiguration.{i}.
+ *
+ * MDMOID_LAN_WLAN_VIRT_MBSS 123
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    char *    mbssGuestSSID;	/**< MbssGuestSSID */
+    char *    mbssGuestBSSID;	/**< MbssGuestBSSID */
+    UBOOL8    mbssGuestEnable;	/**< MbssGuestEnable */
+    UBOOL8    mbssGuestHiden;	/**< MbssGuestHiden */
+    UBOOL8    mbssGuestIsolateClients;	/**< MbssGuestIsolateClients */
+    UBOOL8    mbssGuestDisableWMMAdvertise;	/**< MbssGuestDisableWMMAdvertise */
+    SINT32    mbssGuestMaxClients;	/**< MbssGuestMaxClients */
+} LanWlanVirtMbssObject;
+
+/*! \brief _LanWlanVirtMbssObject is used internally to represent LanWlanVirtMbssObject */
+typedef LanWlanVirtMbssObject _LanWlanVirtMbssObject;
 
 
 
@@ -3121,6 +3164,7 @@ typedef struct
     char *    vendorClassID;	/**< VendorClassID */
     char *    clientID;	/**< ClientID */
     char *    userClassID;	/**< UserClassID */
+    UINT32    portId;	/**< PortId */
 } LanHostEntryObject;
 
 /*! \brief _LanHostEntryObject is used internally to represent LanHostEntryObject */
@@ -3128,9 +3172,36 @@ typedef LanHostEntryObject _LanHostEntryObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_00247B_IPv6LANHostConfigManagement.
+ *
+ * MDMOID_I_PV6_LAN_HOST_CFG_MANAGEMENT 131
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    char *    ULAPrefix;	/**< ULAPrefix */
+    char *    ULAPrefixLength;	/**< ULAPrefixLength */
+    char *    ULAAddress;	/**< ULAAddress */
+    char *    IPv6PrefixID;	/**< IPv6PrefixID */
+    char *    addressingType;	/**< AddressingType */
+    SINT32    prefixLength;	/**< PrefixLength */
+    SINT32    subnetID;	/**< SubnetID */
+    SINT32    RALifetime;	/**< RALifetime */
+    char *    minInterfaceID;	/**< MinInterfaceID */
+    char *    maxInterfaceID;	/**< MaxInterfaceID */
+    SINT32    leaseTime;	/**< LeaseTime */
+    char *    DNSServers;	/**< DNSServers */
+} IPv6LanHostCfgManagementObject;
+
+/*! \brief _IPv6LanHostCfgManagementObject is used internally to represent IPv6LanHostCfgManagementObject */
+typedef IPv6LanHostCfgManagementObject _IPv6LanHostCfgManagementObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.X_ACTIONTEC_COM_ALG.{i}.
  *
- * MDMOID_LAN_ALG 131
+ * MDMOID_LAN_ALG 132
  */
 typedef struct
 {
@@ -3146,7 +3217,7 @@ typedef LanAlgObject _LanAlgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.
  *
- * MDMOID_LAN_HPNA_INTF 132
+ * MDMOID_LAN_HPNA_INTF 133
  */
 typedef struct
 {
@@ -3173,13 +3244,13 @@ typedef LanHpnaIntfObject _LanHpnaIntfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.Stats.
  *
- * MDMOID_LAN_HPNA_INTF_STATS 133
+ * MDMOID_LAN_HPNA_INTF_STATS 134
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
-    UINT32    bytesSent;	/**< BytesSent */
-    UINT32    bytesReceived;	/**< BytesReceived */
+    char *    bytesSent;	/**< BytesSent */
+    char *    bytesReceived;	/**< BytesReceived */
     UINT32    packetsSent;	/**< PacketsSent */
     UINT32    packetsReceived;	/**< PacketsReceived */
     UINT32    errorsSent;	/**< ErrorsSent */
@@ -3190,6 +3261,15 @@ typedef struct
     UINT32    unicastPacketsReceived;	/**< UnicastPacketsReceived */
     UINT32    discardPacketsSent;	/**< DiscardPacketsSent */
     UINT32    discardPacketsReceived;	/**< DiscardPacketsReceived */
+    char *    X_ACTIONTEC_COM_DiagnosticsState;	/**< X_ACTIONTEC_COM_DiagnosticsState */
+    UINT32    X_ACTIONTEC_COM_DiagnosticsInterval;	/**< X_ACTIONTEC_COM_DiagnosticsInterval */
+    DATETIME  X_ACTIONTEC_COM_DiagnosticCompletionTime;	/**< X_ACTIONTEC_COM_DiagnosticCompletionTime */
+    char *    X_ACTIONTEC_COM_UnicastReceivedDataRate;	/**< X_ACTIONTEC_COM_UnicastReceivedDataRate */
+    char *    X_ACTIONTEC_COM_UnicastSentDataRate;	/**< X_ACTIONTEC_COM_UnicastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_UnicastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_UnicastDiscardedPacketCount */
+    char *    X_ACTIONTEC_COM_MulticastReceivedDataRate;	/**< X_ACTIONTEC_COM_MulticastReceivedDataRate */
+    char *    X_ACTIONTEC_COM_MulticastSentDataRate;	/**< X_ACTIONTEC_COM_MulticastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_MulticastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_MulticastDiscardedPacketCount */
 } LanHpnaIntfStatsObject;
 
 /*! \brief _LanHpnaIntfStatsObject is used internally to represent LanHpnaIntfStatsObject */
@@ -3199,7 +3279,7 @@ typedef LanHpnaIntfStatsObject _LanHpnaIntfStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.Node.{i}.
  *
- * MDMOID_LAN_HPNA_NODE 134
+ * MDMOID_LAN_HPNA_NODE 135
  */
 typedef struct
 {
@@ -3230,7 +3310,7 @@ typedef LanHpnaNodeObject _LanHpnaNodeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.
  *
- * MDMOID_LAN_HPNA_PERFORM 135
+ * MDMOID_LAN_HPNA_PERFORM 136
  */
 typedef struct
 {
@@ -3247,7 +3327,7 @@ typedef LanHpnaPerformObject _LanHpnaPerformObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.
  *
- * MDMOID_LAN_HPNA_PERFORM_NODE 136
+ * MDMOID_LAN_HPNA_PERFORM_NODE 137
  */
 typedef struct
 {
@@ -3267,7 +3347,7 @@ typedef LanHpnaPerformNodeObject _LanHpnaPerformNodeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.Previous.{i}.
  *
- * MDMOID_LAN_HPNA_PERFORM_NODE_PRE 137
+ * MDMOID_LAN_HPNA_PERFORM_NODE_PRE 138
  */
 typedef struct
 {
@@ -3308,7 +3388,7 @@ typedef LanHpnaPerformNodePreObject _LanHpnaPerformNodePreObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.Current.{i}.
  *
- * MDMOID_LAN_HPNA_PERFORM_NODE_CURR 138
+ * MDMOID_LAN_HPNA_PERFORM_NODE_CURR 139
  */
 typedef struct
 {
@@ -3349,7 +3429,7 @@ typedef LanHpnaPerformNodeCurrObject _LanHpnaPerformNodeCurrObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.X_ACTIONTEC_COM_Samples.{i}.
  *
- * MDMOID_LAN_HPNA_SAMPLE 139
+ * MDMOID_LAN_HPNA_SAMPLE 140
  */
 typedef struct
 {
@@ -3368,7 +3448,7 @@ typedef LanHpnaSampleObject _LanHpnaSampleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.X_ACTIONTEC_COM_Samples.{i}.AutoSamples.{i}.
  *
- * MDMOID_LAN_HPNA_AUTO_SAMPLE 140
+ * MDMOID_LAN_HPNA_AUTO_SAMPLE 141
  */
 typedef struct
 {
@@ -3409,7 +3489,7 @@ typedef LanHpnaAutoSampleObject _LanHpnaAutoSampleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Nodes.X_ACTIONTEC_COM_Samples.{i}.ManualSamples.{i}.
  *
- * MDMOID_LAN_HPNA_MANUAL_SAMPLE 141
+ * MDMOID_LAN_HPNA_MANUAL_SAMPLE 142
  */
 typedef struct
 {
@@ -3450,7 +3530,7 @@ typedef LanHpnaManualSampleObject _LanHpnaManualSampleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Channels.
  *
- * MDMOID_LAN_HPNA_PERFORM_CHANNEL 142
+ * MDMOID_LAN_HPNA_PERFORM_CHANNEL 143
  */
 typedef struct
 {
@@ -3466,7 +3546,7 @@ typedef LanHpnaPerformChannelObject _LanHpnaPerformChannelObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Channels.Channel.{i}.
  *
- * MDMOID_LAN_HPNA_PERFORM_CHANNEL_RSLT 143
+ * MDMOID_LAN_HPNA_PERFORM_CHANNEL_RSLT 144
  */
 typedef struct
 {
@@ -3491,7 +3571,7 @@ typedef LanHpnaPerformChannelRsltObject _LanHpnaPerformChannelRsltObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDevice.{i}.LANHPNAInterfaceConfig.{i}.PerformanceMonitoring.Channels.Channel.{i}.X_ACTIONTEC_COM_Samples.{i}.
  *
- * MDMOID_LAN_HPNA_CHANNEL_SAMPLE 144
+ * MDMOID_LAN_HPNA_CHANNEL_SAMPLE 145
  */
 typedef struct
 {
@@ -3507,7 +3587,7 @@ typedef LanHpnaChannelSampleObject _LanHpnaChannelSampleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANInterfaces.
  *
- * MDMOID_LAN_INTF 145
+ * MDMOID_LAN_INTF 146
  */
 typedef struct
 {
@@ -3523,7 +3603,7 @@ typedef LanIntfObject _LanIntfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.
  *
- * MDMOID_WAN_DEV 146
+ * MDMOID_WAN_DEV 147
  */
 typedef struct
 {
@@ -3538,7 +3618,7 @@ typedef WanDevObject _WanDevObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANCommonInterfaceConfig.
  *
- * MDMOID_WAN_COMMON_INTF_CFG 147
+ * MDMOID_WAN_COMMON_INTF_CFG 148
  */
 typedef struct
 {
@@ -3567,7 +3647,7 @@ typedef WanCommonIntfCfgObject _WanCommonIntfCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANCommonInterfaceConfig.Connection.{i}.
  *
- * MDMOID_WAN_COMMON_INTF_CONN 148
+ * MDMOID_WAN_COMMON_INTF_CONN 149
  */
 typedef struct
 {
@@ -3583,7 +3663,7 @@ typedef WanCommonIntfConnObject _WanCommonIntfConnObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.X_BROADCOM_COM_XTM_Interface_Stats.{i}.
  *
- * MDMOID_XTM_INTERFACE_STATS 149
+ * MDMOID_XTM_INTERFACE_STATS 150
  */
 typedef struct
 {
@@ -3609,7 +3689,7 @@ typedef XtmInterfaceStatsObject _XtmInterfaceStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.
  *
- * MDMOID_WAN_DSL_INTF_CFG 150
+ * MDMOID_WAN_DSL_INTF_CFG 151
  */
 typedef struct
 {
@@ -3624,6 +3704,8 @@ typedef struct
     char *    lineEncoding;	/**< LineEncoding */
     char *    dataPath;	/**< DataPath */
     UINT32    interleaveDepth;	/**< InterleaveDepth */
+    UINT32    actualInterleavingDelay;	/**< ActualInterleavingDelay */
+    SINT32    ACTINP;	/**< ACTINP */
     SINT32    lineNumber;	/**< LineNumber */
     UINT32    upstreamCurrRate;	/**< UpstreamCurrRate */
     UINT32    downstreamCurrRate;	/**< DownstreamCurrRate */
@@ -3653,12 +3735,15 @@ typedef struct
     UINT32    quarterHourStart;	/**< QuarterHourStart */
     char *    standardsSupported;	/**< StandardsSupported */
     char *    standardUsed;	/**< StandardUsed */
+    char *    X_ACTIONTEC_COM_StandardSelected;	/**< X_ACTIONTEC_COM_StandardSelected */
 #ifdef DMP_VDSL2WAN_1
     char *    allowedProfiles;	/**< AllowedProfiles */
 #endif
 #ifdef DMP_VDSL2WAN_1
     char *    currentProfile;	/**< CurrentProfile */
 #endif
+    char *    X_ACTIONTEC_COM_ProfileSelected;	/**< X_ACTIONTEC_COM_ProfileSelected */
+    char *    powerManagementState;	/**< PowerManagementState */
 #ifdef DMP_VDSL2WAN_1
     UINT32    UPBOKLE;	/**< UPBOKLE */
 #endif
@@ -3938,7 +4023,7 @@ typedef WanDslIntfCfgObject _WanDslIntfCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.X_BROADCOM_COM_BertTest.
  *
- * MDMOID_WAN_BERT_TEST 151
+ * MDMOID_WAN_BERT_TEST 152
  */
 typedef struct
 {
@@ -3961,7 +4046,7 @@ typedef WanBertTestObject _WanBertTestObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.Stats.
  *
- * MDMOID_WAN_DSL_INTF_STATS 152
+ * MDMOID_WAN_DSL_INTF_STATS 153
  */
 typedef struct
 {
@@ -3975,7 +4060,7 @@ typedef WanDslIntfStatsObject _WanDslIntfStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.Stats.Total.
  *
- * MDMOID_WAN_DSL_INTF_STATS_TOTAL 153
+ * MDMOID_WAN_DSL_INTF_STATS_TOTAL 154
  */
 typedef struct
 {
@@ -4140,7 +4225,7 @@ typedef WanDslIntfStatsTotalObject _WanDslIntfStatsTotalObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.Stats.Showtime.
  *
- * MDMOID_WAN_DSL_INTF_STATS_SHOWTIME 154
+ * MDMOID_WAN_DSL_INTF_STATS_SHOWTIME 155
  */
 typedef struct
 {
@@ -4186,47 +4271,6 @@ typedef struct
 
 /*! \brief _WanDslIntfStatsShowtimeObject is used internally to represent WanDslIntfStatsShowtimeObject */
 typedef WanDslIntfStatsShowtimeObject _WanDslIntfStatsShowtimeObject;
-
-
-
-/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANDSLInterfaceConfig.Stats.LastShowtime.
- *
- * MDMOID_WAN_DSL_INTF_STATS_LAST_SHOWTIME 155
- */
-typedef struct
-{
-    MdmObjectId _oid;	/**< for internal use only */
-    UINT32    receiveBlocks;	/**< ReceiveBlocks */
-    UINT32    transmitBlocks;	/**< TransmitBlocks */
-    UINT32    cellDelin;	/**< CellDelin */
-    UINT32    linkRetrain;	/**< LinkRetrain */
-    UINT32    initErrors;	/**< InitErrors */
-#ifdef DMP_ADSLWAN_1
-    UBOOL8    LInit;	/**< LInit */
-#endif
-#ifdef DMP_ADSLWAN_1
-    UBOOL8    LOF;	/**< LOF */
-#endif
-#ifdef DMP_ADSLWAN_1
-    UINT32    ATUCErroredSecs;	/**< ATUCErroredSecs */
-#endif
-#ifdef DMP_ADSLWAN_1
-    UINT32    ATUCSeverelyErroredSecs;	/**< ATUCSeverelyErroredSecs */
-#endif
-    UINT32    initTimeouts;	/**< InitTimeouts */
-    UINT32    lossOfFraming;	/**< LossOfFraming */
-    UINT32    erroredSecs;	/**< ErroredSecs */
-    UINT32    severelyErroredSecs;	/**< SeverelyErroredSecs */
-    UINT32    FECErrors;	/**< FECErrors */
-    UINT32    ATUCFECErrors;	/**< ATUCFECErrors */
-    UINT32    HECErrors;	/**< HECErrors */
-    UINT32    ATUCHECErrors;	/**< ATUCHECErrors */
-    UINT32    CRCErrors;	/**< CRCErrors */
-    UINT32    ATUCCRCErrors;	/**< ATUCCRCErrors */
-} WanDslIntfStatsLastShowtimeObject;
-
-/*! \brief _WanDslIntfStatsLastShowtimeObject is used internally to represent WanDslIntfStatsLastShowtimeObject */
-typedef WanDslIntfStatsLastShowtimeObject _WanDslIntfStatsLastShowtimeObject;
 
 
 
@@ -4359,10 +4403,12 @@ typedef struct
 #ifdef DMP_X_BROADCOM_COM_AUTODETECTION_1
     UINT32    X_BROADCOM_COM_MaxConnections;	/**< X_BROADCOM_COM_MaxConnections */
 #endif
+    UBOOL8    X_BROADCOM_COM_GMAC_Enabled;	/**< X_BROADCOM_COM_GMAC_Enabled */
     char *    X_ACTIONTEC_COM_VlanMux8021p;	/**< X_ACTIONTEC_COM_VlanMux8021p */
     char *    X_ACTIONTEC_COM_VlanMuxID;	/**< X_ACTIONTEC_COM_VlanMuxID */
     char *    X_ACTIONTEC_COM_VlanBridge_Option60;	/**< X_ACTIONTEC_COM_VlanBridge_Option60 */
     UINT32    MTU;	/**< MTU */
+    char *    X_ACTIONTEC_COM_TransBridgeFlag;	/**< X_ACTIONTEC_COM_TransBridgeFlag */
 } WanEthIntfObject;
 
 /*! \brief _WanEthIntfObject is used internally to represent WanEthIntfObject */
@@ -4744,6 +4790,9 @@ typedef struct
     MdmObjectId _oid;	/**< for internal use only */
     UINT32    WANIPConnectionNumberOfEntries;	/**< WANIPConnectionNumberOfEntries */
     UINT32    WANPPPConnectionNumberOfEntries;	/**< WANPPPConnectionNumberOfEntries */
+#ifdef DMP_TR98IPV6_1
+    UINT32    X_00247B_WANIPv6ConnectionNumberOfEntries;	/**< X_00247B_WANIPv6ConnectionNumberOfEntries */
+#endif
 } WanConnDeviceObject;
 
 /*! \brief _WanConnDeviceObject is used internally to represent WanConnDeviceObject */
@@ -4916,6 +4965,7 @@ typedef struct
 #ifdef DMP_X_BROADCOM_COM_ADSLWAN_1
     char *    X_BROADCOM_COM_IfName;	/**< X_BROADCOM_COM_IfName */
 #endif
+    char *    X_ACTIONTEC_COM_TransBridgeFlag;	/**< X_ACTIONTEC_COM_TransBridgeFlag */
 } WanDslLinkCfgObject;
 
 /*! \brief _WanDslLinkCfgObject is used internally to represent WanDslLinkCfgObject */
@@ -5023,6 +5073,7 @@ typedef struct
 #endif
     char *    X_ACTIONTEC_COM_VlanMux8021p;	/**< X_ACTIONTEC_COM_VlanMux8021p */
     char *    X_ACTIONTEC_COM_VlanMuxID;	/**< X_ACTIONTEC_COM_VlanMuxID */
+    char *    X_ACTIONTEC_COM_TransBridgeFlag;	/**< X_ACTIONTEC_COM_TransBridgeFlag */
 } WanPtmLinkCfgObject;
 
 /*! \brief _WanPtmLinkCfgObject is used internally to represent WanPtmLinkCfgObject */
@@ -5030,9 +5081,46 @@ typedef WanPtmLinkCfgObject _WanPtmLinkCfgObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPTMLinkConfig.Stats.
+ *
+ * MDMOID_WAN_PTM_LINK_STATS 184
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    bytesSent;	/**< BytesSent */
+    UINT32    bytesReceived;	/**< BytesReceived */
+    UINT32    framesSent;	/**< FramesSent */
+    UINT32    framesReceived;	/**< FramesReceived */
+    UBOOL8    OOSNearEnd;	/**< OOSNearEnd */
+    UBOOL8    OOSFarEnd;	/**< OOSFarEnd */
+    UINT32    errorsSent;	/**< ErrorsSent */
+    UINT32    errorsReceived;	/**< ErrorsReceived */
+    UINT32    unicastPacketsSent;	/**< UnicastPacketsSent */
+    UINT32    unicastPacketsReceived;	/**< UnicastPacketsReceived */
+    UINT32    discardPacketsSent;	/**< DiscardPacketsSent */
+    UINT32    discardPacketsReceived;	/**< DiscardPacketsReceived */
+    UINT32    multicastPacketsSent;	/**< MulticastPacketsSent */
+    UINT32    multicastPacketsReceived;	/**< MulticastPacketsReceived */
+#ifdef DMP_BASELINE_1
+    UINT32    broadcastPacketsSent;	/**< BroadcastPacketsSent */
+#endif
+#ifdef DMP_BASELINE_1
+    UINT32    broadcastPacketsReceived;	/**< BroadcastPacketsReceived */
+#endif
+#ifdef DMP_BASELINE_1
+    UINT32    unknownProtoPacketsReceived;	/**< UnknownProtoPacketsReceived */
+#endif
+} WanPtmLinkStatsObject;
+
+/*! \brief _WanPtmLinkStatsObject is used internally to represent WanPtmLinkStatsObject */
+typedef WanPtmLinkStatsObject _WanPtmLinkStatsObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANEthernetLinkConfig.
  *
- * MDMOID_WAN_ETH_LINK_CFG 184
+ * MDMOID_WAN_ETH_LINK_CFG 185
  */
 typedef struct
 {
@@ -5047,7 +5135,7 @@ typedef WanEthLinkCfgObject _WanEthLinkCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.X_BROADCOM_COM_L2tpAcLinkConfig.
  *
- * MDMOID_L2TP_AC_LINK_CONFIG 185
+ * MDMOID_L2TP_AC_LINK_CONFIG 186
  */
 typedef struct
 {
@@ -5065,64 +5153,69 @@ typedef L2tpAcLinkConfigObject _L2tpAcLinkConfigObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.
+/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.X_00247B_WANIPv6Connection.{i}.
  *
- * MDMOID_WAN_IP_CONN 186
+ * MDMOID_WAN_IPV6_CONN 187
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
-#ifdef DMP_TR98IPV6_1
-    UBOOL8    X_00247B_Enable;	/**< X_00247B_Enable */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_TransType;	/**< X_00247B_TransType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6AddressingType;	/**< X_00247B_IPv6AddressingType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdStatus;	/**< X_00247B_IPv6rdStatus */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdPrefixType;	/**< X_00247B_IPv6rdPrefixType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdBRIPv4Addresses;	/**< X_00247B_IPv6rdBRIPv4Addresses */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdPrefix;	/**< X_00247B_IPv6rdPrefix */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdPrefixLength;	/**< X_00247B_IPv6rdPrefixLength */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdIPv4MaskLength;	/**< X_00247B_IPv6rdIPv4MaskLength */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6ConnStatus;	/**< X_00247B_IPv6ConnStatus */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdTunnelMTU;	/**< X_00247B_IPv6rdTunnelMTU */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IfName;	/**< X_00247B_IfName */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_ExternalIPv6Address;	/**< X_00247B_ExternalIPv6Address */
-#endif
-#ifdef DMP_TR98IPV6_1
+    UBOOL8    enable;	/**< Enable */
+    UBOOL8    reset;	/**< Reset */
+    char *    addressingType;	/**< AddressingType */
+    char *    connectionStatus;	/**< ConnectionStatus */
+    UINT32    uptime;	/**< Uptime */
+    char *    externalLinkLocalAddress;	/**< ExternalLinkLocalAddress */
+    char *    externalIPv6Address;	/**< ExternalIPv6Address */
+    UINT32    netmask;	/**< Netmask */
     char *    X_00247B_IPv6SitePrefix;	/**< X_00247B_IPv6SitePrefix */
-#endif
-#ifdef DMP_TR98IPV6_1
     char *    X_00247B_DefaultIPv6Gateway;	/**< X_00247B_DefaultIPv6Gateway */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6LinkLocalAddress;	/**< X_00247B_IPv6LinkLocalAddress */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6DNSServers;	/**< X_00247B_IPv6DNSServers */
-#endif
+    UBOOL8    DNSEnabled;	/**< DNSEnabled */
+    char *    DNSPreference;	/**< DNSPreference */
+    char *    DNSServers;	/**< DNSServers */
+    char *    MACAddress;	/**< MACAddress */
+    UINT32    X_00247B_6rdIPv4MaskLen;	/**< X_00247B_6rdIPv4MaskLen */
+    char *    X_00247B_6rdPrefix;	/**< X_00247B_6rdPrefix */
+    UINT32    X_00247B_6rdPrefixLen;	/**< X_00247B_6rdPrefixLen */
+    char *    X_00247B_6rdDelegatedPrefix;	/**< X_00247B_6rdDelegatedPrefix */
+    char *    X_00247B_6rdBRIPv4Address;	/**< X_00247B_6rdBRIPv4Address */
+    char *    X_00247B_IPv6rdStatus;	/**< X_00247B_IPv6rdStatus */
+    char *    X_00247B_IPv6rdPrefixType;	/**< X_00247B_IPv6rdPrefixType */
+    UINT32    X_00247B_6rdTunnelMTU;	/**< X_00247B_6rdTunnelMTU */
+} WanIpv6ConnObject;
+
+/*! \brief _WanIpv6ConnObject is used internally to represent WanIpv6ConnObject */
+typedef WanIpv6ConnObject _WanIpv6ConnObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.X_00247B_WANIPv6Connection.{i}.Stats.
+ *
+ * MDMOID_WAN_IPV6_CONN_STATS 188
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    ethernetBytesSent;	/**< EthernetBytesSent */
+    UINT32    ethernetBytesReceived;	/**< EthernetBytesReceived */
+    UINT32    ethernetPacketsSent;	/**< EthernetPacketsSent */
+    UINT32    ethernetPacketsReceived;	/**< EthernetPacketsReceived */
+    UINT32    ethernetErrorsSent;	/**< EthernetErrorsSent */
+    UINT32    ethernetErrorsReceived;	/**< EthernetErrorsReceived */
+} WanIpv6ConnStatsObject;
+
+/*! \brief _WanIpv6ConnStatsObject is used internally to represent WanIpv6ConnStatsObject */
+typedef WanIpv6ConnStatsObject _WanIpv6ConnStatsObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.
+ *
+ * MDMOID_WAN_IP_CONN 189
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    enable;	/**< Enable */
     char *    connectionStatus;	/**< ConnectionStatus */
     char *    possibleConnectionTypes;	/**< PossibleConnectionTypes */
@@ -5189,6 +5282,12 @@ typedef struct
     char *    X_BROADCOM_COM_DefaultIPv6Gateway;	/**< X_BROADCOM_COM_DefaultIPv6Gateway */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_MFlag;	/**< X_BROADCOM_COM_MFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_OFlag;	/**< X_BROADCOM_COM_OFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
     char *    X_BROADCOM_COM_IPv6DNSServers;	/**< X_BROADCOM_COM_IPv6DNSServers */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
@@ -5207,6 +5306,12 @@ typedef struct
     SINT32    X_BROADCOM_COM_IPv6SitePrefixVltime;	/**< X_BROADCOM_COM_IPv6SitePrefixVltime */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_AFlag;	/**< X_BROADCOM_COM_AFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_LFlag;	/**< X_BROADCOM_COM_LFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
     UINT32    X_BROADCOM_COM_Dhcp6cPid;	/**< X_BROADCOM_COM_Dhcp6cPid */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
@@ -5217,6 +5322,7 @@ typedef struct
 #ifdef DMP_X_BROADCOM_COM_AUTODETECTION_1
     UBOOL8    X_BROADCOM_COM_LastConnected;	/**< X_BROADCOM_COM_LastConnected */
 #endif
+    char *    X_BROADCOM_COM_TransientLayer2LinkStatus;	/**< X_BROADCOM_COM_TransientLayer2LinkStatus */
     UINT32    X_ACTIONTEC_COM_UDMTU;	/**< X_ACTIONTEC_COM_UDMTU */
     UBOOL8    X_ACTIONTEC_COM_Multi_Wan_Vlan;	/**< X_ACTIONTEC_COM_Multi_Wan_Vlan */
     UBOOL8    reset;	/**< Reset */
@@ -5229,7 +5335,7 @@ typedef WanIpConnObject _WanIpConnObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.PortMapping.{i}.
  *
- * MDMOID_WAN_IP_CONN_PORTMAPPING 187
+ * MDMOID_WAN_IP_CONN_PORTMAPPING 190
  */
 typedef struct
 {
@@ -5249,6 +5355,8 @@ typedef struct
     char *    X_BROADCOM_COM_AppName;	/**< X_BROADCOM_COM_AppName */
     UBOOL8    isAddbyGUI;	/**< IsAddbyGUI */
     UBOOL8    isAddbyUPNP;	/**< IsAddbyUPNP */
+    UBOOL8    X_ACTIONTEC_COM_WasAddedByGUI;	/**< X_ACTIONTEC_COM_WasAddedByGUI */
+    UBOOL8    X_ACTIONTEC_COM_WasAddedByUPNP;	/**< X_ACTIONTEC_COM_WasAddedByUPNP */
 } WanIpConnPortmappingObject;
 
 /*! \brief _WanIpConnPortmappingObject is used internally to represent WanIpConnPortmappingObject */
@@ -5258,7 +5366,7 @@ typedef WanIpConnPortmappingObject _WanIpConnPortmappingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.X_BROADCOM_COM_PortTriggering.{i}.
  *
- * MDMOID_WAN_IP_CONN_PORT_TRIGGERING 188
+ * MDMOID_WAN_IP_CONN_PORT_TRIGGERING 191
  */
 typedef struct
 {
@@ -5280,7 +5388,7 @@ typedef WanIpConnPortTriggeringObject _WanIpConnPortTriggeringObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.X_BROADCOM_COM_FirewallException.{i}.
  *
- * MDMOID_WAN_IP_CONN_FIREWALL_EXCEPTION 189
+ * MDMOID_WAN_IP_CONN_FIREWALL_EXCEPTION 192
  */
 typedef struct
 {
@@ -5306,7 +5414,7 @@ typedef WanIpConnFirewallExceptionObject _WanIpConnFirewallExceptionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.X_BROADCOM_COM_MacFilterObj.
  *
- * MDMOID_MAC_FILTER 190
+ * MDMOID_MAC_FILTER 193
  */
 typedef struct
 {
@@ -5322,7 +5430,7 @@ typedef MacFilterObject _MacFilterObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.X_BROADCOM_COM_MacFilterObj.X_BROADCOM_COM_MacFilterCfg.{i}.
  *
- * MDMOID_MAC_FILTER_CFG 191
+ * MDMOID_MAC_FILTER_CFG 194
  */
 typedef struct
 {
@@ -5341,7 +5449,7 @@ typedef MacFilterCfgObject _MacFilterCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANIPConnection.{i}.Stats.
  *
- * MDMOID_WAN_IP_CONN_STATS 192
+ * MDMOID_WAN_IP_CONN_STATS 195
  */
 typedef struct
 {
@@ -5350,16 +5458,19 @@ typedef struct
     UINT32    X_BROADCOM_COM_TxDrops;	/**< X_BROADCOM_COM_TxDrops */
     UINT32    X_BROADCOM_COM_RxErrors;	/**< X_BROADCOM_COM_RxErrors */
     UINT32    X_BROADCOM_COM_TxErrors;	/**< X_BROADCOM_COM_TxErrors */
-    UINT32    ethernetBytesSent;	/**< EthernetBytesSent */
-    UINT32    ethernetBytesReceived;	/**< EthernetBytesReceived */
+    char *    ethernetBytesSent;	/**< EthernetBytesSent */
+    char *    ethernetBytesReceived;	/**< EthernetBytesReceived */
     UINT32    ethernetPacketsSent;	/**< EthernetPacketsSent */
     UINT32    ethernetPacketsReceived;	/**< EthernetPacketsReceived */
     char *    X_ACTIONTEC_COM_DiagnosticsState;	/**< X_ACTIONTEC_COM_DiagnosticsState */
     UINT32    X_ACTIONTEC_COM_DiagnosticsInterval;	/**< X_ACTIONTEC_COM_DiagnosticsInterval */
-    char *    X_ACTIONTEC_COM_UnicastReceivedDataRate;	/**< X_ACTIONTEC_COM_UnicastReceivedDataRate */
-    char *    X_ACTIONTEC_COM_UnicastSentDataRate;	/**< X_ACTIONTEC_COM_UnicastSentDataRate */
-    char *    X_ACTIONTEC_COM_MulticastReceivedDataRate;	/**< X_ACTIONTEC_COM_MulticastReceivedDataRate */
-    char *    X_ACTIONTEC_COM_MulticastSentDataRate;	/**< X_ACTIONTEC_COM_MulticastSentDataRate */
+    DATETIME  X_ACTIONTEC_COM_DiagnosticCompletionTime;	/**< X_ACTIONTEC_COM_DiagnosticCompletionTime */
+    UINT32    X_ACTIONTEC_COM_UnicastReceivedDataRate;	/**< X_ACTIONTEC_COM_UnicastReceivedDataRate */
+    UINT32    X_ACTIONTEC_COM_UnicastSentDataRate;	/**< X_ACTIONTEC_COM_UnicastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_UnicastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_UnicastDiscardedPacketCount */
+    UINT32    X_ACTIONTEC_COM_MulticastReceivedDataRate;	/**< X_ACTIONTEC_COM_MulticastReceivedDataRate */
+    UINT32    X_ACTIONTEC_COM_MulticastSentDataRate;	/**< X_ACTIONTEC_COM_MulticastSentDataRate */
+    UINT32    X_ACTIONTEC_COM_MulticastDiscardedPacketCount;	/**< X_ACTIONTEC_COM_MulticastDiscardedPacketCount */
     UINT32    ethernetErrorsSent;	/**< EthernetErrorsSent */
     UINT32    ethernetErrorsReceived;	/**< EthernetErrorsReceived */
     UINT32    ethernetUnicastPacketsSent;	/**< EthernetUnicastPacketsSent */
@@ -5380,69 +5491,17 @@ typedef WanIpConnStatsObject _WanIpConnStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPPPConnection.{i}.
  *
- * MDMOID_WAN_PPP_CONN 193
+ * MDMOID_WAN_PPP_CONN 196
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
-#ifdef DMP_TR98IPV6_1
-    UBOOL8    X_00247B_Enable;	/**< X_00247B_Enable */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_TransType;	/**< X_00247B_TransType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6AddressingType;	/**< X_00247B_IPv6AddressingType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdStatus;	/**< X_00247B_IPv6rdStatus */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdPrefixType;	/**< X_00247B_IPv6rdPrefixType */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdBRIPv4Addresses;	/**< X_00247B_IPv6rdBRIPv4Addresses */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6rdPrefix;	/**< X_00247B_IPv6rdPrefix */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdPrefixLength;	/**< X_00247B_IPv6rdPrefixLength */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdIPv4MaskLength;	/**< X_00247B_IPv6rdIPv4MaskLength */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6ConnStatus;	/**< X_00247B_IPv6ConnStatus */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UINT32    X_00247B_IPv6rdTunnelMTU;	/**< X_00247B_IPv6rdTunnelMTU */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IfName;	/**< X_00247B_IfName */
-#endif
-#ifdef DMP_TR98IPV6_1
-    UBOOL8    X_00247B_IPv6PppUp;	/**< X_00247B_IPv6PppUp */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_ExternalIPv6Address;	/**< X_00247B_ExternalIPv6Address */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6SitePrefix;	/**< X_00247B_IPv6SitePrefix */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_DefaultIPv6Gateway;	/**< X_00247B_DefaultIPv6Gateway */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6LinkLocalAddress;	/**< X_00247B_IPv6LinkLocalAddress */
-#endif
-#ifdef DMP_TR98IPV6_1
-    char *    X_00247B_IPv6DNSServers;	/**< X_00247B_IPv6DNSServers */
-#endif
     UBOOL8    enable;	/**< Enable */
     char *    connectionStatus;	/**< ConnectionStatus */
     char *    possibleConnectionTypes;	/**< PossibleConnectionTypes */
     char *    connectionType;	/**< ConnectionType */
+    UINT32    PPPoESessionID;	/**< PPPoESessionID */
+    char *    defaultGateway;	/**< DefaultGateway */
     SINT32    X_ACTIONTEC_COM_PPPAutoConnect;	/**< X_ACTIONTEC_COM_PPPAutoConnect */
     SINT32    PPPAutoConnect;	/**< PPPAutoConnect */
     char *    name;	/**< Name */
@@ -5485,6 +5544,7 @@ typedef struct
     char *    X_BROADCOM_COM_UserRequest;	/**< X_BROADCOM_COM_UserRequest */
     char *    externalIPAddress;	/**< ExternalIPAddress */
     char *    remoteIPAddress;	/**< RemoteIPAddress */
+    UINT32    maxMRUSize;	/**< MaxMRUSize */
     UINT32    currentMRUSize;	/**< CurrentMRUSize */
     UBOOL8    DNSEnabled;	/**< DNSEnabled */
     UBOOL8    DNSOverrideAllowed;	/**< DNSOverrideAllowed */
@@ -5527,6 +5587,12 @@ typedef struct
     char *    X_BROADCOM_COM_DefaultIPv6Gateway;	/**< X_BROADCOM_COM_DefaultIPv6Gateway */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_MFlag;	/**< X_BROADCOM_COM_MFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_OFlag;	/**< X_BROADCOM_COM_OFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
     char *    X_BROADCOM_COM_IPv6DNSServers;	/**< X_BROADCOM_COM_IPv6DNSServers */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
@@ -5545,6 +5611,12 @@ typedef struct
     SINT32    X_BROADCOM_COM_IPv6SitePrefixVltime;	/**< X_BROADCOM_COM_IPv6SitePrefixVltime */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_AFlag;	/**< X_BROADCOM_COM_AFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
+    UBOOL8    X_BROADCOM_COM_LFlag;	/**< X_BROADCOM_COM_LFlag */
+#endif
+#ifdef DMP_X_BROADCOM_COM_IPV6_1
     UINT32    X_BROADCOM_COM_Dhcp6cPid;	/**< X_BROADCOM_COM_Dhcp6cPid */
 #endif
 #ifdef DMP_X_BROADCOM_COM_IPV6_1
@@ -5556,6 +5628,7 @@ typedef struct
 #ifdef DMP_X_BROADCOM_COM_AUTODETECTION_1
     UBOOL8    X_BROADCOM_COM_StopPppD;	/**< X_BROADCOM_COM_StopPppD */
 #endif
+    char *    X_BROADCOM_COM_TransientLayer2LinkStatus;	/**< X_BROADCOM_COM_TransientLayer2LinkStatus */
     UINT32    X_ACTIONTEC_COM_FWExceptionNumberOfEntries;	/**< X_ACTIONTEC_COM_FWExceptionNumberOfEntries */
     UBOOL8    X_ACTIONTEC_COM_AddIpToBridge;	/**< X_ACTIONTEC_COM_AddIpToBridge */
     UINT32    X_ACTIONTEC_COM_UDMTU;	/**< X_ACTIONTEC_COM_UDMTU */
@@ -5570,14 +5643,14 @@ typedef WanPppConnObject _WanPppConnObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPPPConnection.{i}.PortMapping.{i}.
  *
- * MDMOID_WAN_PPP_CONN_PORTMAPPING 194
+ * MDMOID_WAN_PPP_CONN_PORTMAPPING 197
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    portMappingEnabled;	/**< PortMappingEnabled */
-    UINT32    X_BROADCOM_COM_ExpiryTime;	/**< X_BROADCOM_COM_ExpiryTime */
     UINT32    portMappingLeaseDuration;	/**< PortMappingLeaseDuration */
+    UINT32    X_BROADCOM_COM_ExpiryTime;	/**< X_BROADCOM_COM_ExpiryTime */
     char *    remoteHost;	/**< RemoteHost */
     UINT32    externalPort;	/**< ExternalPort */
     UINT32    externalPortEndRange;	/**< ExternalPortEndRange */
@@ -5590,6 +5663,8 @@ typedef struct
     char *    X_BROADCOM_COM_AppName;	/**< X_BROADCOM_COM_AppName */
     UBOOL8    isAddbyGUI;	/**< IsAddbyGUI */
     UBOOL8    isAddbyUPNP;	/**< IsAddbyUPNP */
+    UBOOL8    X_ACTIONTEC_COM_WasAddedByGUI;	/**< X_ACTIONTEC_COM_WasAddedByGUI */
+    UBOOL8    X_ACTIONTEC_COM_WasAddedByUPNP;	/**< X_ACTIONTEC_COM_WasAddedByUPNP */
 } WanPppConnPortmappingObject;
 
 /*! \brief _WanPppConnPortmappingObject is used internally to represent WanPppConnPortmappingObject */
@@ -5599,7 +5674,7 @@ typedef WanPppConnPortmappingObject _WanPppConnPortmappingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPPPConnection.{i}.X_BROADCOM_COM_PortTriggering.{i}.
  *
- * MDMOID_WAN_PPP_CONN_PORT_TRIGGERING 195
+ * MDMOID_WAN_PPP_CONN_PORT_TRIGGERING 198
  */
 typedef struct
 {
@@ -5621,7 +5696,7 @@ typedef WanPppConnPortTriggeringObject _WanPppConnPortTriggeringObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPPPConnection.{i}.X_BROADCOM_COM_FirewallException.{i}.
  *
- * MDMOID_WAN_PPP_CONN_FIREWALL_EXCEPTION 196
+ * MDMOID_WAN_PPP_CONN_FIREWALL_EXCEPTION 199
  */
 typedef struct
 {
@@ -5647,7 +5722,7 @@ typedef WanPppConnFirewallExceptionObject _WanPppConnFirewallExceptionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.WANDevice.{i}.WANConnectionDevice.{i}.WANPPPConnection.{i}.Stats.
  *
- * MDMOID_WAN_PPP_CONN_STATS 197
+ * MDMOID_WAN_PPP_CONN_STATS 200
  */
 typedef struct
 {
@@ -5678,9 +5753,27 @@ typedef WanPppConnStatsObject _WanPppConnStatsObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_BondingDevice.
+ *
+ * MDMOID_BONDING_DEVICE 201
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    char *    linkStatus;	/**< LinkStatus */
+    char *    physicalWANLinks;	/**< PhysicalWANLinks */
+    UINT32    downstreamCurrRate;	/**< DownstreamCurrRate */
+    UINT32    upstreamCurrRate;	/**< UpstreamCurrRate */
+} BondingDeviceObject;
+
+/*! \brief _BondingDeviceObject is used internally to represent BondingDeviceObject */
+typedef BondingDeviceObject _BondingDeviceObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.Layer3Forwarding.
  *
- * MDMOID_L3_FORWARDING 198
+ * MDMOID_L3_FORWARDING 202
  */
 typedef struct
 {
@@ -5690,6 +5783,9 @@ typedef struct
     char *    X_BROADCOM_COM_DefaultConnectionServices;	/**< X_BROADCOM_COM_DefaultConnectionServices */
     char *    X_BROADCOM_COM_ActiveDefaultGateway;	/**< X_BROADCOM_COM_ActiveDefaultGateway */
     char *    X_ACTIONTEC_COM_DefaultConnectionFullPath;	/**< X_ACTIONTEC_COM_DefaultConnectionFullPath */
+#ifdef DMP_TR98IPV6_1
+    char *    X_00247B_IPv6DefaultConnectionService;	/**< X_00247B_IPv6DefaultConnectionService */
+#endif
 } L3ForwardingObject;
 
 /*! \brief _L3ForwardingObject is used internally to represent L3ForwardingObject */
@@ -5699,7 +5795,7 @@ typedef L3ForwardingObject _L3ForwardingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Layer3Forwarding.Forwarding.{i}.
  *
- * MDMOID_L3_FORWARDING_ENTRY 199
+ * MDMOID_L3_FORWARDING_ENTRY 203
  */
 typedef struct
 {
@@ -5732,7 +5828,7 @@ typedef L3ForwardingEntryObject _L3ForwardingEntryObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPv6Layer3Forwarding.
  *
- * MDMOID_I_PV6_L3_FORWARDING 200
+ * MDMOID_I_PV6_L3_FORWARDING 204
  */
 typedef struct
 {
@@ -5748,7 +5844,7 @@ typedef IPv6L3ForwardingObject _IPv6L3ForwardingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPv6Layer3Forwarding.IPv6Forwarding.{i}.
  *
- * MDMOID_I_PV6_L3_FORWARDING_ENTRY 201
+ * MDMOID_I_PV6_L3_FORWARDING_ENTRY 205
  */
 typedef struct
 {
@@ -5774,7 +5870,7 @@ typedef IPv6L3ForwardingEntryObject _IPv6L3ForwardingEntryObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.
  *
- * MDMOID_SERVICES 202
+ * MDMOID_SERVICES 206
  */
 typedef struct
 {
@@ -5788,7 +5884,7 @@ typedef ServicesObject _ServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.
  *
- * MDMOID_STORAGE_SERVICE 203
+ * MDMOID_STORAGE_SERVICE 207
  */
 typedef struct
 {
@@ -5806,7 +5902,7 @@ typedef StorageServiceObject _StorageServiceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.UserAccount.{i}.
  *
- * MDMOID_USER_ACCOUNT 204
+ * MDMOID_USER_ACCOUNT 208
  */
 typedef struct
 {
@@ -5824,7 +5920,7 @@ typedef UserAccountObject _UserAccountObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.Capabilites.
  *
- * MDMOID_CAPABILITES 205
+ * MDMOID_CAPABILITES 209
  */
 typedef struct
 {
@@ -5846,7 +5942,7 @@ typedef CapabilitesObject _CapabilitesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.NetInfo.
  *
- * MDMOID_NETWORK_INFO 206
+ * MDMOID_NETWORK_INFO 210
  */
 typedef struct
 {
@@ -5862,7 +5958,7 @@ typedef NetworkInfoObject _NetworkInfoObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.NetworkServer.
  *
- * MDMOID_NETWORK_SERVER 207
+ * MDMOID_NETWORK_SERVER 211
  */
 typedef struct
 {
@@ -5880,7 +5976,7 @@ typedef NetworkServerObject _NetworkServerObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.PhysicalMedium.{i}.
  *
- * MDMOID_PHYSICAL_MEDIUM 208
+ * MDMOID_PHYSICAL_MEDIUM 212
  */
 typedef struct
 {
@@ -5899,7 +5995,7 @@ typedef PhysicalMediumObject _PhysicalMediumObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.LogicalVolume.{i}.
  *
- * MDMOID_LOGICAL_VOLUME 209
+ * MDMOID_LOGICAL_VOLUME 213
  */
 typedef struct
 {
@@ -5922,7 +6018,7 @@ typedef LogicalVolumeObject _LogicalVolumeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.StorageService.{i}.LogicalVolume.{i}.Folder.{i}.
  *
- * MDMOID_FOLDER 210
+ * MDMOID_FOLDER 214
  */
 typedef struct
 {
@@ -5939,14 +6035,20 @@ typedef FolderObject _FolderObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.
  *
- * MDMOID_VOICE 211
+ * MDMOID_VOICE 215
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    X_ACTIONTEC_COM_Enable;	/**< X_ACTIONTEC_COM_Enable */
+    char *    X_ACTIONTEC_COM_SIPAutoConfig;	/**< X_ACTIONTEC_COM_SIPAutoConfig */
+    char *    X_ACTIONTEC_COM_PreRegistrationUrl;	/**< X_ACTIONTEC_COM_PreRegistrationUrl */
+    UBOOL8    X_ACTIONTEC_COM_VADSupport;	/**< X_ACTIONTEC_COM_VADSupport */
+    SINT32    X_ACTIONTEC_COM_PR_Timer;	/**< X_ACTIONTEC_COM_PR_Timer */
     UINT32    voiceProfileNumberOfEntries;	/**< VoiceProfileNumberOfEntries */
     char *    X_BROADCOM_COM_BoundIfName;	/**< X_BROADCOM_COM_BoundIfName */
     char *    X_BROADCOM_COM_BoundIpAddr;	/**< X_BROADCOM_COM_BoundIpAddr */
+    char *    X_BROADCOM_COM_IpAddressFamily;	/**< X_BROADCOM_COM_IpAddressFamily */
     char *    X_BROADCOM_COM_LoggingLevel;	/**< X_BROADCOM_COM_LoggingLevel */
     char *    X_BROADCOM_COM_LoggingDestination;	/**< X_BROADCOM_COM_LoggingDestination */
     char *    X_BROADCOM_COM_CCTKTraceLevel;	/**< X_BROADCOM_COM_CCTKTraceLevel */
@@ -5964,7 +6066,7 @@ typedef VoiceObject _VoiceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.
  *
- * MDMOID_VOICE_CALL_LIST 212
+ * MDMOID_VOICE_CALL_LIST 216
  */
 typedef struct
 {
@@ -5978,7 +6080,7 @@ typedef VoiceCallListObject _VoiceCallListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.NewFlag.
  *
- * MDMOID_VOICE_CALL_NEW_FLAG 213
+ * MDMOID_VOICE_CALL_NEW_FLAG 217
  */
 typedef struct
 {
@@ -5995,7 +6097,7 @@ typedef VoiceCallNewFlagObject _VoiceCallNewFlagObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.NumberOfMissedCalls.
  *
- * MDMOID_VOICE_CALL_NUMBER_OF_MISSED_CALLS 214
+ * MDMOID_VOICE_CALL_NUMBER_OF_MISSED_CALLS 218
  */
 typedef struct
 {
@@ -6012,7 +6114,7 @@ typedef VoiceCallNumberOfMissedCallsObject _VoiceCallNumberOfMissedCallsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.Number.
  *
- * MDMOID_VOICE_CALL_NUMBER 215
+ * MDMOID_VOICE_CALL_NUMBER 219
  */
 typedef struct
 {
@@ -6031,7 +6133,7 @@ typedef VoiceCallNumberObject _VoiceCallNumberObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.Name.
  *
- * MDMOID_VOICE_CALL_NAME 216
+ * MDMOID_VOICE_CALL_NAME 220
  */
 typedef struct
 {
@@ -6048,7 +6150,7 @@ typedef VoiceCallNameObject _VoiceCallNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.DateTime.
  *
- * MDMOID_VOICE_CALL_DATE_TIME 217
+ * MDMOID_VOICE_CALL_DATE_TIME 221
  */
 typedef struct
 {
@@ -6065,7 +6167,7 @@ typedef VoiceCallDateTimeObject _VoiceCallDateTimeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.LineName.
  *
- * MDMOID_VOICE_CALL_LINE_NAME 218
+ * MDMOID_VOICE_CALL_LINE_NAME 222
  */
 typedef struct
 {
@@ -6082,7 +6184,7 @@ typedef VoiceCallLineNameObject _VoiceCallLineNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.LineId.
  *
- * MDMOID_VOICE_CALL_LINE_ID 219
+ * MDMOID_VOICE_CALL_LINE_ID 223
  */
 typedef struct
 {
@@ -6100,7 +6202,7 @@ typedef VoiceCallLineIdObject _VoiceCallLineIdObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Call.{i}.CallType.
  *
- * MDMOID_VOICE_CALL_TYPE 220
+ * MDMOID_VOICE_CALL_TYPE 224
  */
 typedef struct
 {
@@ -6117,7 +6219,7 @@ typedef VoiceCallTypeObject _VoiceCallTypeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_InternalName.{i}.
  *
- * MDMOID_VOICE_INTERNAL_NAME_LIST 221
+ * MDMOID_VOICE_INTERNAL_NAME_LIST 225
  */
 typedef struct
 {
@@ -6131,7 +6233,7 @@ typedef VoiceInternalNameListObject _VoiceInternalNameListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_InternalName.{i}.TerminalNumber.
  *
- * MDMOID_VOICE_TERMINAL_NUMBER 222
+ * MDMOID_VOICE_TERMINAL_NUMBER 226
  */
 typedef struct
 {
@@ -6148,7 +6250,7 @@ typedef VoiceTerminalNumberObject _VoiceTerminalNumberObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_InternalName.{i}.Name.
  *
- * MDMOID_VOICE_INTERNAL_NAME 223
+ * MDMOID_VOICE_INTERNAL_NAME 227
  */
 typedef struct
 {
@@ -6165,7 +6267,7 @@ typedef VoiceInternalNameObject _VoiceInternalNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.
  *
- * MDMOID_VOICE_CONTACT_LIST 224
+ * MDMOID_VOICE_CONTACT_LIST 228
  */
 typedef struct
 {
@@ -6179,7 +6281,7 @@ typedef VoiceContactListObject _VoiceContactListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.Name.
  *
- * MDMOID_VOICE_CONTACT_NAME 225
+ * MDMOID_VOICE_CONTACT_NAME 229
  */
 typedef struct
 {
@@ -6196,7 +6298,7 @@ typedef VoiceContactNameObject _VoiceContactNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.FirstName.
  *
- * MDMOID_VOICE_CONTACT_FIRST_NAME 226
+ * MDMOID_VOICE_CONTACT_FIRST_NAME 230
  */
 typedef struct
 {
@@ -6213,7 +6315,7 @@ typedef VoiceContactFirstNameObject _VoiceContactFirstNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.ContactNumber.
  *
- * MDMOID_VOICE_CONTACT_NUMBER 227
+ * MDMOID_VOICE_CONTACT_NUMBER 231
  */
 typedef struct
 {
@@ -6233,7 +6335,7 @@ typedef VoiceContactNumberObject _VoiceContactNumberObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.Melody.
  *
- * MDMOID_VOICE_CONTACT_MELODY 228
+ * MDMOID_VOICE_CONTACT_MELODY 232
  */
 typedef struct
 {
@@ -6250,7 +6352,7 @@ typedef VoiceContactMelodyObject _VoiceContactMelodyObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Contact.{i}.LineId.
  *
- * MDMOID_VOICE_CONTACT_LINE_ID 229
+ * MDMOID_VOICE_CONTACT_LINE_ID 233
  */
 typedef struct
 {
@@ -6268,7 +6370,7 @@ typedef VoiceContactLineIdObject _VoiceContactLineIdObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_SupportList.{i}.
  *
- * MDMOID_VOICE_DECT_SUPPORT_LIST 230
+ * MDMOID_VOICE_DECT_SUPPORT_LIST 234
  */
 typedef struct
 {
@@ -6285,7 +6387,7 @@ typedef VoiceDectSupportListObject _VoiceDectSupportListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.Capabilities.
  *
- * MDMOID_VOICE_CAP 231
+ * MDMOID_VOICE_CAP 235
  */
 typedef struct
 {
@@ -6320,7 +6422,7 @@ typedef VoiceCapObject _VoiceCapObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.Capabilities.SIP.
  *
- * MDMOID_VOICE_CAP_SIP 232
+ * MDMOID_VOICE_CAP_SIP 236
  */
 typedef struct
 {
@@ -6341,7 +6443,7 @@ typedef VoiceCapSipObject _VoiceCapSipObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.Capabilities.MGCP.
  *
- * MDMOID_VOICE_CAP_MGCP 233
+ * MDMOID_VOICE_CAP_MGCP 237
  */
 typedef struct
 {
@@ -6356,7 +6458,7 @@ typedef VoiceCapMgcpObject _VoiceCapMgcpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.Capabilities.Codecs.{i}.
  *
- * MDMOID_VOICE_CAP_CODECS 234
+ * MDMOID_VOICE_CAP_CODECS 238
  */
 typedef struct
 {
@@ -6375,7 +6477,7 @@ typedef VoiceCapCodecsObject _VoiceCapCodecsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.
  *
- * MDMOID_VOICE_PROF 235
+ * MDMOID_VOICE_PROF 239
  */
 typedef struct
 {
@@ -6410,7 +6512,7 @@ typedef VoiceProfObject _VoiceProfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.ServiceProviderInfo.
  *
- * MDMOID_VOICE_PROF_PROVIDER 236
+ * MDMOID_VOICE_PROF_PROVIDER 240
  */
 typedef struct
 {
@@ -6425,7 +6527,7 @@ typedef VoiceProfProviderObject _VoiceProfProviderObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.SIP.
  *
- * MDMOID_VOICE_PROF_SIP 237
+ * MDMOID_VOICE_PROF_SIP 241
  */
 typedef struct
 {
@@ -6474,7 +6576,7 @@ typedef VoiceProfSipObject _VoiceProfSipObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.SIP.EventSubscribe.{i}.
  *
- * MDMOID_VOICE_PROF_SIP_SUBSCRIBE 238
+ * MDMOID_VOICE_PROF_SIP_SUBSCRIBE 242
  */
 typedef struct
 {
@@ -6492,7 +6594,7 @@ typedef VoiceProfSipSubscribeObject _VoiceProfSipSubscribeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.MGCP.
  *
- * MDMOID_VOICE_PROF_MGCP 239
+ * MDMOID_VOICE_PROF_MGCP 243
  */
 typedef struct
 {
@@ -6508,7 +6610,7 @@ typedef VoiceProfMgcpObject _VoiceProfMgcpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.RTP.
  *
- * MDMOID_VOICE_PROF_RTP 240
+ * MDMOID_VOICE_PROF_RTP 244
  */
 typedef struct
 {
@@ -6526,12 +6628,13 @@ typedef VoiceProfRtpObject _VoiceProfRtpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.RTP.SRTP.
  *
- * MDMOID_VOICE_PROF_RTP_SRTP 241
+ * MDMOID_VOICE_PROF_RTP_SRTP 245
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    enable;	/**< Enable */
+    char *    X_BROADCOM_COM_SrtpUsageOption;	/**< X_BROADCOM_COM_SrtpUsageOption */
 } VoiceProfRtpSrtpObject;
 
 /*! \brief _VoiceProfRtpSrtpObject is used internally to represent VoiceProfRtpSrtpObject */
@@ -6541,7 +6644,7 @@ typedef VoiceProfRtpSrtpObject _VoiceProfRtpSrtpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.FaxT38.
  *
- * MDMOID_VOICE_PROF_FAX_T38 242
+ * MDMOID_VOICE_PROF_FAX_T38 246
  */
 typedef struct
 {
@@ -6558,7 +6661,7 @@ typedef VoiceProfFaxT38Object _VoiceProfFaxT38Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.
  *
- * MDMOID_VOICE_LINE 243
+ * MDMOID_VOICE_LINE 247
  */
 typedef struct
 {
@@ -6573,6 +6676,8 @@ typedef struct
     char *    X_BROADCOM_COM_NonFxsPhyReferenceList;	/**< X_BROADCOM_COM_NonFxsPhyReferenceList */
     UINT32    X_BROADCOM_COM_CMAcntNum;	/**< X_BROADCOM_COM_CMAcntNum */
     char *    X_BROADCOM_COM_AssociatedNonFxsPhyIntfType;	/**< X_BROADCOM_COM_AssociatedNonFxsPhyIntfType */
+    UINT32    X_ACTIONTEC_COM_RegFailures;	/**< X_ACTIONTEC_COM_RegFailures */
+    char *    X_ACTIONTEC_COM_LastRegDate;	/**< X_ACTIONTEC_COM_LastRegDate */
 } VoiceLineObject;
 
 /*! \brief _VoiceLineObject is used internally to represent VoiceLineObject */
@@ -6582,7 +6687,7 @@ typedef VoiceLineObject _VoiceLineObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.SIP.
  *
- * MDMOID_VOICE_LINE_SIP 244
+ * MDMOID_VOICE_LINE_SIP 248
  */
 typedef struct
 {
@@ -6599,7 +6704,7 @@ typedef VoiceLineSipObject _VoiceLineSipObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.CallingFeatures.
  *
- * MDMOID_VOICE_LINE_CALLING_FEATURES 245
+ * MDMOID_VOICE_LINE_CALLING_FEATURES 249
  */
 typedef struct
 {
@@ -6652,7 +6757,7 @@ typedef VoiceLineCallingFeaturesObject _VoiceLineCallingFeaturesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.VoiceProcessing.
  *
- * MDMOID_VOICE_LINE_PROCESSING 246
+ * MDMOID_VOICE_LINE_PROCESSING 250
  */
 typedef struct
 {
@@ -6669,7 +6774,7 @@ typedef VoiceLineProcessingObject _VoiceLineProcessingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.Codec.
  *
- * MDMOID_VOICE_LINE_CODEC 247
+ * MDMOID_VOICE_LINE_CODEC 251
  */
 typedef struct
 {
@@ -6683,7 +6788,7 @@ typedef VoiceLineCodecObject _VoiceLineCodecObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.Codec.List.{i}.
  *
- * MDMOID_VOICE_LINE_CODEC_LIST 248
+ * MDMOID_VOICE_LINE_CODEC_LIST 252
  */
 typedef struct
 {
@@ -6704,7 +6809,7 @@ typedef VoiceLineCodecListObject _VoiceLineCodecListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.Stats.
  *
- * MDMOID_VOICE_LINE_STATS 249
+ * MDMOID_VOICE_LINE_STATS 253
  */
 typedef struct
 {
@@ -6740,7 +6845,7 @@ typedef VoiceLineStatsObject _VoiceLineStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_LineSetting.
  *
- * MDMOID_VOICE_LINE_SETTING 250
+ * MDMOID_VOICE_LINE_SETTING 254
  */
 typedef struct
 {
@@ -6754,7 +6859,7 @@ typedef VoiceLineSettingObject _VoiceLineSettingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.LineName.
  *
- * MDMOID_VOICE_LINE_NAME 251
+ * MDMOID_VOICE_LINE_NAME 255
  */
 typedef struct
 {
@@ -6771,7 +6876,7 @@ typedef VoiceLineNameObject _VoiceLineNameObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.LineId.
  *
- * MDMOID_VOICE_LINE_DECT_LINE_ID 252
+ * MDMOID_VOICE_LINE_DECT_LINE_ID 256
  */
 typedef struct
 {
@@ -6788,7 +6893,7 @@ typedef VoiceLineDectLineIdObject _VoiceLineDectLineIdObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.AttachedHandset.
  *
- * MDMOID_VOICE_LINE_ATTACHED_HANDSET 253
+ * MDMOID_VOICE_LINE_ATTACHED_HANDSET 257
  */
 typedef struct
 {
@@ -6806,7 +6911,7 @@ typedef VoiceLineAttachedHandsetObject _VoiceLineAttachedHandsetObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.Melody.
  *
- * MDMOID_VOICE_LINE_MELODY 254
+ * MDMOID_VOICE_LINE_MELODY 258
  */
 typedef struct
 {
@@ -6823,7 +6928,7 @@ typedef VoiceLineMelodyObject _VoiceLineMelodyObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.DialingPrefix.
  *
- * MDMOID_VOICE_LINE_DIALING_PREFIX 255
+ * MDMOID_VOICE_LINE_DIALING_PREFIX 259
  */
 typedef struct
 {
@@ -6842,7 +6947,7 @@ typedef VoiceLineDialingPrefixObject _VoiceLineDialingPrefixObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.Volumn.
  *
- * MDMOID_VOICE_LINE_VOLUMN 256
+ * MDMOID_VOICE_LINE_VOLUMN 260
  */
 typedef struct
 {
@@ -6859,7 +6964,7 @@ typedef VoiceLineVolumnObject _VoiceLineVolumnObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.BlockedNumber.
  *
- * MDMOID_VOICE_LINE_BLOCKED_NUMBER 257
+ * MDMOID_VOICE_LINE_BLOCKED_NUMBER 261
  */
 typedef struct
 {
@@ -6878,7 +6983,7 @@ typedef VoiceLineBlockedNumberObject _VoiceLineBlockedNumberObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.MultiCallMode.
  *
- * MDMOID_VOICE_LINE_MULTI_CALL_MODE 258
+ * MDMOID_VOICE_LINE_MULTI_CALL_MODE 262
  */
 typedef struct
 {
@@ -6895,7 +7000,7 @@ typedef VoiceLineMultiCallModeObject _VoiceLineMultiCallModeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.IntrusionCall.
  *
- * MDMOID_VOICE_LINE_INTRUSION_CALL 259
+ * MDMOID_VOICE_LINE_INTRUSION_CALL 263
  */
 typedef struct
 {
@@ -6912,7 +7017,7 @@ typedef VoiceLineIntrusionCallObject _VoiceLineIntrusionCallObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.CLIR.
  *
- * MDMOID_CLI_R 260
+ * MDMOID_CLI_R 264
  */
 typedef struct
 {
@@ -6929,7 +7034,7 @@ typedef VoiceLineCLIRObject _VoiceLineCLIRObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.VoiceProfile.{i}.Line.{i}.X_BROADCOM_COM_DectLineSetting.CallForwarding.
  *
- * MDMOID_VOICE_LINE_CALL_FORWARDING 261
+ * MDMOID_VOICE_LINE_CALL_FORWARDING 265
  */
 typedef struct
 {
@@ -6947,7 +7052,7 @@ typedef VoiceLineCallForwardingObject _VoiceLineCallForwardingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.PhyInterface.{i}.
  *
- * MDMOID_VOICE_PHY_INTF 262
+ * MDMOID_VOICE_PHY_INTF 266
  */
 typedef struct
 {
@@ -6964,7 +7069,7 @@ typedef VoicePhyIntfObject _VoicePhyIntfObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.PhyInterface.{i}.Tests.
  *
- * MDMOID_VOICE_PHY_INTF_TESTS 263
+ * MDMOID_VOICE_PHY_INTF_TESTS 267
  */
 typedef struct
 {
@@ -6981,7 +7086,7 @@ typedef VoicePhyIntfTestsObject _VoicePhyIntfTestsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_PSTN.{i}.
  *
- * MDMOID_VOICE_PSTN 264
+ * MDMOID_VOICE_PSTN 268
  */
 typedef struct
 {
@@ -7000,7 +7105,7 @@ typedef VoicePstnObject _VoicePstnObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Ntr.
  *
- * MDMOID_VOICE_NTR 265
+ * MDMOID_VOICE_NTR 269
  */
 typedef struct
 {
@@ -7031,7 +7136,7 @@ typedef VoiceNtrObject _VoiceNtrObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.X_BROADCOM_COM_Ntr.History.{i}.
  *
- * MDMOID_VOICE_NTR_HISTORY 266
+ * MDMOID_VOICE_NTR_HISTORY 270
  */
 typedef struct
 {
@@ -7049,7 +7154,7 @@ typedef VoiceNtrHistoryObject _VoiceNtrHistoryObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.
  *
- * MDMOID_VOICE_DECT_SYSTEM_SETTING 267
+ * MDMOID_VOICE_DECT_SYSTEM_SETTING 271
  */
 typedef struct
 {
@@ -7074,7 +7179,7 @@ typedef VoiceDectSystemSettingObject _VoiceDectSystemSettingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.Handset.{i}.
  *
- * MDMOID_DECT_HANDSET 268
+ * MDMOID_DECT_HANDSET 272
  */
 typedef struct
 {
@@ -7087,6 +7192,7 @@ typedef struct
     char *    X_BROADCOM_COM_IPUI;	/**< X_BROADCOM_COM_IPUI */
     UINT32    X_BROADCOM_COM_ID;	/**< X_BROADCOM_COM_ID */
     char *    X_BROADCOM_COM_Name;	/**< X_BROADCOM_COM_Name */
+    char *    X_BROADCOM_COM_Call_Interception;	/**< X_BROADCOM_COM_Call_Interception */
 } VoiceDECTHandsetObject;
 
 /*! \brief _VoiceDECTHandsetObject is used internally to represent VoiceDECTHandsetObject */
@@ -7096,7 +7202,7 @@ typedef VoiceDECTHandsetObject _VoiceDECTHandsetObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.PINCode.
  *
- * MDMOID_VOICE_DECT_PIN_CODE 269
+ * MDMOID_VOICE_DECT_PIN_CODE 273
  */
 typedef struct
 {
@@ -7113,7 +7219,7 @@ typedef VoiceDectPinCodeObject _VoiceDectPinCodeObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.ClockMaster.
  *
- * MDMOID_VOICE_DECT_CLOCK_MASTER 270
+ * MDMOID_VOICE_DECT_CLOCK_MASTER 274
  */
 typedef struct
 {
@@ -7130,7 +7236,7 @@ typedef VoiceDectClockMasterObject _VoiceDectClockMasterObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.ResetBase.
  *
- * MDMOID_VOICE_DECT_RESET_BASE 271
+ * MDMOID_VOICE_DECT_RESET_BASE 275
  */
 typedef struct
 {
@@ -7147,7 +7253,7 @@ typedef VoiceDectResetBaseObject _VoiceDectResetBaseObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.FirmwareVersion.
  *
- * MDMOID_VOICE_DECT_FIRMWARE_VERSION 272
+ * MDMOID_VOICE_DECT_FIRMWARE_VERSION 276
  */
 typedef struct
 {
@@ -7163,7 +7269,7 @@ typedef VoiceDectFirmwareVersionObject _VoiceDectFirmwareVersionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.HardwareVersion.
  *
- * MDMOID_VOICE_DECT_HARDWARE_VERSION 273
+ * MDMOID_VOICE_DECT_HARDWARE_VERSION 277
  */
 typedef struct
 {
@@ -7179,7 +7285,7 @@ typedef VoiceDectHardwareVersionObject _VoiceDectHardwareVersionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.Services.VoiceService.{i}.DECTInterface.EEPROMVersion.
  *
- * MDMOID_EEPROM_VERSION 274
+ * MDMOID_EEPROM_VERSION 278
  */
 typedef struct
 {
@@ -7195,7 +7301,7 @@ typedef VoiceDectEEPROMVersionObject _VoiceDectEEPROMVersionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.LANDeviceIcon.{i}.
  *
- * MDMOID_LAN_ICON 275
+ * MDMOID_LAN_ICON 279
  */
 typedef struct
 {
@@ -7213,7 +7319,7 @@ typedef LanIconObject _LanIconObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_SnmpCfg.
  *
- * MDMOID_SNMP_CFG 276
+ * MDMOID_SNMP_CFG 280
  */
 typedef struct
 {
@@ -7234,7 +7340,7 @@ typedef SnmpCfgObject _SnmpCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_SecDmzHostCfg.
  *
- * MDMOID_SEC_DMZ_HOST_CFG 277
+ * MDMOID_SEC_DMZ_HOST_CFG 281
  */
 typedef struct
 {
@@ -7249,7 +7355,7 @@ typedef SecDmzHostCfgObject _SecDmzHostCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_AccessTimeRestriction.{i}.
  *
- * MDMOID_ACCESS_TIME_RESTRICTION 278
+ * MDMOID_ACCESS_TIME_RESTRICTION 282
  */
 typedef struct
 {
@@ -7269,7 +7375,7 @@ typedef AccessTimeRestrictionObject _AccessTimeRestrictionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WlanAccessTimeRestriction.{i}.
  *
- * MDMOID_WLAN_ACCESS_TIME_RESTRICTION 279
+ * MDMOID_WLAN_ACCESS_TIME_RESTRICTION 283
  */
 typedef struct
 {
@@ -7289,7 +7395,7 @@ typedef WlanAccessTimeRestrictionObject _WlanAccessTimeRestrictionObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_UrlFilterCfg.
  *
- * MDMOID_URL_FILTER_CFG 280
+ * MDMOID_URL_FILTER_CFG 284
  */
 typedef struct
 {
@@ -7307,7 +7413,7 @@ typedef UrlFilterCfgObject _UrlFilterCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_UrlFilterCfg.X_BROADCOM_COM_UrlFilterListCfgObj.{i}.
  *
- * MDMOID_URL_FILTER_LIST 281
+ * MDMOID_URL_FILTER_LIST 285
  */
 typedef struct
 {
@@ -7326,7 +7432,7 @@ typedef UrlFilterListObject _UrlFilterListObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_DDnsCfg.{i}.
  *
- * MDMOID_D_DNS_CFG 282
+ * MDMOID_D_DNS_CFG 286
  */
 typedef struct
 {
@@ -7346,7 +7452,7 @@ typedef DDnsCfgObject _DDnsCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPPCfg.
  *
- * MDMOID_IPP_CFG 283
+ * MDMOID_IPP_CFG 287
  */
 typedef struct
 {
@@ -7364,7 +7470,7 @@ typedef IppCfgObject _IppCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_DLNA.
  *
- * MDMOID_DLNA 284
+ * MDMOID_DLNA 288
  */
 typedef struct
 {
@@ -7378,7 +7484,7 @@ typedef DlnaObject _DlnaObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_DLNA.DmsCfg.
  *
- * MDMOID_DMS_CFG 285
+ * MDMOID_DMS_CFG 289
  */
 typedef struct
 {
@@ -7395,7 +7501,7 @@ typedef DmsCfgObject _DmsCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_DebugPortMirroringCfg.{i}.
  *
- * MDMOID_WAN_DEBUG_PORT_MIRRORING_CFG 286
+ * MDMOID_WAN_DEBUG_PORT_MIRRORING_CFG 290
  */
 typedef struct
 {
@@ -7404,6 +7510,10 @@ typedef struct
     char *    mirrorInterface;	/**< MirrorInterface */
     UBOOL8    direction;	/**< Direction */
     UBOOL8    status;	/**< Status */
+#ifdef DMP_X_ITU_ORG_GPON_1
+    HEXBINARY  gemPortMaskArray;	/**< GemPortMaskArray */
+#endif
+    SINT32    X_ACTIONTEC_COM_VlanID;	/**< X_ACTIONTEC_COM_VlanID */
 #ifdef DMP_X_ITU_ORG_GPON_1
     UINT32    gemPortMask;	/**< GemPortMask */
 #endif
@@ -7416,7 +7526,7 @@ typedef WanDebugPortMirroringCfgObject _WanDebugPortMirroringCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPSecCfg.{i}.
  *
- * MDMOID_IP_SEC_CFG 287
+ * MDMOID_IP_SEC_CFG 291
  */
 typedef struct
 {
@@ -7425,6 +7535,8 @@ typedef struct
     UBOOL8    enable;	/**< Enable */
     char *    connName;	/**< ConnName */
     char *    tunMode;	/**< TunMode */
+    char *    ipVer;	/**< IpVer */
+    char *    localGwIf;	/**< LocalGwIf */
     char *    remoteGWAddress;	/**< RemoteGWAddress */
     char *    localRangeLo;	/**< LocalRangeLo */
     char *    localRangeHi;	/**< LocalRangeHi */
@@ -7465,7 +7577,7 @@ typedef IPSecCfgObject _IPSecCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_CertificateCfg.{i}.
  *
- * MDMOID_CERTIFICATE_CFG 288
+ * MDMOID_CERTIFICATE_CFG 292
  */
 typedef struct
 {
@@ -7487,7 +7599,7 @@ typedef CertificateCfgObject _CertificateCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_WapiCertificate.
  *
- * MDMOID_WAPI_CERTIFICATE 289
+ * MDMOID_WAPI_CERTIFICATE 293
  */
 typedef struct
 {
@@ -7501,7 +7613,7 @@ typedef WapiCertificateObject _WapiCertificateObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_WapiCertificate.WapiAsCertificate.
  *
- * MDMOID_WAPI_AS_CERTIFICATE 290
+ * MDMOID_WAPI_AS_CERTIFICATE 294
  */
 typedef struct
 {
@@ -7521,7 +7633,7 @@ typedef WapiAsCertificateObject _WapiAsCertificateObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_WapiCertificate.WapiIssuedCertificate.
  *
- * MDMOID_WAPI_ISSUED_CERTIFICATE 291
+ * MDMOID_WAPI_ISSUED_CERTIFICATE 295
  */
 typedef struct
 {
@@ -7539,7 +7651,7 @@ typedef WapiIssuedCertificateObject _WapiIssuedCertificateObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_NetworkConfig.
  *
- * MDMOID_NETWORK_CONFIG 292
+ * MDMOID_NETWORK_CONFIG 296
  */
 typedef struct
 {
@@ -7558,7 +7670,7 @@ typedef NetworkConfigObject _NetworkConfigObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_InterfaceControl.
  *
- * MDMOID_INTERFACE_CONTROL 293
+ * MDMOID_INTERFACE_CONTROL 297
  */
 typedef struct
 {
@@ -7575,7 +7687,7 @@ typedef InterfaceControlObject _InterfaceControlObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_P8021agCfg.
  *
- * MDMOID_P8021AG_CFG 294
+ * MDMOID_P8021AG_CFG 298
  */
 typedef struct
 {
@@ -7588,9 +7700,24 @@ typedef P8021agCfgObject _P8021agCfgObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_McastCfg.
+ *
+ * MDMOID_MCAST_CFG 299
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    SINT32    mcastPrecedence;	/**< McastPrecedence */
+} McastCfgObject;
+
+/*! \brief _McastCfgObject is used internally to represent McastCfgObject */
+typedef McastCfgObject _McastCfgObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IGMPCfg.
  *
- * MDMOID_IGMP_CFG 295
+ * MDMOID_IGMP_CFG 300
  */
 typedef struct
 {
@@ -7617,7 +7744,7 @@ typedef IgmpCfgObject _IgmpCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_MLDCfg.
  *
- * MDMOID_MLD_CFG 296
+ * MDMOID_MLD_CFG 301
  */
 typedef struct
 {
@@ -7641,7 +7768,7 @@ typedef MldCfgObject _MldCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPTunnel.{i}.
  *
- * MDMOID_IP_TUNNEL 297
+ * MDMOID_IP_TUNNEL 302
  */
 typedef struct
 {
@@ -7659,9 +7786,9 @@ typedef IPTunnelObject _IPTunnelObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPTunnel.{i}.4in6Tunnel.{i}.
+/*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPTunnel.{i}.V4inV6Tunnel.{i}.
  *
- * MDMOID_IPV4IN_IPV6_TUNNEL 298
+ * MDMOID_IPV4IN_IPV6_TUNNEL 303
  */
 typedef struct
 {
@@ -7670,6 +7797,7 @@ typedef struct
     char *    mechanism;	/**< Mechanism */
     UBOOL8    dynamic;	/**< Dynamic */
     char *    remoteIpv6Address;	/**< RemoteIpv6Address */
+    char *    currentAftrName;	/**< CurrentAftrName */
 } Ipv4inIpv6TunnelObject;
 
 /*! \brief _Ipv4inIpv6TunnelObject is used internally to represent Ipv4inIpv6TunnelObject */
@@ -7677,9 +7805,9 @@ typedef Ipv4inIpv6TunnelObject _Ipv4inIpv6TunnelObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPTunnel.{i}.6in4Tunnel.{i}.
+/*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_IPTunnel.{i}.V6inV4Tunnel.{i}.
  *
- * MDMOID_IPV6IN_IPV4_TUNNEL 299
+ * MDMOID_IPV6IN_IPV4_TUNNEL 304
  */
 typedef struct
 {
@@ -7699,7 +7827,7 @@ typedef Ipv6inIpv4TunnelObject _Ipv6inIpv4TunnelObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.
  *
- * MDMOID_ITU_T_ORG 300
+ * MDMOID_ITU_T_ORG 305
  */
 typedef struct
 {
@@ -7713,7 +7841,7 @@ typedef ItuTOrgObject _ItuTOrgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.
  *
- * MDMOID_G_984_4 301
+ * MDMOID_G_984_4 306
  */
 typedef struct
 {
@@ -7727,7 +7855,7 @@ typedef G_984_4Object _G_984_4Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.
  *
- * MDMOID_EQUIPMENT_MANAGEMENT 302
+ * MDMOID_EQUIPMENT_MANAGEMENT 307
  */
 typedef struct
 {
@@ -7741,7 +7869,7 @@ typedef EquipmentManagementObject _EquipmentManagementObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.OntG.
  *
- * MDMOID_ONT_G 303
+ * MDMOID_ONT_G 308
  */
 typedef struct
 {
@@ -7764,7 +7892,7 @@ typedef OntGObject _OntGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.Ont2G.
  *
- * MDMOID_ONT2_G 304
+ * MDMOID_ONT2_G 309
  */
 typedef struct
 {
@@ -7792,7 +7920,7 @@ typedef Ont2GObject _Ont2GObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.OntData.
  *
- * MDMOID_ONT_DATA 305
+ * MDMOID_ONT_DATA 310
  */
 typedef struct
 {
@@ -7808,7 +7936,7 @@ typedef OntDataObject _OntDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.SoftwareImage.{i}.
  *
- * MDMOID_SOFTWARE_IMAGE 306
+ * MDMOID_SOFTWARE_IMAGE 311
  */
 typedef struct
 {
@@ -7827,7 +7955,7 @@ typedef SoftwareImageObject _SoftwareImageObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.CardHolder.{i}.
  *
- * MDMOID_CARD_HOLDER 307
+ * MDMOID_CARD_HOLDER 312
  */
 typedef struct
 {
@@ -7851,7 +7979,7 @@ typedef CardHolderObject _CardHolderObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.CircuitPack.{i}.
  *
- * MDMOID_CIRCUIT_PACK 308
+ * MDMOID_CIRCUIT_PACK 313
  */
 typedef struct
 {
@@ -7880,7 +8008,7 @@ typedef CircuitPackObject _CircuitPackObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.PowerShedding.{i}.
  *
- * MDMOID_POWER_SHEDDING 309
+ * MDMOID_POWER_SHEDDING 314
  */
 typedef struct
 {
@@ -7906,7 +8034,7 @@ typedef PowerSheddingObject _PowerSheddingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EquipmentManagement.PortMappingPackageG.{i}.
  *
- * MDMOID_PORT_MAPPING_PACKAGE_G 310
+ * MDMOID_PORT_MAPPING_PACKAGE_G 315
  */
 typedef struct
 {
@@ -7930,7 +8058,7 @@ typedef PortMappingPackageGObject _PortMappingPackageGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.
  *
- * MDMOID_ANI_MANAGEMENT 311
+ * MDMOID_ANI_MANAGEMENT 316
  */
 typedef struct
 {
@@ -7944,7 +8072,7 @@ typedef AniManagementObject _AniManagementObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.AniG.{i}.
  *
- * MDMOID_ANI_G 312
+ * MDMOID_ANI_G 317
  */
 typedef struct
 {
@@ -7975,7 +8103,7 @@ typedef AniGObject _AniGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.TCont.{i}.
  *
- * MDMOID_T_CONT 313
+ * MDMOID_T_CONT 318
  */
 typedef struct
 {
@@ -7993,7 +8121,7 @@ typedef TContObject _TContObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.GemPortNetworkCtp.{i}.
  *
- * MDMOID_GEM_PORT_NETWORK_CTP 314
+ * MDMOID_GEM_PORT_NETWORK_CTP 319
  */
 typedef struct
 {
@@ -8017,7 +8145,7 @@ typedef GemPortNetworkCtpObject _GemPortNetworkCtpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.GemInterworkingTp.{i}.
  *
- * MDMOID_GEM_INTERWORKING_TP 315
+ * MDMOID_GEM_INTERWORKING_TP 320
  */
 typedef struct
 {
@@ -8040,7 +8168,7 @@ typedef GemInterworkingTpObject _GemInterworkingTpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.MulticastGemInterworkingTp.{i}.
  *
- * MDMOID_MULTICAST_GEM_INTERWORKING_TP 316
+ * MDMOID_MULTICAST_GEM_INTERWORKING_TP 321
  */
 typedef struct
 {
@@ -8064,7 +8192,7 @@ typedef MulticastGemInterworkingTpObject _MulticastGemInterworkingTpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.MulticastGemInterworkingTp.{i}.MulticastAddressTable.{i}.
  *
- * MDMOID_GEM_INTERWORKING_TP_MULTICAST_ADDRESS_TABLE 317
+ * MDMOID_GEM_INTERWORKING_TP_MULTICAST_ADDRESS_TABLE 322
  */
 typedef struct
 {
@@ -8079,7 +8207,7 @@ typedef GemInterworkingTpMulticastAddressTableObject _GemInterworkingTpMulticast
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.GemPortPmHistoryData.{i}.
  *
- * MDMOID_GEM_PORT_PM_HISTORY_DATA 318
+ * MDMOID_GEM_PORT_PM_HISTORY_DATA 323
  */
 typedef struct
 {
@@ -8100,7 +8228,7 @@ typedef GemPortPmHistoryDataObject _GemPortPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.GalEthernetProfile.{i}.
  *
- * MDMOID_GAL_ETHERNET_PROFILE 319
+ * MDMOID_GAL_ETHERNET_PROFILE 324
  */
 typedef struct
 {
@@ -8116,7 +8244,7 @@ typedef GalEthernetProfileObject _GalEthernetProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.GalEthernetPmHistoryData.{i}.
  *
- * MDMOID_GAL_ETHERNET_PM_HISTORY_DATA 320
+ * MDMOID_GAL_ETHERNET_PM_HISTORY_DATA 325
  */
 typedef struct
 {
@@ -8134,7 +8262,7 @@ typedef GalEthernetPmHistoryDataObject _GalEthernetPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.AniManagement.FecPmHistoryData.{i}.
  *
- * MDMOID_FEC_PM_HISTORY_DATA 321
+ * MDMOID_FEC_PM_HISTORY_DATA 326
  */
 typedef struct
 {
@@ -8156,7 +8284,7 @@ typedef FecPmHistoryDataObject _FecPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.
  *
- * MDMOID_LAYER2_DATA_SERVICES 322
+ * MDMOID_LAYER2_DATA_SERVICES 327
  */
 typedef struct
 {
@@ -8170,7 +8298,7 @@ typedef Layer2DataServicesObject _Layer2DataServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgeServiceProfile.{i}.
  *
- * MDMOID_MAC_BRIDGE_SERVICE_PROFILE 323
+ * MDMOID_MAC_BRIDGE_SERVICE_PROFILE 328
  */
 typedef struct
 {
@@ -8195,7 +8323,7 @@ typedef MacBridgeServiceProfileObject _MacBridgeServiceProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.X_BROADCOM_COM_MacBridgeServiceProfile.{i}.
  *
- * MDMOID_BC_MAC_BRIDGE_SERVICE_PROFILE 324
+ * MDMOID_BC_MAC_BRIDGE_SERVICE_PROFILE 329
  */
 typedef struct
 {
@@ -8211,7 +8339,7 @@ typedef BCM_MacBridgeServiceProfileObject _BCM_MacBridgeServiceProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgeConfigData.{i}.
  *
- * MDMOID_MAC_BRIDGE_CONFIG_DATA 325
+ * MDMOID_MAC_BRIDGE_CONFIG_DATA 330
  */
 typedef struct
 {
@@ -8234,7 +8362,7 @@ typedef MacBridgeConfigDataObject _MacBridgeConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePmHistoryData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PM_HISTORY_DATA 326
+ * MDMOID_MAC_BRIDGE_PM_HISTORY_DATA 331
  */
 typedef struct
 {
@@ -8252,7 +8380,7 @@ typedef MacBridgePmHistoryDataObject _MacBridgePmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortConfigData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_CONFIG_DATA 327
+ * MDMOID_MAC_BRIDGE_PORT_CONFIG_DATA 332
  */
 typedef struct
 {
@@ -8280,7 +8408,7 @@ typedef MacBridgePortConfigDataObject _MacBridgePortConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortDesignationData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_DESIGNATION_DATA 328
+ * MDMOID_MAC_BRIDGE_PORT_DESIGNATION_DATA 333
  */
 typedef struct
 {
@@ -8297,7 +8425,7 @@ typedef MacBridgePortDesignationDataObject _MacBridgePortDesignationDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortFilterTableData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_FILTER_TABLE_DATA 329
+ * MDMOID_MAC_BRIDGE_PORT_FILTER_TABLE_DATA 334
  */
 typedef struct
 {
@@ -8313,7 +8441,7 @@ typedef MacBridgePortFilterTableDataObject _MacBridgePortFilterTableDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortFilterTableData.{i}.MacFilterTable.{i}.
  *
- * MDMOID_MAC_FILTER_TABLE 330
+ * MDMOID_MAC_FILTER_TABLE 335
  */
 typedef struct
 {
@@ -8328,7 +8456,7 @@ typedef MacFilterTableObject _MacFilterTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortFilterPreAssignTable.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_FILTER_PRE_ASSIGN_TABLE 331
+ * MDMOID_MAC_BRIDGE_PORT_FILTER_PRE_ASSIGN_TABLE 336
  */
 typedef struct
 {
@@ -8353,7 +8481,7 @@ typedef MacBridgePortFilterPreAssignTableObject _MacBridgePortFilterPreAssignTab
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortBridgeTableData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_BRIDGE_TABLE_DATA 332
+ * MDMOID_MAC_BRIDGE_PORT_BRIDGE_TABLE_DATA 337
  */
 typedef struct
 {
@@ -8369,7 +8497,7 @@ typedef MacBridgePortBridgeTableDataObject _MacBridgePortBridgeTableDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortBridgeTableData.{i}.BridgeTable.{i}.
  *
- * MDMOID_BRIDGE_TABLE 333
+ * MDMOID_BRIDGE_TABLE 338
  */
 typedef struct
 {
@@ -8384,7 +8512,7 @@ typedef BridgeTableObject _BridgeTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MacBridgePortPmHistoryData.{i}.
  *
- * MDMOID_MAC_BRIDGE_PORT_PM_HISTORY_DATA 334
+ * MDMOID_MAC_BRIDGE_PORT_PM_HISTORY_DATA 339
  */
 typedef struct
 {
@@ -8406,7 +8534,7 @@ typedef MacBridgePortPmHistoryDataObject _MacBridgePortPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MapperServiceProfile.{i}.
  *
- * MDMOID_MAPPER_SERVICE_PROFILE 335
+ * MDMOID_MAPPER_SERVICE_PROFILE 340
  */
 typedef struct
 {
@@ -8434,7 +8562,7 @@ typedef MapperServiceProfileObject _MapperServiceProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.X_BROADCOM_COM_MapperServiceProfile.{i}.
  *
- * MDMOID_BC_MAPPER_SERVICE_PROFILE 336
+ * MDMOID_BC_MAPPER_SERVICE_PROFILE 341
  */
 typedef struct
 {
@@ -8450,7 +8578,7 @@ typedef BCM_MapperServiceProfileObject _BCM_MapperServiceProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.VlanTaggingFilterData.{i}.
  *
- * MDMOID_VLAN_TAGGING_FILTER_DATA 337
+ * MDMOID_VLAN_TAGGING_FILTER_DATA 342
  */
 typedef struct
 {
@@ -8468,7 +8596,7 @@ typedef VlanTaggingFilterDataObject _VlanTaggingFilterDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.VlanTaggingOperationConfigurationData.{i}.
  *
- * MDMOID_VLAN_TAGGING_OPERATION_CONFIGURATION_DATA 338
+ * MDMOID_VLAN_TAGGING_OPERATION_CONFIGURATION_DATA 343
  */
 typedef struct
 {
@@ -8488,7 +8616,7 @@ typedef VlanTaggingOperationConfigurationDataObject _VlanTaggingOperationConfigu
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.ExtendedVlanTaggingOperationConfigurationData.{i}.
  *
- * MDMOID_EXTENDED_VLAN_TAGGING_OPERATION_CONFIGURATION_DATA 339
+ * MDMOID_EXTENDED_VLAN_TAGGING_OPERATION_CONFIGURATION_DATA 344
  */
 typedef struct
 {
@@ -8511,7 +8639,7 @@ typedef ExtendedVlanTaggingOperationConfigurationDataObject _ExtendedVlanTagging
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.ExtendedVlanTaggingOperationConfigurationData.{i}.ReceivedFrameVlanTaggingOperationTable.{i}.
  *
- * MDMOID_RECEIVED_FRAME_VLAN_TAGGING_OPERATION_TABLE 340
+ * MDMOID_RECEIVED_FRAME_VLAN_TAGGING_OPERATION_TABLE 345
  */
 typedef struct
 {
@@ -8526,7 +8654,7 @@ typedef ReceivedFrameVlanTaggingOperationTableObject _ReceivedFrameVlanTaggingOp
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastOperationsProfile.{i}.
  *
- * MDMOID_MULTICAST_OPERATIONS_PROFILE 341
+ * MDMOID_MULTICAST_OPERATIONS_PROFILE 346
  */
 typedef struct
 {
@@ -8556,7 +8684,7 @@ typedef MulticastOperationsProfileObject _MulticastOperationsProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastOperationsProfile.{i}.DynamicAccessControlListTable.{i}.
  *
- * MDMOID_DYNAMIC_ACCESS_CONTROL_LIST_TABLE 342
+ * MDMOID_DYNAMIC_ACCESS_CONTROL_LIST_TABLE 347
  */
 typedef struct
 {
@@ -8571,7 +8699,7 @@ typedef DynamicAccessControlListTableObject _DynamicAccessControlListTableObject
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastOperationsProfile.{i}.StaticAccessControlListTable.{i}.
  *
- * MDMOID_STATIC_ACCESS_CONTROL_LIST_TABLE 343
+ * MDMOID_STATIC_ACCESS_CONTROL_LIST_TABLE 348
  */
 typedef struct
 {
@@ -8586,7 +8714,7 @@ typedef StaticAccessControlListTableObject _StaticAccessControlListTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastOperationsProfile.{i}.LostGroupsListTable.{i}.
  *
- * MDMOID_LOST_GROUPS_LIST_TABLE 344
+ * MDMOID_LOST_GROUPS_LIST_TABLE 349
  */
 typedef struct
 {
@@ -8601,7 +8729,7 @@ typedef LostGroupsListTableObject _LostGroupsListTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastSubscriberConfigInfo.{i}.
  *
- * MDMOID_MULTICAST_SUBSCRIBER_CONFIG_INFO 345
+ * MDMOID_MULTICAST_SUBSCRIBER_CONFIG_INFO 350
  */
 typedef struct
 {
@@ -8621,7 +8749,7 @@ typedef MulticastSubscriberConfigInfoObject _MulticastSubscriberConfigInfoObject
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastSubscriberMonitor.{i}.
  *
- * MDMOID_MULTICAST_SUBSCRIBER_MONITOR 346
+ * MDMOID_MULTICAST_SUBSCRIBER_MONITOR 351
  */
 typedef struct
 {
@@ -8641,7 +8769,7 @@ typedef MulticastSubscriberMonitorObject _MulticastSubscriberMonitorObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.MulticastSubscriberMonitor.{i}.ActiveGroupsListTable.{i}.
  *
- * MDMOID_ACTIVE_GROUPS_LIST_TABLE 347
+ * MDMOID_ACTIVE_GROUPS_LIST_TABLE 352
  */
 typedef struct
 {
@@ -8656,7 +8784,7 @@ typedef ActiveGroupsListTableObject _ActiveGroupsListTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.X_BROADCOM_COM_MulticastSubscriberMonitor.{i}.
  *
- * MDMOID_BC_MULTICAST_SUBSCRIBER_MONITOR 348
+ * MDMOID_BC_MULTICAST_SUBSCRIBER_MONITOR 353
  */
 typedef struct
 {
@@ -8676,7 +8804,7 @@ typedef BCM_MulticastSubscriberMonitorObject _BCM_MulticastSubscriberMonitorObje
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.X_BROADCOM_COM_MulticastSubscriberMonitor.{i}.MulticastSubscriber.{i}.
  *
- * MDMOID_MULTICAST_SUBSCRIBER 349
+ * MDMOID_MULTICAST_SUBSCRIBER 354
  */
 typedef struct
 {
@@ -8695,7 +8823,7 @@ typedef MulticastSubscriberObject _MulticastSubscriberObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.UpstreamEthernetFramePmHistoryData.{i}.
  *
- * MDMOID_UPSTREAM_ETHERNET_FRAME_PM_HISTORY_DATA 350
+ * MDMOID_UPSTREAM_ETHERNET_FRAME_PM_HISTORY_DATA 355
  */
 typedef struct
 {
@@ -8726,7 +8854,7 @@ typedef UpstreamEthernetFramePmHistoryDataObject _UpstreamEthernetFramePmHistory
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer2DataServices.DownstreamEthernetFramePmHistoryData.{i}.
  *
- * MDMOID_DOWNSTREAM_ETHERNET_FRAME_PM_HISTORY_DATA 351
+ * MDMOID_DOWNSTREAM_ETHERNET_FRAME_PM_HISTORY_DATA 356
  */
 typedef struct
 {
@@ -8757,7 +8885,7 @@ typedef DownstreamEthernetFramePmHistoryDataObject _DownstreamEthernetFramePmHis
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.
  *
- * MDMOID_LAYER3_DATA_SERVICES 352
+ * MDMOID_LAYER3_DATA_SERVICES 357
  */
 typedef struct
 {
@@ -8771,7 +8899,7 @@ typedef Layer3DataServicesObject _Layer3DataServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.IpHostConfigData.{i}.
  *
- * MDMOID_IP_HOST_CONFIG_DATA 353
+ * MDMOID_IP_HOST_CONFIG_DATA 358
  */
 typedef struct
 {
@@ -8801,7 +8929,7 @@ typedef IpHostConfigDataObject _IpHostConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.X_BROADCOM_COM_IpHostConfigData.{i}.
  *
- * MDMOID_BC_IP_HOST_CONFIG_DATA 354
+ * MDMOID_BC_IP_HOST_CONFIG_DATA 359
  */
 typedef struct
 {
@@ -8819,7 +8947,7 @@ typedef BCM_IpHostConfigDataObject _BCM_IpHostConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.IpHostPmHistoryData.{i}.
  *
- * MDMOID_IP_HOST_PM_HISTORY_DATA 355
+ * MDMOID_IP_HOST_PM_HISTORY_DATA 360
  */
 typedef struct
 {
@@ -8836,9 +8964,118 @@ typedef IpHostPmHistoryDataObject _IpHostPmHistoryDataObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.Ipv6HostConfigData.{i}.
+ *
+ * MDMOID_IPV6_HOST_CONFIG_DATA 361
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    managedEntityId;	/**< ManagedEntityId */
+    UINT32    ipOptions;	/**< IpOptions */
+    HEXBINARY  macAddress;	/**< MacAddress */
+    HEXBINARY  onuId;	/**< OnuId */
+    HEXBINARY  ipv6LinkLocalAddress;	/**< Ipv6LinkLocalAddress */
+    HEXBINARY  ipv6Address;	/**< Ipv6Address */
+    HEXBINARY  defaultRouter;	/**< DefaultRouter */
+    HEXBINARY  primaryDns;	/**< PrimaryDns */
+    HEXBINARY  secondaryDns;	/**< SecondaryDns */
+    HEXBINARY  currentAddressTable;	/**< CurrentAddressTable */
+    HEXBINARY  currentDefaultRouterTable;	/**< CurrentDefaultRouterTable */
+    HEXBINARY  currentDnsTable;	/**< CurrentDnsTable */
+    HEXBINARY  duid;	/**< Duid */
+    HEXBINARY  onlinkPrefix;	/**< OnlinkPrefix */
+    HEXBINARY  currentOnlinkPrefixTable;	/**< CurrentOnlinkPrefixTable */
+} Ipv6HostConfigDataObject;
+
+/*! \brief _Ipv6HostConfigDataObject is used internally to represent Ipv6HostConfigDataObject */
+typedef Ipv6HostConfigDataObject _Ipv6HostConfigDataObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.Ipv6HostConfigData.{i}.CurrentAddressTable.{i}.
+ *
+ * MDMOID_IPV6_CURRENT_ADDRESS_TABLE 362
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    HEXBINARY  currentAddressEntry;	/**< CurrentAddressEntry */
+} Ipv6CurrentAddressTableObject;
+
+/*! \brief _Ipv6CurrentAddressTableObject is used internally to represent Ipv6CurrentAddressTableObject */
+typedef Ipv6CurrentAddressTableObject _Ipv6CurrentAddressTableObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.Ipv6HostConfigData.{i}.CurrentDefaultRouterTable.{i}.
+ *
+ * MDMOID_IPV6_CURRENT_DEFAULT_ROUTER_TABLE 363
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    HEXBINARY  currentDefaultRouterEntry;	/**< CurrentDefaultRouterEntry */
+} Ipv6CurrentDefaultRouterTableObject;
+
+/*! \brief _Ipv6CurrentDefaultRouterTableObject is used internally to represent Ipv6CurrentDefaultRouterTableObject */
+typedef Ipv6CurrentDefaultRouterTableObject _Ipv6CurrentDefaultRouterTableObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.Ipv6HostConfigData.{i}.CurrentDnsTable.{i}.
+ *
+ * MDMOID_IPV6_CURRENT_DNS_TABLE 364
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    HEXBINARY  currentDnsEntry;	/**< CurrentDnsEntry */
+} Ipv6CurrentDnsTableObject;
+
+/*! \brief _Ipv6CurrentDnsTableObject is used internally to represent Ipv6CurrentDnsTableObject */
+typedef Ipv6CurrentDnsTableObject _Ipv6CurrentDnsTableObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.Ipv6HostConfigData.{i}.CurrentOnlinkPrefixTable.{i}.
+ *
+ * MDMOID_IPV6_CURRENT_ONLINK_PREFIX_TABLE 365
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    HEXBINARY  currentOnlinkPrefixTableEntry;	/**< CurrentOnlinkPrefixTableEntry */
+} Ipv6CurrentOnlinkPrefixTableObject;
+
+/*! \brief _Ipv6CurrentOnlinkPrefixTableObject is used internally to represent Ipv6CurrentOnlinkPrefixTableObject */
+typedef Ipv6CurrentOnlinkPrefixTableObject _Ipv6CurrentOnlinkPrefixTableObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.X_BROADCOM_COM_Ipv6HostConfigData.{i}.
+ *
+ * MDMOID_BC_IPV6_HOST_CONFIG_DATA 366
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    managedEntityId;	/**< ManagedEntityId */
+    UINT32    connectionStatus;	/**< ConnectionStatus */
+    UINT32    dhcpcPid;	/**< DhcpcPid */
+    char *    interfaceName;	/**< InterfaceName */
+    UBOOL8    MFlag;	/**< MFlag */
+    UBOOL8    OFlag;	/**< OFlag */
+} BCM_Ipv6HostConfigDataObject;
+
+/*! \brief _BCM_Ipv6HostConfigDataObject is used internally to represent BCM_Ipv6HostConfigDataObject */
+typedef BCM_Ipv6HostConfigDataObject _BCM_Ipv6HostConfigDataObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.Layer3DataServices.TcpUdpConfigData.{i}.
  *
- * MDMOID_TCP_UDP_CONFIG_DATA 356
+ * MDMOID_TCP_UDP_CONFIG_DATA 367
  */
 typedef struct
 {
@@ -8857,7 +9094,7 @@ typedef TcpUdpConfigDataObject _TcpUdpConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.
  *
- * MDMOID_ETHERNET_SERVICES 357
+ * MDMOID_ETHERNET_SERVICES 368
  */
 typedef struct
 {
@@ -8871,7 +9108,7 @@ typedef EthernetServicesObject _EthernetServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.PptpEthernetUni.{i}.
  *
- * MDMOID_PPTP_ETHERNET_UNI 358
+ * MDMOID_PPTP_ETHERNET_UNI 369
  */
 typedef struct
 {
@@ -8901,7 +9138,7 @@ typedef PptpEthernetUniObject _PptpEthernetUniObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.EthernetPmHistoryData.{i}.
  *
- * MDMOID_ETHERNET_PM_HISTORY_DATA 359
+ * MDMOID_ETHERNET_PM_HISTORY_DATA 370
  */
 typedef struct
 {
@@ -8932,7 +9169,7 @@ typedef EthernetPmHistoryDataObject _EthernetPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.EthernetPmHistoryData2.{i}.
  *
- * MDMOID_ETHERNET_PM_HISTORY_DATA2 360
+ * MDMOID_ETHERNET_PM_HISTORY_DATA2 371
  */
 typedef struct
 {
@@ -8950,7 +9187,7 @@ typedef EthernetPmHistoryData2Object _EthernetPmHistoryData2Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.EthernetPmHistoryData3.{i}.
  *
- * MDMOID_ETHERNET_PM_HISTORY_DATA3 361
+ * MDMOID_ETHERNET_PM_HISTORY_DATA3 372
  */
 typedef struct
 {
@@ -8981,7 +9218,7 @@ typedef EthernetPmHistoryData3Object _EthernetPmHistoryData3Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.EthernetServices.VirtualEthernetInterfacePoint.{i}.
  *
- * MDMOID_VIRTUAL_ETHERNET_INTERFACE_POINT 362
+ * MDMOID_VIRTUAL_ETHERNET_INTERFACE_POINT 373
  */
 typedef struct
 {
@@ -9001,7 +9238,7 @@ typedef VirtualEthernetInterfacePointObject _VirtualEthernetInterfacePointObject
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.
  *
- * MDMOID_VOICE_SERVICES 363
+ * MDMOID_VOICE_SERVICES 374
  */
 typedef struct
 {
@@ -9015,7 +9252,7 @@ typedef VoiceServicesObject _VoiceServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.PptpPotsUni.{i}.
  *
- * MDMOID_PPTP_POTS_UNI 364
+ * MDMOID_PPTP_POTS_UNI 375
  */
 typedef struct
 {
@@ -9041,7 +9278,7 @@ typedef PptpPotsUniObject _PptpPotsUniObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.SipUserData.{i}.
  *
- * MDMOID_SIP_USER_DATA 365
+ * MDMOID_SIP_USER_DATA 376
  */
 typedef struct
 {
@@ -9068,7 +9305,7 @@ typedef SipUserDataObject _SipUserDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.SipAgentConfigData.{i}.
  *
- * MDMOID_SIP_AGENT_CONFIG_DATA 366
+ * MDMOID_SIP_AGENT_CONFIG_DATA 377
  */
 typedef struct
 {
@@ -9097,7 +9334,7 @@ typedef SipAgentConfigDataObject _SipAgentConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoIpVoiceCtp.{i}.
  *
- * MDMOID_VO_IP_VOICE_CTP 367
+ * MDMOID_VO_IP_VOICE_CTP 378
  */
 typedef struct
 {
@@ -9116,7 +9353,7 @@ typedef VoIpVoiceCtpObject _VoIpVoiceCtpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoIpMediaProfile.{i}.
  *
- * MDMOID_VO_IP_MEDIA_PROFILE 368
+ * MDMOID_VO_IP_MEDIA_PROFILE 379
  */
 typedef struct
 {
@@ -9147,7 +9384,7 @@ typedef VoIpMediaProfileObject _VoIpMediaProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoiceServiceProfile.{i}.
  *
- * MDMOID_VOICE_SERVICE 369
+ * MDMOID_VOICE_SERVICE 380
  */
 typedef struct
 {
@@ -9175,7 +9412,7 @@ typedef VoiceServiceObject _VoiceServiceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.RtpProfileData.{i}.
  *
- * MDMOID_RTP_PROFILE_DATA 370
+ * MDMOID_RTP_PROFILE_DATA 381
  */
 typedef struct
 {
@@ -9197,7 +9434,7 @@ typedef RtpProfileDataObject _RtpProfileDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoIpAppServiceProfile.{i}.
  *
- * MDMOID_VO_IP_APP_SERVICE_PROFILE 371
+ * MDMOID_VO_IP_APP_SERVICE_PROFILE 382
  */
 typedef struct
 {
@@ -9220,7 +9457,7 @@ typedef VoIpAppServiceProfileObject _VoIpAppServiceProfileObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoiceFeatureAccessCodes.{i}.
  *
- * MDMOID_VOICE_FEATURE_ACCESS_CODES 372
+ * MDMOID_VOICE_FEATURE_ACCESS_CODES 383
  */
 typedef struct
 {
@@ -9247,7 +9484,7 @@ typedef VoiceFeatureAccessCodesObject _VoiceFeatureAccessCodesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.NetworkDialPlanTable.{i}.
  *
- * MDMOID_NETWORK_DIAL_PLAN_TABLE 373
+ * MDMOID_NETWORK_DIAL_PLAN_TABLE 384
  */
 typedef struct
 {
@@ -9268,7 +9505,7 @@ typedef NetworkDialPlanTableObject _NetworkDialPlanTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.NetworkDialPlanTable.{i}.DialPlanTable.{i}.
  *
- * MDMOID_DIAL_PLAN_TABLE 374
+ * MDMOID_DIAL_PLAN_TABLE 385
  */
 typedef struct
 {
@@ -9285,7 +9522,7 @@ typedef DialPlanTableObject _DialPlanTableObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoIpLineStatus.{i}.
  *
- * MDMOID_VO_IP_LINE_STATUS 375
+ * MDMOID_VO_IP_LINE_STATUS 386
  */
 typedef struct
 {
@@ -9307,7 +9544,7 @@ typedef VoIpLineStatusObject _VoIpLineStatusObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.CallControlPmHistoryData.{i}.
  *
- * MDMOID_CALL_CONTROL_PM_HISTORY_DATA 376
+ * MDMOID_CALL_CONTROL_PM_HISTORY_DATA 387
  */
 typedef struct
 {
@@ -9329,7 +9566,7 @@ typedef CallControlPmHistoryDataObject _CallControlPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.RtpPmHistoryData.{i}.
  *
- * MDMOID_RTP_PM_HISTORY_DATA 377
+ * MDMOID_RTP_PM_HISTORY_DATA 388
  */
 typedef struct
 {
@@ -9352,7 +9589,7 @@ typedef RtpPmHistoryDataObject _RtpPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.SipAgentPmHistoryData.{i}.
  *
- * MDMOID_SIP_AGENT_PM_HISTORY_DATA 378
+ * MDMOID_SIP_AGENT_PM_HISTORY_DATA 389
  */
 typedef struct
 {
@@ -9382,7 +9619,7 @@ typedef SipAgentPmHistoryDataObject _SipAgentPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.SipCallInitPmHistoryData.{i}.
  *
- * MDMOID_SIP_CALL_INIT_PM_HISTORY_DATA 379
+ * MDMOID_SIP_CALL_INIT_PM_HISTORY_DATA 390
  */
 typedef struct
 {
@@ -9404,7 +9641,7 @@ typedef SipCallInitPmHistoryDataObject _SipCallInitPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.MgcConfigData.{i}.
  *
- * MDMOID_MGC_CONFIG_DATA 380
+ * MDMOID_MGC_CONFIG_DATA 391
  */
 typedef struct
 {
@@ -9429,7 +9666,7 @@ typedef MgcConfigDataObject _MgcConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.MgcPmHistoryData.{i}.
  *
- * MDMOID_MGC_PM_HISTORY_DATA 381
+ * MDMOID_MGC_PM_HISTORY_DATA 392
  */
 typedef struct
 {
@@ -9455,7 +9692,7 @@ typedef MgcPmHistoryDataObject _MgcPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.VoiceServices.VoIpConfigData.{i}.
  *
- * MDMOID_VO_IP_CONFIG_DATA 382
+ * MDMOID_VO_IP_CONFIG_DATA 393
  */
 typedef struct
 {
@@ -9478,7 +9715,7 @@ typedef VoIpConfigDataObject _VoIpConfigDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.
  *
- * MDMOID_MOCA_SERVICES 383
+ * MDMOID_MOCA_SERVICES 394
  */
 typedef struct
 {
@@ -9492,7 +9729,7 @@ typedef MocaServicesObject _MocaServicesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.PptpMocaUni.{i}.
  *
- * MDMOID_PPTP_MOCA_UNI 384
+ * MDMOID_PPTP_MOCA_UNI 395
  */
 typedef struct
 {
@@ -9521,7 +9758,7 @@ typedef PptpMocaUniObject _PptpMocaUniObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.X_BROADCOM_COM_PptpMocaUni.{i}.
  *
- * MDMOID_BRCM_PPTP_MOCA_UNI 385
+ * MDMOID_BRCM_PPTP_MOCA_UNI 396
  */
 typedef struct
 {
@@ -9558,7 +9795,7 @@ typedef BrcmPptpMocaUniObject _BrcmPptpMocaUniObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.X_BROADCOM_COM_MocaStatus.{i}.
  *
- * MDMOID_MOCA_STATUS 386
+ * MDMOID_MOCA_STATUS 397
  */
 typedef struct
 {
@@ -9589,7 +9826,7 @@ typedef MocaStatusObject _MocaStatusObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.X_BROADCOM_COM_MocaStats.{i}.
  *
- * MDMOID_MOCA_STATS 387
+ * MDMOID_MOCA_STATS 398
  */
 typedef struct
 {
@@ -9617,7 +9854,7 @@ typedef MocaStatsObject _MocaStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.MocaEthernetPmHistoryData.{i}.
  *
- * MDMOID_MOCA_ETHERNET_PM_HISTORY_DATA 388
+ * MDMOID_MOCA_ETHERNET_PM_HISTORY_DATA 399
  */
 typedef struct
 {
@@ -9648,7 +9885,7 @@ typedef MocaEthernetPmHistoryDataObject _MocaEthernetPmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.MocaInterfacePmHistoryData.{i}.
  *
- * MDMOID_MOCA_INTERFACE_PM_HISTORY_DATA 389
+ * MDMOID_MOCA_INTERFACE_PM_HISTORY_DATA 400
  */
 typedef struct
 {
@@ -9666,7 +9903,7 @@ typedef MocaInterfacePmHistoryDataObject _MocaInterfacePmHistoryDataObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.MocaServices.MocaInterfacePmHistoryData.{i}.NodeTable.{i}.
  *
- * MDMOID_MOCA_INTERFACE_PM_HISTORY_DATA_NODE_TABLE 390
+ * MDMOID_MOCA_INTERFACE_PM_HISTORY_DATA_NODE_TABLE 401
  */
 typedef struct
 {
@@ -9691,7 +9928,7 @@ typedef MocaInterfacePmHistoryDataNodeTableObject _MocaInterfacePmHistoryDataNod
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.TrafficManagement.
  *
- * MDMOID_TRAFFIC_MANAGEMENT 391
+ * MDMOID_TRAFFIC_MANAGEMENT 402
  */
 typedef struct
 {
@@ -9705,7 +9942,7 @@ typedef TrafficManagementObject _TrafficManagementObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.TrafficManagement.PriorityQueueG.{i}.
  *
- * MDMOID_PRIORITY_QUEUE_G 392
+ * MDMOID_PRIORITY_QUEUE_G 403
  */
 typedef struct
 {
@@ -9723,6 +9960,10 @@ typedef struct
     UINT32    backPressureTime;	/**< BackPressureTime */
     UINT32    backPressureOccurQueueThreshold;	/**< BackPressureOccurQueueThreshold */
     UINT32    backPressureClearQueueThreshold;	/**< BackPressureClearQueueThreshold */
+    HEXBINARY  packetDropQueueThresholds;	/**< PacketDropQueueThresholds */
+    UINT32    packetDropMaxP;	/**< PacketDropMaxP */
+    UINT32    queueDropWQ;	/**< QueueDropWQ */
+    UINT32    dropPrecedenceColourMarking;	/**< DropPrecedenceColourMarking */
 } PriorityQueueGObject;
 
 /*! \brief _PriorityQueueGObject is used internally to represent PriorityQueueGObject */
@@ -9732,7 +9973,7 @@ typedef PriorityQueueGObject _PriorityQueueGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.TrafficManagement.TrafficSchedulerG.{i}.
  *
- * MDMOID_TRAFFIC_SCHEDULER_G 393
+ * MDMOID_TRAFFIC_SCHEDULER_G 404
  */
 typedef struct
 {
@@ -9751,7 +9992,7 @@ typedef TrafficSchedulerGObject _TrafficSchedulerGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.TrafficManagement.GemTrafficDescriptor.{i}.
  *
- * MDMOID_GEM_TRAFFIC_DESCRIPTOR 394
+ * MDMOID_GEM_TRAFFIC_DESCRIPTOR 405
  */
 typedef struct
 {
@@ -9774,7 +10015,7 @@ typedef GemTrafficDescriptorObject _GemTrafficDescriptorObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.
  *
- * MDMOID_GENERAL 395
+ * MDMOID_GENERAL 406
  */
 typedef struct
 {
@@ -9788,7 +10029,7 @@ typedef GeneralObject _GeneralObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.UniG.{i}.
  *
- * MDMOID_UNI_G 396
+ * MDMOID_UNI_G 407
  */
 typedef struct
 {
@@ -9807,7 +10048,7 @@ typedef UniGObject _UniGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.OltG.
  *
- * MDMOID_OLT_G 397
+ * MDMOID_OLT_G 408
  */
 typedef struct
 {
@@ -9826,7 +10067,7 @@ typedef OltGObject _OltGObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.NetworkAddress.{i}.
  *
- * MDMOID_NETWORK_ADDRESS 398
+ * MDMOID_NETWORK_ADDRESS 409
  */
 typedef struct
 {
@@ -9843,7 +10084,7 @@ typedef NetworkAddressObject _NetworkAddressObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.AuthenticationSecurityMethod.{i}.
  *
- * MDMOID_AUTHENTICATION_SECURITY_METHOD 399
+ * MDMOID_AUTHENTICATION_SECURITY_METHOD 410
  */
 typedef struct
 {
@@ -9862,7 +10103,7 @@ typedef AuthenticationSecurityMethodObject _AuthenticationSecurityMethodObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.LargeString.{i}.
  *
- * MDMOID_LARGE_STRING 400
+ * MDMOID_LARGE_STRING 411
  */
 typedef struct
 {
@@ -9893,7 +10134,7 @@ typedef LargeStringObject _LargeStringObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.ThresholdData1.{i}.
  *
- * MDMOID_THRESHOLD_DATA1 401
+ * MDMOID_THRESHOLD_DATA1 412
  */
 typedef struct
 {
@@ -9915,7 +10156,7 @@ typedef ThresholdData1Object _ThresholdData1Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.ThresholdData2.{i}.
  *
- * MDMOID_THRESHOLD_DATA2 402
+ * MDMOID_THRESHOLD_DATA2 413
  */
 typedef struct
 {
@@ -9937,7 +10178,7 @@ typedef ThresholdData2Object _ThresholdData2Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.Omci.
  *
- * MDMOID_OMCI 403
+ * MDMOID_OMCI 414
  */
 typedef struct
 {
@@ -9954,7 +10195,7 @@ typedef OmciObject _OmciObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ITU_T_ORG.G_984_4.General.TR069ManagementServer.{i}.
  *
- * MDMOID_TR069_MANAGEMENT_SERVER 404
+ * MDMOID_TR069_MANAGEMENT_SERVER 415
  */
 typedef struct
 {
@@ -9972,13 +10213,14 @@ typedef Tr069ManagementServerObject _Tr069ManagementServerObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_OmciSystem.
  *
- * MDMOID_OMCI_SYSTEM 405
+ * MDMOID_OMCI_SYSTEM 416
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UINT32    tcontManagedEntityId;	/**< TcontManagedEntityId */
     UINT32    numberOfTConts;	/**< NumberOfTConts */
+    UINT32    tcontPolicies;	/**< TcontPolicies */
     UINT32    ethernetManagedEntityId1;	/**< EthernetManagedEntityId1 */
     UINT32    ethernetManagedEntityId2;	/**< EthernetManagedEntityId2 */
     UINT32    ethernetManagedEntityId3;	/**< EthernetManagedEntityId3 */
@@ -10020,7 +10262,7 @@ typedef OmciSystemObject _OmciSystemObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_GponOmciStats.
  *
- * MDMOID_GPON_OMCI_STATS 406
+ * MDMOID_GPON_OMCI_STATS 417
  */
 typedef struct
 {
@@ -10042,7 +10284,7 @@ typedef GponOmciStatsObject _GponOmciStatsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_Portmapping_Application.{i}.
  *
- * MDMOID_PM_APP 407
+ * MDMOID_PM_APP 418
  */
 typedef struct
 {
@@ -10058,7 +10300,7 @@ typedef PmAppObject _PmAppObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_PORTMAPPING_APPILCATIONS.{i}.X_ACTIONTEC_COM_App_Rules.{i}.
  *
- * MDMOID_APP_RULE 408
+ * MDMOID_APP_RULE 419
  */
 typedef struct
 {
@@ -10077,7 +10319,7 @@ typedef AppRuleObject _AppRuleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_ServiceBlock_Rules.{i}.
  *
- * MDMOID_SERVICE_BLOCK_RULE 409
+ * MDMOID_SERVICE_BLOCK_RULE 420
  */
 typedef struct
 {
@@ -10097,7 +10339,7 @@ typedef ServiceBlockRuleObject _ServiceBlockRuleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_BROADCOM_COM_WlanNvram.
  *
- * MDMOID_WLAN_NVRAM 410
+ * MDMOID_WLAN_NVRAM 421
  */
 typedef struct
 {
@@ -10112,7 +10354,7 @@ typedef WlanNvramObject _WlanNvramObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.
  *
- * MDMOID_CTOAM 411
+ * MDMOID_CTOAM 422
  */
 typedef struct
 {
@@ -10129,7 +10371,7 @@ typedef CTOAMObject _CTOAMObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.IADInfo.
  *
- * MDMOID_OAMIAD_INFO 412
+ * MDMOID_OAMIAD_INFO 423
  */
 typedef struct
 {
@@ -10167,7 +10409,7 @@ typedef OAMIADInfoObject _OAMIADInfoObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.GlobalParameterConfig.
  *
- * MDMOID_OAM_GLB_PARAM_CFG 413
+ * MDMOID_OAM_GLB_PARAM_CFG 424
  */
 typedef struct
 {
@@ -10226,7 +10468,7 @@ typedef OAMGlbParamCfgObject _OAMGlbParamCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.SIPParameterConfig.
  *
- * MDMOID_OAMSIP_PARAM_CFG 414
+ * MDMOID_OAMSIP_PARAM_CFG 425
  */
 typedef struct
 {
@@ -10297,7 +10539,7 @@ typedef OAMSIPParamCfgObject _OAMSIPParamCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.SIPUserParameterConfig.
  *
- * MDMOID_OAMSIP_USR_PARAM_CFG 415
+ * MDMOID_OAMSIP_USR_PARAM_CFG 426
  */
 typedef struct
 {
@@ -10329,7 +10571,7 @@ typedef OAMSIPUsrParamCfgObject _OAMSIPUsrParamCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.FAXModemConfig.
  *
- * MDMOID_OAMFAXMD_CFG 416
+ * MDMOID_OAMFAXMD_CFG 427
  */
 typedef struct
 {
@@ -10358,7 +10600,7 @@ typedef OAMFAXMDCfgObject _OAMFAXMDCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.POTSStatus.
  *
- * MDMOID_OAMPOTS_STS 417
+ * MDMOID_OAMPOTS_STS 428
  */
 typedef struct
 {
@@ -10390,7 +10632,7 @@ typedef OAMPOTSStsObject _OAMPOTSStsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.IADOperation.
  *
- * MDMOID_OAMIAD_OP 418
+ * MDMOID_OAMIAD_OP 429
  */
 typedef struct
 {
@@ -10407,7 +10649,7 @@ typedef OAMIADOpObject _OAMIADOpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_CT_OAM.SIPDigitMap.
  *
- * MDMOID_OAMSIP_DGT_MP 419
+ * MDMOID_OAMSIP_DGT_MP 430
  */
 typedef struct
 {
@@ -10424,7 +10666,7 @@ typedef OAMSIPDgtMpObject _OAMSIPDgtMpObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_DNSHostMapping.{i}.
  *
- * MDMOID_HOST_MAPPING 420
+ * MDMOID_HOST_MAPPING 431
  */
 typedef struct
 {
@@ -10441,7 +10683,7 @@ typedef HostMappingObject _HostMappingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.SoftwareModules.
  *
- * MDMOID_SW_MODULES 421
+ * MDMOID_SW_MODULES 432
  */
 typedef struct
 {
@@ -10458,7 +10700,7 @@ typedef SwModulesObject _SwModulesObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.SoftwareModules.ExecutionUnit.{i}.
  *
- * MDMOID_EU 422
+ * MDMOID_EU 433
  */
 typedef struct
 {
@@ -10490,7 +10732,7 @@ typedef EUObject _EUObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.SoftwareModules.ExecutionUnit.{i}.Extensions.
  *
- * MDMOID_EXTENSIONS 423
+ * MDMOID_EXTENSIONS 434
  */
 typedef struct
 {
@@ -10504,7 +10746,7 @@ typedef ExtensionsObject _ExtensionsObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.SoftwareModules.ExecEnv.{i}.
  *
- * MDMOID_EXEC_ENV 424
+ * MDMOID_EXEC_ENV 435
  */
 typedef struct
 {
@@ -10537,7 +10779,7 @@ typedef ExecEnvObject _ExecEnvObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.SoftwareModules.DeploymentUnit.{i}.
  *
- * MDMOID_DU 425
+ * MDMOID_DU 436
  */
 typedef struct
 {
@@ -10566,7 +10808,7 @@ typedef DUObject _DUObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.User.{i}.
  *
- * MDMOID_IGD_USER 426
+ * MDMOID_IGD_USER 437
  */
 typedef struct
 {
@@ -10586,17 +10828,17 @@ typedef IGDUserObject _IGDUserObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_NUD.
+/*! \brief Obj struct for InternetGatewayDevice.X_00247B_NUD.
  *
- * MDMOID_NUD 427
+ * MDMOID_NUD 438
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
     UBOOL8    enable;	/**< Enable */
-    UINT32    payloadLength;	/**< PayloadLength */
+    SINT32    payloadLength;	/**< PayloadLength */
     char *    result;	/**< Result */
-    char *    RTT;	/**< RTT */
+    SINT32    RTT;	/**< RTT */
 } NUDObject;
 
 /*! \brief _NUDObject is used internally to represent NUDObject */
@@ -10606,7 +10848,7 @@ typedef NUDObject _NUDObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_DetectWANService.
  *
- * MDMOID_WAN_SERVICE 428
+ * MDMOID_WAN_SERVICE 439
  */
 typedef struct
 {
@@ -10627,7 +10869,7 @@ typedef DetectWANServiceObject _DetectWANServiceObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_PPPCredential.
  *
- * MDMOID_PPP_CREDENTIAL 429
+ * MDMOID_PPP_CREDENTIAL 440
  */
 typedef struct
 {
@@ -10644,7 +10886,7 @@ typedef PPPCredentialObject _PPPCredentialObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WAN_VLAN.{i}.
  *
- * MDMOID_ACTIONTEC_WAN_VLAN 430
+ * MDMOID_ACTIONTEC_WAN_VLAN 441
  */
 typedef struct
 {
@@ -10668,9 +10910,24 @@ typedef ActiontecWanVlanObject _ActiontecWanVlanObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WAN_VLAN.{i}.X_ACTIONTEC_COM_WANVLAN_IP.{i}.
+ *
+ * MDMOID_ACTIONTEC_WAN_VLAN_IP 442
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    char *    X_ACTIONTEC_COM_WANVLANIP;	/**< X_ACTIONTEC_COM_WANVLANIP */
+} ActiontecWanVlanIpObject;
+
+/*! \brief _ActiontecWanVlanIpObject is used internally to represent ActiontecWanVlanIpObject */
+typedef ActiontecWanVlanIpObject _ActiontecWanVlanIpObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_MULTIPLE_PVC.{i}.
  *
- * MDMOID_ACTIONTEC_MULTIPLE_PVC 431
+ * MDMOID_ACTIONTEC_MULTIPLE_PVC 443
  */
 typedef struct
 {
@@ -10694,15 +10951,31 @@ typedef ActiontecMultiplePvcObject _ActiontecMultiplePvcObject;
 
 
 
-/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_ToolBoxCfg.
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_MULTIPLE_PVC.{i}.X_ACTIONTEC_COM_PVC_IP.{i}.
  *
- * MDMOID_TOOL_BOX_CFG 432
+ * MDMOID_ACTIONTEC_PVC_IP 444
  */
 typedef struct
 {
     MdmObjectId _oid;	/**< for internal use only */
-    UINT32    X_ACTIONTEC_COM_MonitorTrafficType;	/**< X_ACTIONTEC_COM_MonitorTrafficType */
-    UINT32    X_ACTIONTEC_COM_MirrorTrafficType;	/**< X_ACTIONTEC_COM_MirrorTrafficType */
+    char *    X_ACTIONTEC_COM_PVCIP;	/**< X_ACTIONTEC_COM_PVCIP */
+} ActiontecPvcIpObject;
+
+/*! \brief _ActiontecPvcIpObject is used internally to represent ActiontecPvcIpObject */
+typedef ActiontecPvcIpObject _ActiontecPvcIpObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_ToolBoxCfg.
+ *
+ * MDMOID_TOOL_BOX_CFG 445
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    char *    X_ACTIONTEC_COM_MonitorTrafficType;	/**< X_ACTIONTEC_COM_MonitorTrafficType */
+    char *    X_ACTIONTEC_COM_MirrorTrafficType;	/**< X_ACTIONTEC_COM_MirrorTrafficType */
+    UBOOL8    X_ACTIONTEC_COM_MirrorRebootStatus;	/**< X_ACTIONTEC_COM_MirrorRebootStatus */
 } ToolBoxCfgObject;
 
 /*! \brief _ToolBoxCfgObject is used internally to represent ToolBoxCfgObject */
@@ -10712,7 +10985,7 @@ typedef ToolBoxCfgObject _ToolBoxCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.
  *
- * MDMOID_GLOBALS 433
+ * MDMOID_GLOBALS 446
  */
 typedef struct
 {
@@ -10726,7 +10999,7 @@ typedef GLOBALSObject _GLOBALSObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.NAT.
  *
- * MDMOID_IGD_GLOBAL_N_A_T 434
+ * MDMOID_IGD_GLOBAL_N_A_T 447
  */
 typedef struct
 {
@@ -10741,7 +11014,7 @@ typedef IGDGlobalNATObject _IGDGlobalNATObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.Firewall.
  *
- * MDMOID_IGD_GLOBAL_FW 435
+ * MDMOID_IGD_GLOBAL_FW 448
  */
 typedef struct
 {
@@ -10760,9 +11033,50 @@ typedef IGDGlobalFwObject _IGDGlobalFwObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.Firewall.CustomFireWallRule.{i}.
+ *
+ * MDMOID_CUSTOM_FW_RULE 449
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    char *    ruleName;	/**< RuleName */
+    char *    ruleType;	/**< RuleType */
+    char *    protocol1;	/**< Protocol1 */
+    SINT32    startPort1;	/**< StartPort1 */
+    SINT32    endPort1;	/**< EndPort1 */
+    SINT32    traffic1;	/**< Traffic1 */
+    char *    protocol2;	/**< Protocol2 */
+    SINT32    startPort2;	/**< StartPort2 */
+    SINT32    endPort2;	/**< EndPort2 */
+    SINT32    traffic2;	/**< Traffic2 */
+    char *    protocol3;	/**< Protocol3 */
+    SINT32    startPort3;	/**< StartPort3 */
+    SINT32    endPort3;	/**< EndPort3 */
+    SINT32    traffic3;	/**< Traffic3 */
+    char *    protocol4;	/**< Protocol4 */
+    SINT32    startPort4;	/**< StartPort4 */
+    SINT32    endPort4;	/**< EndPort4 */
+    SINT32    traffic4;	/**< Traffic4 */
+    char *    protocol5;	/**< Protocol5 */
+    SINT32    startPort5;	/**< StartPort5 */
+    SINT32    endPort5;	/**< EndPort5 */
+    SINT32    traffic5;	/**< Traffic5 */
+    char *    protocol6;	/**< Protocol6 */
+    SINT32    startPort6;	/**< StartPort6 */
+    SINT32    endPort6;	/**< EndPort6 */
+    SINT32    traffic6;	/**< Traffic6 */
+    SINT32    enable;	/**< Enable */
+} CustomFwRuleObject;
+
+/*! \brief _CustomFwRuleObject is used internally to represent CustomFwRuleObject */
+typedef CustomFwRuleObject _CustomFwRuleObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.PortMapping.{i}.
  *
- * MDMOID_GLOBALS_PORTMAPPING 436
+ * MDMOID_GLOBALS_PORTMAPPING 450
  */
 typedef struct
 {
@@ -10804,7 +11118,7 @@ typedef GLOBALSPortmappingObject _GLOBALSPortmappingObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_GLOBALS.DSLDATAPUMP.
  *
- * MDMOID_IGD_GLOBAL_P_U_M_P 437
+ * MDMOID_IGD_GLOBAL_P_U_M_P 451
  */
 typedef struct
 {
@@ -10819,7 +11133,7 @@ typedef IGDGlobalPUMPObject _IGDGlobalPUMPObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WANHPNAInterfaceConfig.
  *
- * MDMOID_WAN_HPNA_INTF_CFG 438
+ * MDMOID_WAN_HPNA_INTF_CFG 452
  */
 typedef struct
 {
@@ -10839,7 +11153,7 @@ typedef WanHpnaIntfCfgObject _WanHpnaIntfCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WANHPNALinkConfig.{i}.
  *
- * MDMOID_WAN_HPNA_LINK_CFG 439
+ * MDMOID_WAN_HPNA_LINK_CFG 453
  */
 typedef struct
 {
@@ -10861,7 +11175,7 @@ typedef WanHpnaLinkCfgObject _WanHpnaLinkCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.UserInterface.
  *
- * MDMOID_USER_INTERFACE_CFG 440
+ * MDMOID_USER_INTERFACE_CFG 454
  */
 typedef struct
 {
@@ -10895,7 +11209,7 @@ typedef UserInterfaceCfgObject _UserInterfaceCfgObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.UserInterface.RemoteAccess.
  *
- * MDMOID_REMOTE_ACCESS 441
+ * MDMOID_REMOTE_ACCESS 455
  */
 typedef struct
 {
@@ -10916,7 +11230,7 @@ typedef RemoteAccessObject _RemoteAccessObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.UserInterface.RemoteAccess.X_ACTIONTEC_COM_Telnet.
  *
- * MDMOID_TELNET 442
+ * MDMOID_TELNET 456
  */
 typedef struct
 {
@@ -10934,7 +11248,7 @@ typedef TelnetObject _TelnetObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.UserInterface.RemoteAccess.X_ACTIONTEC_COM_SupportConsole.
  *
- * MDMOID_SUPPORT_CONSOLE 443
+ * MDMOID_SUPPORT_CONSOLE 457
  */
 typedef struct
 {
@@ -10951,7 +11265,7 @@ typedef SupportConsoleObject _SupportConsoleObject;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_WAN_Option_60.
  *
- * MDMOID_WAN_OPT60 444
+ * MDMOID_WAN_OPT60 458
  */
 typedef struct
 {
@@ -10966,7 +11280,7 @@ typedef WanOpt60Object _WanOpt60Object;
 
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_PowerSaveCfg.
  *
- * MDMOID_POWER_SAVE_CFG 445
+ * MDMOID_POWER_SAVE_CFG 459
  */
 typedef struct
 {
@@ -10980,9 +11294,28 @@ typedef PowerSaveCfgObject _PowerSaveCfgObject;
 
 
 
+/*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_SskMonitor.
+ *
+ * MDMOID_SSK_MONITOR 460
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    frenquency;	/**< Frenquency */
+    UINT32    period;	/**< Period */
+    UINT64    lastTime;	/**< LastTime */
+    UINT32    currFail;	/**< CurrFail */
+    UINT32    totalFail;	/**< TotalFail */
+} SskMonitorObject;
+
+/*! \brief _SskMonitorObject is used internally to represent SskMonitorObject */
+typedef SskMonitorObject _SskMonitorObject;
+
+
+
 /*! \brief Obj struct for InternetGatewayDevice.X_ACTIONTEC_COM_QoS_Vlanctl_Classification.{i}.
  *
- * MDMOID_VLANCTL_CLASS 446
+ * MDMOID_VLANCTL_CLASS 461
  */
 typedef struct
 {
@@ -11002,6 +11335,178 @@ typedef struct
 
 /*! \brief _VlanctlClassObject is used internally to represent VlanctlClassObject */
 typedef VlanctlClassObject _VlanctlClassObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.
+ *
+ * MDMOID_DEVICE 462
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+} DeviceObject;
+
+/*! \brief _DeviceObject is used internally to represent DeviceObject */
+typedef DeviceObject _DeviceObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.Optical.
+ *
+ * MDMOID_DEVICE_OPTICAL 463
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    interfaceNumberOfEntries;	/**< InterfaceNumberOfEntries */
+} DeviceOpticalObject;
+
+/*! \brief _DeviceOpticalObject is used internally to represent DeviceOpticalObject */
+typedef DeviceOpticalObject _DeviceOpticalObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.Optical.Interface.{i}.
+ *
+ * MDMOID_OPTICAL_INTERFACE 464
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    char *    status;	/**< Status */
+    char *    name;	/**< Name */
+    SINT32    opticalSignalLevel;	/**< OpticalSignalLevel */
+    SINT32    transmitOpticalLevel;	/**< TransmitOpticalLevel */
+} OpticalInterfaceObject;
+
+/*! \brief _OpticalInterfaceObject is used internally to represent OpticalInterfaceObject */
+typedef OpticalInterfaceObject _OpticalInterfaceObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.Optical.Interface.{i}.Stats.
+ *
+ * MDMOID_OPTICAL_INTERFACE_STATS 465
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT64    bytesSent;	/**< BytesSent */
+    UINT64    bytesReceived;	/**< BytesReceived */
+    UINT64    packetsSent;	/**< PacketsSent */
+    UINT64    packetsReceived;	/**< PacketsReceived */
+    UINT32    errorsSent;	/**< ErrorsSent */
+    UINT32    errorsReceived;	/**< ErrorsReceived */
+    UINT32    discardPacketsSent;	/**< DiscardPacketsSent */
+    UINT32    discardPacketsReceived;	/**< DiscardPacketsReceived */
+} OpticalInterfaceStatsObject;
+
+/*! \brief _OpticalInterfaceStatsObject is used internally to represent OpticalInterfaceStatsObject */
+typedef OpticalInterfaceStatsObject _OpticalInterfaceStatsObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.
+ *
+ * MDMOID_DEVICE_HOME_PLUG 466
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT32    interfaceNumberOfEntries;	/**< InterfaceNumberOfEntries */
+} DeviceHomePlugObject;
+
+/*! \brief _DeviceHomePlugObject is used internally to represent DeviceHomePlugObject */
+typedef DeviceHomePlugObject _DeviceHomePlugObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.
+ *
+ * MDMOID_HOME_PLUG_INTERFACE 467
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UBOOL8    enable;	/**< Enable */
+    char *    status;	/**< Status */
+    char *    alias;	/**< Alias */
+    char *    name;	/**< Name */
+    UINT32    lastChange;	/**< LastChange */
+    char *    lowerLayers;	/**< LowerLayers */
+    UBOOL8    upstream;	/**< Upstream */
+    char *    MACAddress;	/**< MACAddress */
+    char *    logicalNetwork;	/**< LogicalNetwork */
+    char *    version;	/**< Version */
+    char *    firmwareVersion;	/**< FirmwareVersion */
+    UBOOL8    forceCCo;	/**< ForceCCo */
+    char *    networkPassword;	/**< NetworkPassword */
+    char *    otherNetworksPresent;	/**< OtherNetworksPresent */
+    UINT32    maxBitRate;	/**< MaxBitRate */
+    UINT32    associatedDeviceNumberOfEntries;	/**< AssociatedDeviceNumberOfEntries */
+} HomePlugInterfaceObject;
+
+/*! \brief _HomePlugInterfaceObject is used internally to represent HomePlugInterfaceObject */
+typedef HomePlugInterfaceObject _HomePlugInterfaceObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.Stats.
+ *
+ * MDMOID_HOME_PLUG_INTERFACE_STATS 468
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    UINT64    bytesSent;	/**< BytesSent */
+    UINT64    bytesReceived;	/**< BytesReceived */
+    UINT64    packetsSent;	/**< PacketsSent */
+    UINT64    packetsReceived;	/**< PacketsReceived */
+    UINT32    errorsSent;	/**< ErrorsSent */
+    UINT32    errorsReceived;	/**< ErrorsReceived */
+    UINT64    unicastPacketsSent;	/**< UnicastPacketsSent */
+    UINT64    unicastPacketsReceived;	/**< UnicastPacketsReceived */
+    UINT32    discardPacketsSent;	/**< DiscardPacketsSent */
+    UINT32    discardPacketsReceived;	/**< DiscardPacketsReceived */
+    UINT64    multicastPacketsSent;	/**< MulticastPacketsSent */
+    UINT64    multicastPacketsReceived;	/**< MulticastPacketsReceived */
+    UINT64    broadcastPacketsSent;	/**< BroadcastPacketsSent */
+    UINT64    broadcastPacketsReceived;	/**< BroadcastPacketsReceived */
+    UINT32    unknownProtoPacketsReceived;	/**< UnknownProtoPacketsReceived */
+    UINT64    MPDUTxAck;	/**< MPDUTxAck */
+    UINT64    MPDUTxCol;	/**< MPDUTxCol */
+    UINT64    MPDUTxFailed;	/**< MPDUTxFailed */
+    UINT64    MPDURxAck;	/**< MPDURxAck */
+    UINT64    MPDURxFailed;	/**< MPDURxFailed */
+} HomePlugInterfaceStatsObject;
+
+/*! \brief _HomePlugInterfaceStatsObject is used internally to represent HomePlugInterfaceStatsObject */
+typedef HomePlugInterfaceStatsObject _HomePlugInterfaceStatsObject;
+
+
+
+/*! \brief Obj struct for InternetGatewayDevice.Device.HomePlug.Interface.{i}.AssociatedDevice.{i}.
+ *
+ * MDMOID_HOME_PLUG_INTERFACE_ASSOCIATED_DEVICE 469
+ */
+typedef struct
+{
+    MdmObjectId _oid;	/**< for internal use only */
+    char *    MACAddress;	/**< MACAddress */
+    UINT32    txPhyRate;	/**< TxPhyRate */
+    UINT32    rxPhyRate;	/**< RxPhyRate */
+    char *    SNRPerTone;	/**< SNRPerTone */
+    UINT32    avgAttenuation;	/**< AvgAttenuation */
+    char *    endStationMACs;	/**< EndStationMACs */
+    UBOOL8    active;	/**< Active */
+    char *    X_BROADCOM_COM_FirmwareVersion;	/**< X_BROADCOM_COM_FirmwareVersion */
+    UINT32    X_BROADCOM_COM_Uptime;	/**< X_BROADCOM_COM_Uptime */
+} HomePlugInterfaceAssociatedDeviceObject;
+
+/*! \brief _HomePlugInterfaceAssociatedDeviceObject is used internally to represent HomePlugInterfaceAssociatedDeviceObject */
+typedef HomePlugInterfaceAssociatedDeviceObject _HomePlugInterfaceAssociatedDeviceObject;
 
 
 

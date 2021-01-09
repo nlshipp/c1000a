@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2010 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+* <:copyright-BRCM:2010:DUAL/GPL:standard
+* 
+*    Copyright (c) 2010 Broadcom Corporation
+*    All Rights Reserved
+* 
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
+* 
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
+* 
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
+* 
 :>
 */
 
@@ -24,6 +34,8 @@
 #include <linux/proc_fs.h>
 
 #include <linux/bcm_log.h>
+
+
 
 #define VERSION     "0.1"
 #define VER_STR     "v" VERSION " " __DATE__ " " __TIME__
@@ -57,7 +69,11 @@ static const char* qids[MAX_NUM_QIDS];
 #endif
 
 static bcmFun_t* funTable[BCM_FUN_ID_MAX];
-static bcmLogSpiCallbacks_t spiFns = { .kerSysSlaveRead = NULL };
+static bcmLogSpiCallbacks_t spiFns = { .reserveSlave      = NULL,
+                                       .syncTrans         = NULL,
+                                       .kerSysSlaveWrite  = NULL,
+                                       .kerSysSlaveRead   = NULL,
+                                       .bpGet6829PortInfo = NULL};
 
 /**
  ** Local Functions
@@ -260,7 +276,7 @@ static ssize_t log_proc_write(struct file *f, const char *buf, size_t cnt, loff_
             {
                 bcmLogLevel_t logLevel = str2val(arg[0]);
                 if(argc == 2 && logLevel >= 0 && logLevel < BCM_LOG_LEVEL_MAX)
-                    globalLogLevel = logLevel;
+                    bcmLog_setGlobalLogLevel(logLevel);
                 else
                     BCM_LOG_ERROR(BCM_LOG_ID_LOG, "Invalid Parameter '%s'\n", arg[0]);
                 break;
@@ -269,7 +285,7 @@ static ssize_t log_proc_write(struct file *f, const char *buf, size_t cnt, loff_
         BCM_LOGCODE(
             case 'r':
             {
-                bcmPrint ("Global Log Level : %d\n", globalLogLevel);
+                bcmPrint ("Global Log Level : %d\n", bcmLog_getGlobalLogLevel());
                 break;
             } )
 
@@ -281,12 +297,12 @@ static ssize_t log_proc_write(struct file *f, const char *buf, size_t cnt, loff_
                   for(logId=0; logId<BCM_LOG_ID_MAX; logId++) {
                     pModInfo = &modInfo[logId];
                     bcmPrint("Name      : %s\n", pModInfo->name);
-                    bcmPrint("Id        : %d, Log Level : %d\n", pModInfo->logId, pModInfo->logLevel);
+                    bcmPrint("Id        : %d, Log Level : %d\n", pModInfo->logId, bcmLog_getLogLevel(pModInfo->logId));
                   }
                 }
                 else if((argc==2) && ((pModInfo=getModInfoByName(arg[0])) != NULL)) {
                     bcmPrint("Name      : %s\n", pModInfo->name);
-                    bcmPrint("Id        : %d, Log Level : %d\n", pModInfo->logId, pModInfo->logLevel);
+                    bcmPrint("Id        : %d, Log Level : %d\n", pModInfo->logId, bcmLog_getLogLevel(pModInfo->logId));
                 } else {
                     BCM_LOG_ERROR(BCM_LOG_ID_LOG, "Invalid Parameter '%s'\n", arg[0]);
                 }
@@ -299,7 +315,7 @@ static ssize_t log_proc_write(struct file *f, const char *buf, size_t cnt, loff_
                 bcmLogLevel_t logLevel = str2val(arg[1]);
                 if(argc == 3 && ((pModInfo=getModInfoByName(arg[0])) != NULL)) {
                     if(logLevel >= 0 && logLevel < BCM_LOG_LEVEL_MAX) {
-                        pModInfo->logLevel = logLevel;
+                        bcmLog_setLogLevel( pModInfo->logId, logLevel);
                         break;
                     }
                 }
@@ -482,7 +498,7 @@ static ssize_t log_proc_write(struct file *f, const char *buf, size_t cnt, loff_
             if (argc != 6) {
                cmdValid = 0;
             }
-            else if (spiFns.kerSysSlaveRead == NULL) {
+            else if (spiFns.syncTrans == NULL) {
                BCM_LOG_ERROR(BCM_LOG_ID_LOG, "Attempt to use spi before registered\n");
                cmdValid = 0;
             }   
@@ -701,9 +717,30 @@ EXPORT_SYMBOL(bcmLog_logIsEnabled);
  **/
 
 void bcmLog_setGlobalLogLevel(bcmLogLevel_t logLevel) {
+
+    bcmLogId_t logId;
+    bcmLogLevel_t oldGlobalLevel;
+    
     BCM_LOG_CHECK_LOG_LEVEL(logLevel);
 
+    oldGlobalLevel = globalLogLevel;
     globalLogLevel = logLevel;
+
+    for (logId = 0; logId < BCM_LOG_ID_MAX; logId++)
+    {
+        if (modInfo[logId].lcCallback)
+        {
+            bcmLogLevel_t oldLevel;
+            bcmLogLevel_t newLevel;
+
+            oldLevel = min(modInfo[logId].logLevel, oldGlobalLevel);
+            newLevel = min(modInfo[logId].logLevel, globalLogLevel);
+            if (oldLevel != newLevel)
+            {
+                modInfo[logId].lcCallback(logId, newLevel, modInfo[logId].lcCallbackCtx);
+            }
+        }
+    }
 
     BCM_LOG_INFO(BCM_LOG_ID_LOG, "Global log level was set to %d", globalLogLevel);
 }
@@ -713,14 +750,41 @@ bcmLogLevel_t bcmLog_getGlobalLogLevel(void) {
 }
 
 void bcmLog_setLogLevel(bcmLogId_t logId, bcmLogLevel_t logLevel) {
+
+    bcmLogLevel_t oldLocalLevel;
+
     BCM_LOG_CHECK_LOG_ID(logId);
     BCM_LOG_CHECK_LOG_LEVEL(logLevel);
-
+    
+    oldLocalLevel = modInfo[logId].logLevel;
     modInfo[logId].logLevel = logLevel;
+
+    if (modInfo[logId].lcCallback)
+    {
+        bcmLogLevel_t newLevel;
+        bcmLogLevel_t oldLevel;
+       
+        oldLevel = min(oldLocalLevel, globalLogLevel);
+        newLevel = min(modInfo[logId].logLevel, globalLogLevel);   
+        
+        if (oldLevel != newLevel)
+        {
+            modInfo[logId].lcCallback(logId, newLevel, modInfo[logId].lcCallbackCtx);
+        }
+    }
 
     BCM_LOG_INFO(BCM_LOG_ID_LOG, "Log level of %s was set to %d",
                  modInfo[logId].name, modInfo[logId].logLevel);
 }
+
+
+void bcmLog_registerLevelChangeCallback(bcmLogId_t logId, bcmLogLevelChangeCallback_t callback, void *ctx) {
+    BCM_LOG_CHECK_LOG_ID(logId);
+
+    modInfo[logId].lcCallback = callback;
+    modInfo[logId].lcCallbackCtx = ctx;
+}
+
 
 bcmLogLevel_t bcmLog_getLogLevel(bcmLogId_t logId) {
     BCM_LOG_CHECK_LOG_ID(logId);
@@ -831,6 +895,9 @@ bcmFun_t* bcmFun_get(bcmFunId_t funId) {
   return funTable[funId];
 }
 
+
+
+
 void __init bcmLog_init( void ) {
     struct proc_dir_entry *p;
 
@@ -842,16 +909,14 @@ void __init bcmLog_init( void ) {
     p->proc_fops = &log_proc_fops;
 
     bcmPrint("Broadcom Logger %s\n", VER_STR);
+	
 }
 
 void bcmLog_registerSpiCallbacks(bcmLogSpiCallbacks_t callbacks) 
 {
     spiFns = callbacks;
-    BCM_ASSERT(spiFns.kerSysSlaveRead != NULL);
-    BCM_ASSERT(spiFns.kerSysSlaveWrite != NULL);
     BCM_ASSERT(spiFns.reserveSlave != NULL);
     BCM_ASSERT(spiFns.syncTrans != NULL); 
-    BCM_ASSERT(spiFns.bpGet6829PortInfo != NULL);
 }
 
 
@@ -872,4 +937,5 @@ EXPORT_SYMBOL(bcmLog_setLogLevel);
 EXPORT_SYMBOL(bcmLog_getLogLevel);
 EXPORT_SYMBOL(bcmLog_getModName);
 EXPORT_SYMBOL(bcmLog_registerSpiCallbacks);
+EXPORT_SYMBOL(bcmLog_registerLevelChangeCallback);
 

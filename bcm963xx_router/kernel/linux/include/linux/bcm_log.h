@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2010 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+* <:copyright-BRCM:2012:DUAL/GPL:standard
+* 
+*    Copyright (c) 2012 Broadcom Corporation
+*    All Rights Reserved
+* 
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
+* 
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
+* 
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
+* 
 :>
 */
 #ifndef _BCM_LOG_SERVICES_
@@ -100,11 +110,15 @@ typedef enum {
     BCM_LOG_DD_MAX
 } bcmLogDataDumpLevel_t;
 
+typedef void (*bcmLogLevelChangeCallback_t)(bcmLogId_t logId, bcmLogLevel_t level, void *ctx);
+
 typedef struct {
     bcmLogId_t logId;
     char *name;
     bcmLogLevel_t logLevel;
     bcmLogDataDumpLevel_t ddLevel;
+    bcmLogLevelChangeCallback_t lcCallback;
+    void * lcCallbackCtx;
 } bcmLogModuleInfo_t;
 
 typedef struct
@@ -280,6 +294,8 @@ void bcmFun_dereg(bcmFunId_t funId);
  *registered.*/
 bcmFun_t* bcmFun_get(bcmFunId_t funId);
 
+void bcmLog_registerLevelChangeCallback(bcmLogId_t logId, bcmLogLevelChangeCallback_t callback, void *ctx);
+
 #else
 
 /* BCM LOG not configured: create empty stubs for all functions */
@@ -294,6 +310,7 @@ typedef int (bcmFun_t)(void *);
 static inline void bcmFun_reg(bcmFunId_t funId, bcmFun_t f)                      {}
 static inline void bcmFun_dereg(bcmFunId_t funId)                                {}
 static inline bcmFun_t* bcmFun_get(bcmFunId_t funId)                             { return NULL; }
+static inline void bcmLog_registerLevelChangeCallback(bcmLogId_t logId, bcmLogLevelChangeCallback_t callback, void *ctx) {}
 
 
 #endif /* CONFIG_BCM_LOG */

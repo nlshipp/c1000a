@@ -27,7 +27,11 @@ int __ipv6_addr_type(const struct in6_addr *addr)
 {
 	__be32 st;
 
+#if defined(CONFIG_MIPS_BRCM)
+	st = ((__force __be32)addr->s6_addr16[0] << 16) | (__force __be32)addr->s6_addr16[1];
+#else
 	st = addr->s6_addr32[0];
+#endif
 
 	/* Consider all addresses with the first three bits different of
 	   000 and 111 as unicasts.

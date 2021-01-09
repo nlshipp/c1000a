@@ -3,19 +3,25 @@
 
     <:label-BRCM:2011:DUAL/GPL:standard
     
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License, version 2, as published by
-    the Free Software Foundation (the "GPL").
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
     
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
     
-    
-    A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-    writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-    Boston, MA 02111-1307, USA.
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
     
     :>
 */                       
@@ -41,6 +47,9 @@ extern "C" {
 #define BP_BOARD_ID_NOT_FOUND                   1
 #define BP_VALUE_NOT_DEFINED                    2
 #define BP_BOARD_ID_NOT_SET                     3
+#define BP_MAX_CHANNELS_EXCEEDED                4
+#define BP_NO_ZSI_ON_BOARD_ERR                  5
+#define BP_MAX_ITEM_EXCEEDED                    6
 
 /* Values for EthernetMacInfo PhyType. */
 #define BP_ENET_NO_PHY                          0
@@ -78,11 +87,15 @@ extern "C" {
 #define BP_ACTIVE_HIGH                          0x0000
 #define BP_ACTIVE_LOW                           0x8000
 #define BP_GPIO_SERIAL                          0x4000
+#define BP_NONGPIO_PIN                          0x2000
 
+#define BP_GPIO_NONE                            (BP_GPIO_NUM_MASK)
 #define BP_GPIO_0_AH                            (0)
 #define BP_GPIO_0_AL                            (0  | BP_ACTIVE_LOW)
+#define BP_PIN_DSL_CTRL_4                       (0 | BP_NONGPIO_PIN)
 #define BP_GPIO_1_AH                            (1)
 #define BP_GPIO_1_AL                            (1  | BP_ACTIVE_LOW)
+#define BP_PIN_DSL_CTRL_5                       (1 | BP_NONGPIO_PIN)
 #define BP_GPIO_2_AH                            (2)
 #define BP_GPIO_2_AL                            (2  | BP_ACTIVE_LOW)
 #define BP_GPIO_3_AH                            (3)
@@ -175,6 +188,14 @@ extern "C" {
 #define BP_GPIO_46_AL                           (46 | BP_ACTIVE_LOW)
 #define BP_GPIO_47_AH                           (47)
 #define BP_GPIO_47_AL                           (47 | BP_ACTIVE_LOW)
+
+#ifdef AEI_VDSL_CUSTOMER_NCS
+#define BP_GPIO_48_AH                           (48)
+#define BP_GPIO_48_AL                           (48 | BP_ACTIVE_LOW)
+#define BP_GPIO_49_AH                           (49)
+#define BP_GPIO_49_AL                           (49 | BP_ACTIVE_LOW)
+#endif
+
 #define BP_GPIO_50_AH                           (50)
 #define BP_GPIO_50_AL                           (50 | BP_ACTIVE_LOW)
 #define BP_GPIO_51_AH                           (51)
@@ -228,6 +249,23 @@ extern "C" {
 #define BP_SERIAL_GPIO_22_AL                    (22 | BP_GPIO_SERIAL | BP_ACTIVE_LOW)
 #define BP_SERIAL_GPIO_23_AH                    (23 | BP_GPIO_SERIAL)
 #define BP_SERIAL_GPIO_23_AL                    (23 | BP_GPIO_SERIAL | BP_ACTIVE_LOW)
+#define BP_SERIAL_GPIO_24_AH                    (24 | BP_GPIO_SERIAL)
+#define BP_SERIAL_GPIO_24_AL                    (24 | BP_GPIO_SERIAL | BP_ACTIVE_LOW)
+#define BP_SERIAL_GPIO_25_AH                    (25 | BP_GPIO_SERIAL)
+#define BP_SERIAL_GPIO_25_AL                    (25 | BP_GPIO_SERIAL | BP_ACTIVE_LOW)
+#define BP_SERIAL_GPIO_26_AH                    (26 | BP_GPIO_SERIAL)
+#define BP_SERIAL_GPIO_26_AL                    (26 | BP_GPIO_SERIAL | BP_ACTIVE_LOW)
+
+/* LED controller can shift out 16 bit out of 24 bit data for serial GPIO output. Which
+ * 16 bits selected by default is chip dependent. The 24 bits data are grouped to 3 groups
+ * and can be configured to pick two groups as the output.
+ *
+ * On 6318, group 1 and 2(bit 8 to 23) are shifted out by default. But user can configure to
+ * select group 0 and 2(bit 0 to 7 and bit 16 to 23).
+ */
+#define BP_SERIAL_MUX_SEL_GROUP0                1 /* bit  0 to  7 */
+#define BP_SERIAL_MUX_SEL_GROUP1                2 /* bit  8 to 15 */
+#define BP_SERIAL_MUX_SEL_GROUP2                4 /* bit 16 to 23 */
 
 /* Values for external interrupt assignments. */
 #define BP_EXT_INTR_0                           0
@@ -236,6 +274,8 @@ extern "C" {
 #define BP_EXT_INTR_3                           3
 #define BP_EXT_INTR_4                           4
 #define BP_EXT_INTR_5                           5
+#define BP_EXT_INTR_SHARED                      (1 << 15)
+
 
 /* Values for chip select assignments. */
 #define BP_CS_0                                 0
@@ -263,10 +303,15 @@ extern "C" {
 #define BP_OVERLAY_USB_DEVICE                   (1<<15)
 #define BP_OVERLAY_SPI_SSB2_EXT_CS              (1<<16)
 #define BP_OVERLAY_SPI_SSB3_EXT_CS              (1<<17)
+/* Redefine to be consistent. The legacy and HS SPI controllers share the slave select pin */
+#define BP_OVERLAY_HS_SPI_SSB2_EXT_CS           BP_OVERLAY_SPI_SSB2_EXT_CS 
+#define BP_OVERLAY_HS_SPI_SSB3_EXT_CS           BP_OVERLAY_SPI_SSB3_EXT_CS
 #define BP_OVERLAY_HS_SPI_SSB4_EXT_CS           (1<<18)
 #define BP_OVERLAY_HS_SPI_SSB5_EXT_CS           (1<<19)
 #define BP_OVERLAY_HS_SPI_SSB6_EXT_CS           (1<<20)
 #define BP_OVERLAY_HS_SPI_SSB7_EXT_CS           (1<<21)
+
+
 
 /* Value for GPIO and external interrupt fields that are not used. */
 #define BP_NOT_DEFINED                          0xffff
@@ -275,7 +320,7 @@ extern "C" {
 #define BP_BOARD_ID_LEN                         16
 
 /* Maximum size of the board id string. */
-#define BP_OPTICAL_PARAMS_LEN                   64
+#define BP_OPTICAL_PARAMS_LEN                   48
 
 /* Maximum number of Ethernet MACs. */
 #define BP_MAX_ENET_MACS                        2
@@ -308,6 +353,7 @@ extern "C" {
 #define BP_AFE_LD_ISIL1556              (1 << 21)
 #define BP_AFE_LD_6301                  (2 << 21)
 #define BP_AFE_LD_6302                  (3 << 21)
+#define BP_AFE_LD_6303                  (4 << 21)
 
 #define BP_AFE_FE_ANNEXA                (1 << 15)
 #define BP_AFE_FE_ANNEXB                (2 << 15)
@@ -327,7 +373,7 @@ extern "C" {
 /* Combo */
 #define BP_AFE_FE_REV_6302_REV1         (1 << 8)
 #define BP_AFE_FE_REV_6302_REV_7_12     (1 << 8)
-#define BP_AFE_FE_REV_6302_REV_7_4      (2 << 8)
+#define BP_AFE_FE_REV_6302_REV_7_2_21   (2 << 8)
 
 #define BP_AFE_FE_REV_6302_REV_7_2_1    (3 << 8)
 #define BP_AFE_FE_REV_6302_REV_7_2      (4 << 8)
@@ -335,17 +381,44 @@ extern "C" {
 #define BP_AFE_FE_REV_6302_REV_7_2_2    (6 << 8)
 #define BP_AFE_FE_REV_6302_REV_7_2_30    (7 << 8)
 #define BP_AFE_6302_6306_REV_A_12_40    (8 << 8)
+#define BP_AFE_FE_REV_6303_REV_12_3_30    (9 << 8)
+#define BP_AFE_FE_REV_6303_REV_12_3_20    (1 << 8)
 
 /* ADSL only*/
 #define BP_AFE_FE_REV_6302_REV_5_2_1    (1 << 8)
 #define BP_AFE_FE_REV_6302_REV_5_2_2    (2 << 8)
 #define BP_AFE_FE_REV_6301_REV_5_1_1    (1 << 8)
 #define BP_AFE_FE_REV_6301_REV_5_1_2    (2 << 8)
+#define BP_AFE_FE_REV_6301_REV_5_1_3    (3 << 8)
 
 #define BP_GET_EXT_AFE_DEFINED
 #define BP_GET_INT_AFE_DEFINED
 
+
+/* DEVICE CONFIGURATION OPTIONS */
+
+#define BP_DEVICE_OPTION_ENABLE_GMAC           (1 << 0)
+#define BP_DEVICE_OPTION_DISABLE_LED_INVERSION (1 << 1)
+
 #if !defined(__ASSEMBLER__)
+
+/* Add a new id bp_usPhyConnType to specify the phy connection type and save it in phyconn field for app
+ * because we are running out flag bits such as CONNECTED_TO_EPON_MAC in the phy id itself. This is used
+ * initially for PLC MAC connection type, but will use it for MOCA, EPON, GPON in the futures and remove
+ * the phy id connection type flags */
+
+#define PHY_CONN_TYPE_INT_PHY           0  /* default, switch MAC port with integrated PHY */
+#define PHY_CONN_TYPE_EXT_PHY           1  /* switch MAC port connected to external PHY */
+#define PHY_CONN_TYPE_EXT_SW            2  /* switch MAC port connected to external switch */
+#define PHY_CONN_TYPE_EPON              3  /* switch MAC port connected to EPON */
+#define PHY_CONN_TYPE_GPON              4  /* switch MAC port connected to GPON */
+#define PHY_CONN_TYPE_MOCA              5  /* switch MAC port connected to MOCA */
+#define PHY_CONN_TYPE_PLC               6  /* switch MAC port connected to PLC */
+#define PHY_CONN_TYPE_FEMTO             7  /* switch MAC port connected to FEMTO */
+#define PHY_CONN_TYPE_MOCA_ETH          8  /* switch MAC port connected to MOCA ethernet */
+
+#define PHY_CONN_TYPE_NOT_DEFINED       0xffff  /* not specified */
+#define PHY_DEVNAME_NOT_DEFINED         0       /* not specified */
 
 typedef struct {
   unsigned short duplexLed;
@@ -353,11 +426,50 @@ typedef struct {
   unsigned short speedLed1000;
 } LED_INFO;
 
+/* boardparms-based PHY initialization mechanism */
+/* A new Phy-specific parameter, bp_pPhyInit, that can follow a PhyId and, if specified, contain a pointer to a list of tuples.
+ * Each tuple would be an opcode followed by a 16-bit register Address followed by a Data WORD to be written to the Phy during
+ * initialization. The list would be terminated with a 0 opcode.
+ */
+#define BP_MDIO_INIT_OP_NULL                0x0
+#define BP_MDIO_INIT_OP_WRITE               0x1
+#define BP_MDIO_INIT_OP_UPDATE              0x2 /* read-modify-write op */
+
+struct bp_mdio_init_write {
+    unsigned short op;
+    unsigned short reg;
+    unsigned long  data;
+};
+
+struct bp_mdio_init_update {
+    unsigned short op;
+    unsigned short reg;
+    unsigned short mask;
+    unsigned short data;
+};
+
+struct bp_mdio_init_template {
+    unsigned short op;
+    unsigned short dummy1;
+    unsigned long  dummy2;
+};
+
+typedef struct bp_mdio_init {
+  union {
+    struct bp_mdio_init_template op;
+    struct bp_mdio_init_write write;
+    struct bp_mdio_init_update update;
+  } u;
+} bp_mdio_init_t;
+
 /* Information about Ethernet switch */
 typedef struct {
   unsigned long port_map;
   unsigned long phy_id[BP_MAX_SWITCH_PORTS];
+  unsigned long phyconn[BP_MAX_SWITCH_PORTS];
+  char *phy_devName[BP_MAX_SWITCH_PORTS];  
   LED_INFO ledInfo[BP_MAX_ENET_INTERNAL];
+  bp_mdio_init_t* phyinit[BP_MAX_SWITCH_PORTS];
 } ETHERNET_SW_INFO;
 
 #define BP_PHY_ID_0                            (0)
@@ -465,16 +577,19 @@ typedef struct {
 #define CONNECTED_TO_EPON_MAC_S 28
 #define CONNECTED_TO_EPON_MAC  (CONNECTED_TO_EPON_MAC_M << CONNECTED_TO_EPON_MAC_S)
 
+#define CONNECTED_TO_EXTERN_SW_M 1
+#define CONNECTED_TO_EXTERN_SW_S 29
+#define CONNECTED_TO_EXTERN_SW  (CONNECTED_TO_EXTERN_SW_M << CONNECTED_TO_EXTERN_SW_S)
+
+/* MII over GPIO config info embedded into phy_id of ETHERNET_SW_INFO */
+#define MII_OVER_GPIO_M          1
+#define MII_OVER_GPIO_S          30
+#define MII_OVER_GPIO_VALID      (MII_OVER_GPIO_M << MII_OVER_GPIO_S)
 
 /* Currently used for qualifying WAN_PORT and MII_OVER_GPIO. Can be split into 2 if needed. */
 #define PHYCFG_VALID_M           1 
 #define PHYCFG_VALID_S           31 
 #define PHYCFG_VALID             (PHYCFG_VALID_M << PHYCFG_VALID_S)
-
-/* MII over GPIO config info embedded into phy_id of ETHERNET_SW_INFO */
-#define MII_OVER_GPIO_M          1 
-#define MII_OVER_GPIO_S          30
-#define MII_OVER_GPIO_VALID      (MII_OVER_GPIO_M << MII_OVER_GPIO_S)
 
 #define PHYID_LSBYTE_M           0xFF
 #define BCM_PHY_ID_M             0x1F
@@ -482,6 +597,7 @@ typedef struct {
 /* MII - RvMII connection. Force Link to 100FD */
 #define MII_DIRECT               (PHY_LNK_CFG_VALID | FORCE_LINK_100FD | MAC_CONN_VALID | MAC_MAC_IF | MAC_IFACE_VALID | MAC_IF_MII)
 #define RGMII_DIRECT             (PHY_LNK_CFG_VALID | FORCE_LINK_1000FD | MAC_CONN_VALID | MAC_MAC_IF | MAC_IFACE_VALID | MAC_IF_RGMII)
+#define GMII_DIRECT              (PHY_LNK_CFG_VALID | FORCE_LINK_1000FD | MAC_CONN_VALID | MAC_MAC_IF | MAC_IFACE_VALID | MAC_IF_GMII)
 
 /* WAN port flag in the phy_id of ETHERNET_SW_INFO */
 #define BCM_WAN_PORT        0x40
@@ -490,8 +606,9 @@ typedef struct {
 #define IsExtPhyId(id)      ((id & PHY_INTEGRATED_VALID)?(id & PHY_EXTERNAL):((id & BCM_PHY_ID_M) >= 0x10))
 #define IsRGMII(id)         ((id & MAC_IFACE_VALID)?((id & MAC_IFACE) == MAC_IF_RGMII):0)
 #define IsRvMII(id)         ((id & MAC_IFACE_VALID)?((id & MAC_IFACE) == MAC_IF_RvMII):0)
+#define IsGMII(id)          ((id & MAC_IFACE_VALID)?((id & MAC_IFACE) == MAC_IF_GMII):0)
 #define IsPortConnectedToExternalSwitch(id)  ((id & EXTSW_CONNECTED)?1:0) 
-
+#define IsPhyAdvCapConfigValid(id) ((id & PHY_ADV_CFG_VALID)?1:0)
 
 #define c0(n) (((n) & 0x55555555) + (((n) >> 1) & 0x55555555))
 #define c1(n) (((n) & 0x33333333) + (((n) >> 2) & 0x33333333))
@@ -501,6 +618,19 @@ typedef struct {
 /* GPON Optics Type Settings */
 #define BP_GPON_OPTICS_TYPE_LEGACY              0
 #define BP_GPON_OPTICS_TYPE_BOSA                1
+
+#if defined(CONFIG_BCM96828)
+/* bp_ulNonPeriphGpioCtrlMap */
+#define EPON_PERIPH_GPIO_M         0xFFF // GPIOs 41-52 can be controlled by either EPON or Periph
+#define EPON_PERIPH_GPIO_S         9
+#define EPON_PERIPH_GPIO_P         0 // Bit Value for NonPeriph
+#define APM_PERIPH_GPIO_M          0xF // GPIOs 40-37 can be controlled by either APM or Periph
+#define APM_PERIPH_GPIO_S          5
+#define APM_PERIPH_GPIO_P          1 // Bit Value for NonPeriph
+#endif
+
+/* VREG Settings */
+#define BP_VREG_EXTERNAL           1
 
 /* Information about an Ethernet MAC.  If ucPhyType is BP_ENET_NO_PHY,
  * then the other fields are not valid.
@@ -524,7 +654,8 @@ typedef struct WlanSromPatchInfo {
     char szboardId[BP_BOARD_ID_LEN];
     unsigned short usWirelessChipId;
     unsigned short usNeededSize;
-    WLAN_SROM_ENTRY entries[BP_WLAN_MAX_PATCH_ENTRY];
+    WLAN_SROM_ENTRY *uniqueEntries;
+    WLAN_SROM_ENTRY *commonEntries;
 } WLAN_SROM_PATCH_INFO, *PWLAN_SROM_PATCH_INFO;
 
 typedef struct WlanPciEntry {
@@ -585,9 +716,13 @@ typedef struct VoIPDspInfo
 
 int BpSetBoardId( char *pszBoardId );
 int BpGetBoardId( char *pszBoardId);
+char * BpGetBoardIdNameByIndex( int i );
 int BpGetBoardIds( char *pszBoardIds, int nBoardIdsSize );
+int BPGetNumBoardIds(void);
+
 
 int BpGetComment( char **pcpValue );
+int BpGetPersonalityName( char **pcpValue );
 
 int BpGetGPIOverlays( unsigned long *pusValue );
 
@@ -611,11 +746,22 @@ int BpGetMoCALedGpio( unsigned short *pusValue );
 int BpGetMoCAFailLedGpio( unsigned short *pusValue );
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 int BpGetWirelessFailSesLedGpio( unsigned short *pusValue );
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+int BpGetWirelessLedGpioGreen( unsigned short *pusValue );
+int BpGetWirelessLedGpioRed( unsigned short *pusValue );
+int BpGetWirelessLedGpioAct( unsigned short *pusValue );
+#endif
 int BpGetUsbLedGpio( unsigned short *pusValue );
+#if defined(AEI_63168_CHIP)
+int BpGetEnetWanLedGpio( unsigned short *pusValue );
+#endif
 #endif
 
 int BpGetResetToDefaultExtIntr( unsigned short *pusValue );
 int BpGetWirelessSesExtIntr( unsigned short *pusValue );
+int BpGetResetToDefaultExtIntrGpio( unsigned short *pusValue );
+int BpGetWirelessSesExtIntrGpio( unsigned short *pusValue );
+int BpGetMocaHostIntr( unsigned long *pulValue );
 int BpGetWirelessAntInUse( unsigned short *pusValue );
 int BpGetWirelessFlags( unsigned short *pusValue );
 int BpGetWirelessPowerDownGpio( unsigned short *pusValue );
@@ -623,7 +769,7 @@ int BpUpdateWirelessSromMap(unsigned short chipID, unsigned short* pBase, int si
 int BpUpdateWirelessPciConfig (unsigned long pciID, unsigned long* pBase, int sizeInDWords);
 
 int BpGetEthernetMacInfo( PETHERNET_MAC_INFO pEnetInfos, int nNumEnetInfos );
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 int BpGetPortConnectedToExtSwitch(void);
 #endif
 int BpGet6829PortInfo( unsigned char *portInfo6829 );
@@ -634,6 +780,8 @@ int BpGetExtAFELDModeGpio( unsigned short *pulValues );
 int BpGetIntAFELDPwrGpio( unsigned short *pusValue );
 int BpGetIntAFELDModeGpio( unsigned short *pulValues );
 int BpGetAFELDRelayGpio( unsigned short *pusValue );
+int BpGetExtAFELDDataGpio( unsigned short *pusValue );
+int BpGetExtAFELDClkGpio( unsigned short *pusValue );
 
 int BpGetUart2SdoutGpio( unsigned short *pusValue );
 int BpGetUart2SdinGpio( unsigned short *pusValue );
@@ -652,14 +800,37 @@ int BpGetDectLedGpio( unsigned short *pusValue );
 
 int BpGetLaserDisGpio( unsigned short *pusValue );
 int BpGetLaserTxPwrEnGpio( unsigned short *pusValue );
+int BpGetLaserResetGpio( unsigned short *pusValue );
 int BpGetVregSel1P2( unsigned short *pusValue );
+int BpGetVreg1P8( unsigned char *pucValue );
 int BpGetMiiOverGpioFlag( unsigned long* pMiiOverGpioFlag );
 int BpGetFemtoResetGpio( unsigned short *pusValue );
 int BpGetEphyBaseAddress( unsigned short *pusValue );
+int BpGetGphyBaseAddress( unsigned short *pusValue );
 
 int bpstrcmp(const char *dest,const char *src);
 int BpGetGponOpticsType( unsigned short *pusValue );
 int BpGetDefaultOpticalParams( unsigned char *pOpticalParams );
+int BpGetI2cGpios( unsigned short *pusScl, unsigned short *pusSda );
+int BpGetNonPeriphGpioMap( unsigned long *pulValue );
+int BpGetNumFePorts( unsigned long *pulValue );
+int BpGetNumGePorts( unsigned long *pulValue );
+int BpGetNumVoipPorts( unsigned long *pulValue );
+int BpGetSwitchPortMap (unsigned long *pulValue);
+
+int BpGetSpiSlaveResetGpio( unsigned short *pusValue );
+int BpGetSpiSlaveBusNum( unsigned short *pusValue );
+int BpGetSpiSlaveSelectNum( unsigned short *pusValue );
+int BpGetSpiSlaveMode( unsigned short *pusValue );
+int BpGetSpiSlaveCtrlState( unsigned long *pulValue );
+int BpGetSpiSlaveMaxFreq( unsigned long *pulValue );
+int BpGetSpiSlaveProtoRev( unsigned short *pusValue );
+
+int BpGetSerialLEDMuxSel( unsigned short *pusValue );
+int BpGetDeviceOptions( unsigned long *pulValue );
+
+int BpGetGpioGpio(int idx, unsigned short *pusValue);
+int BpGetLedGpio(int idx, unsigned short *pusValue);
 
 #endif /* __ASSEMBLER__ */
 

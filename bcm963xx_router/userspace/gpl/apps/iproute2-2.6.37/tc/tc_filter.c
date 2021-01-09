@@ -159,7 +159,7 @@ int tc_filter_modify(int cmd, unsigned flags, int argc, char **argv)
 
 
 	if (d[0])  {
- 		ll_init_map(&rth);
+		ll_init_map(&rth);
 
 		if ((req.t.tcm_ifindex = ll_name_to_index(d)) == 0) {
 			fprintf(stderr, "Cannot find device \"%s\"\n", d);
@@ -167,7 +167,7 @@ int tc_filter_modify(int cmd, unsigned flags, int argc, char **argv)
 		}
 	}
 
- 	if (rtnl_talk(&rth, &req.n, 0, 0, NULL, NULL, NULL) < 0) {
+	if (rtnl_talk(&rth, &req.n, 0, 0, NULL, NULL, NULL) < 0) {
 		fprintf(stderr, "We have an error talking to the kernel\n");
 		return 2;
 	}
@@ -326,7 +326,7 @@ int tc_filter_list(int argc, char **argv)
 
 	t.tcm_info = TC_H_MAKE(prio<<16, protocol);
 
- 	ll_init_map(&rth);
+	ll_init_map(&rth);
 
 	if (d[0]) {
 		if ((t.tcm_ifindex = ll_name_to_index(d)) == 0) {
@@ -336,12 +336,12 @@ int tc_filter_list(int argc, char **argv)
 		filter_ifindex = t.tcm_ifindex;
 	}
 
- 	if (rtnl_dump_request(&rth, RTM_GETTFILTER, &t, sizeof(t)) < 0) {
+	if (rtnl_dump_request(&rth, RTM_GETTFILTER, &t, sizeof(t)) < 0) {
 		perror("Cannot send dump request");
 		return 1;
 	}
 
- 	if (rtnl_dump_filter(&rth, print_filter, stdout, NULL, NULL) < 0) {
+	if (rtnl_dump_filter(&rth, print_filter, stdout, NULL, NULL) < 0) {
 		fprintf(stderr, "Dump terminated\n");
 		return 1;
 	}
@@ -375,4 +375,3 @@ int do_filter(int argc, char **argv)
 	fprintf(stderr, "Command \"%s\" is unknown, try \"tc filter help\".\n", *argv);
 	return -1;
 }
-

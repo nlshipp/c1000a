@@ -3,296 +3,211 @@
  * Mini umount implementation for busybox
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 2005 by Rob Landley <rob@landley.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
-
-#include <limits.h>
-#include <stdio.h>
 #include <mntent.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include "busybox.h"
-
-/* Teach libc5 about realpath -- it includes it but the
- * prototype is missing... */
-#if (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1)
-extern char *realpath(const char *path, char *resolved_path);
+#include <sys/mount.h>
+/* Make sure we have all the new mount flags we actually try to use. */
+#ifndef MS_BIND
+# define MS_BIND        (1 << 12)
+#endif
+#ifndef MS_MOVE
+# define MS_MOVE        (1 << 13)
+#endif
+#ifndef MS_RECURSIVE
+# define MS_RECURSIVE   (1 << 14)
+#endif
+#ifndef MS_SILENT
+# define MS_SILENT      (1 << 15)
+#endif
+/* The shared subtree stuff, which went in around 2.6.15. */
+#ifndef MS_UNBINDABLE
+# define MS_UNBINDABLE  (1 << 17)
+#endif
+#ifndef MS_PRIVATE
+# define MS_PRIVATE     (1 << 18)
+#endif
+#ifndef MS_SLAVE
+# define MS_SLAVE       (1 << 19)
+#endif
+#ifndef MS_SHARED
+# define MS_SHARED      (1 << 20)
+#endif
+#ifndef MS_RELATIME
+# define MS_RELATIME    (1 << 21)
+#endif
+#include "libbb.h"
+#ifndef PATH_MAX
+# define PATH_MAX (4*1024)
 #endif
 
-static const int MNT_FORCE = 1;
-static const int MS_MGC_VAL = 0xc0ed0000; /* Magic number indicatng "new" flags */
-static const int MS_REMOUNT = 32;	/* Alter flags of a mounted FS.  */
-static const int MS_RDONLY = 1;	/* Mount read-only.  */
 
-extern int mount (__const char *__special_file, __const char *__dir,
-			__const char *__fstype, unsigned long int __rwflag,
-			__const void *__data);
-extern int umount (__const char *__special_file);
-extern int umount2 (__const char *__special_file, int __flags);
-
-struct _mtab_entry_t {
-	char *device;
-	char *mountpt;
-	struct _mtab_entry_t *next;
-};
-
-static struct _mtab_entry_t *mtab_cache = NULL;
-
-
-
-#if defined CONFIG_FEATURE_MOUNT_FORCE
-static int doForce = FALSE;
-#endif
-#if defined CONFIG_FEATURE_MOUNT_LOOP
-static int freeLoop = TRUE;
-#endif
-#if defined CONFIG_FEATURE_MTAB_SUPPORT
-static int useMtab = TRUE;
-#endif
-static int umountAll = FALSE;
-static int doRemount = FALSE;
-
-
-
-/* These functions are here because the getmntent functions do not appear
- * to be re-entrant, which leads to all sorts of problems when we try to
- * use them recursively - randolph
- *
- * TODO: Perhaps switch to using Glibc's getmntent_r
- *        -Erik
- */
-static void mtab_read(void)
+#if defined(__dietlibc__)
+/* 16.12.2006, Sampo Kellomaki (sampo@iki.fi)
+ * dietlibc-0.30 does not have implementation of getmntent_r() */
+static struct mntent *getmntent_r(FILE* stream, struct mntent* result,
+		char* buffer UNUSED_PARAM, int bufsize UNUSED_PARAM)
 {
-	struct _mtab_entry_t *entry = NULL;
-	struct mntent *e;
+	struct mntent* ment = getmntent(stream);
+	return memcpy(result, ment, sizeof(*ment));
+}
+#endif
+
+/* ignored: -v -d -t -i */
+#define OPTION_STRING           "fldnra" "vdt:i"
+#define OPT_FORCE               (1 << 0)
+#define OPT_LAZY                (1 << 1)
+#define OPT_FREELOOP            (1 << 2)
+#define OPT_NO_MTAB             (1 << 3)
+#define OPT_REMOUNT             (1 << 4)
+#define OPT_ALL                 (ENABLE_FEATURE_UMOUNT_ALL ? (1 << 5) : 0)
+
+// These constants from linux/fs.h must match OPT_FORCE and OPT_LAZY,
+// otherwise "doForce" trick below won't work!
+//#define MNT_FORCE  0x00000001 /* Attempt to forcibly umount */
+//#define MNT_DETACH 0x00000002 /* Just detach from the tree */
+
+int umount_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int umount_main(int argc UNUSED_PARAM, char **argv)
+{
+	int doForce;
+	char *const buf = xmalloc(PATH_MAX * 2 + 128); /* to save stack */
+	struct mntent me;
 	FILE *fp;
+	char *fstype = NULL;
+	int status = EXIT_SUCCESS;
+	unsigned opt;
+	struct mtab_list {
+		char *dir;
+		char *device;
+		struct mtab_list *next;
+	} *mtl, *m;
 
-	if (mtab_cache != NULL)
-		return;
+	opt = getopt32(argv, OPTION_STRING, &fstype);
+	//argc -= optind;
+	argv += optind;
+	doForce = MAX((opt & OPT_FORCE), (opt & OPT_LAZY));
 
-	if ((fp = setmntent(bb_path_mtab_file, "r")) == NULL) {
-		bb_error_msg("Cannot open %s", bb_path_mtab_file);
-		return;
+	/* Get a list of mount points from mtab.  We read them all in now mostly
+	 * for umount -a (so we don't have to worry about the list changing while
+	 * we iterate over it, or about getting stuck in a loop on the same failing
+	 * entry.  Notice that this also naturally reverses the list so that -a
+	 * umounts the most recent entries first. */
+	m = mtl = NULL;
+
+	// If we're umounting all, then m points to the start of the list and
+	// the argument list should be empty (which will match all).
+	fp = setmntent(bb_path_mtab_file, "r");
+	if (!fp) {
+		if (opt & OPT_ALL)
+			bb_error_msg_and_die("can't open '%s'", bb_path_mtab_file);
+	} else {
+		while (getmntent_r(fp, &me, buf, PATH_MAX * 2 + 128)) {
+			/* Match fstype if passed */
+			if (!match_fstype(&me, fstype))
+				continue;
+			m = xzalloc(sizeof(*m));
+			m->next = mtl;
+			m->device = xstrdup(me.mnt_fsname);
+			m->dir = xstrdup(me.mnt_dir);
+			mtl = m;
+		}
+		endmntent(fp);
 	}
-	while ((e = getmntent(fp))) {
-		entry = xmalloc(sizeof(struct _mtab_entry_t));
-		entry->device = strdup(e->mnt_fsname);
-		entry->mountpt = strdup(e->mnt_dir);
-		entry->next = mtab_cache;
-		mtab_cache = entry;
+
+	// If we're not umounting all, we need at least one argument.
+	if (!(opt & OPT_ALL) && !fstype) {
+		if (!argv[0])
+			bb_show_usage();
+		m = NULL;
 	}
-	endmntent(fp);
-}
 
-static char *mtab_getinfo(const char *match, const char which)
-{
-	struct _mtab_entry_t *cur = mtab_cache;
+	// Loop through everything we're supposed to umount, and do so.
+	for (;;) {
+		int curstat;
+		char *zapit = *argv;
+		char *path;
 
-	while (cur) {
-		if (strcmp(cur->mountpt, match) == 0 ||
-			strcmp(cur->device, match) == 0) {
-			if (which == MTAB_GETMOUNTPT) {
-				return cur->mountpt;
-			} else {
-#if !defined CONFIG_FEATURE_MTAB_SUPPORT
-				if (strcmp(cur->device, "rootfs") == 0) {
-					continue;
-				} else if (strcmp(cur->device, "/dev/root") == 0) {
-					/* Adjusts device to be the real root device,
-					 * or leaves device alone if it can't find it */
-					cur->device = find_real_root_device_name();
+		// Do we already know what to umount this time through the loop?
+		if (m)
+			path = xstrdup(m->dir);
+		// For umount -a, end of mtab means time to exit.
+		else if (opt & OPT_ALL)
+			break;
+		// Use command line argument (and look it up in mtab list)
+		else {
+			if (!zapit)
+				break;
+			argv++;
+			path = xmalloc_realpath(zapit);
+			if (path) {
+				for (m = mtl; m; m = m->next)
+					if (strcmp(path, m->dir) == 0 || strcmp(path, m->device) == 0)
+						break;
+			}
+		}
+		// If we couldn't find this sucker in /etc/mtab, punt by passing our
+		// command line argument straight to the umount syscall.  Otherwise,
+		// umount the directory even if we were given the block device.
+		if (m) zapit = m->dir;
+
+		// Let's ask the thing nicely to unmount.
+		curstat = umount(zapit);
+
+		// Force the unmount, if necessary.
+		if (curstat && doForce)
+			curstat = umount2(zapit, doForce);
+
+		// If still can't umount, maybe remount read-only?
+		if (curstat) {
+			if ((opt & OPT_REMOUNT) && errno == EBUSY && m) {
+				// Note! Even if we succeed here, later we should not
+				// free loop device or erase mtab entry!
+				const char *msg = "%s busy - remounted read-only";
+				curstat = mount(m->device, zapit, NULL, MS_REMOUNT|MS_RDONLY, NULL);
+				if (curstat) {
+					msg = "can't remount %s read-only";
+					status = EXIT_FAILURE;
 				}
-#endif
-				return cur->device;
+				bb_error_msg(msg, m->device);
+			} else {
+				status = EXIT_FAILURE;
+				bb_perror_msg("can't %sumount %s", (doForce ? "forcibly " : ""), zapit);
 			}
-		}
-		cur = cur->next;
-	}
-	return NULL;
-}
-
-static char *mtab_next(void **iter)
-{
-	char *mp;
-
-	if (iter == NULL || *iter == NULL)
-		return NULL;
-	mp = ((struct _mtab_entry_t *) (*iter))->mountpt;
-	*iter = (void *) ((struct _mtab_entry_t *) (*iter))->next;
-	return mp;
-}
-
-static char *mtab_first(void **iter)
-{
-	struct _mtab_entry_t *mtab_iter;
-
-	if (!iter)
-		return NULL;
-	mtab_iter = mtab_cache;
-	*iter = (void *) mtab_iter;
-	return mtab_next(iter);
-}
-
-/* Don't bother to clean up, since exit() does that
- * automagically, so we can save a few bytes */
-#ifdef CONFIG_FEATURE_CLEAN_UP
-static void mtab_free(void)
-{
-	struct _mtab_entry_t *this, *next;
-
-	this = mtab_cache;
-	while (this) {
-		next = this->next;
-		free(this->device);
-		free(this->mountpt);
-		free(this);
-		this = next;
-	}
-}
-#endif
-
-static int do_umount(const char *name)
-{
-	int status;
-	char *blockDevice = mtab_getinfo(name, MTAB_GETDEVICE);
-
-	if (blockDevice && strcmp(blockDevice, name) == 0)
-		name = mtab_getinfo(blockDevice, MTAB_GETMOUNTPT);
-
-	status = umount(name);
-
-#if defined CONFIG_FEATURE_MOUNT_LOOP
-	if (freeLoop && blockDevice != NULL && !strncmp("/dev/loop", blockDevice, 9))
-		/* this was a loop device, delete it */
-		del_loop(blockDevice);
-#endif
-#if defined CONFIG_FEATURE_MOUNT_FORCE
-	if (status != 0 && doForce) {
-		status = umount2(blockDevice, MNT_FORCE);
-		if (status != 0) {
-			bb_error_msg_and_die("forced umount of %s failed!", blockDevice);
-		}
-	}
-#endif
-	if (status != 0 && doRemount && errno == EBUSY) {
-		status = mount(blockDevice, name, NULL,
-					   MS_MGC_VAL | MS_REMOUNT | MS_RDONLY, NULL);
-		if (status == 0) {
-			bb_error_msg("%s busy - remounted read-only", blockDevice);
 		} else {
-			bb_error_msg("Cannot remount %s read-only", blockDevice);
+			// De-allocate the loop device.  This ioctl should be ignored on
+			// any non-loop block devices.
+			if (ENABLE_FEATURE_MOUNT_LOOP && (opt & OPT_FREELOOP) && m)
+				del_loop(m->device);
+			if (ENABLE_FEATURE_MTAB_SUPPORT && !(opt & OPT_NO_MTAB) && m)
+				erase_mtab(m->dir);
 		}
-	}
-	if (status == 0) {
-#if defined CONFIG_FEATURE_MTAB_SUPPORT
-		if (useMtab)
-			erase_mtab(name);
-#endif
-		return (TRUE);
-	}
-	return (FALSE);
-}
 
-static int umount_all(void)
-{
-	int status = TRUE;
-	char *mountpt;
-	void *iter;
-
-	for (mountpt = mtab_first(&iter); mountpt; mountpt = mtab_next(&iter)) {
-		/* Never umount /proc on a umount -a */
-		if (strstr(mountpt, "proc")!= NULL)
-			continue;
-		if (!do_umount(mountpt)) {
-			/* Don't bother retrying the umount on busy devices */
-			if (errno == EBUSY) {
-				bb_perror_msg("%s", mountpt);
-				status = FALSE;
-				continue;
-			}
-			if (!do_umount(mountpt)) {
-				printf("Couldn't umount %s on %s: %s\n",
-					   mountpt, mtab_getinfo(mountpt, MTAB_GETDEVICE),
-					   strerror(errno));
-				status = FALSE;
-			}
+		// Find next matching mtab entry for -a or umount /dev
+		// Note this means that "umount /dev/blah" will unmount all instances
+		// of /dev/blah, not just the most recent.
+		if (m) {
+			while ((m = m->next) != NULL)
+				// NB: if m is non-NULL, path is non-NULL as well
+				if ((opt & OPT_ALL) || strcmp(path, m->device) == 0)
+					break;
 		}
-	}
-	return (status);
-}
-
-extern int umount_main(int argc, char **argv)
-{
-	char path[PATH_MAX], result = 0;
-
-	if (argc < 2) {
-		bb_show_usage();
-	}
-#ifdef CONFIG_FEATURE_CLEAN_UP
-	atexit(mtab_free);
-#endif
-
-	/* Parse any options */
-	while (--argc > 0 && **(++argv) == '-') {
-		while (*++(*argv))
-			switch (**argv) {
-			case 'a':
-				umountAll = TRUE;
-				break;
-#if defined CONFIG_FEATURE_MOUNT_LOOP
-			case 'l':
-				freeLoop = FALSE;
-				break;
-#endif
-#ifdef CONFIG_FEATURE_MTAB_SUPPORT
-			case 'n':
-				useMtab = FALSE;
-				break;
-#endif
-#ifdef CONFIG_FEATURE_MOUNT_FORCE
-			case 'f':
-				doForce = TRUE;
-				break;
-#endif
-			case 'r':
-				doRemount = TRUE;
-				break;
-			case 'v':
-				break; /* ignore -v */
-			default:
-				bb_show_usage();
-			}
+		free(path);
 	}
 
-	mtab_read();
-	if (umountAll) {
-		if (umount_all())
-			return EXIT_SUCCESS;
-		else
-			return EXIT_FAILURE;
+	// Free mtab list if necessary
+	if (ENABLE_FEATURE_CLEAN_UP) {
+		while (mtl) {
+			m = mtl->next;
+			free(mtl->device);
+			free(mtl->dir);
+			free(mtl);
+			mtl = m;
+		}
+		free(buf);
 	}
 
-	do {
-		if (realpath(*argv, path) != NULL)
-			if (do_umount(path))
-				continue;
-		bb_perror_msg("%s", path);
-		result++;
-	} while (--argc > 0 && ++argv);
-	return result;
+	return status;
 }

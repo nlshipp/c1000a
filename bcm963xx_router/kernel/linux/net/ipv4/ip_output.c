@@ -655,6 +655,9 @@ slow_path:
 			BUG();
 		left -= len;
 
+#if defined(CONFIG_MIPS_BRCM)
+		blog_xfer(skb2, skb);
+#endif
 		/*
 		 *	Fill in the new header fields.
 		 */

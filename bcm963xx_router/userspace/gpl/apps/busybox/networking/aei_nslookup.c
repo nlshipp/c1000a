@@ -4,8 +4,8 @@
  *  All Rights Reserved
  *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
- *  are missing from nslookup.c file will locate in this file. 
+ *  in addition to routines provided by Broadcom. All additional routines that
+ *  are missing from nslookup.c file will locate in this file.
  *
  ************************************************************************/
 
@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <resolv.h>
+#include "libbb.h"
 
 #include "cms_msg.h"
 #include "cms_util.h"
@@ -27,7 +28,7 @@
 #define MAXPACKET 65468
 #define __NETDB_MAXADDRS 35
 #define __NETDB_MAXALIASES 35
-#define pthread_ipaddr_type int 
+#define pthread_ipaddr_type int
 #define HOST_BUFSIZE 4096
 #define ALIGN(p, t) ((char *)(((((long)(p) - 1) / sizeof(t)) + 1) * sizeof(t)))
 #define SP(p, t, n) (ALIGN(p, t) + (n) * sizeof(t))
@@ -73,12 +74,12 @@ struct res_data *_res_init()
         globledata = (struct res_data *) malloc(sizeof(struct res_data));
         if (globledata == NULL)
             return NULL;
-		
+
         globledata->buf = NULL;
         globledata->state = start;
         globledata->errval = NO_RECOVERY;
         globledata->sock = -1;
-	
+
         return globledata;
     }
 }
@@ -86,7 +87,7 @@ struct res_data *_res_init()
 struct __res_state *_res_status()
 {
     struct res_data *data;
-	
+
     data = _res_init();
     return (data) ? &data->state : NULL;
 }
@@ -98,7 +99,7 @@ static int qcomp(const void *arg1, const void *arg2)
     struct __res_state *state = _res_status();
 
     int pos1, pos2;
-	
+
     for (pos1 = 0; pos1 < state->nsort; pos1++) {
         if (state->sort_list[pos1].addr.s_addr ==
             ((*a1)->s_addr & state->sort_list[pos1].mask))
@@ -164,7 +165,7 @@ struct hostent *_res_parse_answer(querybuf *answer, int anslen, int iquery,
     char *aliases[__NETDB_MAXALIASES], *addrs[__NETDB_MAXADDRS];
     char *bp = buf, **ap = aliases, **hap = addrs;
     int type, class, ancount, qdcount, getclass = C_ANY, iquery_done = 0;
-	
+
     eom = answer->buf + anslen;
     /*
      * find first satisfactory answer
@@ -233,7 +234,7 @@ struct hostent *_res_parse_answer(querybuf *answer, int anslen, int iquery,
             iquery_done = 1;
             break;
         }
-		
+
         if (iquery || type == 0x0010)	{
             //printf("expected answer type %d, size %d\n", type, n);
             memset(dns_txt, 0, sizeof(dns_txt));
@@ -242,7 +243,7 @@ struct hostent *_res_parse_answer(querybuf *answer, int anslen, int iquery,
             //printf("dns txt %s\n", dns_txt);
             cp += n;
         }
-		
+
         if (hap > addrs) {
             if (n != result->h_length) {
                 cp += n;
@@ -261,7 +262,7 @@ struct hostent *_res_parse_answer(querybuf *answer, int anslen, int iquery,
                 bp += strlen(bp) + 1;
             }
         }
-		
+
         bp = ALIGN(bp, char *);
         //bp = ALIGN(bp, pthread_ipaddr_type);
         if (bp + n >= buf + bufsize) {
@@ -330,7 +331,16 @@ static struct hostent *fake_hostent(const char *hostname, struct in_addr addr,
     return result;
 }
 
-static struct hostent *gethostbyname_txt_r(const char *hostname, struct hostent *result,
+/***********************************
+ * func: getaddrinfo_txt_r
+ * args: hostname --- the name wait for parse
+ *       buf --- to store the info related answer from dns server
+ * purpose: to parse hostname, we use the name "getaddrinfo_txt_r" to indicate this func is support both 
+            IPv4 and IPv6, and currently is for CTL product.
+ * date: 2013-01-14
+ * author: Alvin Hu
+ **********************************/
+static struct hostent *getaddrinfo_txt_r(const char *hostname, struct hostent *result,
                                            char *buf, int bufsize, int *errval)
 {
     struct in_addr addr;
@@ -341,7 +351,7 @@ static struct hostent *gethostbyname_txt_r(const char *hostname, struct hostent 
     /* Default failure condition is not a range error and not recoverable. */
     errno = 0;
     *errval = NO_RECOVERY;
-	
+
     /* Check for all-numeric hostname with no trailing dot. */
     if (isdigit(hostname[0])) {
         p = hostname;
@@ -357,12 +367,74 @@ static struct hostent *gethostbyname_txt_r(const char *hostname, struct hostent 
             return fake_hostent(hostname, addr, result, buf, bufsize, errval);
         }
     }
-	
+
     /* Do the search. */
-    //n = res_search(hostname, C_IN, T_A, qbuf.buf, sizeof(qbuf));
     n = res_search(hostname, C_IN, 0x0010, qbuf.buf, sizeof(qbuf));
     if (n >= 0)
-        return _res_parse_answer(&qbuf, n, 0, result, buf, bufsize, errval);	
+        return _res_parse_answer(&qbuf, n, 0, result, buf, bufsize, errval);
+    else
+        return NULL;
+}
+
+/***********************************
+ * func: AEI_getaddrinfo_txt
+ * args: hostname --- the name wait for parse
+ * purpose: to parse hostname, we use the name "AEI_getaddrinfo_txt" to indicate this func is support both 
+            IPv4 and IPv6, and currently is for CTL product.
+ * date: 2013-01-14
+ * author: Alvin Hu
+ **********************************/
+void AEI_getaddrinfo_txt(const char *hostname)
+{
+    struct res_data *data = _res_init();
+
+    if (!data)
+        return NULL;
+    if (!data->buf) {
+        data->buf = malloc(sizeof(struct hostent) + HOST_BUFSIZE);
+        if (!data->buf) {
+            errno = 0;
+            data->errval = NO_RECOVERY;
+            return NULL;
+        }
+    }
+    return getaddrinfo_txt_r(hostname, (struct hostent *) data->buf,
+                               data->buf + sizeof(struct hostent), HOST_BUFSIZE,
+                               &data->errval);
+}
+
+static struct hostent *gethostbyname_txt_r(const char *hostname, struct hostent *result,
+                                           char *buf, int bufsize, int *errval)
+{
+    struct in_addr addr;
+    querybuf qbuf;
+    const char *p;
+    int n;
+
+    /* Default failure condition is not a range error and not recoverable. */
+    errno = 0;
+    *errval = NO_RECOVERY;
+
+    /* Check for all-numeric hostname with no trailing dot. */
+    if (isdigit(hostname[0])) {
+        p = hostname;
+        while (*p && (isdigit(*p) || *p == '.'))
+            p++;
+
+        if (!*p && p[-1] != '.') {
+            /* Looks like an IP address; convert it. */
+            if (inet_aton(hostname, &addr) == -1) {
+                *errval = HOST_NOT_FOUND;
+                return NULL;
+            }
+            return fake_hostent(hostname, addr, result, buf, bufsize, errval);
+        }
+    }
+
+    /* Do the search. */
+    n = res_search(hostname, C_IN, 0x0010, qbuf.buf, sizeof(qbuf));
+    if (n >= 0)
+        return _res_parse_answer(&qbuf, n, 0, result, buf, bufsize, errval);
     else
         return NULL;
 }

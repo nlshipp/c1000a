@@ -46,7 +46,7 @@ struct ip_ct_ipsec_expect
 	/* We record initiator cookie and source IP address: all in
 	 * host order. */
 
- 	/* source cookie */
+	/* source cookie */
 	u_int32_t initcookie[2];	/* initiator cookie */
 	u_int32_t respcookie[2];	/* initiator cookie */
 	u_int32_t saddr; 		/* source IP address in the orig dir */

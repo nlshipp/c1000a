@@ -141,9 +141,21 @@ struct net_device_stats
 	unsigned long	rx_dropped;		/* no space in linux buffers	*/
 	unsigned long	tx_dropped;		/* no space available in linux	*/
 	unsigned long	multicast;		/* multicast packets received	*/
-	unsigned long	collisions;
+                                    /* NOTE: Use "multicast" instead of "rx_multicast_packets" to support legacy name */
 
+#ifdef CONFIG_MIPS_BRCM
+    unsigned long   tx_multicast_packets;  /* multicast packets transmitted */
+    unsigned long   rx_multicast_bytes;  /* multicast bytes recieved */ 
+    unsigned long   tx_multicast_bytes;  /* multicast bytes transmitted */
+    unsigned long   rx_broadcast_packets;  /* broadcast packets recieved */
+    unsigned long   tx_broadcast_packets;  /* broadcast packets transmitted */
+    /* NOTE: Unicast packets are not counted but are instead calculated as needed
+       using total - (broadcast + multicast) */
+    unsigned long   rx_unknown_packets;  /* unknown protocol packets recieved */
+#endif
+    
 	/* detailed rx_errors: */
+	unsigned long	collisions;
 	unsigned long	rx_length_errors;
 	unsigned long	rx_over_errors;		/* receiver ring buff overflow	*/
 	unsigned long	rx_crc_errors;		/* recved pkt with crc error	*/
@@ -161,6 +173,7 @@ struct net_device_stats
 	/* for cslip etc */
 	unsigned long	rx_compressed;
 	unsigned long	tx_compressed;
+    
 };
 
 
@@ -609,7 +622,7 @@ struct net_device_ops {
 };
 
 #if defined(CONFIG_MIPS_BRCM)
-#define NETDEV_PATH_HW_SUBPORTS_MAX  32
+#define NETDEV_PATH_HW_SUBPORTS_MAX  CONFIG_BCM_MAX_GEM_PORTS
 struct netdev_path
 {
         /* this pointer is used to create lists of interfaces that belong
@@ -626,12 +639,9 @@ struct netdev_path
            BlogPhy_t  */
         unsigned int hw_port_type;
         /* some device drivers support virtual subports within a hardware
-           port. hw_subport is used to map a hw subport to a hw port. */
-        unsigned int hw_subport;
-        /* some device drivers support virtual subports within a hardware
 		   port. hw_subport_mcast is used to map a multicast hw subport
 		   to a hw port. */
-        unsigned int hw_subport_mcast;
+        unsigned int hw_subport_mcast_idx;
 };
 #endif
 
@@ -1991,9 +2001,7 @@ extern struct pernet_operations __net_initdata loopback_net_ops;
 
 #define netdev_path_get_hw_port_type(_dev) ( (_dev)->path.hw_port_type )
 
-#define netdev_path_get_hw_subport(_dev) ( (_dev)->path.hw_subport )
-
-#define netdev_path_get_hw_subport_mcast(_dev) ( (_dev)->path.hw_subport_mcast )
+#define netdev_path_get_hw_subport_mcast_idx(_dev) ( (_dev)->path.hw_subport_mcast_idx )
 
 int netdev_path_add(struct net_device *new_dev, struct net_device *next_dev);
 
@@ -2001,14 +2009,8 @@ int netdev_path_remove(struct net_device *dev);
 
 void netdev_path_dump(struct net_device *dev);
 
-int netdev_path_set_hw_subport_mcast(struct net_device *dev,
-									 unsigned int subport);
-
-int netdev_path_add_hw_subport(struct net_device *dev,
-                               unsigned int subport);
-
-int netdev_path_rem_hw_subport(struct net_device *dev,
-                               unsigned int subport);
+int netdev_path_set_hw_subport_mcast_idx(struct net_device *dev,
+									 unsigned int subport_idx);
 
 #endif /* CONFIG_MIPS_BRCM */
 

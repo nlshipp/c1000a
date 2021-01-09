@@ -1,7 +1,7 @@
 #! /bin/sh -x
 #
 # sample script on using the ingress capabilities
-# This script fwmark tags(IPchains) based on metering on the ingress 
+# This script fwmark tags(IPchains) based on metering on the ingress
 # interface the result is used for fast classification and re-marking
 # on the egress interface
 # This is an example of a color blind mode marker with no PIR configured
@@ -34,24 +34,24 @@ meter5="police rate $CIR1 burst $CBS2 "
 #
 # tag the rest of incoming packets from subnet 10.2.0.0/24 to fw value 1
 # tag all incoming packets from any other subnet to fw tag 2
-############################################################ 
+############################################################
 $IPCHAINS -A input -i $INDEV -s 0/0 -m 2
 $IPCHAINS -A input -i $INDEV -s 10.2.0.0/24 -m 1
 #
-############################################################ 
+############################################################
 # install the ingress qdisc on the ingress interface
 $TC qdisc add dev $INDEV handle ffff: ingress
 #
-############################################################ 
+############################################################
 
 # All packets are marked with a tcindex value which is used on the egress
 # tcindex 1 maps to AF41, 2->AF42, 3->AF43, 4->BE
 #
-############################################################ 
-# 
+############################################################
+#
 # anything with fw tag of 1 is passed on with a tcindex value 1
 #if it doesnt exceed its allocated rate (CIR/CBS)
-# 
+#
 $TC filter add dev $INDEV parent ffff: protocol ip prio 1 handle 1 fw \
 $meter1 \
 continue flowid 4:1
@@ -59,7 +59,7 @@ $TC filter add dev $INDEV parent ffff: protocol ip prio 2 handle 1 fw \
 $meter1a \
 continue flowid 4:1
 #
-# if it exceeds the above but not the extra rate/burst below, it gets a 
+# if it exceeds the above but not the extra rate/burst below, it gets a
 #tcindex value  of 2
 #
 $TC filter add dev $INDEV parent ffff: protocol ip prio 3 handle 1 fw \
@@ -79,7 +79,7 @@ $TC filter add dev $INDEV parent ffff: protocol ip prio 6 handle 1 fw \
 $meter3a \
 drop flowid 4:3
 #
-# Anything else (not from the subnet 10.2.0.24/24) gets discarded if it 
+# Anything else (not from the subnet 10.2.0.24/24) gets discarded if it
 # exceeds 1Mbps and by default goes to BE if it doesnt
 #
 $TC filter add dev $INDEV parent ffff: protocol ip prio 7 handle 2 fw \

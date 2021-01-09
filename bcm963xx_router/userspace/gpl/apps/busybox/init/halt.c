@@ -1,48 +1,125 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Mini halt implementation for busybox
+ * Poweroff reboot and halt, oh my.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright 2006 by Rob Landley <rob@landley.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
-#include <signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <getopt.h>
+#include "libbb.h"
 #include <sys/reboot.h>
-#include "busybox.h"
-#include "init_shared.h"
 
+#if ENABLE_FEATURE_WTMP
+#include <sys/utsname.h>
+#include <utmp.h>
 
-extern int halt_main(int argc, char **argv)
+static void write_wtmp(void)
 {
-	char *delay; /* delay in seconds before rebooting */
+	struct utmp utmp;
+	struct utsname uts;
+	/* "man utmp" says wtmp file should *not* be created automagically */
+	/*if (access(bb_path_wtmp_file, R_OK|W_OK) == -1) {
+		close(creat(bb_path_wtmp_file, 0664));
+	}*/
+	memset(&utmp, 0, sizeof(utmp));
+	utmp.ut_tv.tv_sec = time(NULL);
+	strcpy(utmp.ut_user, "shutdown"); /* it is wide enough */
+	utmp.ut_type = RUN_LVL;
+	utmp.ut_id[0] = '~'; utmp.ut_id[1] = '~'; /* = strcpy(utmp.ut_id, "~~"); */
+	utmp.ut_line[0] = '~'; utmp.ut_line[1] = '~'; /* = strcpy(utmp.ut_line, "~~"); */
+	uname(&uts);
+	safe_strncpy(utmp.ut_host, uts.release, sizeof(utmp.ut_host));
+	updwtmp(bb_path_wtmp_file, &utmp);
+}
+#else
+#define write_wtmp() ((void)0)
+#endif
 
-	if(bb_getopt_ulflags(argc, argv, "d:", &delay)) {
-		sleep(atoi(delay));
+#ifndef RB_HALT_SYSTEM
+#define RB_HALT_SYSTEM RB_HALT
+#endif
+
+#ifndef RB_POWERDOWN
+/* Stop system and switch power off if possible.  */
+# define RB_POWERDOWN   0x4321fedc
+#endif
+#ifndef RB_POWER_OFF
+# define RB_POWER_OFF RB_POWERDOWN
+#endif
+
+
+int halt_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int halt_main(int argc UNUSED_PARAM, char **argv)
+{
+	static const int magic[] = {
+		RB_HALT_SYSTEM,
+		RB_POWER_OFF,
+		RB_AUTOBOOT
+	};
+	static const smallint signals[] = { SIGUSR1, SIGUSR2, SIGTERM };
+
+	int delay = 0;
+	int which, flags, rc;
+
+	/* Figure out which applet we're running */
+	for (which = 0; "hpr"[which] != applet_name[0]; which++)
+		continue;
+
+	/* Parse and handle arguments */
+	opt_complementary = "d+"; /* -d N */
+	/* We support -w even if !ENABLE_FEATURE_WTMP,
+	 * in order to not break scripts.
+	 * -i (shut down network interfaces) is ignored.
+	 */
+	flags = getopt32(argv, "d:nfwi", &delay);
+
+	sleep(delay);
+
+	write_wtmp();
+
+	if (flags & 8) /* -w */
+		return EXIT_SUCCESS;
+
+	if (!(flags & 2)) /* no -n */
+		sync();
+
+	/* Perform action. */
+	rc = 1;
+	if (!(flags & 4)) { /* no -f */
+//TODO: I tend to think that signalling linuxrc is wrong
+// pity original author didn't comment on it...
+		if (ENABLE_FEATURE_INITRD) {
+			/* talk to linuxrc */
+			/* bbox init/linuxrc assumed */
+			pid_t *pidlist = find_pid_by_name("linuxrc");
+			if (pidlist[0] > 0)
+				rc = kill(pidlist[0], signals[which]);
+			if (ENABLE_FEATURE_CLEAN_UP)
+				free(pidlist);
+		}
+		if (rc) {
+			/* talk to init */
+			if (!ENABLE_FEATURE_CALL_TELINIT) {
+				/* bbox init assumed */
+				rc = kill(1, signals[which]);
+			} else {
+				/* SysV style init assumed */
+				/* runlevels:
+				 * 0 == shutdown
+				 * 6 == reboot */
+				rc = execlp(CONFIG_TELINIT_PATH,
+						CONFIG_TELINIT_PATH,
+						which == 2 ? "6" : "0",
+						(char *)NULL
+				);
+			}
+		}
+	} else {
+		rc = reboot(magic[which]);
 	}
 
-#ifndef CONFIG_INIT
-#ifndef RB_HALT_SYSTEM
-#define RB_HALT_SYSTEM		0xcdef0123
-#endif
-	return(bb_shutdown_system(RB_HALT_SYSTEM));
-#else
-	return kill_init(SIGUSR1);
-#endif
+	if (rc)
+		bb_perror_nomsg_and_die();
+	return rc;
 }

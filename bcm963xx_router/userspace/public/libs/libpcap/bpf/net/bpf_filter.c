@@ -216,7 +216,11 @@ bpf_filter(pc, p, wirelen, buflen)
 {
 	register u_int32 A, X;
 	register int k;
+#ifdef AEI_COVERITY_FIX
+	int32 mem[BPF_MEMWORDS] = {0};
+#else
 	int32 mem[BPF_MEMWORDS];
+#endif
 #if defined(KERNEL) || defined(_KERNEL)
 	struct mbuf *m, *n;
 	int merr, len;

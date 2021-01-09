@@ -11,73 +11,81 @@
  *    http://www.gnu.org/copyleft/gpl.html
  *
  * Copyright (c) 2002 AYR Networks, Inc.
+ *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ *
  *----------------------------------------------------------------------
  */
+/* BB_AUDIT SUSv3 _NOT_ compliant -- missing options -b, -d, -l, -m, -p, -q, -r, -s, -t, -T, -u; Missing argument 'file'.  */
 
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdlib.h>
+#include "libbb.h"
 #include <utmp.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <string.h>
-#include <time.h>
-#include "busybox.h"
 
-extern int who_main(int argc, char **argv)
+static void idle_string(char *str6, time_t t)
 {
-    struct utmp *ut;
-    struct stat st;
-    int         devlen, len;
-    time_t      now, idle;
+	t = time(NULL) - t;
 
-    if (argc > 1)
-        bb_show_usage();
+	/*if (t < 60) {
+		str6[0] = '.';
+		str6[1] = '\0';
+		return;
+	}*/
+	if (t >= 0 && t < (24 * 60 * 60)) {
+		sprintf(str6, "%02d:%02d",
+				(int) (t / (60 * 60)),
+				(int) ((t % (60 * 60)) / 60));
+		return;
+	}
+	strcpy(str6, "old");
+}
 
-    setutent();
-    devlen = sizeof("/dev/") - 1;
-    printf("USER       TTY      IDLE      FROM           HOST\n");
+int who_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int who_main(int argc UNUSED_PARAM, char **argv)
+{
+	struct utmp *ut;
+	unsigned opt;
 
-    while ((ut = getutent()) != NULL) {
-        char name[40];
+	opt_complementary = "=0";
+	opt = getopt32(argv, "aH");
+	if (opt & 2) // -H
+		printf("USER\t\tTTY\t\tIDLE\tTIME\t\t HOST\n");
 
-        if (ut->ut_user[0] && ut->ut_type == USER_PROCESS) {
-            len = strlen(ut->ut_line);
-            if (ut->ut_line[0] == '/') {
-               strncpy(name, ut->ut_line, len);
-               name[len] = '\0';
-               strcpy(ut->ut_line, ut->ut_line + devlen);
-            } else {
-               strcpy(name, "/dev/");
-               strncpy(name+devlen, ut->ut_line, len);
-               name[devlen+len] = '\0';
-            }
+	setutent();
+	while ((ut = getutent()) != NULL) {
+		if (ut->ut_user[0]
+		 && ((opt & 1) || ut->ut_type == USER_PROCESS)
+		) {
+			char str6[6];
+			char name[sizeof("/dev/") + sizeof(ut->ut_line) + 1];
+			struct stat st;
+			time_t seconds;
 
-            printf("%-10s %-8s ", ut->ut_user, ut->ut_line);
-
-            if (stat(name, &st) == 0) {
-                now = time(NULL);
-                idle = now -  st.st_atime;
-
-                if (idle < 60)
-                    printf("00:00m    ");
-                else if (idle < (60 * 60))
-                    printf("00:%02dm    ", (int)(idle / 60));
-                else if (idle < (24 * 60 * 60))
-                    printf("%02d:%02dm    ", (int)(idle / (60 * 60)),
-                           (int)(idle % (60 * 60)) / 60);
-                else if (idle < (24 * 60 * 60 * 365))
-                    printf("%03ddays   ", (int)(idle / (24 * 60 * 60)));
-                else
-                    printf("%02dyears   ", (int) (idle / (24 * 60 * 60 * 365)));
-            } else
-                printf("%-8s  ", "?");
-
-            printf("%-12.12s   %s\n", ctime(&(ut->ut_tv.tv_sec)) + 4, ut->ut_host);
-        }
-    }
-    endutent();
-
-    return 0;
+			str6[0] = '?';
+			str6[1] = '\0';
+			strcpy(name, "/dev/");
+			safe_strncpy(ut->ut_line[0] == '/' ? name : name + sizeof("/dev/")-1,
+				ut->ut_line,
+				sizeof(ut->ut_line)+1
+			);
+			if (stat(name, &st) == 0)
+				idle_string(str6, st.st_atime);
+			/* manpages say ut_tv.tv_sec *is* time_t,
+			 * but some systems have it wrong */
+			seconds = ut->ut_tv.tv_sec;
+			/* How wide time field can be?
+			 * "Nov 10 19:33:20": 15 chars
+			 * "2010-11-10 19:33": 16 chars
+			 */
+			printf("%-15.*s %-15.*s %-7s %-16.16s %.*s\n",
+					(int)sizeof(ut->ut_user), ut->ut_user,
+					(int)sizeof(ut->ut_line), ut->ut_line,
+					str6,
+					ctime(&seconds) + 4,
+					(int)sizeof(ut->ut_host), ut->ut_host
+			);
+		}
+	}
+	if (ENABLE_FEATURE_CLEAN_UP)
+		endutent();
+	return EXIT_SUCCESS;
 }

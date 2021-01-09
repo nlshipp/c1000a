@@ -413,57 +413,18 @@ void netdev_path_dump(struct net_device *dev)
 
     printk("\n");
 }
-int netdev_path_set_hw_subport_mcast(struct net_device *dev,
-                                     unsigned int subport)
+
+int netdev_path_set_hw_subport_mcast_idx(struct net_device *dev,
+                                         unsigned int subport_idx)
 {
-    if(subport >= NETDEV_PATH_HW_SUBPORTS_MAX)
+    if(subport_idx >= NETDEV_PATH_HW_SUBPORTS_MAX)
     {
         printk(KERN_ERR "%s : Invalid subport <%u>, max <%u>",
-               __FUNCTION__, subport, NETDEV_PATH_HW_SUBPORTS_MAX);
+               __FUNCTION__, subport_idx, NETDEV_PATH_HW_SUBPORTS_MAX);
         return -1;
     }
 
-    if (dev->path.hw_subport & (1 << subport))
-    {
-        dev->path.hw_subport_mcast |= (1 << subport);
-    }
-    else
-    {
-        printk(KERN_ERR "%s : subport <%u> not enabled yet",
-               __FUNCTION__, subport);
-        return -1;
-    }
-
-    return 0;
-}
-
-int netdev_path_add_hw_subport(struct net_device *dev,
-                               unsigned int subport)
-{
-    if(subport >= NETDEV_PATH_HW_SUBPORTS_MAX)
-    {
-        printk(KERN_ERR "%s : Invalid subport <%u>, max <%u>",
-               __FUNCTION__, subport, NETDEV_PATH_HW_SUBPORTS_MAX);
-        return -1;
-    }
-
-    dev->path.hw_subport |= (1 << subport);
-
-    return 0;
-}
-
-int netdev_path_rem_hw_subport(struct net_device *dev,
-                               unsigned int subport)
-{
-    if(subport >= NETDEV_PATH_HW_SUBPORTS_MAX)
-    {
-        printk(KERN_ERR "%s : Invalid subport <%u>, max <%u>",
-               __FUNCTION__, subport, NETDEV_PATH_HW_SUBPORTS_MAX);
-        return -1;
-    }
-
-    dev->path.hw_subport &= ~(1 << subport);
-    dev->path.hw_subport_mcast &= ~(1 << subport);
+    dev->path.hw_subport_mcast_idx = subport_idx;
 
     return 0;
 }
@@ -471,9 +432,7 @@ int netdev_path_rem_hw_subport(struct net_device *dev,
 EXPORT_SYMBOL(netdev_path_add);
 EXPORT_SYMBOL(netdev_path_remove);
 EXPORT_SYMBOL(netdev_path_dump);
-EXPORT_SYMBOL(netdev_path_add_hw_subport);
-EXPORT_SYMBOL(netdev_path_rem_hw_subport);
-EXPORT_SYMBOL(netdev_path_set_hw_subport_mcast);
+EXPORT_SYMBOL(netdev_path_set_hw_subport_mcast_idx);
 #endif /* CONFIG_MIPS_BRCM */
 
 
@@ -1997,7 +1956,13 @@ int dev_queue_xmit(struct sk_buff *skb)
 	/* If packet is not checksummed and device does not support
 	 * checksumming for this protocol, complete checksumming here.
 	 */
+#if defined(AEI_VDSL_TOOLBOX)
+	if ((skb->ip_summed == CHECKSUM_PARTIAL) &&
+            (skb->protocol != ETH_P_MIRROR) &&
+            (skb->protocol != ETH_P_MIRROR_WLAN)) {
+#else
 	if (skb->ip_summed == CHECKSUM_PARTIAL) {
+#endif
 		skb_set_transport_header(skb, skb->csum_start -
 					      skb_headroom(skb));
 		if (!dev_can_checksum(dev, skb) && skb_checksum_help(skb))
@@ -2018,7 +1983,7 @@ gso:
 #endif
 
 #if defined(AEI_VDSL_TOOLBOX)
-        if (q->enqueue && 
+        if (q->enqueue &&
             (skb->protocol != ETH_P_MIRROR) &&
             (skb->protocol != ETH_P_MIRROR_WLAN)) {
 #else
@@ -2417,10 +2382,14 @@ void netif_nit_deliver(struct sk_buff *skb)
 	rcu_read_unlock();
 }
 
-#if defined (CONFIG_MIPS_BRCM) && (defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE))
+#if defined (CONFIG_MIPS_BRCM)
+#if defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE)
 int (*bcm_vlan_handle_frame_hook)(struct sk_buff **) = NULL;
 #endif
-
+#if defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)
+void (*bcm_mcast_def_pri_queue_hook)(struct sk_buff *) = NULL;
+#endif
+#endif
 
 /**
  *	netif_receive_skb - process receive buffer from network
@@ -2490,9 +2459,32 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	rcu_read_lock();
 
+#if defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)
+   if ( bcm_mcast_def_pri_queue_hook ) {
+      bcm_mcast_def_pri_queue_hook(skb);
+   }
+#endif   
+
 #if defined(CONFIG_MIPS_BRCM) && (defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE))
+#if defined(CONFIG_BCM_TMS_MODULE)
+	if (skb->protocol == htons(ETH_P_8021AG)) {
+         goto skip_vlanctl;
+   }
+	else if (skb->protocol == htons(ETH_P_8021Q)) {
+		struct vlan_hdr *vh = (struct vlan_hdr *)skb->data;
+	   if (vh->h_vlan_encapsulated_proto == htons(ETH_P_8021AG)) {
+         goto skip_vlanctl;
+      }
+	}
+#endif
+
         if(bcm_vlan_handle_frame_hook && (ret = bcm_vlan_handle_frame_hook(&skb)) != 0)
             goto out;
+
+#if defined(CONFIG_BCM_TMS_MODULE)
+skip_vlanctl:      
+#endif
+
 #endif
 
 #ifdef CONFIG_NET_CLS_ACT
@@ -2518,6 +2510,7 @@ int netif_receive_skb(struct sk_buff *skb)
 ncls:
 #endif
 
+#if !defined(CONFIG_BCM_TMS_MODULE)
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_P8021AG) || defined(CONFIG_BCM_P8021AG_MODULE)
 	if (((skb->protocol == __constant_htons(ETH_P_8021AG)) || 
 		 (skb->protocol == __constant_htons(ETH_P_8021Q) && *(unsigned short *) &skb->data[2] == ETH_P_8021AG))
@@ -2525,7 +2518,7 @@ ncls:
         goto out;
 		
 #endif
-
+#endif
 
 	skb = handle_bridge(skb, &pt_prev, &ret, orig_dev);
 	if (!skb)
@@ -3224,6 +3217,52 @@ static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 {
 	const struct net_device_stats *stats = dev_get_stats(dev);
 
+
+#ifdef CONFIG_MIPS_BRCM
+
+    unsigned long rx_unicast_packets=0, tx_unicast_packets=0;  /* Calculated unicast packets */
+    
+    /* Calculate unicast packet counts as total packets less broadcast and multicast.
+       Normalize to zero in case an error sum of multicast and broadcast packets is reported */
+    if((stats->multicast + stats->rx_broadcast_packets) < stats->rx_packets)
+        rx_unicast_packets = stats->rx_packets - (stats->multicast + stats->rx_broadcast_packets);
+    else
+        rx_unicast_packets = 0;
+        
+    if((stats->tx_multicast_packets + stats->tx_broadcast_packets) < stats->tx_packets)
+        tx_unicast_packets = stats->tx_packets - (stats->tx_multicast_packets + stats->tx_broadcast_packets);
+    else
+        tx_unicast_packets = 0;
+        
+    /* Print basic statistics, which are identical to baseline with only a few spacing differences */
+	seq_printf(seq, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %5lu %5lu "
+		   "%8lu %7lu %4lu %4lu %4lu %4lu %4lu %5lu ",
+		   dev->name, stats->rx_bytes, stats->rx_packets,
+		   stats->rx_errors,
+		   stats->rx_dropped + stats->rx_missed_errors,
+		   stats->rx_fifo_errors,
+		   stats->rx_length_errors + stats->rx_over_errors +
+		    stats->rx_crc_errors + stats->rx_frame_errors,
+		   stats->rx_compressed, stats->multicast,
+		   stats->tx_bytes, stats->tx_packets,
+		   stats->tx_errors, stats->tx_dropped,
+		   stats->tx_fifo_errors, stats->collisions,
+		   stats->tx_carrier_errors +
+		    stats->tx_aborted_errors +
+		    stats->tx_window_errors +
+		    stats->tx_heartbeat_errors,
+		   stats->tx_compressed);    
+
+    /* Print extended statistics */ 
+	seq_printf(seq, "%6lu %6lu %6lu "  /* Multicast */
+                    "%5lu %5lu %5lu %5lu "  /* Unicast and broadcast*/
+                    "%5lu\n",  /* Unknown RX errors */                    
+           stats->tx_multicast_packets, stats->rx_multicast_bytes, stats->tx_multicast_bytes, 
+           rx_unicast_packets, tx_unicast_packets, stats->rx_broadcast_packets, stats->tx_broadcast_packets, 
+           stats->rx_unknown_packets);   
+#else
+
+    /* Print basic statistics */
 	seq_printf(seq, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu "
 		   "%8lu %7lu %4lu %4lu %4lu %5lu %7lu %10lu\n",
 		   dev->name, stats->rx_bytes, stats->rx_packets,
@@ -3241,6 +3280,11 @@ static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 		    stats->tx_window_errors +
 		    stats->tx_heartbeat_errors,
 		   stats->tx_compressed);
+
+
+#endif
+           
+           
 }
 
 /*
@@ -3250,11 +3294,19 @@ static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 static int dev_seq_show(struct seq_file *seq, void *v)
 {
 	if (v == SEQ_START_TOKEN)
+#ifdef CONFIG_MIPS_BRCM
+ 		seq_puts(seq, "   Basic Statistics                                                                                     |   Extended Statistics\n"
+                      "Inter-|   Receive                                       |  Transmit                                     |multicast           |unicast    |broadcast  |unkn\n"
+			          " face |  bytes    pckts errs drop fifo frame  comp multi|  bytes    pckts errs drop fifo coll carr  comp|txpckt rxbyte txbyte|   rx    tx|   rx    tx|rxerr\n");
+                    // 123456:12345678 1234567 1234 1234 1234 12345 12345 12345 12345678 1234567 1234 1234 1234 1234 1234 12345 123456 123456 123456 12345 12345 12345 12345 12345
+                  
+#else
 		seq_puts(seq, "Inter-|   Receive                            "
 			      "                    |  Transmit\n"
 			      " face |bytes    packets errs drop fifo frame "
 			      "compressed multicast|bytes    packets errs "
 			      "drop fifo colls carrier compressed\n");
+#endif
 	else
 		dev_seq_printf_stats(seq, v);
 	return 0;
@@ -4149,11 +4201,34 @@ static int dev_ifsioc_locked(struct net *net, struct ifreq *ifr, unsigned int cm
 			return 0;
 
 #if defined(CONFIG_MIPS_BRCM)
-		case SIOCGPRIVIFFLAGS:	/* Get private interface flags */
-            if(netdev_path_is_leaf(dev))
-                ifr->ifr_flags = dev->priv_flags;
-            else
-                ifr->ifr_flags = 0;
+		case SIOCDEVISWANDEV:
+			if(netdev_path_is_leaf(dev))
+			{
+				if ((dev->priv_flags & IFF_WANDEV) || 
+				    (dev->priv_flags & IFF_EPON_IF))
+				{
+					ifr->ifr_flags = 1;
+				}
+				else
+				{
+					ifr->ifr_flags = 0;
+				}
+			}
+			else
+			{
+				ifr->ifr_flags = 0;
+			}
+			return 0;
+
+		case SIOCDEVISBRDEV:
+			if (dev->priv_flags & IFF_EBRIDGE)
+			{
+				ifr->ifr_flags = 1;
+			}
+			else
+			{
+				ifr->ifr_flags = 0;
+			}
 			return 0;
 #endif
 
@@ -4245,7 +4320,28 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
 		case SIOCGIFTRANSSTART:
 			ifr->ifr_ifru.ifru_ivalue = dev->trans_start;
 			return 0;
+#if defined(AEI_VDSL_IOCTL_IFSTATS)
+		case SIOCGIFSTATS:	/* Get the Stats of a device */
+		{
+			struct net_device_stats *pStats;
+			int *data = (int *)ifr->ifr_data;
 
+			if ((dev->netdev_ops != NULL)  &&
+			    (dev->netdev_ops->ndo_get_stats != NULL))
+			{
+				pStats = dev->netdev_ops->ndo_get_stats(dev);
+				if (pStats)
+				{
+					if (copy_to_user((void *)data, (void *)pStats, sizeof(struct net_device_stats)))
+						return -EFAULT;
+					else
+						return 0;
+				}
+			}
+
+			return -EFAULT;
+		}
+#endif
 		case SIOCCIFSTATS:	/* Clean up the Stats of a device */
 #ifdef CONFIG_BLOG
 			if ( dev->clr_stats )
@@ -4280,7 +4376,7 @@ static int dev_ifsioc(struct net *net, struct ifreq *ifr, unsigned int cmd)
 		default:
 			if ((cmd >= SIOCDEVPRIVATE &&
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-			    cmd <= SIOCDEVPRIVATE + 22) ||
+			    cmd <= SIOCDEVPRIVATE + 64) ||
 #else
 			    cmd <= SIOCDEVPRIVATE + 15) ||
 #endif
@@ -4378,7 +4474,8 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 		case SIOCGIFTXQLEN:
 #if defined(CONFIG_MIPS_BRCM)
 		case SIOCGIFTRANSSTART:
-        case SIOCGPRIVIFFLAGS:
+		case SIOCDEVISWANDEV:
+		case SIOCDEVISBRDEV:
 #endif
 			dev_load(net, ifr.ifr_name);
 			read_lock(&dev_base_lock);
@@ -4482,10 +4579,13 @@ int dev_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 			if (cmd == SIOCWANDEV ||
 #if defined(CONFIG_MIPS_BRCM)
                             cmd == SIOCCIFSTATS ||
+#if defined(AEI_VDSL_IOCTL_IFSTATS)
+                            cmd == SIOCGIFSTATS ||
+#endif
 #endif                
 			    (cmd >= SIOCDEVPRIVATE &&
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-			     cmd <= SIOCDEVPRIVATE + 22)) {
+			     cmd <= SIOCDEVPRIVATE + 64)) {
 #else
 			     cmd <= SIOCDEVPRIVATE + 15)) {
 #endif
@@ -5675,8 +5775,13 @@ EXPORT_SYMBOL(br_fdb_get_hook);
 EXPORT_SYMBOL(br_fdb_put_hook);
 #endif
 
-#if defined(CONFIG_MIPS_BRCM) && (defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE))
+#if defined(CONFIG_MIPS_BRCM)
+#if defined(CONFIG_BCM_VLAN) || defined(CONFIG_BCM_VLAN_MODULE)
 EXPORT_SYMBOL(bcm_vlan_handle_frame_hook);
+#endif
+#if defined(CONFIG_BR_IGMP_SNOOP) || defined(CONFIG_BR_MLD_SNOOP)
+EXPORT_SYMBOL(bcm_mcast_def_pri_queue_hook);
+#endif
 #endif
 
 #ifdef CONFIG_KMOD

@@ -373,21 +373,26 @@ int br_set_port_priority(const char *bridge, const char *port, int priority)
 }
 
 // brcm begin
-#define BRCTL_ENABLE_SNOOPING 21
-#define BRCTL_ENABLE_PROXY_MODE 22
-
-#define BRCTL_MLD_ENABLE_SNOOPING 23
-#define BRCTL_MLD_ENABLE_PROXY_MODE 24
-
-#define BRCTL_ADD_FDB_ENTRIES 25
-#define BRCTL_DEL_FDB_ENTRIES 26
-
 int br_enable_port_snooping(const char *br, int enable)
 {
 	int ret;
 	char _br[IFNAMSIZ];
 	unsigned long arg[3] 
 			= { BRCTL_ENABLE_SNOOPING, (unsigned long) _br, 0};
+
+	strncpy(_br, br, IFNAMSIZ);
+	arg[2] = enable;
+	ret = ioctl(br_socket_fd, SIOCSIFBR, arg);
+
+	return ret < 0 ? errno : 0;
+}
+
+int br_enable_uni_uni_ctrl(const char *br, int enable)
+{
+	int ret;
+	char _br[IFNAMSIZ];
+	unsigned long arg[3] 
+			= { BRCTL_SET_UNI_UNI_CTRL, (unsigned long) _br, 0};
 
 	strncpy(_br, br, IFNAMSIZ);
 	arg[2] = enable;
@@ -438,6 +443,20 @@ int br_mld_enable_proxy_mode(const char *br, int enable)
 
 	return ret < 0 ? errno : 0;
 
+}
+
+int br_igmp_enable_rate_limit(const char *br, int limit)
+{
+	int ret;
+	char _br[IFNAMSIZ];
+	unsigned long arg[3] = { BRCTL_ENABLE_IGMP_RATE_LIMIT, 
+                            (unsigned long) _br, 0};
+
+	strncpy(_br, br, IFNAMSIZ);
+	arg[2] = limit;
+	ret = ioctl(br_socket_fd, SIOCSIFBR, arg);
+
+	return ret < 0 ? errno : 0;
 }
 
 int br_add_fdb(const char *bridge, const char *ifName, const char *pMac)
@@ -500,6 +519,26 @@ int br_del_fdb(const char *bridge, const char *ifName, const char *pMac)
 		mac1++;
 		mac = mac1;
 	}
+
+	strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
+	ifr.ifr_data = (char *) args;
+
+	err = ioctl(br_socket_fd, SIOCDEVPRIVATE, &ifr);
+   
+	return err < 0 ? errno : 0;
+
+}
+
+int br_set_flows(const char *bridge, const char *rxifName, const char *txifName)
+{
+	int            err;
+	struct ifreq   ifr;
+	int            rxifIndex = if_nametoindex(rxifName);
+	int            txifIndex = if_nametoindex(txifName);
+	unsigned long  args[3] = { BRCTL_SET_FLOWS, rxifIndex, txifIndex };
+
+	if (rxifIndex == 0 || txifIndex == 0) 
+		return ENODEV;
 
 	strncpy(ifr.ifr_name, bridge, IFNAMSIZ);
 	ifr.ifr_data = (char *) args;

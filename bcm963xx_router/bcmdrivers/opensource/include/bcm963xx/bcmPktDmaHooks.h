@@ -7,19 +7,25 @@
    Copyright (c) 2009 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -34,8 +40,11 @@ Boston, MA 02111-1307, USA.
  *******************************************************************************
  */
 
+#include "fap4ke_timers.h"
+#include "fap4ke_packet.h"
 #include "fap4ke_msg.h"
 #include "fap_hw.h"
+#include "fap_tm.h"
 
 //#define CC_PKTDMA_HOOKS_DEBUG
 
@@ -129,6 +138,81 @@ Boston, MA 02111-1307, USA.
 #define bcmPktDma_dqmHandlerEnableHost(_mask)  __bcmPktDma_dqmHandlerEnableHost(_mask, TRUE)
 #define bcmPktDma_dqmHandlerDisableHost(_mask) __bcmPktDma_dqmHandlerEnableHost(_mask, FALSE)
 
+#if defined(CC_FAP4KE_TM)
+#define bcmPktDma_tmMasterConfig(_enable)                               \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmMasterConfig != NULL)                \
+            __ret = bcmPktDma_hostHooks_g.tmMasterConfig(_enable);      \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmPortConfig(_port, _mode, _kbps, _mbs, _shapingType) \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmPortConfig != NULL)                  \
+            __ret = bcmPktDma_hostHooks_g.tmPortConfig(_port, _mode, _kbps, _mbs, _shapingType); \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmSetPortMode(_port, _mode)                           \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmSetPortMode != NULL)                 \
+            __ret = bcmPktDma_hostHooks_g.tmSetPortMode(_port, _mode);  \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmGetPortMode(_port)                                  \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmGetPortMode != NULL)                 \
+            __ret = bcmPktDma_hostHooks_g.tmGetPortMode(_port);         \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmIsPortEnabled(_port)                                \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmIsPortEnabled != NULL)               \
+            __ret = bcmPktDma_hostHooks_g.tmIsPortEnabled(_port);       \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmPortType(_port, _portType)                          \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmPortType != NULL)                    \
+            __ret = bcmPktDma_hostHooks_g.tmPortType(_port, _portType); \
+        __ret;                                                          \
+    })
+
+#define bcmPktDma_tmApply(_port, _enable)                               \
+    ({                                                                  \
+        int __ret = 0;                                                  \
+        if(bcmPktDma_hostHooks_g.tmApply != NULL)                       \
+            __ret = bcmPktDma_hostHooks_g.tmApply(_port, _enable);      \
+        __ret;                                                          \
+    })
+#endif /* CC_FAP4KE_TM */
+
+#if defined(CONFIG_BCM_FAP_LAYER2)
+/*
+ * bcmPktDma_arlNotify
+ *    Context     : Called in *Interrupt* context, by the FAP interrupt
+ *                  handler. User may want to defer work to a Tasklet.
+ *    _op         : HOST_MSG_ARL_ADD or HOST_MSG_ARL_REMOVE only
+ *    _arlEntry_p : Pointer to fapMsg_Arl_t, containing the ARL entry
+ */
+#define bcmPktDma_arlNotify(_op, _arlEntry_p)                           \
+    do {                                                                \
+        if(bcmPktDma_arlNotifyHandlerFuncP_g != NULL)                   \
+            (bcmPktDma_arlNotifyHandlerFuncP_g(_op, _arlEntry_p));      \
+    } while(0)
+#else
+#define bcmPktDma_arlNotify(_op, _arlEntry_p)
+#endif /* CONFIG_BCM_FAP_LAYER2 */
+
 /* The following are MASKS which describe why the FAP was asked to go to sleep.
    The fap will not wake up unless all triggers are cleared */
 #define FAP_SLEEP_TRIGGER_UNPLUGGED_ETH     0x1
@@ -143,11 +227,28 @@ typedef struct {
     int  (* isDqmXmitAvailableHost)(uint32 fapIdx, uint32 queue);
     int  (* isDqmRecvAvailableHost)(uint32 fapIdx, uint32 queue);
     int  (* dqmEnableHost)(uint32 mask, bool enable);
+#if defined(CC_FAP4KE_TM)
+    void (*tmMasterConfig)(int enable);
+    int (*tmPortConfig)(uint8 port, fapTm_mode_t mode, int kbps, int mbs, fapTm_shapingType_t shapingType);
+    int (*tmSetPortMode)(uint8 port, fapTm_mode_t mode);
+    fapTm_mode_t (*tmGetPortMode)(uint8 port);
+    int (*tmIsPortEnabled)(uint8 port);
+    int (*tmPortType)(uint8 port, fapTm_portType_t portType);
+    int (*tmApply)(uint8 port, int enable);
+#endif
 } bcmPktDma_hostHooks_t;
 
 extern bcmPktDma_hostHooks_t bcmPktDma_hostHooks_g;
 
 int bcmPktDma_bind(bcmPktDma_hostHooks_t *hooks);
 void bcmPktDma_unbind(void);
+
+#if defined(CONFIG_BCM_FAP_LAYER2)
+typedef void (*bcmPktDma_arlNotifyHandlerFuncP)(hostMsgGroups_t op, fapMsg_arlEntry_t *arlEntry_p);
+extern bcmPktDma_arlNotifyHandlerFuncP bcmPktDma_arlNotifyHandlerFuncP_g;
+
+void bcmPktDma_registerArlNotifyHandler(bcmPktDma_arlNotifyHandlerFuncP arlNotifyHandlerFuncP);
+void bcmPktDma_unregisterArlNotifyHandler(void);
+#endif /* CONFIG_BCM_FAP_LAYER2 */
 
 #endif  /* defined(__PKTDMA_HOOKS_H_INCLUDED__) */

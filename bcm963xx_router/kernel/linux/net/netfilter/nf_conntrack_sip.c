@@ -274,14 +274,15 @@ int parse_addr(char **begin, char *end, struct nf_conntrack_man *addr)
 	if (in4_pton((const char *)*begin, end - *begin, (u8 *)&addr->u3.ip,
 		     -1, (const char **)&p))
 		addr->l3num = AF_INET;
-	else if (in6_pton((const char *)*begin, end - *begin,
+	else if (in6_pton(**begin == '[' ? (const char *)(*begin + 1) : (const char *)*begin, end - *begin,
 			  (u8 *)&addr->u3.ip6, -1, (const char **)&p))
 		addr->l3num = AF_INET6;
 	else
 		return 0;
 
 	addr->u.all = 0;
-	return p - *begin;
+
+	return (*p == ']') ? (p - *begin + 1) : (p - *begin);
 }
 
 int parse_sip_uri(char **begin, char *end, struct nf_conntrack_man *addr)

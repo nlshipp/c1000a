@@ -1,31 +1,11 @@
 /***********************************************************************
- *
- *  Copyright (c) 2006-2007  Broadcom Corporation
- *  All Rights Reserved
- *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
- *
- ************************************************************************/
+*
+*    Copyright (c) 2000-2012 Broadcom Corporation
+*    All Rights Reserved
+* <:label-BRCM:2012:DUAL/GPL:standard
+* :>
+*
+************************************************************************/
 
 #include "cms.h"
 #include <fcntl.h>  /* for open */
@@ -35,6 +15,7 @@
 #include "cms_boardcmds.h"
 #include "cms_boardioctl.h"
 #include "cms_util.h"
+#include "boardparms.h"
 
 #ifdef DESKTOP_LINUX
 int fake_ioctl(UINT32 boardIoctl, BOARD_IOCTL_PARMS *ioctlParms);
@@ -84,16 +65,35 @@ CmsRet devCtl_getBaseMacAddress(UINT8 *macAddrNum)
 }
 
 
-CmsRet devCtl_getMacAddress(UINT8 *macAddrNum)
+CmsRet devCtl_getMacAddress(UINT8 *macAddrNum, UINT32 ulId)
 {
    return(devCtl_boardIoctl(BOARD_IOCTL_GET_MAC_ADDRESS,
                             0,
                             (char *) macAddrNum,
                             MAC_ADDR_LEN,
-                            0,
+                            ulId,
                             ""));
 }
 
+CmsRet devCtl_getMacAddresses(UINT8 *macAddrNum, UINT32 ulId, UINT32 num_addresses)
+{
+   return(devCtl_boardIoctl(BOARD_IOCTL_ALLOC_MAC_ADDRESSES,
+                            0,
+                            (char *) macAddrNum,
+                            MAC_ADDR_LEN,
+                            ulId,
+                            &num_addresses));
+}
+
+CmsRet devCtl_releaseMacAddresses(UINT8 *macAddrNum, UINT32 num_addresses)
+{
+   return(devCtl_boardIoctl(BOARD_IOCTL_RELEASE_MAC_ADDRESS,
+                            0,
+                            (char *) macAddrNum,
+                            MAC_ADDR_LEN,
+                            0,
+                            &num_addresses));
+}
 
 CmsRet devCtl_releaseMacAddress(UINT8 *macAddrNum)
 {
@@ -118,7 +118,7 @@ UINT32 devCtl_getNumEnetMacs(void)
 }
 
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
-UINT32 AEI_devCtl_getPowerLedStatus(void)        // 1:green;2:amber and green alternative; 3:amber blink;   
+UINT32 AEI_devCtl_getPowerLedStatus(void)        // 1:green;2:amber and green alternative; 3:amber blink;
 {
    UINT32 num;
    CmsRet ret;
@@ -140,6 +140,48 @@ UINT32 devCtl_getNumEnetPorts(void)
                            0, 0, &num);
    return (ret == CMSRET_SUCCESS ? num : 0);
 }
+
+#if defined(EPON_SDK_BUILD)
+UINT32 devCtl_getNumFePorts(unsigned int *fe_ports)
+{
+   CmsRet ret;
+   
+   ret = devCtl_boardIoctl(BOARD_IOCTL_GET_NUM_FE_PORTS,
+                           0, NULL,
+                           0, 0, fe_ports);
+   return ret;
+}
+
+UINT32 devCtl_getNumGePorts(unsigned int *ge_ports)
+{
+   CmsRet ret;
+   
+   ret = devCtl_boardIoctl(BOARD_IOCTL_GET_NUM_GE_PORTS,
+                           0, NULL,
+                           0, 0, ge_ports);
+   return ret;
+}
+
+UINT32 devCtl_getNumVoipPorts(unsigned int *voip_ports)
+{
+   CmsRet ret;
+   
+   ret = devCtl_boardIoctl(BOARD_IOCTL_GET_NUM_VOIP_PORTS,
+                           0, NULL,
+                           0, 0, voip_ports);
+   return ret;
+}
+
+UINT32 devCtl_getPortMap(unsigned int *port_map)
+{
+   CmsRet ret;
+   
+   ret = devCtl_boardIoctl(BOARD_IOCTL_GET_SWITCH_PORT_MAP,
+                           0, NULL,
+                           0, 0, port_map);
+   return ret;
+}
+#endif
 
 UINT32 devCtl_getSdramSize(void)
 {
@@ -188,9 +230,9 @@ int devCtl_getBootedImageId(void)
 
 CmsRet devCtl_getDefaultOpticalParams(unsigned char * pOpticalData)
 {    
-    int Ret;
+    CmsRet Ret;
     
-    Ret = devCtl_boardIoctl(BOARD_IOCTL_GET_DEFAULT_OPTICAL_PARAMS, 0, pOpticalData, NVRAM_OPTICAL_PARAMS_SIZE, 0, "");
+    Ret = devCtl_boardIoctl(BOARD_IOCTL_GET_DEFAULT_OPTICAL_PARAMS, 0, (char *)pOpticalData, BP_OPTICAL_PARAMS_LEN, 0, "");
 
     return (Ret);
 }
@@ -205,61 +247,6 @@ CmsRet devCtl_getGponOpticsType(void)
     return (Ret == CMSRET_SUCCESS ? OpticsType : -1);
 }
 
-CmsRet devCtl_getOpticalParams(unsigned char * pOpticalData)
-{
-    char NvramData[NVRAM_LENGTH]={0};
-    CmsRet Ret;
-    NVRAM_DATA *pNvramData;
-    
-
-    if (CMSRET_SUCCESS == (Ret = devCtl_boardIoctl(BOARD_IOCTL_FLASH_READ, NVRAM, NvramData, NVRAM_LENGTH, 0, "")))
-    {       
-        pNvramData = (NVRAM_DATA *) NvramData;
-
-        memcpy (pOpticalData, pNvramData->OpticalParams, NVRAM_OPTICAL_PARAMS_SIZE);
-    }
-    else
-    {
-        cmsLog_error("Unable to read optical params in NVRAM\n");
-    }
-    
-    return Ret;
-}
-
-CmsRet devCtl_setOpticalParams(unsigned char * pOpticalData)
-{
-    
-    unsigned char NvramData[NVRAM_LENGTH] = {0};    
-    NVRAM_DATA *pNvramData;
-    CmsRet Ret;
-
-
-    if (CMSRET_SUCCESS == (Ret = devCtl_boardIoctl(BOARD_IOCTL_FLASH_READ, NVRAM, NvramData, NVRAM_LENGTH, 0, "")))
-    {
-        //set local copy of NVRAM
-        pNvramData = (NVRAM_DATA *)NvramData;
-
-        //update local copy of NVRAM
-        memcpy (pNvramData->OpticalParams, pOpticalData, NVRAM_OPTICAL_PARAMS_SIZE);
-
-        //recalc CRC for NVRAM
-        pNvramData->ulCheckSum=0;
-        pNvramData->ulCheckSum = cmsCrc_getCrc32(NvramData, NVRAM_LENGTH, CRC_INITIAL_VALUE);
-
-        //update NVRAM in FLASH
-        if (CMSRET_SUCCESS != (Ret = devCtl_boardIoctl(BOARD_IOCTL_FLASH_WRITE, NVRAM, NvramData, NVRAM_LENGTH, 0, "")))
-        {
-            cmsLog_error("Unable to write optical params to NVRAM\n");
-        }
-    }
-    else
-    {
-        cmsLog_error("Unable to read optical params in NVRAM\n");
-    }
-
-    return Ret;
-
-}
 
 CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                          BOARD_IOCTL_ACTION action,
@@ -342,6 +329,10 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                   (boardIoctl == BOARD_IOCTL_GET_SYSLOG_SIZE) ||
                   (boardIoctl == BOARD_IOCTL_GET_CHIP_ID) ||
                   (boardIoctl == BOARD_IOCTL_GET_NUM_ENET_MACS) ||
+                  (boardIoctl == BOARD_IOCTL_GET_NUM_FE_PORTS) ||
+                  (boardIoctl == BOARD_IOCTL_GET_NUM_GE_PORTS) ||
+                  (boardIoctl == BOARD_IOCTL_GET_NUM_VOIP_PORTS) ||
+                  (boardIoctl == BOARD_IOCTL_GET_SWITCH_PORT_MAP) ||
                   (boardIoctl == BOARD_IOCTL_GET_NUM_ENET_PORTS) ||
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 				  (boardIoctl == BOARD_IOCTL_GET_POWERLED_STATUS) ||
@@ -356,7 +347,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                     *((UINT32 *)data) = (UINT32) ioctlParms.result;
                  }
               }
-#ifdef AEI_SIGNED_FIRMWARE
+#ifdef AEI_VDSL_CUSTOMER_NCS
               else if(boardIoctl == BOARD_IOCTL_GET_FS_OFFSET)
               {
                  if (data != NULL)
@@ -365,7 +356,7 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
                  }
 
               }
-#endif       
+#endif
 
            }
         }
@@ -380,9 +371,21 @@ CmsRet devCtl_boardIoctl(UINT32 boardIoctl,
 }
 #ifdef AEI_TWO_IN_ONE_FIRMWARE
 #ifdef AEI_VDSL_CUSTOMER_TELUS
+#ifdef AEI_VDSL_CUSTOMER_TDS
+product_info pinfo[1] ={{"V1000H","TDS V1000H","V1000H",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
+#else
+#if defined(AEI_63168_CHIP) && defined(AEI_CONFIG_JFFS)
+product_info pinfo[2] ={{"V2200H","TELUS V2200H","V2200H",CMS_RELEASE_VERSION,"/etc/default.cfg","/webs/perm.txt",0 },{"V1200H","V1200H","V1200H",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
+#else
 product_info pinfo[2] ={{"V2000H","TELUS V2000H","V2000H",CMS_RELEASE_VERSION,"/etc/default.cfg","/webs/perm.txt",0 },{"V1000H","V1000H","V1000H",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
+#endif
+#endif
 #elif defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
-product_info pinfo[2] ={{"C1000A","C1000A","C1000A",CMS_RELEASE_VERSION,"/etc/default.cfg","/webs/perm.txt",2 },{"C2000A","CENTURYLINK C2000A","C2000A",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",0}};
+#ifdef AEI_FRONTIER_V2200H
+product_info pinfo[1] ={{"FV2200","FV2200","FV2200",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",2}};
+#else
+product_info pinfo[2] ={{"C1000A","C1000A","C1000A",CMS_RELEASE_VERSION,"/etc/default.cfg","/webs/perm.txt",2 },{"C2000A","C2000A","C2000A",CMS_RELEASE_VERSION2,"/etc/default2.cfg","/webs/perm2.txt",0}};
+#endif
 #endif
 
 product_info * AEI_find_pinfo_by_boardid(char *boardid)
@@ -396,9 +399,10 @@ product_info * AEI_find_pinfo_by_boardid(char *boardid)
 		return &pinfo[i];
 	return &pinfo[0];
 }
+#endif
 
 
-
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 int AEI_devCtl_getBoardID(char *boardid)
 {
     char board_id[NVRAM_BOARD_ID_STRING_LEN]={0};
@@ -407,7 +411,7 @@ int AEI_devCtl_getBoardID(char *boardid)
         return -1;
 
     if((fp=fopen("/var/boardid", "r")) != NULL)
-    {   
+    {
         fgets(board_id,sizeof(board_id),fp);
         fclose(fp);
     }
@@ -415,17 +419,18 @@ int AEI_devCtl_getBoardID(char *boardid)
     {
         devCtl_boardIoctl(BOARD_IOCTL_GET_ID, 0, board_id, sizeof(board_id), 0, NULL);
         if((fp=fopen("/var/boardid", "w")) != NULL)
-        {    
+        {
             fprintf(fp,"%s",board_id);
             fclose(fp);
         }
     }
-    strncpy(boardid,board_id,sizeof(board_id));
+    cmsUtl_strncpy(boardid,board_id,sizeof(board_id));
 
     return 0;
 
 }
 #endif
+
 #ifdef DESKTOP_LINUX
 
 /** Do first level processing of ioctl.
@@ -573,6 +578,12 @@ int fake_ioctl(UINT32 command, BOARD_IOCTL_PARMS *ctrlParms)
 #endif
 #if defined(CHIP_63268)
       ctrlParms->result = 0x63268;
+#endif
+#if defined(CHIP_6318)
+      ctrlParms->result = 0x6318;
+#endif
+#if defined(CHIP_6828)
+      ctrlParms->result = 0x6828;
 #endif
 
       ret = 0;

@@ -32,6 +32,7 @@ obj-$(CONFIG_BRIDGE_EBT_REDIRECT) += ebt_redirect.o
 obj-$(CONFIG_BRIDGE_EBT_SNAT) += ebt_snat.o
 # CONFIG_MIPS_BRCM Begin Broadcom changed code.
 obj-$(CONFIG_BRIDGE_EBT_FTOS_T) += ebt_ftos.o
+obj-$(CONFIG_BRIDGE_EBT_SKIPLOG_T) += ebt_skiplog.o
 obj-$(CONFIG_BRIDGE_EBT_WMM_MARK) += ebt_wmm_mark.o 
 # CONFIG_MIPS_BRCM End Broadcom changed code.
 

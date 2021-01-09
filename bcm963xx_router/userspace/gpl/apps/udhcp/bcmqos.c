@@ -1,10 +1,30 @@
 /***********************************************************************
- *
- *  Copyright (c) 2010  Broadcom Corporation
- *  All Rights Reserved
- *
-<:license-private
- *
+ * <:copyright-BRCM:2010:DUAL/GPL:standard
+ * 
+ *    Copyright (c) 2010 Broadcom Corporation
+ *    All Rights Reserved
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+ * :>
 ************************************************************************/
 #include <stdlib.h>
 #include <ctype.h>
@@ -21,23 +41,23 @@
 extern struct iface_config_t *iface_config;
 
 typedef struct ExecIP {
-    u_int32_t ipaddr;
-    unsigned char execflag;
-    u_int32_t index;
-} EXECIP, PEXECIP;
+   u_int32_t ipaddr;
+   unsigned char execflag;
+   u_int32_t index;
+}EXECIP, PEXECIP;
 
 typedef struct optioncmd {
-    char command[1024];
-    char action;
-    int optionnum;
-    char optionval[16];
-    struct ExecIP execip[254];
+   char command[1024];
+   char action;
+   int optionnum;
+   char optionval[16];
+   struct ExecIP execip[254];
 #if defined(AEI_VDSL_QOS)
     char MACAddresses[2048];
     char clsname[16];
 #endif
-    struct optioncmd *pnext;
-} OPTIONCMD, POPTIONCMD;
+   struct optioncmd *pnext;
+}OPTIONCMD, POPTIONCMD;
 
 struct optioncmd *optioncmdHead = NULL;
 
@@ -47,8 +67,8 @@ void bcmQosDhcp(int optionnum, char *cmd);
 
 static char bcmParseCmdAction(char *cmd);
 static void bcmSetQosRule(char action, char *command, u_int32_t leaseip);
-static void bcmAddOptCmdIP(struct optioncmd *optcmd, u_int32_t leaseip, int index);
-static struct optioncmd *bcmAddOptCmd(int optionnum, char action, char *cmd);
+static void bcmAddOptCmdIP(struct optioncmd * optcmd, u_int32_t leaseip, int index);
+static struct optioncmd * bcmAddOptCmd(int optionnum, char action, char *cmd);
 static void bcmDelOptCmd(char *cmd);
 
 #ifdef AEI_VDSL_CUSTOMER_NCS
@@ -253,34 +273,6 @@ int AEI_bcmQoscmdDelMacs(struct optioncmd *optcmd)
     return 0;
 }
 
-/*-
- * Copyright (c) 2007
- *      Nathan Lay <nslay@hotmail.com>. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice unmodified, this list of conditions, and the following
- *    disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
-
-
 //compare two string, ignore the case
 int AEI_checkStrMatch(const char *str1, const char *str2)
 {
@@ -320,7 +312,7 @@ void AEI_bcmSearchOptCmdByVendorId(struct dhcpMessage *oldpacket, const char *ve
         return;
     strncpy(vendorString, vendorid, (*(vendorid - 1) & 0xff));
 
-    //search on the option linklist via the vendor string 
+    //search on the option linklist via the vendor string
     for (; pnode != NULL; pnode = pnode->pnext) {
         if (pnode->action == 'A' || pnode->action == 'I') {
             if (pnode->optionnum != 0) {
@@ -356,7 +348,7 @@ void AEI_bcmSearchOptCmdByVendorId(struct dhcpMessage *oldpacket, const char *ve
         }
     }
 
-    /* cover case where after factory restore default, STB gets IP before WAN link comes up so 
+    /* cover case where after factory restore default, STB gets IP before WAN link comes up so
        need to store MAC address in config/datamodel so pass vendor id and mac and let ssk decide
      */
     if (optioncmdHead == NULL) {
@@ -375,109 +367,165 @@ void AEI_bcmSearchOptCmdByVendorId(struct dhcpMessage *oldpacket, const char *ve
 
 char bcmParseCmdAction(char *cmd)
 {
-    char *token;
-    char action = '\0';
+   char *token;
+   char action = '\0';
 
-    if ((token = strstr(cmd, "-A ")) == NULL) {
-        if ((token = strstr(cmd, "-I ")) == NULL) {
-            token = strstr(cmd, "-D ");
-        }
-    }
-    if (token != NULL) {
-        action = token[1];
+   if ((token = strstr(cmd, "-A ")) == NULL)
+   {
+      if ((token = strstr(cmd, "-I ")) == NULL)
+      {
+         token = strstr(cmd, "-D ");
+      }
+   }
+   if (token != NULL)
+   {
+      action = token[1];
 
-        /* replace the command token with %s */
-        // to make the commands in the linklist are general, so that we can do string compare later to determine whether one command is already there
-        token[0] = '%';
-        token[1] = 's';
-    }
+      /* replace the command token with %s */
+      token[0] = '%';
+      token[1] = 's';
+   }
 
-    return action;
+   return action;
 
-}                               /* End of bcmParseCmdAction() */
+}  /* End of bcmParseCmdAction() */
 
 void bcmSetQosRule(char action, char *command, u_int32_t leaseip)
 {
-    char *ptokenstart;
-    char cmdseg[1024];
-    char actionStr[3];          /* -A or -I or -D */
+   char *ptokenstart;
+   char cmdseg[1024];
+   char actionStr[3];   /* -A or -I or -D */
+   struct in_addr ip;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   char tempstr[256] = {0};
+#endif
 
-    strcpy(cmdseg, command);
+#if defined(AEI_COVERITY_FIX)
+    /*CID 12255,Copy into fixed size buffer*/
+    strlcpy(cmdseg, command, sizeof(cmdseg));
     ptokenstart = strstr(cmdseg, "[");
-    strcpy(ptokenstart, inet_ntoa(leaseip));
-    strcat(cmdseg, strstr(command, "]") + 1);
-    sprintf(actionStr, "-%c", action);
-    sprintf(cmdseg, cmdseg, actionStr);
-    system(cmdseg);
-
-}                               /* End of bcmSetQosRule() */
-
-void bcmAddOptCmdIP(struct optioncmd *optcmd, u_int32_t leaseip, int index)
-{
-    /* if lease ip address is the same and the QoS rule has been executed, do nothing */
-    if (optcmd->execip[index].ipaddr != leaseip || !optcmd->execip[index].execflag) {
-        if (optcmd->execip[index].execflag) {
-            /* delete the QoS rule with the old lease ip */
-            bcmSetQosRule('D', optcmd->command, optcmd->execip[index].ipaddr);
-            optcmd->execip[index].execflag = 0;
-        }
-        optcmd->execip[index].ipaddr = leaseip;
-        optcmd->execip[index].execflag = 1;
-
-        /* add QoS rule with the new lease ip */
-        bcmSetQosRule(optcmd->action, optcmd->command, leaseip);
+    /*CID 11319 Dereference null return value*/
+    if (ptokenstart != NULL){
+        strcpy(ptokenstart, inet_ntoa(leaseip));
     }
-}                               /* End of bcmAddOptCmdIP() */
+    else {
+        printf("bcmSetQosRule:No [ found in cmdseg\r\n");
+    }
+    if(strstr(command,"]") != NULL) {
+        /*CID 12255, Copy into fixed size buffer*/
+        strlcat(cmdseg, strstr(command, "]") + 1, sizeof(cmdseg));
+    }
+    else {
+        printf("bcmSetQosRule:No ] found in cmdseg\r\n");
+    }
+#else
+   strcpy(cmdseg, command);
+   ptokenstart = strstr(cmdseg, "[");
+   ip.s_addr   = leaseip;
+   strcpy(ptokenstart, inet_ntoa(ip));
+   strcat(cmdseg, strstr(command, "]") + 1);
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   if (action == 'A')
+   {
+       // we should insert this rule, not append.
+       sprintf(actionStr, "-%c", 'I');
+
+       ptokenstart = strstr(cmdseg, "-p");
+       if (ptokenstart) {
+           strcpy(tempstr, ptokenstart);
+           sprintf(ptokenstart, "1 %s\0", tempstr);
+       }
+   }
+   else
+       sprintf(actionStr, "-%c", action);
+#else
+   sprintf(actionStr, "-%c", action);
+#endif
+   sprintf(cmdseg, cmdseg, actionStr);
+   system(cmdseg);
+    
+}  /* End of bcmSetQosRule() */
+
+void bcmAddOptCmdIP(struct optioncmd * optcmd, u_int32_t leaseip, int index)
+{
+   /* if lease ip address is the same and the QoS rule has been executed, do nothing */  
+   if (optcmd->execip[index].ipaddr != leaseip || !optcmd->execip[index].execflag)
+   {
+      if (optcmd->execip[index].execflag)
+      {
+         /* delete the QoS rule with the old lease ip */
+         bcmSetQosRule('D', optcmd->command, optcmd->execip[index].ipaddr);
+         optcmd->execip[index].execflag = 0;
+      }
+      optcmd->execip[index].ipaddr = leaseip;
+      optcmd->execip[index].execflag = 1;
+
+      /* add QoS rule with the new lease ip */
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+      // first, we must delete old rule, in case duplicate rule
+      bcmSetQosRule('D', optcmd->command, leaseip);
+#endif
+      bcmSetQosRule(optcmd->action, optcmd->command, leaseip);
+   }
+}  /* End of bcmAddOptCmdIP() */
 
 void bcmExecOptCmd(void)
 {
-    struct optioncmd *pnode;
-    struct iface_config_t *iface;
-    uint32_t i;
+   struct optioncmd *pnode;
+	struct iface_config_t *iface;
+	uint32_t i;
 
-    /* execute all the commands in the option command list */
-    for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext) {
-        for (iface = iface_config; iface; iface = iface->next) {
-            for (i = 0; i < iface->max_leases; i++) {
-                /* skip if lease expires */
-                if (lease_expired(&(iface->leases[i])))
-                    continue;
+   /* execute all the commands in the option command list */
+   for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext)
+   {
+	   for (iface = iface_config; iface; iface = iface->next)
+	   {
+		   for (i = 0; i < iface->max_leases; i++)
+		   {
+            /* skip if lease expires */
+            if (lease_expired(&(iface->leases[i])))
+               continue;
 
-                switch (pnode->optionnum) {
-                case DHCP_VENDOR:
+			   switch (pnode->optionnum)
+			   {
+				   case DHCP_VENDOR:
 #if !defined(AEI_VDSL_QOS)
-                    //For TELUS project, we will apply ebtables rules using the mac address of the LAN device, rather than IP address, 
+                    //For TELUS project, we will apply ebtables rules using the mac address of the LAN device, rather than IP address,
                     //which is more accurate
-                    if (!strcmp(iface->leases[i].vendorid, pnode->optionval)) {
-                        bcmAddOptCmdIP(pnode, iface->leases[i].yiaddr, i);
-                    }
+					   if (!strcmp(iface->leases[i].vendorid,	pnode->optionval))
+					   {
+						   bcmAddOptCmdIP(pnode, iface->leases[i].yiaddr, i);
+					   }
 #endif
-                    break;
-                case DHCP_CLIENT_ID:
-                    //printf("op61 not implement, please use the MAC filter\r\n");
-                    break;
-                case DHCP_USER_CLASS_ID:
-                    if (!strcmp(iface->leases[i].classid, pnode->optionval)) {
-                        bcmAddOptCmdIP(pnode, iface->leases[i].yiaddr, i);
-                    }
-                    break;
-                default:
-                    break;
-                }
-            }
-        }
-    }
-}                               /* End of bcmExecOptCmd() */
+					   break;
+				   case DHCP_CLIENT_ID:
+					   //printf("op61 not implement, please use the MAC filter\r\n");
+					   break;
+				   case DHCP_USER_CLASS_ID:
+					   if (!strcmp(iface->leases[i].classid, pnode->optionval))
+					   {
+						   bcmAddOptCmdIP(pnode, iface->leases[i].yiaddr, i);
+					   }
+					   break;
+				   default:
+					   break;
+			   }	
+		   }
+	   }
+   }
+}  /* End of bcmExecOptCmd() */
 
-struct optioncmd *bcmAddOptCmd(int optionnum, char action, char *cmd)
+struct optioncmd * bcmAddOptCmd(int optionnum, char action, char *cmd)
 {
-    struct optioncmd *p, *pnode;
-    char *ptokenstart, *ptokenend;
+   struct optioncmd *p, *pnode;
+   char *ptokenstart, *ptokenend;
+
+#if defined(AEI_VDSL_QOS)
     char classname[16];
     char *token;
     int len;
 
-#if defined(AEI_VDSL_QOS)
     //for mac based option60 qos, we need to extract clsname from the message
     token = strchr(cmd, '|');
     if (token) {
@@ -495,49 +543,50 @@ struct optioncmd *bcmAddOptCmd(int optionnum, char action, char *cmd)
     }
 #endif
 
-    for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext) {
-        if (!strcmp(pnode->command, cmd))
-            return NULL;
-    }
+   for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext)
+   {
+      if (!strcmp(pnode->command, cmd))
+         return NULL;
+   }	
 
-    pnode = (struct optioncmd *)malloc(sizeof(struct optioncmd));
-    if (pnode == NULL) {
-        cmsLog_error("malloc failed");
-        return NULL;
-    }
+   pnode = (struct optioncmd *)malloc(sizeof(struct optioncmd));
+   if ( pnode == NULL )
+   {
+      cmsLog_error("malloc failed");
+      return NULL;
+   }
 
-    memset(pnode, 0, sizeof(struct optioncmd));
-    strcpy(pnode->command, cmd);
-    pnode->action = action;
-    pnode->optionnum = optionnum;
+   memset(pnode, 0, sizeof(struct optioncmd));	
+#if defined(AEI_COVERITY_FIX)
+    /*CID12254, Copy into fixed size buffer*/
+    strlcpy(pnode->command, cmd, sizeof(pnode->command));
+#else
+   strcpy(pnode->command, cmd);
+#endif
+   pnode->action = action;
+   pnode->optionnum = optionnum;
 #if defined(AEI_VDSL_QOS)
     strcpy(pnode->clsname, classname);
 #endif
-    ptokenstart = strstr(cmd, "[");
-    ptokenend = strstr(cmd, "]");
-    strncpy(pnode->optionval, ptokenstart + 1, (size_t) (ptokenend - ptokenstart - 1));
-    pnode->optionval[ptokenend - ptokenstart - 1] = '\0';
-    p = optioncmdHead;
-    optioncmdHead = pnode;
-    optioncmdHead->pnext = p;
+   ptokenstart = strstr(cmd, "[");
+   ptokenend = strstr(cmd, "]");
+   strncpy(pnode->optionval, ptokenstart + 1, (size_t)(ptokenend - ptokenstart - 1));
+   pnode->optionval[ptokenend - ptokenstart - 1] = '\0';
+   p = optioncmdHead;	
+   optioncmdHead = pnode;
+   optioncmdHead->pnext = p;
+   return pnode;
 
-    //printf("bcmAddOptCmd\r\n");
-#if defined(AEI_VDSL_QOS)
-    //print out the option cmd linklist for debugging
-    //AEI_printOptionCmdList();
-#endif
-
-    return pnode;
-
-}                               /* End of bcmAddOptCmd() */
+}  /* End of bcmAddOptCmd() */
 
 void bcmDelOptCmd(char *cmd)
 {
-    struct optioncmd *pnode, *pprevnode;
-    int i;
-    char *token;
+   struct optioncmd *pnode, *pprevnode;
+   int i;
 
 #if defined(AEI_VDSL_QOS)
+    char *token;
+
     token = strchr(cmd, '|');
     if (token) {
         //get the ebtable cmd
@@ -549,16 +598,20 @@ void bcmDelOptCmd(char *cmd)
     }
 #endif
 
-    pnode = pprevnode = optioncmdHead;
-    for (; pnode != NULL;) {
-        if (!strcmp(pnode->command, cmd)) {
-            /* delete all the ebtables or iptables rules that had been executed */
-            for (i = 0; i < 254; i++) {
-                if (pnode->execip[i].execflag) {
-                    bcmSetQosRule('D', pnode->command, pnode->execip[i].ipaddr);
-                    pnode->execip[i].execflag = 0;
-                }
+   pnode = pprevnode = optioncmdHead;
+   for ( ; pnode != NULL;)
+   {
+      if (!strcmp(pnode->command, cmd))
+      {
+         /* delete all the ebtables or iptables rules that had been executed */
+         for (i = 0; i < 254; i++)
+         {
+            if (pnode->execip[i].execflag)
+            {
+               bcmSetQosRule('D', pnode->command, pnode->execip[i].ipaddr);
+               pnode->execip[i].execflag = 0;
             }
+         }
 
 #if defined(AEI_VDSL_QOS)
             // we need to delete all the ebtables rules related to this vender ID
@@ -566,83 +619,94 @@ void bcmDelOptCmd(char *cmd)
             AEI_bcmQoscmdDelMacs(pnode);
 #endif
 
-            /* delete the option command node from the list */
-            if (optioncmdHead == pnode)
-                optioncmdHead = pnode->pnext;
-            else
-                pprevnode->pnext = pnode->pnext;
-            free(pnode);
-            break;
-        } else {
-            pprevnode = pnode;
-            pnode = pnode->pnext;
-        }
-    }
-}                               /* End of bcmDelOptCmd() */
+         /* delete the option command node from the list */	       
+         if (optioncmdHead == pnode)
+            optioncmdHead = pnode->pnext;
+         else
+            pprevnode->pnext = pnode->pnext;
+         free(pnode);
+         break;
+      }
+      else
+      {
+         pprevnode = pnode;
+         pnode = pnode->pnext;
+      }
+   }
+}  /* End of bcmDelOptCmd() */
 
 void bcmQosDhcp(int optionnum, char *cmd)
 {
-    char action;
+   char action;
 
-    action = bcmParseCmdAction(cmd);
+	action = bcmParseCmdAction(cmd);
 
-    switch (action) {
-    case 'A':
-    case 'I':
-        if (bcmAddOptCmd(optionnum, action, cmd) != NULL)
+	switch (action)
+	{
+		case 'A':
+		case 'I':
+			if (bcmAddOptCmd(optionnum, action, cmd) != NULL)
             bcmExecOptCmd();
-        else
+         else
             cmsLog_error("bcmAddOptCmd returns error");
-        break;
-    case 'D':
-        bcmDelOptCmd(cmd);
-        break;
-    default:
-        cmsLog_error("incorrect command action");
-        break;
-    }
-}                               /* End of bcmQosDhcp() */
+			break;
+		case 'D':
+			bcmDelOptCmd(cmd);
+			break;
+		default:
+			cmsLog_error("incorrect command action");
+			break;
+	}
+}  /* End of bcmQosDhcp() */
 
 void bcmDelObsoleteRules(void)
 {
-    struct optioncmd *pnode;
-    struct iface_config_t *iface;
-    uint32_t delete;
-    uint32_t i;
+   struct optioncmd *pnode;
+	struct iface_config_t *iface;
+   uint32_t delete;
+   uint32_t i;
 
-    for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext) {
-        delete = 1;
-        for (iface = iface_config; iface && delete; iface = iface->next) {
-            for (i = 0; (i < iface->max_leases) && delete; i++) {
-                if (lease_expired(&(iface->leases[i])))
-                    continue;
+   for (pnode = optioncmdHead; pnode != NULL; pnode = pnode->pnext)
+   {
+      delete = 1;      
+	   for (iface = iface_config; iface && delete; iface = iface->next)
+	   {
+		   for (i = 0; (i < iface->max_leases) && delete; i++)
+		   {
+            if (lease_expired(&(iface->leases[i])))
+               continue;
 
-                switch (pnode->optionnum) {
-                case DHCP_VENDOR:
-                    if (!strcmp(iface->leases[i].vendorid, pnode->optionval))
-                        delete = 0;
-                    break;
-                case DHCP_CLIENT_ID:
-                    //printf("op61 not implement, please use the MAC filter\r\n");
-                    break;
-                case DHCP_USER_CLASS_ID:
-                    if (!strcmp(iface->leases[i].classid, pnode->optionval))
-                        delete = 0;
-                    break;
-                default:
-                    break;
-                }
+			   switch (pnode->optionnum)
+			   {
+				   case DHCP_VENDOR:
+					   if (!strcmp(iface->leases[i].vendorid,	pnode->optionval))
+                     delete = 0;
+					   break;
+				   case DHCP_CLIENT_ID:
+					   //printf("op61 not implement, please use the MAC filter\r\n");
+					   break;
+				   case DHCP_USER_CLASS_ID:
+					   if (!strcmp(iface->leases[i].classid, pnode->optionval))
+                     delete = 0;
+					   break;
+				   default:
+					   break;
+			   }	
+		   }
+	   }
+
+      if (delete)
+      {
+         /* delete all the ebtables or iptables rules that had been executed */
+         for (i = 0; i < 254; i++)
+         {
+            if (pnode->execip[i].execflag)
+            {
+               bcmSetQosRule('D', pnode->command, pnode->execip[i].ipaddr);
+               pnode->execip[i].execflag = 0;
             }
-        }
+         }
+      }
+   }
+}  /* End of bcmDelObsoleteRules() */
 
-        if (delete) {
-            /* delete all the ebtables or iptables rules that had been executed */
-            for (i = 0; i < 254; i++) {
-                if (pnode->execip[i].execflag) {
-                    bcmSetQosRule('D', pnode->command, pnode->execip[i].ipaddr);
-                    pnode->execip[i].execflag = 0;
-                }
-            }
-        }
-    }
-}                               /* End of bcmDelObsoleteRules() */

@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * Rexec program for system have fork() as vfork() with foreground option
  *
@@ -11,68 +12,271 @@
  *
  * Modified for uClibc by Erik Andersen <andersee@debian.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <unistd.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <paths.h>
-#include "libbb.h"
+#include "busybox.h" /* uses applet tables */
 
+/* This does a fork/exec in one call, using vfork().  Returns PID of new child,
+ * -1 for failure.  Runs argv[0], searching path if that has no / in it. */
+pid_t FAST_FUNC spawn(char **argv)
+{
+	/* Compiler should not optimize stores here */
+	volatile int failed;
+	pid_t pid;
 
-#if defined(__uClinux__)
-void vfork_daemon_rexec(int nochdir, int noclose,
-		int argc, char **argv, char *foreground_opt)
+	fflush_all();
+
+	/* Be nice to nommu machines. */
+	failed = 0;
+	pid = vfork();
+	if (pid < 0) /* error */
+		return pid;
+	if (!pid) { /* child */
+		/* This macro is ok - it doesn't do NOEXEC/NOFORK tricks */
+		BB_EXECVP(argv[0], argv);
+
+		/* We are (maybe) sharing a stack with blocked parent,
+		 * let parent know we failed and then exit to unblock parent
+		 * (but don't run atexit() stuff, which would screw up parent.)
+		 */
+		failed = errno;
+		/* mount, for example, does not want the message */
+		/*bb_perror_msg("can't execute '%s'", argv[0]);*/
+		_exit(111);
+	}
+	/* parent */
+	/* Unfortunately, this is not reliable: according to standards
+	 * vfork() can be equivalent to fork() and we won't see value
+	 * of 'failed'.
+	 * Interested party can wait on pid and learn exit code.
+	 * If 111 - then it (most probably) failed to exec */
+	if (failed) {
+		errno = failed;
+		return -1;
+	}
+	return pid;
+}
+
+/* Die with an error message if we can't spawn a child process. */
+pid_t FAST_FUNC xspawn(char **argv)
+{
+	pid_t pid = spawn(argv);
+	if (pid < 0)
+		bb_simple_perror_msg_and_die(*argv);
+	return pid;
+}
+
+#if ENABLE_FEATURE_PREFER_APPLETS
+void FAST_FUNC save_nofork_data(struct nofork_save_area *save)
+{
+	memcpy(&save->die_jmp, &die_jmp, sizeof(die_jmp));
+	save->applet_name = applet_name;
+	save->xfunc_error_retval = xfunc_error_retval;
+	save->option_mask32 = option_mask32;
+	save->die_sleep = die_sleep;
+	save->saved = 1;
+}
+
+void FAST_FUNC restore_nofork_data(struct nofork_save_area *save)
+{
+	memcpy(&die_jmp, &save->die_jmp, sizeof(die_jmp));
+	applet_name = save->applet_name;
+	xfunc_error_retval = save->xfunc_error_retval;
+	option_mask32 = save->option_mask32;
+	die_sleep = save->die_sleep;
+}
+
+int FAST_FUNC run_nofork_applet_prime(struct nofork_save_area *old, int applet_no, char **argv)
+{
+	int rc, argc;
+
+	applet_name = APPLET_NAME(applet_no);
+
+	xfunc_error_retval = EXIT_FAILURE;
+
+	/* Special flag for xfunc_die(). If xfunc will "die"
+	 * in NOFORK applet, xfunc_die() sees negative
+	 * die_sleep and longjmp here instead. */
+	die_sleep = -1;
+
+	/* In case getopt() or getopt32() was already called:
+	 * reset the libc getopt() function, which keeps internal state.
+	 *
+	 * BSD-derived getopt() functions require that optind be set to 1 in
+	 * order to reset getopt() state.  This used to be generally accepted
+	 * way of resetting getopt().  However, glibc's getopt()
+	 * has additional getopt() state beyond optind, and requires that
+	 * optind be set to zero to reset its state.  So the unfortunate state of
+	 * affairs is that BSD-derived versions of getopt() misbehave if
+	 * optind is set to 0 in order to reset getopt(), and glibc's getopt()
+	 * will core dump if optind is set 1 in order to reset getopt().
+	 *
+	 * More modern versions of BSD require that optreset be set to 1 in
+	 * order to reset getopt().  Sigh.  Standards, anyone?
+	 */
+#ifdef __GLIBC__
+	optind = 0;
+#else /* BSD style */
+	optind = 1;
+	/* optreset = 1; */
+#endif
+	/* optarg = NULL; opterr = 1; optopt = 63; - do we need this too? */
+	/* (values above are what they initialized to in glibc and uclibc) */
+	/* option_mask32 = 0; - not needed, no applet depends on it being 0 */
+
+	argc = 1;
+	while (argv[argc])
+		argc++;
+
+	rc = setjmp(die_jmp);
+	if (!rc) {
+		/* Some callers (xargs)
+		 * need argv untouched because they free argv[i]! */
+		char *tmp_argv[argc+1];
+		memcpy(tmp_argv, argv, (argc+1) * sizeof(tmp_argv[0]));
+		/* Finally we can call NOFORK applet's main() */
+		rc = applet_main[applet_no](argc, tmp_argv);
+
+	/* The whole reason behind nofork_save_area is that <applet>_main
+	 * may exit non-locally! For example, in hush Ctrl-Z tries
+	 * (modulo bugs) to dynamically create a child (backgrounded task)
+	 * if it detects that Ctrl-Z was pressed when a NOFORK was running.
+	 * Testcase: interactive "rm -i".
+	 * Don't fool yourself into thinking "and <applet>_main() returns
+	 * quickly here" and removing "useless" nofork_save_area code. */
+
+	} else { /* xfunc died in NOFORK applet */
+		/* in case they meant to return 0... */
+		if (rc == -2222)
+			rc = 0;
+	}
+
+	/* Restoring some globals */
+	restore_nofork_data(old);
+
+	/* Other globals can be simply reset to defaults */
+#ifdef __GLIBC__
+	optind = 0;
+#else /* BSD style */
+	optind = 1;
+#endif
+
+	return rc & 0xff; /* don't confuse people with "exitcodes" >255 */
+}
+
+int FAST_FUNC run_nofork_applet(int applet_no, char **argv)
+{
+	struct nofork_save_area old;
+
+	/* Saving globals */
+	save_nofork_data(&old);
+	return run_nofork_applet_prime(&old, applet_no, argv);
+}
+#endif /* FEATURE_PREFER_APPLETS */
+
+int FAST_FUNC spawn_and_wait(char **argv)
+{
+	int rc;
+#if ENABLE_FEATURE_PREFER_APPLETS
+	int a = find_applet_by_name(argv[0]);
+
+	if (a >= 0 && (APPLET_IS_NOFORK(a)
+#if BB_MMU
+			|| APPLET_IS_NOEXEC(a) /* NOEXEC trick needs fork() */
+#endif
+	)) {
+#if BB_MMU
+		if (APPLET_IS_NOFORK(a))
+#endif
+		{
+			return run_nofork_applet(a, argv);
+		}
+#if BB_MMU
+		/* MMU only */
+		/* a->noexec is true */
+		rc = fork();
+		if (rc) /* parent or error */
+			return wait4pid(rc);
+		/* child */
+		xfunc_error_retval = EXIT_FAILURE;
+		run_applet_no_and_exit(a, argv);
+#endif
+	}
+#endif /* FEATURE_PREFER_APPLETS */
+	rc = spawn(argv);
+	return wait4pid(rc);
+}
+
+#if !BB_MMU
+void FAST_FUNC re_exec(char **argv)
+{
+	/* high-order bit of first char in argv[0] is a hidden
+	 * "we have (already) re-execed, don't do it again" flag */
+	argv[0][0] |= 0x80;
+	execv(bb_busybox_exec_path, argv);
+	bb_perror_msg_and_die("can't execute '%s'", bb_busybox_exec_path);
+}
+
+pid_t FAST_FUNC fork_or_rexec(char **argv)
+{
+	pid_t pid;
+	/* Maybe we are already re-execed and come here again? */
+	if (re_execed)
+		return 0;
+	pid = xvfork();
+	if (pid) /* parent */
+		return pid;
+	/* child - re-exec ourself */
+	re_exec(argv);
+}
+#endif
+
+/* Due to a #define in libbb.h on MMU systems we actually have 1 argument -
+ * char **argv "vanishes" */
+void FAST_FUNC bb_daemonize_or_rexec(int flags, char **argv)
 {
 	int fd;
-	char **vfork_args;
-	int a = 0;
 
-	setsid();
+	if (flags & DAEMON_CHDIR_ROOT)
+		xchdir("/");
 
-	if (!nochdir)
-		chdir("/");
-
-	if (!noclose && (fd = open(_PATH_DEVNULL, O_RDWR, 0)) != -1) {
-		dup2(fd, STDIN_FILENO);
-		dup2(fd, STDOUT_FILENO);
-		dup2(fd, STDERR_FILENO);
-		if (fd > 2)
-			close(fd);
+	if (flags & DAEMON_DEVNULL_STDIO) {
+		close(0);
+		close(1);
+		close(2);
 	}
 
-	vfork_args = xcalloc(sizeof(char *), argc + 3);
-	vfork_args[a++] = "/bin/busybox";
-	while(*argv) {
-	    vfork_args[a++] = *argv;
-	    argv++;
+	fd = open(bb_dev_null, O_RDWR);
+	if (fd < 0) {
+		/* NB: we can be called as bb_sanitize_stdio() from init
+		 * or mdev, and there /dev/null may legitimately not (yet) exist!
+		 * Do not use xopen above, but obtain _ANY_ open descriptor,
+		 * even bogus one as below. */
+		fd = xopen("/", O_RDONLY); /* don't believe this can fail */
 	}
-	vfork_args[a] = foreground_opt;
-	switch (vfork()) {
-	case 0: /* child */
-		/* Make certain we are not a session leader, or else we
-		 * might reacquire a controlling terminal */
-		if (vfork())
-			_exit(0);
-		execv(vfork_args[0], vfork_args);
-		bb_perror_msg_and_die("execv %s", vfork_args[0]);
-	case -1: /* error */
-		bb_perror_msg_and_die("vfork");
-	default: /* parent */
-		exit(0);
+
+	while ((unsigned)fd < 2)
+		fd = dup(fd); /* have 0,1,2 open at least to /dev/null */
+
+	if (!(flags & DAEMON_ONLY_SANITIZE)) {
+		if (fork_or_rexec(argv))
+			exit(EXIT_SUCCESS); /* parent */
+		/* if daemonizing, make sure we detach from stdio & ctty */
+		setsid();
+		dup2(fd, 0);
+		dup2(fd, 1);
+		dup2(fd, 2);
+	}
+	while (fd > 2) {
+		close(fd--);
+		if (!(flags & DAEMON_CLOSE_EXTRA_FDS))
+			return;
+		/* else close everything after fd#2 */
 	}
 }
-#endif /* uClinux */
+
+void FAST_FUNC bb_sanitize_stdio(void)
+{
+	bb_daemonize_or_rexec(DAEMON_ONLY_SANITIZE, NULL);
+}

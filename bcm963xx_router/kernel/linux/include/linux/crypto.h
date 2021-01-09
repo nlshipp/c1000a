@@ -169,6 +169,7 @@ struct aead_request {
 	struct scatterlist *dst;
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
     int alloc_buff_spu;
+    int headerLen;
 #endif
 
 	void *__ctx[] CRYPTO_MINALIGN_ATTR;

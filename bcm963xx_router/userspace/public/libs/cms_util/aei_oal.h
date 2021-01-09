@@ -4,7 +4,7 @@
  *  All Rights Reserved
  *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
+ *  in addition to routines provided by Broadcom. All additional routines that
  *  are missing from oal.h file will locate in this file.
  *
  ************************************************************************/

@@ -308,6 +308,22 @@ static void run_workqueue(struct cpu_workqueue_struct *cwq)
 			dump_stack();
 		}
 
+#ifdef CONFIG_MIPS_BRCM
+		/*
+		 * Our wlan driver currently uses the workqueue mechanism
+		 * (events/0 & events/1) to process pkts.  We also frequently
+		 * configure the events/0 and events/1 threads to RT prio.
+		 * By default, RT prio threads get a timeslice of 200ms, and when
+		 * wlan is busy, it could keep queuing work to this workqueue
+		 * and prevent sirq-net-tx from running for a long time.
+		 * But sirq-net-tx needs to run because it is responsible for
+		 * recycling buffers, so yield the CPU after every function call.
+		 */
+		if (current->policy == SCHED_FIFO || current->policy == SCHED_RR) {
+			yield();
+		}
+#endif
+
 		spin_lock_irq(&cwq->lock);
 		cwq->current_work = NULL;
 	}

@@ -590,6 +590,11 @@ struct sk_buff *arp_create(int type, int ptype, __be32 dest_ip,
 	arp = (struct arphdr *) skb_put(skb, arp_hdr_len(dev));
 	skb->dev = dev;
 	skb->protocol = htons(ETH_P_ARP);
+
+#ifdef AEI_VDSL_CUSTOMER_NCS
+        /* fix Telus management queue issue by making arp highest priority */
+        skb->mark = 0x7;
+#endif
 	if (src_hw == NULL)
 		src_hw = dev->dev_addr;
 	if (dest_hw == NULL)
@@ -1164,7 +1169,7 @@ int arp_ioctl(struct net *net, unsigned int cmd, void __user *arg)
                         if (err)
                                 return -EFAULT;
                         return err;
-#endif            
+#endif
 		default:
 			return -EINVAL;
 	}

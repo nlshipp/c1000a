@@ -121,7 +121,7 @@ static int map_field_params(struct lnstat_file *lnstat_files,
 				if (!fps->params[j].print.width)
 					fps->params[j].print.width =
 							FIELD_WIDTH_DEFAULT;
-				
+
 				if (++j >= MAX_FIELDS - 1) {
 					fprintf(stderr,
 						"WARN: MAX_FIELDS (%d) reached,"
@@ -166,7 +166,11 @@ static struct table_hdr *build_hdr_string(struct lnstat_file *lnstat_files,
 
 	for (i = 0; i < HDR_LINES; i++) {
 		th.hdr[i] = malloc(HDR_LINE_LENGTH);
+#if defined(AEI_COVERITY_FIX)
+		memset(th.hdr[i], 0, HDR_LINE_LENGTH);
+#else
 		memset(th.hdr[i], 0, sizeof(th.hdr[i]));
+#endif
 	}
 
 	for (i = 0; i < fps->num; i++) {
@@ -278,7 +282,7 @@ int main(int argc, char **argv)
 				     tok;
 				     tok = strtok(NULL, ",")) {
 					if (fp.num >= MAX_FIELDS) {
-						fprintf(stderr, 
+						fprintf(stderr,
 							"WARN: too many keys"
 							" requested: (%d max)\n",
 							MAX_FIELDS);
@@ -348,4 +352,3 @@ int main(int argc, char **argv)
 
 	return 1;
 }
-

@@ -54,7 +54,7 @@ so that any subset of 20 bits can be used as hash key.
 
 \item
 Flows with coinciding source address and flow label must have identical
-destination address and not-fragmentable extensions headers (i.e.\ 
+destination address and not-fragmentable extensions headers (i.e.\
 hop by hop options and all the headers up to and including routing header,
 if it is present.)
 
@@ -118,7 +118,7 @@ and have to mangle it, even if we are not interested in flowinfo subtleties.
 Another problem is Linux specific. Historically Linux IPv6 did not
 initialize \verb|sin6_flowinfo| at all, so that, if kernel does not
 support flow labels, this field is not zero, but a random number.
-Some applications also did not take care about it. 
+Some applications also did not take care about it.
 
 \begin{NB}
 Following RFC2553 such applications can be considered as broken,
@@ -244,7 +244,7 @@ IPsec.
 
 \item {\bf ``Stupid''.} To allocate labels in kernel space. It is the simplest
 method, but it suffers of two serious flaws: the first,
-we cannot lease labels with lifetimes longer than boot time, the second, 
+we cannot lease labels with lifetimes longer than boot time, the second,
 it is sensitive to DoS attacks. Kernel have to remember all the obsolete
 labels until their expiration and malicious user may fastly eat all the
 flow label space.
@@ -379,7 +379,7 @@ A bit more complicated example using routing header can be found
 in \verb|ping6| utility (\verb|iputils| package). Linux rsvpd backend
 contains an example of using operation \verb|IPV6_FL_A_RENEW|.
 
-\paragraph{Listing flow labels.} 
+\paragraph{Listing flow labels.}
 \addcontentsline{toc}{subsection}{Listing flow labels}
 List of currently allocated
 flow labels may be read from \verb|/proc/net/ip6_flowlabel|.
@@ -404,7 +404,7 @@ A1BE5 1 0     0     6      3       3ffe2400000000010a0020fffe71fb30 0
 \end{itemize}
 
 
-\paragraph{Flow labels and RSVP.} 
+\paragraph{Flow labels and RSVP.}
 \addcontentsline{toc}{subsection}{Flow labels and RSVP}
 RSVP daemon supports IPv6 flow labels
 without any modifications to standard ISI RAPI. Sender must allocate

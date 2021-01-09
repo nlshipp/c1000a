@@ -81,7 +81,7 @@ static void *msgHandle=NULL;
 static int glbPeerFd=-1;
 
 
-void common_exit(int code)
+static void common_exit(int code)
 {
    if (glbPeerFd != -1)
    {
@@ -91,14 +91,14 @@ void common_exit(int code)
    exit(code);  
 }
 
-void handler_sigterm(int signum)
+static void handler_sigterm(int signum)
 {
    cmsLog_notice("received signal %d", signum);
    common_exit(0);
 }
 
 
-void perror_msg_and_die(char * msg)
+static void perror_msg_and_die(const char * msg)
 {
     printf("fatal: %s\n", msg);
     common_exit(0);
@@ -115,7 +115,7 @@ void perror_msg_and_die(char * msg)
  */
 
 /* The options are zero terminated, retrieve a list of pointers to the first character of each option */
-int tftpd_options (char *options, int opt_len, char **argv, int max_arg)
+static int tftpd_options (char *options, int opt_len, char **argv, int max_arg)
 {
   int x;
   int y;
@@ -140,7 +140,7 @@ int tftpd_options (char *options, int opt_len, char **argv, int max_arg)
  * standard TFTP codes, or a UNIX errno
  * offset by 100.
  */
-void tftpd_nak (int peer, int error)
+static void tftpd_nak (int peer, int error)
 {
   char buf[TFTP_BLOCKSIZE_DEFAULT + 4];
   struct tftphdr *pkt;
@@ -198,7 +198,7 @@ void tftpd_nak (int peer, int error)
 /*
  * Send a ack packet 
  */
-void tftpd_ack (int peer, int block)
+static void tftpd_ack (int peer, int block)
 {
   struct tftphdr pkt;
 
@@ -210,10 +210,11 @@ void tftpd_ack (int peer, int block)
 }
 
 
+#ifdef CONFIG_FEATURE_TFTPD_GET
 /*
  * send an oack
  */
-void tftpd_oack (int peer, int count, char **list)
+static void tftpd_oack (int peer, int count, char **list)
 {
   char buf[TFTP_BLOCKSIZE_DEFAULT + 4];
   struct tftphdr *pkt;
@@ -235,7 +236,7 @@ void tftpd_oack (int peer, int count, char **list)
 /*
  * send data
  */
-void tftpd_data (int peer, int block, char *data, int size)
+static void tftpd_data (int peer, int block, char *data, int size)
 {
   struct tftphdr *pkt;
   char buf[TFTP_BLOCKSIZE_DEFAULT + 4];
@@ -249,8 +250,9 @@ void tftpd_data (int peer, int block, char *data, int size)
   if (send (peer, &buf, size+4, 0)!=(size+4))
      perror_msg_and_die("tftpd_data send");
 }
+#endif /* CONFIG_FEATURE_TFTPD_GET */
 
-int tftpd_getdata(int peer, int block, char *data, int size)
+static int tftpd_getdata(int peer, int block, char *data, int size)
 {
   struct tftphdr *pkt;
   struct timeval tv;
@@ -302,7 +304,8 @@ int tftpd_getdata(int peer, int block, char *data, int size)
 
 
 
-int tftpd_getack(int peer, int block)
+#ifdef CONFIG_FEATURE_TFTPD_GET
+static int tftpd_getack(int peer, int block)
 {
   char data[TFTP_BLOCKSIZE_DEFAULT + 4];
   struct tftphdr *pkt;
@@ -356,17 +359,18 @@ int tftpd_getack(int peer, int block)
 
   return (1==1);
 }
+#endif /* CONFIG_FEATURE_TFTPD_GET */
 
 
 
 
 
 #ifndef CONFIG_FEATURE_TFTPD_GET
-void
+static void
 tftpd_send (int peer,
-            struct tftphdr *tp __attribute((unused)),
-            int n __attribute__((unused)),
-            int buffersize __attribute__((unused)))
+            struct tftphdr *tp UNUSED_PARAM,
+            int n UNUSED_PARAM,
+            int buffersize UNUSED_PARAM)
 {
    /* we aren't configured for sending files */
    tftpd_nak (peer, ENOGET);
@@ -374,7 +378,7 @@ tftpd_send (int peer,
 }
 
 #else
-void
+static void
 tftpd_send (int peer, struct tftphdr *first_pkt, int pkt_len, int buffersize)
 {
    FILE *file=NULL;
@@ -453,7 +457,7 @@ tftpd_send (int peer, struct tftphdr *first_pkt, int pkt_len, int buffersize)
 
 
 #ifndef CONFIG_FEATURE_TFTPD_PUT
-void
+static void
 tftpd_receive (int peer, struct tftphdr *tp, int n, int buffersize)
 {
    /* we aren't configured for receiving files */
@@ -462,9 +466,9 @@ tftpd_receive (int peer, struct tftphdr *tp, int n, int buffersize)
 }
 
 #else
-void
+static void
 //brcm begin
-tftpd_receive (int peer, struct tftphdr *first_pkt, int pkt_len, int buffersize __attribute__((unused)))
+tftpd_receive (int peer, struct tftphdr *first_pkt, int pkt_len, int buffersize UNUSED_PARAM)
 {
 // brcm   FILE *file=NULL;
    char buffer[TFTP_BLOCKSIZE_DEFAULT+4];
@@ -615,7 +619,7 @@ tftpd_receive (int peer, struct tftphdr *first_pkt, int pkt_len, int buffersize 
 // brcm end
 #endif
 
-#if 0 /* not used */
+#ifdef not_used
 static struct in_addr getLanIp(void) //struct in_addr *lan_ip)
 {
 #ifdef DESKTOP_LINUX
@@ -644,7 +648,7 @@ static struct in_addr getLanIp(void) //struct in_addr *lan_ip)
    return ((struct sockaddr_in *)&(lan.ifr_addr))->sin_addr;
 #endif
 }
-#endif
+#endif /* not_used */
 
 // brcm -- from igmp
 #include <bits/socket.h>
@@ -655,12 +659,12 @@ static struct in_addr getLanIp(void) //struct in_addr *lan_ip)
 // brmc end
 
 static int
-tftpd_daemon (char *directory __attribute__((unused)),
-              char *address __attribute__((unused)),
-              int port __attribute__((unused)))
+tftpd_daemon (char *directory UNUSED_PARAM,
+              char *address UNUSED_PARAM,
+              int port UNUSED_PARAM)
 {
    struct tftphdr *tp;
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+#ifdef DMP_X_BROADCOM_COM_IPV6_1 /* aka SUPPORT_IPV6 */
    struct sockaddr_in6 from;
    struct sockaddr_in6 myaddr;
 #else
@@ -798,7 +802,7 @@ tftpd_daemon (char *directory __attribute__((unused)),
       }
 
       /* Process the request */
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+#ifdef DMP_X_BROADCOM_COM_IPV6_1 /* aka SUPPORT_IPV6 */
       bzero((char *)&myaddr, sizeof(struct sockaddr_in6));
       myaddr.sin6_family = AF_INET6;
       myaddr.sin6_port = htons (0);   /* we want a new local port */
@@ -836,7 +840,7 @@ tftpd_daemon (char *directory __attribute__((unused)),
    // brcm close (fd);
 
    /* Get a socket.  This has to be done before the chroot() (/dev goes away) */
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+#ifdef DMP_X_BROADCOM_COM_IPV6_1 /* aka SUPPORT_IPV6 */
    peer = socket (AF_INET6, SOCK_DGRAM, 0);
 #else
    peer = socket (AF_INET, SOCK_DGRAM, 0);
@@ -899,8 +903,8 @@ tftpd_daemon (char *directory __attribute__((unused)),
 
 
 
-int
-tftpd_main (int argc, char **argv)
+int tftpd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int tftpd_main (int argc, char **argv)
 {
   int result;
   char *address = NULL;      /* address to listen to */
@@ -998,7 +1002,7 @@ tftpd_main (int argc, char **argv)
 
   cmsMsg_init(EID_TFTPD, &msgHandle);
 
-  result = tftpd_daemon ("", address, port);
+  result = tftpd_daemon (NULL, address, port);
   
   cmsMsg_cleanup(&msgHandle);
   

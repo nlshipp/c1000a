@@ -110,7 +110,11 @@ static int iftable_add(struct nlmsghdr *n, void *arg)
 		im->alen = 0;
 		memset(im->addr, 0, sizeof(im->addr));
 	}
+#ifdef AEI_COVERITY_FIX
+	cmsUtl_strncpy(im->name, RTA_DATA(cb[IFLA_IFNAME]),sizeof(im->name));
+#else
 	strcpy(im->name, RTA_DATA(cb[IFLA_IFNAME]));
+#endif
 	return 1;
 }
 

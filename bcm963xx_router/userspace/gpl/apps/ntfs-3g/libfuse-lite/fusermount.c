@@ -412,7 +412,7 @@ static int do_mount(const char *mnt, char **typep, mode_t rootmode,
 	    if (errno_save == EPERM)
 		    fprintf(stderr, "User doesn't have privilege to mount. "
 			    "For more information\nplease see: "
-			    "http://ntfs-3g.org/support.html#unprivileged\n");
+			    "http://tuxera.com/community/ntfs-3g-faq/#unprivileged\n");
 	}
 	goto err;
     } else {
@@ -588,7 +588,8 @@ static int mount_fuse(const char *mnt, const char *opts)
 			&source, &mnt_opts);
 
     if (currdir_fd != -1) {
-        fchdir(currdir_fd);
+	 __attribute__((unused))int ignored_fchdir_status =
+	        fchdir(currdir_fd);
         close(currdir_fd);
     }
     if (mountpoint_fd != -1)

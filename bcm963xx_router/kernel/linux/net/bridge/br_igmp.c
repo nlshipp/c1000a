@@ -1,3 +1,31 @@
+/*
+* <:copyright-BRCM:2011:DUAL/GPL:standard
+* 
+*    Copyright (c) 2011 Broadcom Corporation
+*    All Rights Reserved
+* 
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
+* 
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
+* 
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
+* 
+:>
+*/
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/spinlock.h>
@@ -7,28 +35,45 @@
 #include <linux/jhash.h>
 #include <asm/atomic.h>
 #include <linux/ip.h>
-#include "br_private.h"
-#include "br_igmp.h"
+#include <linux/if_vlan.h>
 #include <linux/seq_file.h>
 #include <linux/proc_fs.h>
 #include <linux/list.h>
 #include <linux/rtnetlink.h>
+#include "br_private.h"
+#include "br_igmp.h"
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
 #include <linux/if_vlan.h>
 #include <linux/blog.h>
 #include <linux/blog_rule.h>
 #endif
 #include "br_mcast.h"
+#include <linux/bcm_skb_defines.h>
+
+
+#if defined(AEI_VDSL_MC_SSM_HIT)
+#include <linux/in.h>
+#include <linux/udp.h>
+#endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
 
+static struct kmem_cache *br_igmp_mc_fdb_cache __read_mostly;
+static struct kmem_cache *br_igmp_mc_rep_cache __read_mostly;
+static u32 br_igmp_mc_fdb_salt __read_mostly;
 static struct proc_dir_entry *br_igmp_entry = NULL;
 static int br_igmp_lan2lan_snooping = 0;
 
-extern int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb);
+extern int mcpd_process_skb(struct net_bridge *br, struct sk_buff *skb,
+                            int protocol);
 
 static struct in_addr ip_upnp_addr      = {0xEFFFFFFA}; /* UPnP / SSDP */
 static struct in_addr ip_ntfy_srvr_addr = {0xE000FF87}; /* Notificatoin Server*/
+
+static inline int br_igmp_mc_fdb_hash(const u32 grp)
+{
+	return jhash_1word(grp, br_igmp_mc_fdb_salt) & (BR_IGMP_HASH_SIZE - 1);
+}
 
 int br_igmp_control_filter(const unsigned char *dest, __be32 dest_ip)
 {
@@ -57,26 +102,38 @@ int br_igmp_get_lan2lan_snooping_info(void)
 
 static void br_igmp_query_timeout(unsigned long ptr)
 {
-	struct net_bridge_mc_fdb_entry *dst, *dst_n;
+	struct net_bridge_mc_fdb_entry *dst;
 	struct net_bridge *br;
 	struct net_bridge_mc_rep_entry *rep_entry, *rep_entry_n;
+	int i;
     
 	br = (struct net_bridge *) ptr;
 
+	/* if snooping is disabled just return */
+	if ( 0 == br->igmp_snooping )
+		return;
+
 	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry_safe(dst, dst_n, &br->mc_list, list) {
-	    if (time_after_eq(jiffies, dst->tstamp)) {
+    for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+    {
+		struct hlist_node *h, *n;
+		hlist_for_each_entry_safe(dst, h, n, &br->mc_hash[i], hlist) 
+        {
+            if (time_after_eq(jiffies, dst->tstamp)) 
+            {
             mcpd_nl_send_igmp_purge_entry(dst);
 		    list_for_each_entry_safe(rep_entry, 
-                                         rep_entry_n, &dst->rep_list, list)     {
+                            rep_entry_n, &dst->rep_list, list)     
+                {
 		        list_del(&rep_entry->list);
-		        kfree(rep_entry);
+                    kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
 		    }
-		    list_del(&dst->list);
+                hlist_del(&dst->hlist);
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
 		    br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)dst);
 #endif
-		    kfree(dst);
+                kmem_cache_free(br_igmp_mc_fdb_cache, dst);
+            }
 	    }
 	}
 	spin_unlock_bh(&br->mcl_lock);
@@ -90,7 +147,8 @@ static struct net_bridge_mc_rep_entry *
 {
 	struct net_bridge_mc_rep_entry *rep_entry;
 	
-	list_for_each_entry(rep_entry, &mc_fdb->rep_list, list) {
+	list_for_each_entry(rep_entry, &mc_fdb->rep_list, list)
+	{
 	    if(rep_entry->rep.s_addr == rep->s_addr)
 		return rep_entry;
 	}
@@ -98,6 +156,8 @@ static struct net_bridge_mc_rep_entry *
 	return NULL;
 }
 
+/* this is called during addition of a snooping entry and requires that 
+   mcl_lock is already held */
 static int br_mc_fdb_update(struct net_bridge *br, 
                             struct net_bridge_port *prt, 
                             struct in_addr *grp, 
@@ -107,52 +167,47 @@ static int br_mc_fdb_update(struct net_bridge *br,
                             struct net_device *from_dev)
 {
 	struct net_bridge_mc_fdb_entry *dst;
-	struct net_bridge_mc_fdb_entry *dst_main = NULL;
 	struct net_bridge_mc_rep_entry *rep_entry = NULL;
 	int ret = 0;
 	int filt_mode;
+	struct hlist_head *head;
+	struct hlist_node *h;
 
 	if(mode == SNOOP_IN_ADD)
-	   filt_mode = MCAST_INCLUDE;
+		filt_mode = MCAST_INCLUDE;
 	else
-	   filt_mode = MCAST_EXCLUDE;
+		filt_mode = MCAST_EXCLUDE;
     
-	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry(dst, &br->mc_list, list) {
-        if (dst->grp.s_addr == grp->s_addr) {
-            if((src->s_addr == dst->src_entry.src.s_addr) &&
-                (filt_mode == dst->src_entry.filt_mode) && 
-                (dst->from_dev == from_dev) &&
-                (dst->dst == prt)) {
-                if(br_igmp_rep_find(dst, rep)) {
-                    dst->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT*HZ;
-                }
-                else
-                {
-                    dst_main = dst;
-                }
-                ret = 1;
-            }
+	head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	hlist_for_each_entry(dst, h, head, hlist) {
+		if (dst->grp.s_addr == grp->s_addr)
+		{
+			if((src->s_addr == dst->src_entry.src.s_addr) &&
+			   (filt_mode == dst->src_entry.filt_mode) && 
+			   (dst->from_dev == from_dev) &&
+			   (dst->dst == prt))
+			{
+				/* found entry - update TS */
+				dst->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT*HZ;
+				if(!br_igmp_rep_find(dst, rep))
+				{
+					rep_entry = kmem_cache_alloc(br_igmp_mc_rep_cache, GFP_ATOMIC);
+					if(rep_entry)
+					{
+						rep_entry->rep.s_addr = rep->s_addr;
+						list_add_tail(&rep_entry->list, &dst->rep_list);
+					}
+				}
+				ret = 1;
+			}
 #if defined(CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH)
-	/* patch for igmp report flooding by robo */
-            else if ((0 == dst->src_entry.src.s_addr) &&
-	                (MCAST_EXCLUDE == dst->src_entry.filt_mode)) {
-                dst->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT*HZ;
-            }
+			/* patch for igmp report flooding by robo */
+			else if ((0 == dst->src_entry.src.s_addr) &&
+			         (MCAST_EXCLUDE == dst->src_entry.filt_mode)) {
+				dst->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT*HZ;
+			}
 #endif /* CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH*/
-        }
-	}
-	spin_unlock_bh(&br->mcl_lock);
-
-	if(dst_main) {
-	    rep_entry = 
-                    kmalloc(sizeof(struct net_bridge_mc_rep_entry), GFP_KERNEL);
-	    if(rep_entry) {
-            rep_entry->rep.s_addr = rep->s_addr;
-            spin_lock_bh(&br->mcl_lock);
-            list_add_tail(&rep_entry->list, &dst_main->rep_list);
-            spin_unlock_bh(&br->mcl_lock);
-        }
+		}
 	}
 
 	return ret;
@@ -169,6 +224,8 @@ static struct net_bridge_mc_fdb_entry *br_mc_fdb_get(struct net_bridge *br,
 {
     struct net_bridge_mc_fdb_entry *dst;
 	int filt_mode;
+	struct hlist_head *head;
+	struct hlist_node *h;
     
 	if(mode == SNOOP_IN_CLEAR)
         filt_mode = MCAST_INCLUDE;
@@ -176,13 +233,15 @@ static struct net_bridge_mc_fdb_entry *br_mc_fdb_get(struct net_bridge *br,
         filt_mode = MCAST_EXCLUDE;
           
 	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry(dst, &br->mc_list, list) {
+   head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	hlist_for_each_entry(dst, h, head, hlist) {
 	    if ((dst->grp.s_addr == grp->s_addr) && 
             (br_igmp_rep_find(dst, rep)) &&
             (filt_mode == dst->src_entry.filt_mode) && 
             (dst->src_entry.src.s_addr == src->s_addr) &&
             (dst->from_dev == from_dev) &&
-            (dst->dst == prt)) {
+            (dst->dst == prt)) 
+        {
             spin_unlock_bh(&br->mcl_lock);
             return dst;
         }
@@ -193,44 +252,116 @@ static struct net_bridge_mc_fdb_entry *br_mc_fdb_get(struct net_bridge *br,
 }
 #endif
 
-int br_igmp_process_if_change(struct net_bridge *br)
+int br_igmp_process_if_change(struct net_bridge *br, struct net_device *ndev)
 {
-    struct net_bridge_mc_fdb_entry *dst, *dst_n;
-    struct net_bridge_mc_rep_entry *rep_entry, *rep_entry_n;
+	struct net_bridge_mc_fdb_entry *dst;
+	int i;
+
+	spin_lock_bh(&br->mcl_lock);
+	for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+	{
+		struct hlist_node *h, *n;
+		hlist_for_each_entry_safe(dst, h, n, &br->mc_hash[i], hlist) 
+		{
+			if ((NULL == ndev) ||
+			    (dst->dst->dev == ndev) ||
+			    (dst->from_dev == ndev))
+			{
+				mcpd_nl_send_igmp_purge_entry(dst);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+				br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)dst);
+#endif
+				br_igmp_mc_fdb_del_entry(br, dst);
+			}
+		}
+	}
+	spin_unlock_bh(&br->mcl_lock);
+
+	return 0;
+}
+
+
+#if defined(AEI_VDSL_MC_SSM_HIT) && defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+/* Ken, 2012/10/12, fixed Agile 8347.
+  * Two STBs can't watch same channel with SSM group.
+  * The SSM group data will be hit by flow cache when first STB watch channel,
+  * and the flow cache entry of second STB will not be update, the idea  is
+  * update the flow cache entry when got the join packet from second STB.
+  */
+static int AEI_handle_mc_ssm_blog_same_group(struct net_bridge *br,
+                            struct net_bridge_port *prt,
+                            struct in_addr *grp,
+                            struct in_addr *rep,
+                            int mode,
+                            struct in_addr *src,
+                            struct net_device *from_dev,
+                            struct net_bridge_mc_fdb_entry *mc_fdb)
+{
+    struct net_bridge_mc_fdb_entry *dst;
+    int found = 0;
+    int filt_mode;
+    Blog_t *blog_p = BLOG_NULL;
+    uint32_t blog_idx = 0;
+    BlogTraffic_t traffic = BlogTraffic_IPV4_MCAST;
+    /* check SSM group and not have special source address*/
+    if(((htonl(grp->s_addr) & htonl(0xFF000000)) != htonl(0xE8000000)) ||
+       src->s_addr !=0)
+	  return 0;
+
+    if(mode == SNOOP_IN_ADD)
+	filt_mode = MCAST_INCLUDE;
+    else
+        filt_mode = MCAST_EXCLUDE;
+     //printk("grp->s_addr =%x,src->s_addr =%x\n",grp->s_addr,src->s_addr);
 
     spin_lock_bh(&br->mcl_lock);
-    list_for_each_entry_safe(dst, dst_n, &br->mc_list, list) {
-        mcpd_nl_send_igmp_purge_entry(dst);
-        list_for_each_entry_safe(rep_entry, 
-                rep_entry_n, &dst->rep_list, list)     {
-            list_del(&rep_entry->list);
-            kfree(rep_entry);
+    /* search the mcast entry of bridge and find the one or not*/
+    list_for_each_entry(dst, &br->mc_list, list) {
+        if (dst->grp.s_addr == grp->s_addr) {
+            if((src->s_addr == dst->src_entry.src.s_addr) &&
+                (filt_mode == dst->src_entry.filt_mode) &&
+                (dst->from_dev == from_dev)) {
+                    //printk("find the same group. blog_idx=%x \n",dst->blog_idx);
+                    blog_idx = dst->blog_idx;
+                    found = 1;
+                    break;
+            }
         }
-        list_del(&dst->list);
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-	    br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)dst);
-#endif
-        kfree(dst);
+    }
+
+    /* if find one, update the flow cache with same source IP of video data */
+    if(found) {
+
+        if(!blog_idx) {
+            //printk("AEI_handle_mc_ssm_blog  can't find blog_idx, return\n");
+	    spin_unlock_bh(&br->mcl_lock);
+            return 0;
+        }
+
+
+        blog_p = blog_deactivate(blog_idx, traffic);
+        if(blog_p) {
+            blog_link(MCAST_FDB, blog_p, (void *)dst, 0, 0);
+            mc_fdb->saddr = blog_p->rx.tuple.saddr;
+
+            if ( blog_activate(blog_p, traffic) == BLOG_KEY_INVALID ) {
+                printk("BLOG_KEY_INVALID");
+                blog_rule_free_list(blog_p);
+                blog_put(blog_p);
+            }
+            //  printk("KEN-> s_addr=%x\n", mc_fdb->src_entry.src.s_addr);
+            //   printk(KERN_DEBUG"KEN-> after blog_idx=%u\n",mc_fdb->blog_idx);
+
+        }
+        else {
+            printk("blog_p is NULL\n");
+        }
     }
     spin_unlock_bh(&br->mcl_lock);
 
-    return 0;
+    return found;
 }
-
-static int br_igmp_is_br_port(struct net_bridge *br,struct net_device *from_dev)
-{
-    struct net_bridge_port *p = NULL;
-    int ret = 0;
-
-    spin_lock_bh(&br->lock);
-    list_for_each_entry_rcu(p, &br->port_list, list) {
-        if ((p->dev) && (!memcmp(p->dev->name, from_dev->name, IFNAMSIZ)))
-            ret = 1;
-    }
-    spin_unlock_bh(&br->lock);
-
-    return ret;
-} /* br_igmp_is_br_port */
+#endif
 
 int br_igmp_mc_fdb_add(struct net_device *from_dev,
                        int wan_ops,
@@ -243,158 +374,182 @@ int br_igmp_mc_fdb_add(struct net_device *from_dev,
                        struct in_addr *src)
 {
 	struct net_bridge_mc_fdb_entry *mc_fdb = NULL;
+   struct net_bridge_mc_rep_entry *rep_entry = NULL;
+   struct hlist_head *head = NULL;
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+    int ret = 1;
+#endif
 #if defined(CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH)
 	struct net_bridge_mc_fdb_entry *mc_fdb_robo, *mc_fdb_robo_n;
 #endif /* CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH */
-	struct net_bridge_mc_rep_entry *rep_entry = NULL;
-    int ret = 1;
 
-	//printk("--- add mc entry ---\n");
+	if(!br || !prt || !grp|| !rep || !from_dev)
+		return 0;
 
-    if(!br || !prt || !grp|| !rep || !from_dev)
-        return 0;
+	if(!br_igmp_control_filter(NULL, grp->s_addr))
+		return 0;
 
-    if(!br_igmp_control_filter(NULL, grp->s_addr))
-        return 0;
+	if(!netdev_path_is_leaf(from_dev))
+		return 0;
 
-    if(!netdev_path_is_leaf(from_dev))
-        return 0;
+	if((SNOOP_IN_ADD != mode) && (SNOOP_EX_ADD != mode))
+		return 0;
 
-    if((wan_ops == MCPD_IF_TYPE_BRIDGED) && 
-        (!br_igmp_is_br_port(br, from_dev)))
-        return 0;
+	if(grp->s_addr == ip_upnp_addr.s_addr)
+		return 0;
 
-    if((SNOOP_IN_ADD != mode) && (SNOOP_EX_ADD != mode))             
-        return 0;
+	mc_fdb = kmem_cache_alloc(br_igmp_mc_fdb_cache, GFP_KERNEL);
+	if ( !mc_fdb )
+	{
+		return -ENOMEM;
+	}
+	rep_entry = kmem_cache_alloc(br_igmp_mc_rep_cache, GFP_KERNEL);
+	if ( !rep_entry )
+	{
+		kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb);
+		return -ENOMEM;
+	}
 
-    if(grp->s_addr == ip_upnp_addr.s_addr)
-        return 0;
-
+	spin_lock_bh(&br->mcl_lock);
 	if (br_mc_fdb_update(br, prt, grp, rep, mode, src, from_dev))
-	    return 0;
+	{
+		kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb);
+		kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
+		spin_unlock_bh(&br->mcl_lock);
+		return 0;
+	}
 
 #if defined(CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH)
 	/* patch for snooping entry when LAN client access port is moved & 
-           igmp report flooding by robo */
-	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry_safe(mc_fdb_robo, mc_fdb_robo_n, &br->mc_list, list) {
-        if ((mc_fdb_robo->grp.s_addr == grp->s_addr) &&
-            (0 == mc_fdb_robo->src_entry.src.s_addr) &&
-            (MCAST_EXCLUDE == mc_fdb_robo->src_entry.filt_mode) && 
-            (br_igmp_rep_find(mc_fdb_robo, rep)) &&
-            (mc_fdb_robo->dst != prt)) {
-            list_del(&mc_fdb_robo->list);
-            kfree(mc_fdb_robo);
-        }
-    }
-    spin_unlock_bh(&br->mcl_lock);
+	   igmp report flooding by robo */
+	head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	hlist_for_each_entry(mc_fdb_robo, h, head, hlist) {
+		if ((mc_fdb_robo->grp.s_addr == grp->s_addr) &&
+		    (0 == mc_fdb_robo->src_entry.src.s_addr) &&
+		    (MCAST_EXCLUDE == mc_fdb_robo->src_entry.filt_mode) && 
+		    (br_igmp_rep_find(mc_fdb_robo, rep)) &&
+		    (mc_fdb_robo->dst != prt)) {
+			list_del(&mc_fdb_robo->list);
+			kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb_robo);
+		}
+	}
 #endif /* CONFIG_BR_IGMP_SNOOP_SWITCH_PATCH */
-	    
-	mc_fdb = kmalloc(sizeof(struct net_bridge_mc_fdb_entry), GFP_KERNEL);
-	rep_entry = kmalloc(sizeof(struct net_bridge_mc_rep_entry), GFP_KERNEL);
 
-	if (mc_fdb && rep_entry)
+	mc_fdb->grp.s_addr = grp->s_addr;
+	memcpy(&mc_fdb->src_entry, src, sizeof(struct in_addr));
+	mc_fdb->src_entry.filt_mode = (mode == SNOOP_IN_ADD) ? MCAST_INCLUDE : MCAST_EXCLUDE;
+	mc_fdb->dst = prt;
+	mc_fdb->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT * HZ;
+	mc_fdb->lan_tci = tci;
+	mc_fdb->wan_tci = 0;
+	mc_fdb->num_tags = 0;
+	mc_fdb->from_dev = from_dev;
+	mc_fdb->type = wan_ops;
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	mc_fdb->root = 1;
+	mc_fdb->blog_idx = BLOG_KEY_INVALID;
+#endif
+	memcpy(mc_fdb->wan_name, from_dev->name, IFNAMSIZ);
+	memcpy(mc_fdb->lan_name, prt->dev->name, IFNAMSIZ);
+
+#if defined(AEI_VDSL_MC_SSM_HIT) && defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	mc_fdb->saddr = 0;
+        AEI_handle_mc_ssm_blog_same_group(br, prt, grp, rep, mode, src, from_dev,mc_fdb);
+#endif
+
+	INIT_LIST_HEAD(&mc_fdb->rep_list);
+	rep_entry->rep.s_addr = rep->s_addr;
+	list_add_tail(&rep_entry->list, &mc_fdb->rep_list);
+
+	head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	hlist_add_head(&mc_fdb->hlist, head);
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	ret = br_mcast_blog_process(br, (void*)mc_fdb, BR_MCAST_PROTO_IGMP);
+	if(ret < 0)
 	{
-        mc_fdb->grp.s_addr = grp->s_addr;
-        memcpy(&mc_fdb->src_entry, src, sizeof(struct in_addr));
-        mc_fdb->src_entry.filt_mode = 
-                  (mode == SNOOP_IN_ADD) ? MCAST_INCLUDE : MCAST_EXCLUDE;
-        mc_fdb->dst = prt;
-        mc_fdb->tstamp = jiffies + BR_IGMP_MEMBERSHIP_TIMEOUT * HZ;
-        mc_fdb->lan_tci = tci;
-        mc_fdb->wan_tci = 0;
-        mc_fdb->num_tags = 0;
-        mc_fdb->from_dev = from_dev;
-        memcpy(mc_fdb->wan_name, from_dev->name, IFNAMSIZ);
-        memcpy(mc_fdb->lan_name, prt->dev->name, IFNAMSIZ);
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-        mc_fdb->blog_idx = 0;
+		hlist_del(&mc_fdb->hlist);
+		kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb);
+		kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
+		spin_unlock_bh(&br->mcl_lock);
+		return ret;
+	}
 #endif
+	spin_unlock_bh(&br->mcl_lock);
 
-	    INIT_LIST_HEAD(&mc_fdb->rep_list);
-	    rep_entry->rep.s_addr = rep->s_addr;
-	    spin_lock_bh(&br->mcl_lock);
-	    list_add_tail(&rep_entry->list, &mc_fdb->rep_list);
-        spin_unlock_bh(&br->mcl_lock);
-
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-        ret = br_mcast_blog_process(br, (void*)mc_fdb, BR_MCAST_PROTO_IGMP, wan_ops);
-        if(ret < 0)
-        {
-            kfree(mc_fdb);
-            kfree(rep_entry);
-            return ret;
-        }
-#endif
-
-	    spin_lock_bh(&br->mcl_lock);
-        list_add_tail(&mc_fdb->list, &br->mc_list);
-        spin_unlock_bh(&br->mcl_lock);
-
-        if (!br->start_timer) {
-            init_timer(&br->igmp_timer);
-            br->igmp_timer.expires = jiffies + TIMER_CHECK_TIMEOUT*HZ;
-            br->igmp_timer.function = br_igmp_query_timeout;
-            br->igmp_timer.data = (unsigned long) br;
-            add_timer(&br->igmp_timer);
-            br->start_timer = 1;
-        }
-    }
-	else
-	{	
-	    kfree(mc_fdb);
-	    kfree(rep_entry);
+	if (!br->start_timer) {
+		init_timer(&br->igmp_timer);
+		br->igmp_timer.expires = jiffies + TIMER_CHECK_TIMEOUT*HZ;
+		br->igmp_timer.function = br_igmp_query_timeout;
+		br->igmp_timer.data = (unsigned long) br;
+		add_timer(&br->igmp_timer);
+		br->start_timer = 1;
 	}
 
-	return ret;
+	return 1;
 }
 
 void br_igmp_mc_fdb_cleanup(struct net_bridge *br)
 {
-	struct net_bridge_mc_fdb_entry *dst, *dst_n;
+	struct net_bridge_mc_fdb_entry *dst;
 	struct net_bridge_mc_rep_entry *rep_entry, *rep_entry_n;
+    int i;
     
 	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry_safe(dst, dst_n, &br->mc_list, list) {
+    for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+    {
+		struct hlist_node *h, *n;
+		hlist_for_each_entry_safe(dst, h, n, &br->mc_hash[i], hlist) 
+        {
 	    list_for_each_entry_safe(rep_entry, 
 	                             rep_entry_n, &dst->rep_list, list) {
             list_del(&rep_entry->list);
-            kfree(rep_entry);
+                kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
 	    }
-	    list_del(&dst->list);
+            hlist_del(&dst->hlist);
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG) 
 	    br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)dst);
 #endif
-	    kfree(dst);
+            kmem_cache_free(br_igmp_mc_fdb_cache, dst);
+        }
 	}
 	spin_unlock_bh(&br->mcl_lock);
 }
 
-void br_igmp_mc_fdb_remove_grp(struct net_bridge *br, struct net_bridge_port *prt, struct in_addr *grp)
+void br_igmp_mc_fdb_remove_grp(struct net_bridge *br, 
+                               struct net_bridge_port *prt, 
+                               struct in_addr *grp)
 {
-	struct net_bridge_mc_fdb_entry *dst, *dst_n;
+	struct net_bridge_mc_fdb_entry *dst;
 	struct net_bridge_mc_rep_entry *rep_entry, *rep_entry_n;
+	struct hlist_head *head = NULL;
+    struct hlist_node *h, *n;
+
+    if(!br || !prt || !grp)
+        return;
 
 	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry_safe(dst, dst_n, &br->mc_list, list) {
-	    if ((dst->grp.s_addr == grp->s_addr) && (dst->dst == prt)) {
+   head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	hlist_for_each_entry_safe(dst, h, n, head, hlist) {
+	    if ((dst->grp.s_addr == grp->s_addr) && 
+           (dst->dst == prt))
+       {
 		list_for_each_entry_safe(rep_entry, 
 	                             rep_entry_n, &dst->rep_list, list) {
 		    list_del(&rep_entry->list);
-		    kfree(rep_entry);
+		        kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
 		}
-		list_del(&dst->list);
+            hlist_del(&dst->hlist);
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG) 
 		br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)dst);
 #endif
-		kfree(dst);
+            kmem_cache_free(br_igmp_mc_fdb_cache, dst);
 	    }
 	}
 	spin_unlock_bh(&br->mcl_lock);
 }
 
 int br_igmp_mc_fdb_remove(struct net_device *from_dev,
-                          int wan_ops,
                           struct net_bridge *br, 
                           struct net_bridge_port *prt, 
                           struct in_addr *grp, 
@@ -402,9 +557,11 @@ int br_igmp_mc_fdb_remove(struct net_device *from_dev,
                           int mode, 
                           struct in_addr *src)
 {
-	struct net_bridge_mc_fdb_entry *mc_fdb, *mc_fdb_n;
+	struct net_bridge_mc_fdb_entry *mc_fdb;
 	struct net_bridge_mc_rep_entry *rep_entry, *rep_entry_n;
 	int filt_mode;
+	struct hlist_head *head = NULL;
+    struct hlist_node *h, *n;
 
 	//printk("--- remove mc entry ---\n");
 	
@@ -426,25 +583,31 @@ int br_igmp_mc_fdb_remove(struct net_device *from_dev,
         filt_mode = MCAST_EXCLUDE;
 
     spin_lock_bh(&br->mcl_lock);
-    list_for_each_entry_safe(mc_fdb, mc_fdb_n, &br->mc_list, list) {
+    head = &br->mc_hash[br_igmp_mc_fdb_hash(grp->s_addr)];
+	 hlist_for_each_entry_safe(mc_fdb, h, n, head, hlist)
+    {
 	    if ((mc_fdb->grp.s_addr == grp->s_addr) && 
             (filt_mode == mc_fdb->src_entry.filt_mode) && 
             (mc_fdb->src_entry.src.s_addr == src->s_addr) &&
             (mc_fdb->from_dev == from_dev) &&
-            (mc_fdb->dst == prt)) {
+            (mc_fdb->dst == prt)) 
+       {
             list_for_each_entry_safe(rep_entry, 
-	                             rep_entry_n, &mc_fdb->rep_list, list) {
-		        if(rep_entry->rep.s_addr == rep->s_addr) {
+	                                  rep_entry_n, &mc_fdb->rep_list, list) 
+            {
+		          if(rep_entry->rep.s_addr == rep->s_addr)
+                {
                     list_del(&rep_entry->list);
-                    kfree(rep_entry);
+                    kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
                 }
 	        }
-	        if(list_empty(&mc_fdb->rep_list)) {
-                list_del(&mc_fdb->list);
+	        if(list_empty(&mc_fdb->rep_list)) 
+           {
+                hlist_del(&mc_fdb->hlist);
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG) 
                 br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)mc_fdb);
 #endif
-                kfree(mc_fdb);
+                kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb);
 	        }
         }
 	}
@@ -452,6 +615,95 @@ int br_igmp_mc_fdb_remove(struct net_device *from_dev,
 	
 	return 0;
 }
+
+#if defined(AEI_VDSL_MC_SSM_HIT) && defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+
+/* Ken, 2012/06/28
+  * For IGMPV2, the fc in 4.12.02/04/06RC3 can't hit the MC SSM group packets,
+  * since the fc is obj code, this fix is just a workaround for the 6368 chip which not support FAP module.
+  * If BCM fix it in the further release or customer's depolyment use IGMPV3 and specify the source IP , you can discard it.
+  */
+
+void AEI_handle_mc_ssm_blog(t_BR_MCAST_PROTO_TYPE proto, struct net_bridge_mc_fdb_entry *mc_fdb, struct iphdr *pip,struct sk_buff *skb)
+{
+    Blog_t *blog_p = BLOG_NULL;
+    uint32_t blog_idx = 0;
+    BlogTraffic_t traffic = BlogTraffic_IPV4_MCAST;
+    Blog_t *new_blog_p = BLOG_NULL;
+    struct udphdr *uh = NULL;
+
+   // printk(KERN_DEBUG"KEN-> pip->saddr =%x, pip->daddr=%x, src.s_addr=%x\n",pip->saddr,pip->daddr,mc_fdb->src_entry.src.s_addr );
+     /* 1. The dest multicast address is SSM group(232.0.0.0/8),RFC4607/5771
+       * 2. discard: The 232.239.0.0/16 in Telus deployment is not for video, if fc hit it some unexcepted message will be outputted by fc.
+       * 3. The source IP of mc table is zero
+       * 4. Use UDP src/des port check to instead of #2.
+       */
+     if(((htonl(pip->daddr) & htonl(0xFF000000)) == htonl(0xE8000000)) &&  //232.0.0.0/8
+   //   ((htonl(pip->daddr) & htonl(0x00FF0000)) != htonl(0x00EF0000)) && //0.239.0.0/16
+	mc_fdb->src_entry.src.s_addr ==0)
+      {
+         if(pip->protocol == IPPROTO_UDP)
+         {
+               uh = (struct udphdr*)(skb->data+(pip->ihl<<2));
+              // printk("skb uh->source =%x,dest=%x\n",htons(uh->source),htons(uh->dest));
+               if(htons(uh->source) == htons(uh->dest))
+                  return;
+         }
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
+         if(proto == BR_MCAST_PROTO_IGMP)
+         {
+	         blog_idx =  mc_fdb->blog_idx;
+              traffic = BlogTraffic_IPV4_MCAST;
+         }
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
+         if(proto == BR_MCAST_PROTO_MLD)
+         {
+	         blog_idx =  mc_fdb->blog_idx;
+               traffic = BlogTraffic_IPV6_MCAST;
+         }
+#endif
+
+	   if(!blog_idx)
+        {
+        //    printk(KERN_DEBUG"AEI_handle_mc_ssm_blog  can't find blog_idx, return\n");
+            return;
+         }
+
+      //  printk(KERN_DEBUG"KEN->  find blog_idx=%u\n",blog_idx);
+	   blog_p = blog_deactivate(blog_idx, traffic);
+
+        if(blog_p)
+        {
+            new_blog_p = blog_get();
+
+            if(new_blog_p != BLOG_NULL)
+            {
+                blog_copy(new_blog_p, blog_p);
+                /* get the source address of MR server and update the fc entry*/
+                new_blog_p->rx.tuple.saddr = ntohl(pip->saddr);
+                new_blog_p->tx.tuple.saddr = ntohl(pip->saddr);
+                blog_link(MCAST_FDB, new_blog_p, (void *)mc_fdb, 0, 0);
+                if ( blog_activate(new_blog_p, traffic) == BLOG_KEY_INVALID )
+                {
+                   blog_rule_free_list(new_blog_p);
+                   blog_put(new_blog_p);
+                }
+            }
+	       else
+	      {
+	          blog_rule_free_list(blog_p);
+	      }
+
+            blog_put(blog_p);
+         //   printk(KERN_DEBUG"KEN-> after blog_idx=%u\n",mc_fdb->blog_idx);
+
+       }
+    }
+	return;
+}
+
+#endif
 
 int br_igmp_mc_forward(struct net_bridge *br, 
                        struct sk_buff *skb, 
@@ -462,11 +714,33 @@ int br_igmp_mc_forward(struct net_bridge *br,
 	int status = 0;
 	struct sk_buff *skb2;
 	struct net_bridge_port *p, *p_n;
-	struct iphdr *pip = ip_hdr(skb);
+	struct iphdr *pip = NULL;
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
+	struct hlist_head *head = NULL;
+	struct hlist_node *h;
+	__u8 igmpTypeOffset = 0;
 
-	if(eth_hdr(skb)->h_proto != ETH_P_IP)
-		return status;
+	if(vlan_eth_hdr(skb)->h_vlan_proto != ETH_P_IP)
+	{
+		if ( vlan_eth_hdr(skb)->h_vlan_proto == ETH_P_8021Q )
+		{
+			if ( vlan_eth_hdr(skb)->h_vlan_encapsulated_proto != ETH_P_IP )
+			{
+				return status;
+			}
+			pip = (struct iphdr *)(skb_network_header(skb) + sizeof(struct vlan_hdr));
+			igmpTypeOffset = (pip->ihl << 2) + sizeof(struct vlan_hdr);
+		}
+		else
+		{
+			return status;
+		}
+	}
+	else
+	{
+		pip = ip_hdr(skb);
+		igmpTypeOffset = (pip->ihl << 2); 
+	}
 
 	if ((pip->protocol == IPPROTO_IGMP)  &&
 		 (br->igmp_proxy || br->igmp_snooping))
@@ -474,17 +748,11 @@ int br_igmp_mc_forward(struct net_bridge *br,
 		/* for bridged WAN service, do not pass any IGMP packets
 		   coming from the WAN port to mcpd. Queries can be passed 
 		   through for forwarding, other types should be dropped */
+		if (skb->dev)
+		{
 		if ( skb->dev->priv_flags & IFF_WANDEV )
 		{
-			unsigned char igmp_type;
-			if(pip->ihl == 5)
-			{
-				igmp_type = skb->data[20];
-			}
-			else
-			{
-				igmp_type = skb->data[24];
-			}
+			unsigned char igmp_type = skb->data[igmpTypeOffset];
 			if ( igmp_type != IGMP_HOST_MEMBERSHIP_QUERY )
 			{
 				kfree_skb(skb);
@@ -493,30 +761,63 @@ int br_igmp_mc_forward(struct net_bridge *br,
 		}
 		else
 		{
-			if(skb->dev && (skb->dev->br_port)) 
+				if(skb->dev->br_port) 
 			{ 
-				mcpd_process_skb(br, skb);
+				mcpd_process_skb(br, skb, ETH_P_IP);
 			}
+		}
 		}
 		return status;
 	}
 
-	if (!br->igmp_snooping)
-		return status;
+	/* snooping could be disabled and still have manual entries */
 
+	/* drop traffic by default when snooping is enabled
+	   in blocking mode */
 	if ((br->igmp_snooping == SNOOPING_BLOCKING_MODE) && 
-		br_igmp_control_filter(dest, pip->daddr))
+		 br_igmp_control_filter(dest, pip->daddr))
+	{
 		status = 1;
-
+	}
 
 	spin_lock_bh(&br->mcl_lock);
-	list_for_each_entry(dst, &br->mc_list, list) {
+	head = &br->mc_hash[br_igmp_mc_fdb_hash(pip->daddr)];
+	hlist_for_each_entry(dst, h, head, hlist) {
 		if (dst->grp.s_addr == pip->daddr) {
+			/* routed packet will have bridge as dev - cannot match to mc_fdb */
+			if ( is_routed ) {
+				if ( dst->type != MCPD_IF_TYPE_ROUTED ) {
+					continue;
+				}
+			}
+			else {
+				if ( dst->type != MCPD_IF_TYPE_BRIDGED ) {
+					continue;
+				}
+				if (skb->dev->priv_flags & IFF_WANDEV) {
+					/* match exactly if skb device is a WAN device - otherwise continue */
+					if (dst->from_dev != skb->dev)
+						continue;
+				}
+				else {
+					/* if this is not an L2L mc_fdb entry continue */
+					if (dst->from_dev != br->dev)
+						continue;            
+				}
+			}
+
 			if((dst->src_entry.filt_mode == MCAST_INCLUDE) && 
 				(pip->saddr == dst->src_entry.src.s_addr)) {
 				if (!dst->dst->dirty) {
 					if((skb2 = skb_clone(skb, GFP_ATOMIC)) == NULL)
 					{
+#if defined(AEI_COVERITY_FIX)
+                        /*
+                         * Coverity Defect
+                         * missing unlock
+                         */
+                        spin_unlock_bh(&br->mcl_lock);
+#endif
 						return 0;
 					}
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
@@ -536,10 +837,21 @@ int br_igmp_mc_forward(struct net_bridge *br,
 					if (!dst->dst->dirty) {
 						if((skb2 = skb_clone(skb, GFP_ATOMIC)) == NULL)
 						{
+#if defined(AEI_COVERITY_FIX)
+                            /*
+                             * Coverity Defect
+                             * missing unlock
+                             */
+                            spin_unlock_bh(&br->mcl_lock);
+#endif
 							return 0;
 						}
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+#if defined(AEI_VDSL_MC_SSM_HIT)
+                                AEI_handle_mc_ssm_blog(BR_MCAST_PROTO_IGMP, dst,pip,skb2);
+#endif
 						blog_clone(skb, blog_ptr(skb2));
+
 #endif
 						if(forward)
 							br_forward(dst->dst, skb2);
@@ -569,83 +881,143 @@ int br_igmp_mc_forward(struct net_bridge *br,
 	return status;
 }
 
-struct net_bridge_mc_fdb_entry *br_igmp_mc_fdb_copy(struct net_bridge *br, 
-                                     const struct net_bridge_mc_fdb_entry *igmp_fdb)
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+int br_igmp_mc_fdb_update_bydev( struct net_bridge *br,
+                                 struct net_device *dev )
 {
-    struct net_bridge_mc_fdb_entry *new_igmp_fdb = NULL;
-    struct net_bridge_mc_rep_entry *rep_entry = NULL;
-    struct net_bridge_mc_rep_entry *rep_entry_n = NULL;
-    int success = 1;
+	struct net_bridge_mc_fdb_entry *mc_fdb;
+	int ret;
+	int i;
 
-	new_igmp_fdb = kmalloc(sizeof(struct net_bridge_mc_fdb_entry), GFP_KERNEL);
+	if(!br || !dev)
+		return 0;
 
+	if(!netdev_path_is_leaf(dev))
+		return 0;
+
+	spin_lock_bh(&br->mcl_lock);
+	for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+	{
+		struct hlist_node *h, *n;
+		hlist_for_each_entry_safe(mc_fdb, h, n, &br->mc_hash[i], hlist) 
+		{
+			if ((mc_fdb->dst->dev == dev) ||
+		    	(mc_fdb->from_dev == dev))
+			{
+				br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)mc_fdb);
+				/* do note remove the root entry */
+				if (0 == mc_fdb->root)
+				{
+                br_igmp_mc_fdb_del_entry(br, mc_fdb);
+				}
+			}
+		}
+	}
+
+	for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+	{
+		struct hlist_node *h, *n;
+		hlist_for_each_entry_safe(mc_fdb, h, n, &br->mc_hash[i], hlist) 
+		{ 
+			if ( (1 == mc_fdb->root) && 
+			     ((mc_fdb->dst->dev == dev) ||
+			      (mc_fdb->from_dev == dev)) )
+			{
+				mc_fdb->wan_tci  = 0;
+				mc_fdb->num_tags = 0; 
+				ret = br_mcast_blog_process(br, (void*)mc_fdb, BR_MCAST_PROTO_IGMP);
+				if(ret < 0)
+				{
+                /* br_mcast_blog_process may return -1 if there are no blog rules
+                 * which may be a valid scenario, in which case we delete the
+                 * multicast entry.
+                 */
+                br_igmp_mc_fdb_del_entry(br, mc_fdb);
+//              printk(KERN_DEBUG "%s: Failed to create the blog\n", __FUNCTION__);
+				}
+			}
+		}
+	}
+	spin_unlock_bh(&br->mcl_lock);
+
+	return 0;
+}
+
+/* This is a support function for vlan/blog processing that requires that 
+   br->mcl_lock is already held */
+struct net_bridge_mc_fdb_entry *br_igmp_mc_fdb_copy(
+                       struct net_bridge *br, 
+                       const struct net_bridge_mc_fdb_entry *igmp_fdb)
+{
+	struct net_bridge_mc_fdb_entry *new_igmp_fdb = NULL;
+	struct net_bridge_mc_rep_entry *rep_entry = NULL;
+	struct net_bridge_mc_rep_entry *rep_entry_n = NULL;
+	int success = 1;
+	struct hlist_head *head = NULL;
+
+	new_igmp_fdb = kmem_cache_alloc(br_igmp_mc_fdb_cache, GFP_ATOMIC);
 	if (new_igmp_fdb)
-    {
-        memcpy(new_igmp_fdb, igmp_fdb, sizeof(struct net_bridge_mc_fdb_entry));
-	    INIT_LIST_HEAD(&new_igmp_fdb->rep_list);
+	{
+		memcpy(new_igmp_fdb, igmp_fdb, sizeof(struct net_bridge_mc_fdb_entry));
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		new_igmp_fdb->blog_idx = BLOG_KEY_INVALID;
+#endif
+		new_igmp_fdb->root = 0;
+		INIT_LIST_HEAD(&new_igmp_fdb->rep_list);
 
-        list_for_each_entry(rep_entry, &igmp_fdb->rep_list, list) {
-            rep_entry_n = kmalloc(sizeof(struct net_bridge_mc_rep_entry), GFP_KERNEL);
-            if(rep_entry_n)
-            {
-                memcpy(rep_entry_n, 
-                       rep_entry, 
-                       sizeof(struct net_bridge_mc_rep_entry));
-                spin_lock_bh(&br->mcl_lock);
-                list_add_tail(&rep_entry_n->list, &new_igmp_fdb->rep_list);
-                spin_unlock_bh(&br->mcl_lock);
-            }
-            else 
-            {
-                success = 0;
-                break;
-            }
-        }
+		list_for_each_entry(rep_entry, &igmp_fdb->rep_list, list) {
+			rep_entry_n = kmem_cache_alloc(br_igmp_mc_rep_cache, GFP_ATOMIC);
+			if(rep_entry_n)
+			{
+				memcpy(rep_entry_n, 
+				       rep_entry, 
+				       sizeof(struct net_bridge_mc_rep_entry));
+				list_add_tail(&rep_entry_n->list, &new_igmp_fdb->rep_list);
+			}
+			else 
+			{
+				success = 0;
+				break;
+			}
+		}
 
-        if(success)
-        {
-            spin_lock_bh(&br->mcl_lock);
-            list_add_tail(&new_igmp_fdb->list, &br->mc_list);
-            spin_unlock_bh(&br->mcl_lock);
-        }
-        else
-        {
-            spin_lock_bh(&br->mcl_lock);
-	        list_for_each_entry_safe(rep_entry, 
-	                             rep_entry_n, &new_igmp_fdb->rep_list, list) {
-                list_del(&rep_entry->list);
-                kfree(rep_entry);
-	        }
-		    list_del(&new_igmp_fdb->list);
-            kfree(new_igmp_fdb);
-            spin_unlock_bh(&br->mcl_lock);
-            new_igmp_fdb = NULL;
-        }
-    }
+		if(success)
+		{
+			head = &br->mc_hash[br_igmp_mc_fdb_hash(igmp_fdb->grp.s_addr)];
+			hlist_add_head(&new_igmp_fdb->hlist, head);
+		}
+		else
+		{
+			list_for_each_entry_safe(rep_entry, 
+			                         rep_entry_n, &new_igmp_fdb->rep_list, list) {
+				list_del(&rep_entry->list);
+				kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
+			}
+			kmem_cache_free(br_igmp_mc_fdb_cache, new_igmp_fdb);
+			new_igmp_fdb = NULL;
+		}
+	}
 
-    return new_igmp_fdb;
+	return new_igmp_fdb;
 } /* br_igmp_mc_fdb_copy */
+#endif
 
+/* This function requires that br->mcl_lock is already held */
 void br_igmp_mc_fdb_del_entry(struct net_bridge *br, 
                               struct net_bridge_mc_fdb_entry *igmp_fdb)
 {
-    struct net_bridge_mc_rep_entry *rep_entry = NULL;
-    struct net_bridge_mc_rep_entry *rep_entry_n = NULL;
+	struct net_bridge_mc_rep_entry *rep_entry = NULL;
+	struct net_bridge_mc_rep_entry *rep_entry_n = NULL;
 
-    spin_lock_bh(&br->mcl_lock);
-    list_for_each_entry_safe(rep_entry, 
-        rep_entry_n, &igmp_fdb->rep_list, list) {
-            list_del(&rep_entry->list);
-            kfree(rep_entry);
-    }
-    list_del(&igmp_fdb->list);
-#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
-    br_mcast_blog_release(BR_MCAST_PROTO_IGMP, (void *)igmp_fdb);
-#endif
-    kfree(igmp_fdb);
-    spin_unlock_bh(&br->mcl_lock);
+	list_for_each_entry_safe(rep_entry, 
+	                         rep_entry_n, &igmp_fdb->rep_list, list) {
+		list_del(&rep_entry->list);
+		kmem_cache_free(br_igmp_mc_rep_cache, rep_entry);
+	}
+	hlist_del(&igmp_fdb->hlist);
+	kmem_cache_free(br_igmp_mc_fdb_cache, igmp_fdb);
 
-    return;
+	return;
 }
 
 static void *snoop_seq_start(struct seq_file *seq, loff_t *pos)
@@ -653,8 +1025,7 @@ static void *snoop_seq_start(struct seq_file *seq, loff_t *pos)
 	struct net_device *dev;
 	loff_t offs = 0;
 
-	rtnl_lock();
-	ASSERT_RTNL();
+    read_lock(&dev_base_lock);
 	for_each_netdev(&init_net, dev)
     {
 		if ((dev->priv_flags & IFF_EBRIDGE) &&
@@ -674,10 +1045,8 @@ static void *snoop_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 	
 	for(dev = next_net_device(dev); dev; dev = next_net_device(dev)) {
 		if(dev->priv_flags & IFF_EBRIDGE)
-        {
 			return dev;
         }
-	}
 	return NULL;
 }
 
@@ -687,40 +1056,73 @@ static int snoop_seq_show(struct seq_file *seq, void *v)
 	struct net_bridge_mc_fdb_entry *dst;
 	struct net_bridge *br = netdev_priv(dev);
 	struct net_bridge_mc_rep_entry *rep_entry;
-	int first = 1;
+	int first;
+	int i;
+	int tstamp;
 
-	seq_printf(seq, "igmp snooping %d proxy %d lan2lan-snooping %d\n", 
-                                    br->igmp_snooping, 
-                                    br->igmp_proxy,
-                                    br_igmp_lan2lan_snooping);
+	seq_printf(seq, "igmp snooping %d  proxy %d  lan2lan-snooping %d, rate-limit %dpps, priority %d\n", 
+	           br->igmp_snooping, 
+	           br->igmp_proxy,
+	           br_igmp_lan2lan_snooping,
+              br->igmp_rate_limit,
+              br_mcast_get_pri_queue());
+	seq_printf(seq, "bridge device src-dev #tags lan-tci    wan-tci");
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	seq_printf(seq, "    group      mode source     timeout reporter   Index\n");
+#else
+	seq_printf(seq, "    group      mode source     timeout reporter\n");
+#endif
 
-	seq_printf(seq, "bridge	device src-dev #tags lan-tci\twan-tci\tgroup\tmode\tsource\ttimeout\treporter\n");
+	for (i = 0; i < BR_IGMP_HASH_SIZE; i++) 
+	{
+		struct hlist_node *h;
+		hlist_for_each(h, &br->mc_hash[i]) 
+		{
+			dst = hlist_entry(h, struct net_bridge_mc_fdb_entry, hlist);
+			if(dst)
+	{
+		seq_printf(seq, "%-6s %-6s %-7s %02d    0x%08x 0x%08x", 
+		           br->dev->name, 
+		           dst->dst->dev->name, 
+		           dst->from_dev->name, 
+		           dst->num_tags,
+		           dst->lan_tci,
+		           dst->wan_tci);
 
-	list_for_each_entry(dst, &br->mc_list, list) {
-		seq_printf(seq, "%6s %6s %6s  %02d 0x%08x 0x%08x\t", br->dev->name, 
-                                                dst->dst->dev->name, 
-                                                dst->from_dev->name, 
-                                                dst->num_tags,
-                                                dst->lan_tci,
-                                                dst->wan_tci);
-                seq_printf(seq, "%04x  ", dst->grp.s_addr);
+		seq_printf(seq, " 0x%08x", dst->grp.s_addr);
 
-		seq_printf(seq, "%2s  0x%08x %03d\t", 
-			(dst->src_entry.filt_mode == MCAST_EXCLUDE) ? 
-			"EX" : "IN", dst->src_entry.src.s_addr, 
-			(int) (dst->tstamp - jiffies)/HZ);
-
-		list_for_each_entry(rep_entry, &dst->rep_list, list) { 
-		    if(first) {
-                seq_printf(seq, "0x%08x\n", rep_entry->rep.s_addr);
-                first = 0;
-		    }
-		    else {
-                seq_printf(seq, "\t\t\t\t\t\t\t\t%04x\n", 
-                                                   rep_entry->rep.s_addr);
-		    }
+		if ( 0 == br->igmp_snooping )
+		{
+			tstamp = 0;
 		}
+		else
+		{
+			tstamp = (int)(dst->tstamp - jiffies) / HZ;
+		}
+		seq_printf(seq, " %-4s 0x%08x %-7d", 
+		           (dst->src_entry.filt_mode == MCAST_EXCLUDE) ? 
+		           "EX" : "IN", dst->src_entry.src.s_addr, 
+		           tstamp);
+
 		first = 1;
+		list_for_each_entry(rep_entry, &dst->rep_list, list)
+		{ 
+			if(first)
+			{
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+				seq_printf(seq, " 0x%08x 0x%08x\n", rep_entry->rep.s_addr, dst->blog_idx);
+#else
+				seq_printf(seq, " 0x%08x\n", rep_entry->rep.s_addr);
+#endif
+				first = 0;
+			}
+			else
+			{
+				seq_printf(seq, "%84s 0x%08x\n", " ", rep_entry->rep.s_addr);
+			}
+		}
+	}
+		}
 	}
 
 	return 0;
@@ -728,7 +1130,7 @@ static int snoop_seq_show(struct seq_file *seq, void *v)
 
 static void snoop_seq_stop(struct seq_file *seq, void *v)
 {
-	rtnl_unlock();
+    read_unlock(&dev_base_lock);
 }
 
 static struct seq_operations snoop_seq_ops = {
@@ -751,13 +1153,57 @@ static struct file_operations br_igmp_snoop_proc_fops = {
 	.release = seq_release,
 };
 
-void br_igmp_snooping_init(void)
+void br_igmp_mc_rep_free(struct net_bridge_mc_rep_entry *rep)
+{
+    kmem_cache_free(br_igmp_mc_rep_cache, rep);
+
+    return;
+}
+
+void br_igmp_mc_fdb_free(struct net_bridge_mc_fdb_entry *mc_fdb)
+{
+    kmem_cache_free(br_igmp_mc_fdb_cache, mc_fdb);
+
+    return;
+}
+
+int __init br_igmp_snooping_init(void)
 {
 	br_igmp_entry = proc_create("igmp_snooping", 0, init_net.proc_net,
 			   &br_igmp_snoop_proc_fops);
 
 	if(!br_igmp_entry) {
 		printk("error while creating igmp_snooping proc\n");
+        return -ENOMEM;
 	}
+
+	br_igmp_mc_fdb_cache = kmem_cache_create("bridge_igmp_mc_fdb_cache",
+                            sizeof(struct net_bridge_mc_fdb_entry),
+                            0,
+                            SLAB_HWCACHE_ALIGN, NULL);
+    if (!br_igmp_mc_fdb_cache)
+		return -ENOMEM;
+
+    br_igmp_mc_rep_cache = kmem_cache_create("bridge_igmp_mc_rep_cache",
+                            sizeof(struct net_bridge_mc_rep_entry),
+                            0,
+                            SLAB_HWCACHE_ALIGN, NULL);
+    if (!br_igmp_mc_rep_cache)
+    {
+        kmem_cache_destroy(br_igmp_mc_fdb_cache);
+		return -ENOMEM;
+    }
+
+	get_random_bytes(&br_igmp_mc_fdb_salt, sizeof(br_igmp_mc_fdb_salt));
+
+    return 0;
+}
+
+void br_igmp_snooping_fini(void)
+{
+	kmem_cache_destroy(br_igmp_mc_fdb_cache);
+	kmem_cache_destroy(br_igmp_mc_rep_cache);
+
+    return;
 }
 #endif

@@ -1,25 +1,32 @@
-
 #ifndef __BLOG_RULE_H_INCLUDED__
 #define __BLOG_RULE_H_INCLUDED__
 
-/*
-<:copyright-gpl
-
- Copyright 2010 Broadcom Corp. All Rights Reserved.
-
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-
+/* 
+* <:copyright-BRCM:2010:DUAL/GPL:standard
+* 
+*    Copyright (c) 2010 Broadcom Corporation
+*    All Rights Reserved
+* 
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
+* 
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
+* 
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
+* 
 :>
 */
 
@@ -63,6 +70,8 @@
 
 #define BLOG_RULE_IP_PROTO_MASK    0xFF
 #define BLOG_RULE_IP_PROTO_SHIFT   0
+#define BLOG_RULE_IP6_NXT_HDR_MASK    0xFF
+#define BLOG_RULE_IP6_NXT_HDR_SHIFT   0
 
 #define blog_rule_filterInUse(_filter)                          \
     ({                                                          \
@@ -102,12 +111,48 @@ typedef struct {
 } blogRuleFilterIpv4_t;
 
 typedef struct {
+    /* only contains the fields we are interested */
+    uint8_t tclass;
+    uint8_t nxtHdr;
+} blogRuleIpv6Header_t;
+
+typedef struct {
+    blogRuleIpv6Header_t mask;
+    blogRuleIpv6Header_t value;
+} blogRuleFilterIpv6_t;
+
+typedef struct {
+    uint32_t priority;     /* skb priority filter value is offset by 1 because
+                            * 0 is reserved to indicate filter not in use.
+                            * Therefore the supported skb priority range is
+                            * [0 to 0xfffffffe].
+                            */
+    uint16_t markFlowId;
+    uint16_t markPort;     /* port mark filter value is offset by 1 because
+                            * 0 is reserved to indicate filter not in use.
+                            * Therefore use 16-bit to cover the supported
+                            * port range [0 to 255].
+                            */ 
+} blogRuleFilterSkb_t;
+
+typedef struct {
     blogRuleFilterEth_t eth;
     uint32_t nbrOfVlanTags;
     blogRuleFilterVlan_t vlan[BLOG_RULE_VLAN_TAG_MAX];
     uint32_t hasPppoeHeader;
     blogRuleFilterIpv4_t ipv4;
+    blogRuleFilterIpv6_t ipv6;
+    blogRuleFilterSkb_t  skb;
+    uint32_t flags;
+#define BLOG_RULE_FILTER_FLAGS_IS_UNICAST   0x0001
+#define BLOG_RULE_FILTER_FLAGS_IS_MULTICAST 0x0002
+#define BLOG_RULE_FILTER_FLAGS_IS_BROADCAST 0x0004
 } blogRuleFilter_t;
+
+#define BLOG_RULE_FILTER_FLAGS_ALL               \
+    ( BLOG_RULE_FILTER_FLAGS_IS_UNICAST   |      \
+      BLOG_RULE_FILTER_FLAGS_IS_MULTICAST |      \
+      BLOG_RULE_FILTER_FLAGS_IS_BROADCAST )
 
 #undef  BLOG_RULE_DECL
 #define BLOG_RULE_DECL(x) x
@@ -131,7 +176,11 @@ typedef enum {
     BLOG_RULE_DECL(BLOG_RULE_CMD_POP_PPPOE_HDR),
     BLOG_RULE_DECL(BLOG_RULE_CMD_SET_DSCP),
     BLOG_RULE_DECL(BLOG_RULE_CMD_DECR_TTL),
+    BLOG_RULE_DECL(BLOG_RULE_CMD_DECR_HOP_LIMIT),
     BLOG_RULE_DECL(BLOG_RULE_CMD_DROP),
+    BLOG_RULE_DECL(BLOG_RULE_CMD_SET_SKB_MARK_PORT),
+    BLOG_RULE_DECL(BLOG_RULE_CMD_SET_SKB_MARK_QUEUE),
+    BLOG_RULE_DECL(BLOG_RULE_CMD_OVRD_LEARNING_VID),
     BLOG_RULE_DECL(BLOG_RULE_CMD_MAX)
 } blogRuleCommand_t;
 
@@ -147,6 +196,8 @@ typedef struct {
         uint16_t vlanProto;
         uint16_t dscp;
         uint16_t fromTag;
+        uint16_t skbMarkQueue;
+        uint16_t skbMarkPort;
         uint16_t arg;
         uint8_t macAddr[ETH_ALEN];
     };

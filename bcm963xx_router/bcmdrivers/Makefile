@@ -3,7 +3,7 @@
 # Makefile for the Linux kernel modules.
 #
 
-LN_NAME=bcm9$(BRCM_CHIP)
+export LN_NAME=bcm9$(BRCM_CHIP)
 LN_DRIVER_DIRS =
 CLEAN_DRIVER_DIRS =
 
@@ -23,6 +23,12 @@ ifneq ($(CONFIG_BCM_BOARD),)
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_BOARD_IMPL) opensource/char/board/$(BRCM_BOARD)/$(LN_NAME);
 obj-$(CONFIG_BCM_BOARD) += opensource/char/board/$(BRCM_BOARD)/$(LN_NAME)/
 endif
+
+ifneq ($(CONFIG_BCM_CHIPINFO),)
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_CHIPINFO_IMPL) broadcom/char/chipinfo/$(BRCM_CHIPINFO)/$(LN_NAME);
+obj-$(CONFIG_BCM_CHIPINFO) += broadcom/char/chipinfo/$(BRCM_CHIPINFO)/$(LN_NAME)/
+endif
+
 
 ifneq ($(CONFIG_BCM_SERIAL),)
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_SERIAL_IMPL) opensource/char/serial/$(LN_NAME);
@@ -61,6 +67,11 @@ ifneq ($(CONFIG_BCM_XTMCFG),)
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_XTMCFG_IMPL) broadcom/char/xtmcfg/$(LN_NAME);
   obj-y += opensource/net/xtmrt/$(LN_NAME)/
   obj-$(CONFIG_BCM_XTMCFG) += broadcom/char/xtmcfg/$(LN_NAME)/
+endif
+
+ifneq ($(CONFIG_BCM_EXT_BONDING),)
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_EXT_BONDING_IMPL) broadcom/char/ext_bonding/$(LN_NAME);
+  obj-$(CONFIG_BCM_EXT_BONDING) += broadcom/char/ext_bonding/$(LN_NAME)/
 endif
 
 ifneq ($(CONFIG_BCM_ADSL),)
@@ -104,6 +115,11 @@ ifneq ($(CONFIG_BCM_P8021AG),)
   obj-$(CONFIG_BCM_P8021AG) += broadcom/char/p8021ag/$(LN_NAME)/
 endif
 
+ifneq ($(CONFIG_BCM_TMS),)
+	LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_TMS_IMPL) broadcom/char/tms/$(LN_NAME);
+	obj-$(CONFIG_BCM_TMS) += broadcom/char/tms/$(LN_NAME)/
+endif
+
 ifneq ($(CONFIG_BCM_ENET),)
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_ENET_IMPL) opensource/net/enet/$(LN_NAME);
   obj-$(CONFIG_BCM_ENET) += opensource/net/enet/$(LN_NAME)/
@@ -125,18 +141,23 @@ ifneq ($(CONFIG_BCM_MoCA),)
 endif
 
 ifneq ($(CONFIG_BCM_I2C_BUS),)
-  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_I2C_BUS_IMPL) broadcom/char/i2c/busses/$(LN_NAME);
-  obj-$(CONFIG_BCM_I2C_BUS) += broadcom/char/i2c/busses/$(LN_NAME)/
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_I2C_BUS_IMPL) opensource/char/i2c/busses/$(LN_NAME);
+  obj-$(CONFIG_BCM_I2C_BUS) += opensource/char/i2c/busses/$(LN_NAME)/
 endif
 
 ifneq ($(CONFIG_BCM_I2C_CHIP),)
-  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_I2C_CHIP_IMPL) broadcom/char/i2c/chips/$(LN_NAME);
-  obj-$(CONFIG_BCM_I2C_CHIP) += broadcom/char/i2c/chips/$(LN_NAME)/
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_I2C_CHIP_IMPL) opensource/char/i2c/chips/$(LN_NAME);
+  obj-$(CONFIG_BCM_I2C_CHIP) += opensource/char/i2c/chips/$(LN_NAME)/
 endif
 
 ifneq ($(CONFIG_BCM_VLAN),)
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_VLAN_IMPL) broadcom/char/vlan/$(LN_NAME);
   obj-$(CONFIG_BCM_VLAN) += broadcom/char/vlan/$(LN_NAME)/
+endif
+
+ifneq ($(CONFIG_BCM_EPON),)
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_EPON_IMPL) broadcom/char/epon/$(LN_NAME);
+  obj-$(CONFIG_BCM_EPON) += broadcom/char/epon/$(LN_NAME)/
 endif
 
 ifneq ($(CONFIG_BCM_USB),)
@@ -150,17 +171,28 @@ ifneq ($(CONFIG_BCM_ISDN),)
 endif
 
 ifneq ($(CONFIG_BCM_WLAN),)
+
+ifeq ($(strip $(WL)),)
+ifneq ($(CONFIG_BCM_WLAN_IMPL_SELECT),"")
+   WL=IMPL$(subst ",,$(CONFIG_BCM_WLAN_IMPL_SELECT))
+endif
+endif
+
 ifneq ($(WL),)
    CONFIG_BCM_WLAN_IMPL=$(patsubst IMPL%,%,$(WL))  
 endif
+ifneq ($(AEI_VDSL_USE_BRCM_WL_6301027),)
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_WLAN_IMPL)_6301027 broadcom/net/wl/$(LN_NAME);
+else
   LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_WLAN_IMPL) broadcom/net/wl/$(LN_NAME);
+endif
   obj-$(CONFIG_BCM_WLAN) += broadcom/net/wl/$(LN_NAME)/
   
 endif
 
 ifneq ($(CONFIG_BCM_SPU),)
-  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_SPU_IMPL) broadcom/char/spudd/$(LN_NAME);
-  obj-$(CONFIG_BCM_SPU) += broadcom/char/spudd/$(LN_NAME)/
+  LN_DRIVER_DIRS +=ln -sn impl$(CONFIG_BCM_SPU_IMPL) opensource/char/spudd/$(LN_NAME);
+  obj-$(CONFIG_BCM_SPU) += opensource/char/spudd/$(LN_NAME)/
 endif
 
 ifneq ($(CONFIG_BCM_PWRMNGT),)
@@ -194,7 +226,7 @@ ifneq ($(CONFIG_BCM_ARL),)
 endif
 
 
-.PHONY : applinks symlinks clean
+.PHONY : applinks symlinks clean version_info
 
 applinks:
 ifneq ($(CONFIG_BCM_PKTCMF),)
@@ -204,8 +236,12 @@ endif
 endif
 
 
+ifneq ($(MAKECMDGOALS),version_info)
+find_opt := -print
+endif
+
 symlinks: applinks
-	find . -lname "*" -name "$(LN_NAME)" -print -exec rm -f "{}" ";"
+	find . -lname "*" -name "$(LN_NAME)" $(find_opt) -exec rm -f "{}" ";"
 	$(CONFIG_SHELL) -c "$(LN_DRIVER_DIRS)"
 
 
@@ -213,3 +249,8 @@ clean:
 	for dir in $(CLEAN_DRIVER_DIRS) ; do \
 		$(MAKE) -C $$dir clean; \
 	done
+
+version_info: symlinks
+ifneq ($(CONFIG_BCM_WLAN),)
+	$(MAKE) -C $(BRCMDRIVERS_DIR)/broadcom/net/wl/$(LN_NAME) version_info
+endif

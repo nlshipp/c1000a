@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -174,6 +176,21 @@ UINT32 cmsTmr_getNumberOfEvents(const void *tmrHandle);
 void cmsTmr_executeExpiredEvents(void *tmrHandle);
 
 
+/** Return time remaining for timer matching specified handler func and 
+ *  context data (event).
+ *  
+ * @param tmrHandle (IN) Pointer to timer handle that was returned by cmsTmr_init().
+ * @param func      (IN) The handler func.
+ * @param ctxData   (IN) Optional data to be passed in with the handler func.
+ * @param ms        (OUT) Number of milliseconds remaining for the event. 
+ *                        Set to 0 if the event is expired or not found.
+ *
+ * @return CmsRet enum.  CMSRET_SUCCESS if the event is found. 
+ *                       CMSRET_OBJECT_NOT_FOUND if a matching event is not found.
+ */
+CmsRet cmsTmr_getTimeRemaining(const void *handle, CmsEventHandler func, void *ctxData, UINT32 *ms);
+
+
 /** Return true if the specified handler func and context data (event) is set.
  *  
  * @param tmrHandle (IN) Pointer to timer handle that was returned by cmsTmr_init().
@@ -198,7 +215,7 @@ UBOOL8 cmsTmr_isEventPresent2(const void *handle, CmsEventHandler func, void *ct
 CmsRet cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32 ms, const char *name);
 UINT32 cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, void *ctxData);
 #endif
-#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS)  
+#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS)
 UBOOL8 AEI_cmsTmr_isWlanBatchEventPresent(const void *handle, CmsEventHandler func);
 void AEI_cmsTmr_WlanBatchcancel(void *handle, CmsEventHandler func, const char *name);
 #endif

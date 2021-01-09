@@ -3,4 +3,3 @@
 #define DTX8MAX         2400
 #define DTX8MAXEXPECTED (DTX8MAX - DTX8MIN +1)
 #define MAXDTX8_PORTS	1
-

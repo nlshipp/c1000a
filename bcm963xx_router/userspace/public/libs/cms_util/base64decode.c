@@ -433,6 +433,12 @@ CmsRet cmsB64_decode(const char *base64Str, UINT8 **binaryBuf, UINT32 *binaryBuf
     {
 	    ret = pl_base64_decode_flush(data);
     }
+#ifdef AEI_COVERITY_FIX
+    else
+    {
+	    PL_DestroyBase64Decoder(data);
+    }
+#endif
 
 
     if (ret == CMSRET_SUCCESS)

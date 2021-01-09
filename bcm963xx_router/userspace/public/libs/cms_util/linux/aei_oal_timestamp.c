@@ -4,8 +4,8 @@
  *  All Rights Reserved
  *
  *  This file is to store all functions that developed by Actiontec Electronics
- *  in addition to routines provided by Broadcom. All additional routines that 
- *  are missing from oal_timestamp.c file will locate in this file. 
+ *  in addition to routines provided by Broadcom. All additional routines that
+ *  are missing from oal_timestamp.c file will locate in this file.
  *
  ************************************************************************/
 
@@ -34,4 +34,3 @@ CmsRet AEI_oalTms_getGUIDateTime(char *buf, UINT32 bufLen)
     return CMSRET_SUCCESS;
 }
 #endif
-

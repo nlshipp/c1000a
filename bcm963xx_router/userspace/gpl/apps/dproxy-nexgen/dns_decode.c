@@ -63,10 +63,10 @@ void dns_decode_reverse_name(char *name)
  */
 void dns_decode_name(char *name, char **buf)
 {
-  int i, k, len, j;
+  int k, len, j;
   unsigned char ulen;
 
-  i = k = 0;
+  k = 0;
   while( **buf ){
          ulen = *(*buf)++;
          len = ulen;
@@ -174,8 +174,7 @@ int dns_decode_message(struct dns_message *m, char **buf)
 /*****************************************************************************/
 void dns_decode_request(dns_request_t *m)
 {
-  struct in_addr *addr;
-  char *ptr;
+  char *addr, *ptr;
   int i;
 
   m->here = m->original_buf;
@@ -196,12 +195,12 @@ void dns_decode_request(dns_request_t *m)
      /* make sure we ge the same type as the query incase there are multiple
         and unrelated answers */
      if( m->message.question[0].type == m->message.answer[i].type ){
-         if( m->message.answer[i].type == A
-             /*BRCM || m->message.answer[i].type == AAA*/ ){
-             
+         if( (m->message.answer[i].type == A) ||
+             (m->message.answer[i].type == AAA) ){
              /* Standard lookup so convert data to an IP */
-             addr = (struct in_addr *)m->message.answer[i].data;
-             strcpy( m->ip, inet_ntoa( addr[0] ) );
+             addr = m->message.answer[i].data;
+             inet_ntop((m->message.answer[i].type == A)?AF_INET:AF_INET6, 
+                       (void *)addr, m->ip, INET6_ADDRSTRLEN);
              break;
          }
          else if( m->message.answer[i].type == PTR )
@@ -209,7 +208,12 @@ void dns_decode_request(dns_request_t *m)
              /* Reverse lookup so convert data to a nume */
              ptr = m->message.answer[i].data;
              dns_decode_name( m->cname, &ptr );
+#if defined(AEI_COVERITY_FIX)
+             /*CID 12230:Copy into fixed size buffer*/
+             strlcpy( m->ip, m->message.answer[i].name, sizeof(m->ip));
+#else
              strcpy( m->ip, m->message.answer[i].name);
+#endif
              break;
          }
      } /* if( question == answer ) */

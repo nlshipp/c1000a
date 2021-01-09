@@ -1,7 +1,18 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define this to 1 if you want to enable support of encrypted files in
+   libntfs and utilities. */
+#undef ENABLE_CRYPTO
+
 /* Define to 1 if debug should be enabled */
 #undef ENABLE_DEBUG
+
+/* Define to 1 if the nfconv patch should be enabled */
+#undef ENABLE_NFCONV
+
+/* Define this to 1 if you want to enable generation of DCE compliant UUIDs.
+   */
+#undef ENABLE_UUID
 
 /* Define to 1 if using internal fuse */
 #undef FUSE_INTERNAL
@@ -14,6 +25,9 @@
 
 /* Define to 1 if you have the <byteswap.h> header file. */
 #undef HAVE_BYTESWAP_H
+
+/* Define to 1 if you have the `clock_gettime' function. */
+#undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #undef HAVE_CTYPE_H
@@ -59,6 +73,9 @@
 
 /* Define to 1 if you have the `getopt_long' function. */
 #undef HAVE_GETOPT_LONG
+
+/* Define to 1 if you have the `gettimeofday' function. */
+#undef HAVE_GETTIMEOFDAY
 
 /* Define to 1 if you have the `hasmntopt' function. */
 #undef HAVE_HASMNTOPT
@@ -107,6 +124,9 @@
 
 /* Define to 1 if you have the <mntent.h> header file. */
 #undef HAVE_MNTENT_H
+
+/* Define to 1 if you have the <pwd.h> header file. */
+#undef HAVE_PWD_H
 
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
@@ -178,6 +198,9 @@
 /* Define to 1 if `st_atim' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIM
 
+/* Define to 1 if `st_atimensec' is member of `struct stat'. */
+#undef HAVE_STRUCT_STAT_ST_ATIMENSEC
+
 /* Define to 1 if `st_atimespec' is member of `struct stat'. */
 #undef HAVE_STRUCT_STAT_ST_ATIMESPEC
 
@@ -199,6 +222,9 @@
 
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 #undef HAVE_SYS_BYTEORDER_H
+
+/* Define to 1 if you have the <sys/disk.h> header file. */
+#undef HAVE_SYS_DISK_H
 
 /* Define to 1 if you have the <sys/endian.h> header file. */
 #undef HAVE_SYS_ENDIAN_H
@@ -238,6 +264,9 @@
 
 /* Define to 1 if you have the `utime' function. */
 #undef HAVE_UTIME
+
+/* Define to 1 if you have the `utimensat' function. */
+#undef HAVE_UTIMENSAT
 
 /* Define to 1 if you have the <utime.h> header file. */
 #undef HAVE_UTIME_H
@@ -288,6 +317,9 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* POSIX ACL support */
+#undef POSIXACLS
+
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
@@ -304,6 +336,9 @@
 /* Define to 1 if your processor stores words with the least significant byte
    first (like Intel and VAX, unlike Motorola and SPARC). */
 #undef WORDS_LITTLEENDIAN
+
+/* system extended attributes mappings */
+#undef XATTR_MAPPINGS
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS

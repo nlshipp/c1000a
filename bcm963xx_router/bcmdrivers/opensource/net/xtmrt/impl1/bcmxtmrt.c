@@ -1,19 +1,19 @@
 /*
-<:copyright-gpl 
- Copyright 2007 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+<:copyright-gpl
+ Copyright 2007 Broadcom Corp. All Rights Reserved.
+
+ This program is free software; you can distribute it and/or modify it
+ under the terms of the GNU General Public License (Version 2) as
+ published by the Free Software Foundation.
+
+ This program is distributed in the hope it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ for more details.
+
+ You should have received a copy of the GNU General Public License along
+ with this program; if not, write to the Free Software Foundation, Inc.,
+ 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
 :>
 */
 /**************************************************************************
@@ -22,7 +22,7 @@
  * Description: This file implements BCM6368 ATM/PTM network device driver
  *              runtime processing - sending and receiving data.
  ***************************************************************************/
- 
+
 /* Defines. */
 #define VERSION     "0.3"
 #define VER_STR     "v" VERSION " " __DATE__ " " __TIME__
@@ -128,7 +128,7 @@ static int DoDeleteDeviceReq( PBCMXTMRT_DEV_CONTEXT pDevCtx );
 static int DoGetNetDevTxChannel( PXTMRT_NETDEV_TXCHANNEL pParm );
 static int bcmxtmrt_add_proc_files( void );
 static int bcmxtmrt_del_proc_files( void );
-static int ProcDmaTxInfo(char *page, char **start, off_t off, int cnt, 
+static int ProcDmaTxInfo(char *page, char **start, off_t off, int cnt,
     int *eof, void *data);
 
 
@@ -266,18 +266,18 @@ static int bcmxtmrt_close( struct net_device *dev )
 
     pDevCtx->ulOpenState = XTMRT_DEV_CLOSED;
     netif_stop_queue(dev);
-    
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
     napi_disable(&pDevCtx->napi);
 #endif
-    
+
     return 0;
 } /* bcmxtmrt_close */
 
 
 /***************************************************************************
  * Function Name: bcmxtmrt_timeout
- * Description  : Called when there is a transmit timeout. 
+ * Description  : Called when there is a transmit timeout.
  * Returns      : None.
  ***************************************************************************/
 static void bcmxtmrt_timeout( struct net_device *dev )
@@ -289,7 +289,7 @@ static void bcmxtmrt_timeout( struct net_device *dev )
 
 /***************************************************************************
  * Function Name: bcmxtmrt_query
- * Description  : Called to return device statistics. 
+ * Description  : Called to return device statistics.
  * Returns      : 0 if successful or error status
  ***************************************************************************/
 static struct net_device_stats *bcmxtmrt_query(struct net_device *dev)
@@ -347,7 +347,7 @@ static struct net_device_stats *bcmxtmrt_query(struct net_device *dev)
 
 /***************************************************************************
  * Function Name: bcmxtmrt_clrStats
- * Description  : Called to clear device statistics. 
+ * Description  : Called to clear device statistics.
  * Returns      : None
  ***************************************************************************/
 static void bcmxtmrt_clrStats(struct net_device *dev)
@@ -432,7 +432,7 @@ static int bcmxtmrt_ioctl(struct net_device *dev, struct ifreq *Req, int nCmd)
         break;
 
     default:
-        nRet = -EOPNOTSUPP;    
+        nRet = -EOPNOTSUPP;
         break;
     }
 
@@ -472,7 +472,7 @@ static int bcmxtmrt_ethtool_ioctl(PBCMXTMRT_DEV_CONTEXT pDevCtx, void *useraddr)
             break;
 
         default:
-            nRet = -EOPNOTSUPP;    
+            nRet = -EOPNOTSUPP;
             break;
         }
     }
@@ -689,7 +689,7 @@ static int bcmxtmrt_pppoatm_send(struct ppp_channel *pChan, struct sk_buff *skb)
  * Description  : Determines whether to queue a packet for transmission based
  *                on the number of total external (ie Ethernet) buffers and
  *                buffers already queued.
- *                For all ATM cells (ASM, OAM which are locally originated and 
+ *                For all ATM cells (ASM, OAM which are locally originated and
  *                mgmt based), we allow them to get queued as they are critical
  *                & low frequency based.
  *                For ex., if we drop sucessive ASM cels during congestion (the whole bonding
@@ -861,7 +861,7 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                ulPtmPriority = (uMark >> 4) & 0x1;
 
             pTqi=pDevCtx->pTxPriorities[ulPtmPriority][ulPort][uPriority];
-        
+
             /* If a transmit queue was not found, use the existing highest priority queue
              * that had been configured with the default Ptm priority and DSL latency (port).
              */
@@ -1041,13 +1041,13 @@ static int bcmxtmrt_xmit( pNBuff_t pNBuff, struct net_device *dev )
                  * netif_stop_queue because this device may use more than one
                  * queue.
                  */
-                nbuff_flushfree(pNBuff);                
+                nbuff_flushfree(pNBuff);
                 pDevCtx->DevStats.tx_errors++;
             }
         }
         else
         {
-            nbuff_flushfree(pNBuff);            
+            nbuff_flushfree(pNBuff);
             pDevCtx->DevStats.tx_dropped++;
         }
     }
@@ -1125,7 +1125,7 @@ static void AddRfc2684Hdr(pNBuff_t *ppNBuff, struct sk_buff **ppNBuffSkb,
 
 /***************************************************************************
  * Function Name: AssignRxBuffer
- * Description  : Put a data buffer back on to the receive BD ring. 
+ * Description  : Put a data buffer back on to the receive BD ring.
  * Returns      : None.
  ***************************************************************************/
 void AssignRxBuffer(PRXBDINFO pRxBdInfo, UINT8 *pucData)
@@ -1176,7 +1176,7 @@ void AssignRxBuffer(PRXBDINFO pRxBdInfo, UINT8 *pucData)
 
 /***************************************************************************
  * Function Name: FlushAssignRxBuffer
- * Description  : Flush then assign RxBdInfo to the receive BD ring. 
+ * Description  : Flush then assign RxBdInfo to the receive BD ring.
  * Returns      : None.
  ***************************************************************************/
 void FlushAssignRxBuffer(PRXBDINFO pRxBdInfo, UINT8 *pucData,
@@ -1189,7 +1189,7 @@ void FlushAssignRxBuffer(PRXBDINFO pRxBdInfo, UINT8 *pucData,
 /***************************************************************************
  * Function Name: bcmxtmrt_recycle_skb_or_data
  * Description  : Put socket buffer header back onto the free list or a data
- *                buffer back on to the BD ring. 
+ *                buffer back on to the BD ring.
  * Returns      : None.
  ***************************************************************************/
 static void bcmxtmrt_recycle_skb_or_data(struct sk_buff *skb, unsigned context,
@@ -1329,7 +1329,7 @@ static int bcmxtmrt_poll_napi(struct napi_struct* napi, int budget)
            more packets on the DMA (or both) */
         spin_lock_irqsave(&pGi->xtmlock_rx_regs, flags);
         pGi->ulIntEnableMask |= ulMask;
-        spin_unlock_irqrestore(&pGi->xtmlock_rx_regs,flags);        
+        spin_unlock_irqrestore(&pGi->xtmlock_rx_regs,flags);
         return work_done;
     }
 
@@ -1535,7 +1535,7 @@ static UINT32 bcmxtmrt_rxtask( UINT32 ulBudget, UINT32 *pulMoreToDo )
                 }
                 else {
                     bcmxtmrt_process_rx_pkt (pDevCtx, pFkb, dmaDesc.status, delLen, trailerDelLen) ;
-                    //bcmxtmrt_ptm_receive_and_drop (pDevCtx, pFkb, dmaDesc.status) ; 
+                    //bcmxtmrt_ptm_receive_and_drop (pDevCtx, pFkb, dmaDesc.status) ;
                                          /* Used for SAR-phy Lpbk high-rate test */
                 }
             }
@@ -1582,8 +1582,8 @@ UINT32 bcmxtmrt_process_rx_pkt ( PBCMXTMRT_DEV_CONTEXT pDevCtx,
 
    pDevCtx->DevStats.rx_bytes += pFkb->len ;
 
-   if( (ulHdrType ==  HT_PTM || ulHdrType ==  HT_LLC_SNAP_ETHERNET || 
-        ulHdrType ==  HT_VC_MUX_ETHERNET) 
+   if( (ulHdrType ==  HT_PTM || ulHdrType ==  HT_LLC_SNAP_ETHERNET ||
+        ulHdrType ==  HT_VC_MUX_ETHERNET)
                      &&
          ((pucData[0] & 0x01) == 0x01) )
    {
@@ -2296,15 +2296,15 @@ static int DoCreateDeviceReq( PXTMRT_CREATE_NETWORK_DEVICE pCnd )
             dev->flags = IFF_BROADCAST | IFF_MULTICAST;
             break;
         }
-        
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
         netif_napi_add(dev, &pDevCtx->napi, bcmxtmrt_poll_napi, 64);
-#endif      
+#endif
         /* Don't reset or enable the device yet. "Open" does that. */
         printk("[%s.%d]: register_netdev\n", __func__, __LINE__);
         nRet = register_netdev(dev);
         printk("[%s.%d]: register_netdev done\n", __func__, __LINE__);
-        if (nRet == 0) 
+        if (nRet == 0)
         {
             UINT32 i;
             for( i = 0; i < MAX_DEV_CTXS; i++ )
@@ -2478,7 +2478,7 @@ static int DoLinkStsChangedReq( PBCMXTMRT_DEV_CONTEXT pDevCtx,
  * Function Name: DoLinkUp
  * Description  : Processes a "link up" condition.
  *                In bonding case, successive links may be coming UP one after
- *                another, accordingly the processing differs. 
+ *                another, accordingly the processing differs.
  * Returns      : 0 if successful or error status
  ***************************************************************************/
 static int DoLinkUp( PBCMXTMRT_DEV_CONTEXT pDevCtx,
@@ -2667,7 +2667,7 @@ static int DoLinkDownRx( UINT32 ulPortId )
  * Returns      : 0 if successful or error status
  ***************************************************************************/
 static int DoLinkDownTx( PBCMXTMRT_DEV_CONTEXT pDevCtx,
-     						    PXTMRT_LINK_STATUS_CHANGE pLsc )
+						    PXTMRT_LINK_STATUS_CHANGE pLsc )
 {
     int nRet = 0;
     volatile DmaStateRam  *pStRam;
@@ -2879,7 +2879,7 @@ static int DoUnsetTxQueue( PBCMXTMRT_DEV_CONTEXT pDevCtx,
                   for (j = 0; j < MAX_SUB_PRIORITIES; j++)
                      if (pDevCtx->pTxPriorities[ulPtmPriority][ulPort][j] > pTxQInfo)
                         pDevCtx->pTxPriorities[ulPtmPriority][ulPort][j]--;
-                     
+
             /* Count the total number of transmit queues used across all device
              * interfaces.
              */
@@ -3096,7 +3096,7 @@ static int bcmxtmrt_del_proc_files( void )
  *                network interfaces.
  * Returns      : 0 if successful or error status
  ***************************************************************************/
-static int ProcDmaTxInfo(char *page, char **start, off_t off, int cnt, 
+static int ProcDmaTxInfo(char *page, char **start, off_t off, int cnt,
     int *eof, void *data)
 {
     PBCMXTMRT_GLOBAL_INFO pGi = &g_GlobalInfo;
@@ -3141,4 +3141,3 @@ module_exit(bcmxtmrt_cleanup);
 MODULE_LICENSE("Proprietary");
 
 EXPORT_SYMBOL(bcmxtmrt_request);
-

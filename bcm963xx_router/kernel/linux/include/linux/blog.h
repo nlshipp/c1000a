@@ -11,19 +11,25 @@
 *    Copyright (c) 2003 Broadcom Corporation
 *    All Rights Reserved
 * 
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License, version 2, as published by
-* the Free Software Foundation (the "GPL").
+* Unless you and Broadcom execute a separate written software license
+* agreement governing use of this software, this software is licensed
+* to you under the terms of the GNU General Public License version 2
+* (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+* with the following added to such license:
 * 
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
+*    As a special exception, the copyright holders of this software give
+*    you permission to link this software with independent modules, and
+*    to copy and distribute the resulting executable under terms of your
+*    choice, provided that you also meet, for each linked independent
+*    module, the terms and conditions of the license of that module.
+*    An independent module is a module which is not derived from this
+*    software.  The special exception does not apply to any modifications
+*    of the software.
 * 
-* 
-* A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-* writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* Boston, MA 02111-1307, USA.
+* Not withstanding the above, under no circumstances may you combine
+* this software in any way with any other Broadcom software provided
+* under a license other than the GPL, without Broadcom's express prior
+* written consent.
 * 
 :>
 */
@@ -295,6 +301,9 @@ struct sk_buff;                         /* linux/skbuff.h                     */
 struct fkbuff;                          /* linux/nbuff.h                      */
 
 /* See RFC 4008 */
+#define BLOG_NAT_TCP_DEFAULT_IDLE_TIMEOUT (86400 *HZ)
+#define BLOG_NAT_UDP_DEFAULT_IDLE_TIMEOUT (300 *HZ)
+
 extern uint32_t blog_nat_tcp_def_idle_timeout;
 extern uint32_t blog_nat_udp_def_idle_timeout;
 
@@ -309,6 +318,17 @@ typedef void (*blog_refresh_t)(void * ct_p, uint32_t ctinfo,
 extern blog_refresh_t blog_refresh_fn;
 /* __end_include_if_linux__ */
 
+
+/*
+ *------------------------------------------------------------------------------
+ * Denotes a Blog client,
+ *------------------------------------------------------------------------------
+ */
+typedef enum {
+        BLOG_DECL(BlogClient_fcache)
+        BLOG_DECL(BlogClient_fap)
+        BLOG_DECL(BlogClient_MAX)
+} BlogClient_t;
 
 /*
  *------------------------------------------------------------------------------
@@ -380,6 +400,7 @@ typedef enum {
         BLOG_DECL(BRIDGEFDB)            /* Bridge Forwarding Database entity  */
         BLOG_DECL(MCAST_FDB)            /* Multicast Client FDB entity        */
         BLOG_DECL(IF_DEVICE)            /* Virtual Interface (network device) */
+        BLOG_DECL(IF_DEVICE_MCAST)      /* Virtual Interface (network device) */
         BLOG_DECL(BLOG_NET_ENTITY_MAX)
 } BlogNetEntity_t;
 
@@ -553,6 +574,11 @@ typedef struct{
     unsigned long	rx_bytes;		        /* total blog bytes received 	  */
     unsigned long	tx_bytes;		        /* total blog bytes transmitted	  */
     unsigned long	multicast;		        /* total blog multicast packets	  */
+    unsigned long   tx_multicast_packets;   /* multicast packets transmitted */
+    unsigned long   rx_multicast_bytes;     /* multicast bytes recieved */ 
+    unsigned long   tx_multicast_bytes;     /* multicast bytes transmitted */
+    unsigned long   rx_unicast_packets;     /* unicast packets recieved */
+    unsigned long   tx_unicast_packets;     /* unicast packets transmitted */
 } BlogStats_t;
 
 
@@ -610,6 +636,7 @@ typedef enum {
     BLOG_DECL(BlogTraffic_IPV6_UCAST)
     BLOG_DECL(BlogTraffic_IPV4_MCAST)
     BLOG_DECL(BlogTraffic_IPV6_MCAST)
+    BLOG_DECL(BlogTraffic_Layer2_Flow)
     BLOG_DECL(BlogTraffic_MAX)
 } BlogTraffic_t;
 
@@ -769,6 +796,8 @@ typedef struct blogTuple_t BlogTuple_t;
 
 #define CHK4in6(b)      (T4in6UP(b) || T4in6DN(b))
 #define CHK6in4(b)      (T6in4UP(b) || T6in4DN(b))
+#define CHK4to4(b)      (RX_IPV4ONLY(b) && TX_IPV4ONLY(b))
+#define CHK6to6(b)      (RX_IPV6ONLY(b) && TX_IPV6ONLY(b))
 
 typedef struct ip6_addr {
     union {
@@ -837,7 +866,7 @@ struct blogHeader_t {
 
     union {
         void            * dev_p;        /* physical network device */
-        void            * mc_fdb;       /* mcast control object */
+        void            * reserved2;    
     };
 
     union {
@@ -897,7 +926,7 @@ struct blog_t {
     };
     BlogHash_t          key;            /* Coarse hash search key */
     uint32_t            hash;           /* hash */
-    uint32_t            reserve32_1[1];
+    void                * mc_fdb;       /* physical rx network device */
 
     void                * fdb[2];       /* fdb_src and fdb_dst */
     int8_t              delta[MAX_VIRT_DEV];  /* octet delta info */
@@ -994,6 +1023,9 @@ extern void blog_clone(struct sk_buff * skb_p, const struct blog_t * prev_p);
 /* Copy a Blog_t object another blog object. */
 extern void blog_copy(struct blog_t * new_p, const struct blog_t * prev_p);
 
+/* get the Ingress QoS Prio from the blog */
+extern int blog_iq( const struct sk_buff * skb_p );
+
 
 /*
  *------------------------------------------------------------------------------
@@ -1070,14 +1102,16 @@ extern int blog_iq_prio(struct sk_buff * skb_p, void * dev_p,
  *             pass a filled blog to the hook for configuration
  *------------------------------------------------------------------------------
  */
-extern uint32_t blog_activate( Blog_t * blog_p, BlogTraffic_t traffic );
+extern uint32_t blog_activate( Blog_t * blog_p, BlogTraffic_t traffic,
+                               BlogClient_t client );
 
 /*
  *------------------------------------------------------------------------------
  *  blog_deactivate(): static deconfiguration function of blog application
  *------------------------------------------------------------------------------
  */
-extern Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic );
+extern Blog_t * blog_deactivate( uint32_t key, BlogTraffic_t traffic,
+                                 BlogClient_t client );
 
 /*
  * -----------------------------------------------------------------------------
@@ -1142,11 +1176,14 @@ typedef Blog_t * (* BlogSdHook_t)(uint32_t key, BlogTraffic_t traffic);
 extern void blog_bind(BlogDevHook_t rx_hook,    /* Client Rx netdevice handler*/
                       BlogDevHook_t tx_hook,    /* Client Tx netdevice handler*/
                       BlogNotifyHook_t xx_hook, /* Client notification handler*/
-                      BlogScHook_t sc_hook,    /* Client static config handler*/
-                      BlogSdHook_t sd_hook,    /* Client static deconf handler*/
                       BlogBind_t   bind
                      );
-
+                     
+extern void blog_bind_config(BlogScHook_t sc_hook,    /* Client static config handler*/
+                             BlogSdHook_t sd_hook,    /* Client static deconf handler*/
+                             BlogClient_t client,     /* Static configuration Client */
+                             BlogBind_t   bind
+                            );
 
 /*
  * -----------------------------------------------------------------------------
@@ -1172,5 +1209,14 @@ uint16_t blog_getTxMtu(Blog_t * blog_p);
 extern void blog_lock_bh(void);
 extern void blog_unlock_bh(void);
 
+/* WLAN packet chaining */
+typedef enum {
+        BLOG_DECL(BRC_HOT_GET)        /* Get BRC_HOT pointer for pkt chaining */
+        BLOG_DECL(UPDATE_BRC_HOT)     /* To update BRC_HOT entry */
+        BLOG_DECL(DELETE_BRC_HOT)     /* To delete BRC_HOT entry */
+        BLOG_DECL(DUMP_BRC_HOT)       /* To dump BRC_HOT table */
+} BlogPktc_t;
+
+extern uint32_t blog_pktc(BlogPktc_t pktc_request, void * net_p, uint32_t param1, uint32_t param2);
 
 #endif /* defined(__BLOG_H_INCLUDED__) */

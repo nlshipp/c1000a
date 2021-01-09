@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -172,24 +174,6 @@ static CmsEntityInfo entityInfoArray[] = {
 #endif
     0, 0, 0},
 
-   {EID_LASERD,
-    0,
-    "laserd",
-    "/bin/laserd",
-    "",
-#ifdef DMP_X_ITU_ORG_GPON_1
-    EIF_LAUNCH_ON_BOOT|EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE,
-    0,
-    0,
-    TRUE,             /* isFeatureCompiledIn */
-#else
-    EIF_MDM|EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE,
-    0,
-    0,
-    FALSE,            /* isFeatureCompiledIn */
-#endif
-    0, 0, 0},
-
 
    {EID_OMCID,
     0,
@@ -301,6 +285,9 @@ static CmsEntityInfo entityInfoArray[] = {
     "dhcpd",
     "/bin/dhcpd",
     "",
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    EIF_AUTO_RELAUNCH|
+#endif
     EIF_MESSAGING_CAPABLE,
     0,
     0,
@@ -473,6 +460,19 @@ static CmsEntityInfo entityInfoArray[] = {
     0,                  /* TCP/UDP server port */
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},           /* misc memory parameters */
+    
+#if defined(AEI_VDSL_CUSTOMER_NTPV4)
+   {EID_NTPV4,
+    0,                  /* TR69 attribute access bit */
+    "ntpclient",
+    "/bin/ntpclient",
+    "",                 /* run args */
+    EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
+    0,                  /* backlog for TCP server port */
+    0,                  /* TCP/UDP server port */
+    TRUE,               /* isFeatureCompiledIn */
+    0, 0, 0},           /* misc memory parameters */
+#endif
 
    {EID_URLFILTERD,
     0,
@@ -483,17 +483,6 @@ static CmsEntityInfo entityInfoArray[] = {
     0,
     0,
     TRUE,               /* isFeatureCompiledIn */
-    0, 0, 0},
-
-   {EID_IGMP,
-    0,
-    "igmp",
-    "/bin/igmp",
-    "",                 /* run args */
-    EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
-    0,
-    0,
-    TRUE,             /* isFeatureCompiledIn */
     0, 0, 0},
 
    {EID_DHCP6C,
@@ -535,6 +524,21 @@ static CmsEntityInfo entityInfoArray[] = {
     0,
     0,
 #if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+#endif
+    0, 0, 0},
+
+   {EID_RASTATUS6,
+    0,
+    "rastatus6",
+    "/bin/rastatus6",
+    "",                 /* run args */
+    EIF_MESSAGING_CAPABLE,
+    0,
+    0,
+#ifdef DMP_X_BROADCOM_COM_IPV6_1 /* aka SUPPORT_IPV6 */
     TRUE,             /* isFeatureCompiledIn */
 #else
     FALSE,            /* isFeatureCompiledIn */
@@ -596,17 +600,6 @@ static CmsEntityInfo entityInfoArray[] = {
     "/usr/bin/ftp",
     "",
     EIF_MESSAGING_CAPABLE|EIF_DESKTOP_LINUX_CAPABLE,
-    0,
-    0,
-    TRUE,             /* isFeatureCompiledIn */
-    0, 0, 0},
-
-   {EID_MLD,
-    0,
-    "mld",
-    "/bin/mld",
-    "",                 /* run args */
-    EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
     0,
     0,
     TRUE,             /* isFeatureCompiledIn */
@@ -847,10 +840,33 @@ static CmsEntityInfo entityInfoArray[] = {
     "mcpd",
     "/bin/mcpd",
     "",                 /* run args */
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    EIF_MESSAGING_CAPABLE | EIF_AUTO_RELAUNCH,  /* flags (later make it desktop capable) */
+#else
+    EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
+#endif
+    0,
+    0,
+#if defined(SUPPORT_IGMP) || defined (SUPPORT_MLD)
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+#endif
+    0, 0, 0},
+
+   {EID_MCPCTL,
+    0,
+    "mcpctl",
+    "/bin/mcpctl",
+    "",                 /* run args */
     EIF_MESSAGING_CAPABLE,  /* flags (later make it desktop capable) */
     0,
     0,
+#if defined(SUPPORT_IGMP) || defined (SUPPORT_MLD)
     TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+#endif
     0, 0, 0},
 
    {EID_L2TPD,
@@ -1024,6 +1040,36 @@ static CmsEntityInfo entityInfoArray[] = {
 #endif
     0, 0, 0},     /* misc memory parameters */
 
+   {EID_PLC_NVM,
+    0,
+    "plcnvm",
+    "/bin/plcnvm",
+    "",                 /* run args */
+    EIF_LAUNCH_ON_BOOT,
+    0,
+    0,
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+#endif
+    0, 0, 0},
+
+   {EID_PLC_BOOT,
+    0,
+    "plcboot",
+    "/bin/plcboot",
+    "",                 /* run args */
+    EIF_LAUNCH_ON_BOOT,
+    0,
+    0,
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+#endif
+    0, 0, 0},
+
    {EID_BMUD,
     0,
     "bmud",
@@ -1063,7 +1109,18 @@ static CmsEntityInfo entityInfoArray[] = {
     0,                  /* backlog for TCP server port */
     0,                  /* TCP/UDP server port */
     TRUE,               /* isFeatureCompiledIn */
-    0, 0, 0},         
+    0, 0, 0},
+
+    {EID_SET_DETECT_WAN_SERVICE,
+    NDA_ACCESS_TR69C,
+    "setdetectWANService",
+    "/bin/setdetectWANService",
+    "",                 /* run args */
+    EIF_MDM|EIF_MESSAGING_CAPABLE,  /* EIF_ flags */
+    0,                  /* backlog for TCP server port */
+    0,                  /* TCP/UDP server port */
+    TRUE,               /* isFeatureCompiledIn */
+    0, 0, 0},
 #endif
 
 #if defined(AEI_VDSL_MYNETWORK)
@@ -1129,7 +1186,7 @@ static CmsEntityInfo entityInfoArray[] = {
     0,
     TRUE,
     0, 0, 0},
-#endif 
+#endif
 
 #if defined(AEI_VDSL_SMARTLED)
     {EID_SMARTLED,
@@ -1167,7 +1224,18 @@ static CmsEntityInfo entityInfoArray[] = {
     TRUE,               /* isFeatureCompiledIn */
     0, 0, 0},           /* misc memory parameters */
 #endif
-
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    {EID_SAVESYSLOG,
+    0,
+    "savesyslog",
+    "/bin/savesyslog",
+    "",                 /* run args */
+    EIF_MESSAGING_CAPABLE,  /* EIF_ flags */
+    0,                  /* backlog for TCP server port */
+    0,                  /* TCP/UDP server port */
+    TRUE,               /* isFeatureCompiledIn */
+    0, 0, 0},           /* misc memory parameters */
+#endif
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 #ifdef SUPPORT_HTTPD_SSL
    {EID_HTTPSD,
@@ -1229,6 +1297,37 @@ static CmsEntityInfo entityInfoArray[] = {
     0, 0, 0},
 #endif
 
+
+   {EID_HOMEPLUGD,
+    0,
+    "homeplugd",
+    "/bin/homeplugd",
+    "-v 0",                 /* run args */
+    EIF_MDM|EIF_LAUNCH_ON_BOOT|EIF_MESSAGING_CAPABLE,
+    0,
+    0,
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+  #endif    
+    0, 0, 0},
+    
+   {EID_HOMEPLUGCTL,
+    0,
+    "homeplugctl",
+    "/bin/homeplugctl",
+    "",                 /* run args */
+    EIF_MDM,
+    0,
+    0,
+#ifdef DMP_DEVICE2_HOMEPLUG_1
+    TRUE,             /* isFeatureCompiledIn */
+#else
+    FALSE,            /* isFeatureCompiledIn */
+  #endif    
+    0, 0, 0},
+
 #if defined(AEI_VDSL_CPU_SYSLOG)
    {EID_CPULOGD,
     0,
@@ -1239,6 +1338,30 @@ static CmsEntityInfo entityInfoArray[] = {
     0,
     0,
     TRUE,
+    0, 0, 0},
+#endif
+#if defined(AEI_VDSL_CAPTIVE_PAGES)
+   {EID_IPTABLES,
+    0,
+    "iptables",
+    "/bin/iptables",
+    "",                 /* run args */
+	EIF_MULTIPLE_INSTANCES,  /* EIF_ flags */
+    0,
+    0,
+    TRUE,             /* isFeatureCompiledIn */
+    0, 0, 0},
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+   {EID_VOICEPR,     
+    NDA_ACCESS_VODSL,
+    "voicepr",       
+    "/bin/voicepr",
+    "",                 /* run args */
+    EIF_MDM|EIF_LAUNCH_ON_BOOT|EIF_MESSAGING_CAPABLE,  /* EIF_ flags */
+    0,
+    0,
+    TRUE,             /* isFeatureCompiledIn */
     0, 0, 0},
 #endif
 };

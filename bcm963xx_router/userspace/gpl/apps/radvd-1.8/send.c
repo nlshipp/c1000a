@@ -87,7 +87,7 @@ time_diff_secs(const struct timeval *time_x, const struct timeval *time_y)
 		secs_diff++;
 
 	return secs_diff;
-	
+
 }
 
 static void
@@ -95,7 +95,7 @@ decrement_lifetime(const time_t secs, uint32_t *lifetime)
 {
 
 	if (*lifetime > secs) {
-		*lifetime -= secs;	
+		*lifetime -= secs;
 	} else {
 		*lifetime = 0;
 	}
@@ -116,11 +116,11 @@ static struct AdvPrefix* reverse_prefix_list(struct AdvPrefix* root)
         return root;
     int perfix_cnt=1;
     struct AdvPrefix *cur,*pre,*next;
-    
+
     pre=(struct AdvPrefix *)NULL;
     cur=root;
     next=cur->next;
-    
+
     while(next)
     {
         cur->next=pre;
@@ -129,7 +129,7 @@ static struct AdvPrefix* reverse_prefix_list(struct AdvPrefix* root)
         next=cur->next;
         perfix_cnt++;
     }
-    
+
     cur->next=pre;
     dlog(LOG_DEBUG, 4,"prefix cnt=%d",perfix_cnt);
     return cur;
@@ -236,7 +236,7 @@ send_ra(struct Interface *iface, struct in6_addr *dest)
 
 	len = sizeof(struct nd_router_advert);
 /*reverse prefix list*/
-    
+
     iface->AdvPrefixList = reverse_prefix_list(iface->AdvPrefixList);
 /*end*/
 	prefix = iface->AdvPrefixList;
@@ -247,18 +247,18 @@ send_ra(struct Interface *iface, struct in6_addr *dest)
 	static int DepPrefixCnt = 1; // send deprecated prefix for x times
 
 	while(prefix)
-	{   
+	{
 	    struct in6_addr	*prinPrefix=&prefix->Prefix;
-	    dlog(LOG_DEBUG, 4,"prifix %x:%x:%x:%x:%x:%x:%x:%x", 
+	    dlog(LOG_DEBUG, 4,"prifix %x:%x:%x:%x:%x:%x:%x:%x",
          prinPrefix->s6_addr16[0],prinPrefix->s6_addr16[1],prinPrefix->s6_addr16[2],prinPrefix->s6_addr16[3],
          prinPrefix->s6_addr16[4],prinPrefix->s6_addr16[5],prinPrefix->s6_addr16[6],prinPrefix->s6_addr16[7]);
-        
+
 		dlog(LOG_DEBUG, 4, "prefix info:AdvPreferredLifetime=%d,AdvValidLifetime=%d,DeprecatePrefixFlag=%d,DecrementLifetimesFlag=%d",
         prefix->AdvPreferredLifetime,prefix->AdvValidLifetime,prefix->DeprecatePrefixFlag,prefix->DecrementLifetimesFlag);
-        
+
         dlog(LOG_DEBUG, 4,"prefix->curr_preferredlft =%d,prefix->curr_validlft=%d",
             prefix->curr_preferredlft,prefix->curr_validlft);
-        
+
 	    //if( prefix->enabled )
 	    //if( prefix->enabled && prefix->curr_preferredlft > 0 )
 		//if( prefix->enabled && ((prefix->DeprecatePrefixFlag==0) || (prefix->curr_preferredlft > 0)))
@@ -288,7 +288,7 @@ send_ra(struct Interface *iface, struct in6_addr *dest)
 				if (prefix->DecrementLifetimesFlag) {
 					decrement_lifetime(secs_since_last_ra,
 								&prefix->curr_validlft);
-					
+
 					decrement_lifetime(secs_since_last_ra,
 								&prefix->curr_preferredlft);
 					if (prefix->curr_preferredlft == 0)
@@ -492,7 +492,7 @@ send_ra(struct Interface *iface, struct in6_addr *dest)
                 else {
                        ival  = (iface->MaxRtrAdvInterval * 1000);
                 }
- 		a_ival.type	= ND_OPT_RTR_ADV_INTERVAL;
+		a_ival.type	= ND_OPT_RTR_ADV_INTERVAL;
 		a_ival.length	= 1;
 		a_ival.reserved	= 0;
 		a_ival.adv_ival	= htonl(ival);
@@ -512,7 +512,7 @@ send_ra(struct Interface *iface, struct in6_addr *dest)
 
 	{
 		struct HomeAgentInfo ha_info;
- 		ha_info.type		= ND_OPT_HOME_AGENT_INFO;
+		ha_info.type		= ND_OPT_HOME_AGENT_INFO;
 		ha_info.length		= 1;
 		ha_info.flags_reserved	=
 			(iface->AdvMobRtrSupportFlag)?ND_OPT_HAI_FLAG_SUPPORT_MR:0;

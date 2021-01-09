@@ -1,12 +1,9 @@
-#include "config.h"
-#include "libbb.h"
-
+/* vi: set sw=4 ts=4: */
 /* uncompress for busybox -- (c) 2002 Robert Griebl
  *
  * based on the original compress42.c source
  * (see disclaimer below)
  */
-
 
 /* (N)compress42.c - File compression ala IEEE Computer, Mar 1992.
  *
@@ -26,9 +23,10 @@
  * [... History snipped ...]
  *
  */
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
+
+#include "libbb.h"
+#include "unarchive.h"
+
 
 /* Default input buffer size */
 #define	IBUFSIZ	2048
@@ -37,102 +35,101 @@
 #define	OBUFSIZ	2048
 
 /* Defines for third byte of header */
-#define	MAGIC_1		(char_type)'\037'	/* First byte of compressed file               */
-#define	MAGIC_2		(char_type)'\235'	/* Second byte of compressed file              */
-#define BIT_MASK	0x1f	/* Mask for 'number of compresssion bits'       */
-							/* Masks 0x20 and 0x40 are free.                */
-							/* I think 0x20 should mean that there is       */
-							/* a fourth header byte (for expansion).        */
-#define BLOCK_MODE	0x80	/* Block compresssion if table is full and      */
-			/* compression rate is dropping flush tables    */
-			/* the next two codes should not be changed lightly, as they must not   */
-			/* lie within the contiguous general code space.                        */
-#define FIRST	257		/* first free entry                             */
-#define	CLEAR	256		/* table clear output code                      */
+#define BIT_MASK        0x1f    /* Mask for 'number of compresssion bits'       */
+                                /* Masks 0x20 and 0x40 are free.                */
+                                /* I think 0x20 should mean that there is       */
+                                /* a fourth header byte (for expansion).        */
+#define BLOCK_MODE      0x80    /* Block compression if table is full and       */
+                                /* compression rate is dropping flush tables    */
+                                /* the next two codes should not be changed lightly, as they must not   */
+                                /* lie within the contiguous general code space.                        */
+#define FIRST   257     /* first free entry */
+#define CLEAR   256     /* table clear output code */
 
-#define INIT_BITS 9		/* initial number of bits/code */
+#define INIT_BITS 9     /* initial number of bits/code */
 
 
 /* machine variants which require cc -Dmachine:  pdp11, z8000, DOS */
-#define FAST
+#define HBITS      17   /* 50% occupancy */
+#define HSIZE      (1<<HBITS)
+#define HMASK      (HSIZE-1)    /* unused */
+#define HPRIME     9941         /* unused */
+#define BITS       16
+#define BITS_STR   "16"
+#undef  MAXSEG_64K              /* unused */
+#define MAXCODE(n) (1L << (n))
 
-#define	HBITS		17	/* 50% occupancy */
-#define	HSIZE	   (1<<HBITS)
-#define	HMASK	   (HSIZE-1)
-#define	HPRIME		 9941
-#define	BITS		   16
-#undef	MAXSEG_64K
-#define MAXCODE(n)	(1L << (n))
-
-/* Block compress mode -C compatible with 2.0 */
-int block_mode = BLOCK_MODE;
-
-/* user settable max # bits/code */
-int maxbits = BITS;
-
-/* Exitcode of compress (-1 no file compressed) */
-int exit_code = -1;
-
-/* Input buffer */
-unsigned char inbuf[IBUFSIZ + 64];
-
-/* Output buffer */
-unsigned char outbuf[OBUFSIZ + 2048];
-
-
-long int htab[HSIZE];
-unsigned short codetab[HSIZE];
-
-#define	htabof(i)				htab[i]
-#define	codetabof(i)			codetab[i]
-#define	tab_prefixof(i)			codetabof(i)
-#define	tab_suffixof(i)			((unsigned char *)(htab))[i]
-#define	de_stack				((unsigned char *)&(htab[HSIZE-1]))
-#define	clear_htab()			memset(htab, -1, sizeof(htab))
-#define	clear_tab_prefixof()	memset(codetab, 0, 256);
-
+#define htabof(i)               htab[i]
+#define codetabof(i)            codetab[i]
+#define tab_prefixof(i)         codetabof(i)
+#define tab_suffixof(i)         ((unsigned char *)(htab))[i]
+#define de_stack                ((unsigned char *)&(htab[HSIZE-1]))
+#define clear_tab_prefixof()    memset(codetab, 0, 256)
 
 /*
  * Decompress stdin to stdout.  This routine adapts to the codes in the
  * file building the "string" table on-the-fly; requiring no table to
- * be stored in the compressed file.  The tables used herein are shared
- * with those of the compress() routine.  See the definitions above.
+ * be stored in the compressed file.
  */
 
-extern int uncompress(int fd_in, int fd_out)
+IF_DESKTOP(long long) int FAST_FUNC
+unpack_Z_stream(int fd_in, int fd_out)
 {
+	IF_DESKTOP(long long total_written = 0;)
+	IF_DESKTOP(long long) int retval = -1;
 	unsigned char *stackp;
-	long int code;
+	long code;
 	int finchar;
-	long int oldcode;
-	long int incode;
+	long oldcode;
+	long incode;
 	int inbits;
 	int posbits;
 	int outpos;
 	int insize;
 	int bitmask;
-	long int free_ent;
-	long int maxcode;
-	long int maxmaxcode;
+	long free_ent;
+	long maxcode;
+	long maxmaxcode;
 	int n_bits;
 	int rsize = 0;
+	unsigned char *inbuf; /* were eating insane amounts of stack - */
+	unsigned char *outbuf; /* bad for some embedded targets */
+	unsigned char *htab;
+	unsigned short *codetab;
+
+	/* Hmm, these were statics - why?! */
+	/* user settable max # bits/code */
+	int maxbits; /* = BITS; */
+	/* block compress mode -C compatible with 2.0 */
+	int block_mode; /* = BLOCK_MODE; */
+
+	inbuf = xzalloc(IBUFSIZ + 64);
+	outbuf = xzalloc(OBUFSIZ + 2048);
+	htab = xzalloc(HSIZE);  /* wsn't zeroed out before, maybe can xmalloc? */
+	codetab = xzalloc(HSIZE * sizeof(codetab[0]));
 
 	insize = 0;
 
-	inbuf[0] = bb_xread_char(fd_in);
+	/* xread isn't good here, we have to return - caller may want
+	 * to do some cleanup (e.g. delete incomplete unpacked file etc) */
+	if (full_read(fd_in, inbuf, 1) != 1) {
+		bb_error_msg("short read");
+		goto err;
+	}
 
 	maxbits = inbuf[0] & BIT_MASK;
 	block_mode = inbuf[0] & BLOCK_MODE;
 	maxmaxcode = MAXCODE(maxbits);
 
 	if (maxbits > BITS) {
-		bb_error_msg("compressed with %d bits, can only handle %d bits", maxbits,
-				  BITS);
-		return -1;
+		bb_error_msg("compressed with %d bits, can only handle "
+				BITS_STR" bits", maxbits);
+		goto err;
 	}
 
-	maxcode = MAXCODE(n_bits = INIT_BITS) - 1;
-	bitmask = (1 << n_bits) - 1;
+	n_bits = INIT_BITS;
+	maxcode = MAXCODE(INIT_BITS) - 1;
+	bitmask = (1 << INIT_BITS) - 1;
 	oldcode = -1;
 	finchar = 0;
 	outpos = 0;
@@ -141,20 +138,21 @@ extern int uncompress(int fd_in, int fd_out)
 	free_ent = ((block_mode) ? FIRST : 256);
 
 	/* As above, initialize the first 256 entries in the table. */
-	clear_tab_prefixof();
+	/*clear_tab_prefixof(); - done by xzalloc */
 
 	for (code = 255; code >= 0; --code) {
 		tab_suffixof(code) = (unsigned char) code;
 	}
 
 	do {
-	  resetbuf:;
+ resetbuf:
 		{
 			int i;
 			int e;
 			int o;
 
-			e = insize - (o = (posbits >> 3));
+			o = posbits >> 3;
+			e = insize - o;
 
 			for (i = 0; i < e; ++i)
 				inbuf[i] = inbuf[i + o];
@@ -163,8 +161,9 @@ extern int uncompress(int fd_in, int fd_out)
 			posbits = 0;
 		}
 
-		if (insize < (int) sizeof(inbuf) - IBUFSIZ) {
+		if (insize < (int) (IBUFSIZ + 64) - IBUFSIZ) {
 			rsize = safe_read(fd_in, inbuf + insize, IBUFSIZ);
+//error check??
 			insize += rsize;
 		}
 
@@ -189,16 +188,16 @@ extern int uncompress(int fd_in, int fd_out)
 			{
 				unsigned char *p = &inbuf[posbits >> 3];
 
-				code =
-					((((long) (p[0])) | ((long) (p[1]) << 8) |
-					  ((long) (p[2]) << 16)) >> (posbits & 0x7)) & bitmask;
+				code = ((((long) (p[0])) | ((long) (p[1]) << 8) |
+				         ((long) (p[2]) << 16)) >> (posbits & 0x7)) & bitmask;
 			}
 			posbits += n_bits;
 
 
 			if (oldcode == -1) {
-				outbuf[outpos++] = (unsigned char) (finchar =
-												(int) (oldcode = code));
+				oldcode = code;
+				finchar = (int) oldcode;
+				outbuf[outpos++] = (unsigned char) finchar;
 				continue;
 			}
 
@@ -209,8 +208,9 @@ extern int uncompress(int fd_in, int fd_out)
 					((posbits - 1) +
 					 ((n_bits << 3) -
 					  (posbits - 1 + (n_bits << 3)) % (n_bits << 3)));
-				maxcode = MAXCODE(n_bits = INIT_BITS) - 1;
-				bitmask = (1 << n_bits) - 1;
+				n_bits = INIT_BITS;
+				maxcode = MAXCODE(INIT_BITS) - 1;
+				bitmask = (1 << INIT_BITS) - 1;
 				goto resetbuf;
 			}
 
@@ -229,8 +229,8 @@ extern int uncompress(int fd_in, int fd_out)
 						("insize:%d posbits:%d inbuf:%02X %02X %02X %02X %02X (%d)",
 						 insize, posbits, p[-1], p[0], p[1], p[2], p[3],
 						 (posbits & 07));
-					bb_error_msg("uncompress: corrupt input");
-					return -1;
+					bb_error_msg("corrupted data");
+					goto err;
 				}
 
 				*--stackp = (unsigned char) finchar;
@@ -238,18 +238,20 @@ extern int uncompress(int fd_in, int fd_out)
 			}
 
 			/* Generate output characters in reverse order */
-			while ((long int) code >= (long int) 256) {
+			while ((long) code >= (long) 256) {
 				*--stackp = tab_suffixof(code);
 				code = tab_prefixof(code);
 			}
 
-			*--stackp = (unsigned char) (finchar = tab_suffixof(code));
+			finchar = tab_suffixof(code);
+			*--stackp = (unsigned char) finchar;
 
 			/* And put them out in forward order */
 			{
 				int i;
 
-				if (outpos + (i = (de_stack - stackp)) >= OBUFSIZ) {
+				i = de_stack - stackp;
+				if (outpos + i >= OBUFSIZ) {
 					do {
 						if (i > OBUFSIZ - outpos) {
 							i = OBUFSIZ - outpos;
@@ -261,11 +263,14 @@ extern int uncompress(int fd_in, int fd_out)
 						}
 
 						if (outpos >= OBUFSIZ) {
-							write(fd_out, outbuf, outpos);
+							full_write(fd_out, outbuf, outpos);
+//error check??
+							IF_DESKTOP(total_written += outpos;)
 							outpos = 0;
 						}
 						stackp += i;
-					} while ((i = (de_stack - stackp)) > 0);
+						i = de_stack - stackp;
+					} while (i > 0);
 				} else {
 					memcpy(outbuf + outpos, stackp, i);
 					outpos += i;
@@ -273,7 +278,8 @@ extern int uncompress(int fd_in, int fd_out)
 			}
 
 			/* Generate the new entry. */
-			if ((code = free_ent) < maxmaxcode) {
+			code = free_ent;
+			if (code < maxmaxcode) {
 				tab_prefixof(code) = (unsigned short) oldcode;
 				tab_suffixof(code) = (unsigned char) finchar;
 				free_ent = code + 1;
@@ -286,8 +292,16 @@ extern int uncompress(int fd_in, int fd_out)
 	} while (rsize > 0);
 
 	if (outpos > 0) {
-		write(fd_out, outbuf, outpos);
+		full_write(fd_out, outbuf, outpos);
+//error check??
+		IF_DESKTOP(total_written += outpos;)
 	}
 
-	return 0;
+	retval = IF_DESKTOP(total_written) + 0;
+ err:
+	free(inbuf);
+	free(outbuf);
+	free(htab);
+	free(codetab);
+	return retval;
 }

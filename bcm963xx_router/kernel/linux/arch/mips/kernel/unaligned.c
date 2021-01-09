@@ -471,6 +471,11 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 	}
 
 #if defined(CONFIG_DEBUG_FS) || defined(CONFIG_MIPS_BRCM)
+#if 0
+	/* dumping the stack will identify the function that caused the 
+	   unaligned access in the kernel */
+	dump_stack();
+#endif
 	unaligned_instructions++;
 #endif
 
@@ -508,6 +513,14 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	 */
 	if ((regs->cp0_badvaddr == regs->cp0_epc) || (regs->cp0_epc & 0x1))
 		goto sigbus;
+
+#if defined(CONFIG_DEBUG_FS) || defined(CONFIG_MIPS_BRCM)
+#if 0
+	/* if userspace app is source of unaligned access then jumping
+      to sigbus here will identify the application */
+	goto sigbus;
+#endif
+#endif
 
 	pc = (unsigned int __user *) exception_epc(regs);
 	if (user_mode(regs) && !test_thread_flag(TIF_FIXADE))

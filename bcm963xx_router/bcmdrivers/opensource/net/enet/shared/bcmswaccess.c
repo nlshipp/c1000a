@@ -1,19 +1,29 @@
 /*
- * <:copyright-gpl
- Copyright 2002-2010 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2002:DUAL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2002 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
  */
 
@@ -24,7 +34,7 @@
 #include <asm/uaccess.h>
 #include <board.h>
 #include "boardparms.h"
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include "bcmSpiRes.h"
 #include <linux/bcm_log.h>
 #include <bcm/bcmswapitypes.h>
@@ -58,6 +68,39 @@ extern void ethsw_phy_wreg(int phy_id, int reg, uint16 *data);
 static void bcmsw_spi_select(int bus_num, int spi_ss, int chip_id, int page)
 {
     unsigned char buf[3];
+    int tryCount = 0;
+    static int spiRdyErrCnt = 0;
+
+    /* SPIF status bit must be clear */
+    while(1)
+    {
+       buf[0] = BCM5325_SPI_CMD_NORMAL | BCM5325_SPI_CMD_READ |
+           ((chip_id & BCM5325_SPI_CHIPID_MASK) << BCM5325_SPI_CHIPID_SHIFT);
+       buf[1] = (unsigned char)BCM5325_SPI_STS;
+       BcmSpiSyncTrans(buf, buf, BCM5325_SPI_PREPENDCNT, 1, bus_num, spi_ss);
+       if (buf[0] & BCM5325_SPI_CMD_SPIF)
+       {
+          if ( spiRdyErrCnt < 10 )
+          {
+             spiRdyErrCnt++;
+             printk("bcmsw_spi_select: SPIF set, not ready\n");
+          }
+          else if ( 10 == spiRdyErrCnt )
+          {
+             spiRdyErrCnt++;
+             printk("bcmsw_spi_select: SPIF set, not ready - suppressing prints\n");
+          }
+          tryCount++;
+          if (tryCount > 10)
+          {
+             return;
+          }
+       }
+       else
+       {
+          break;
+       }
+    }
 
     /* Select new chip */
     buf[0] = BCM5325_SPI_CMD_NORMAL | BCM5325_SPI_CMD_WRITE |
@@ -76,7 +119,7 @@ void bcmsw_spi_rreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
     int i;
     int max_check_spi_sts;
 
-    BCM_ENET_DEBUG("%s, spi_ss = %d, chip_id = %d, page = %d, " 
+    BCM_ENET_LINK_DEBUG("%s, spi_ss = %d, chip_id = %d, page = %d, " 
         "reg = %d, len = %d \n", (bus_num == LEG_SPI_BUS_NUM)?"Legacy SPI":"High Speed SPI", spi_ss, chip_id, page, reg, len);
     if (bus_num > HS_SPI_BUS_NUM) {
         printk("Invalid SPI bus number: %d \n", bus_num);
@@ -91,7 +134,7 @@ void bcmsw_spi_rreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
     buf[0] = BCM5325_SPI_CMD_NORMAL | BCM5325_SPI_CMD_READ |
         ((chip_id & BCM5325_SPI_CHIPID_MASK) << BCM5325_SPI_CHIPID_SHIFT);
     buf[1] = (unsigned char)reg;
-    rc = BcmSpiSyncTrans(NULL, buf, BCM5325_SPI_PREPENDCNT, 1, bus_num, spi_ss);
+    rc = BcmSpiSyncTrans(buf, buf, BCM5325_SPI_PREPENDCNT, 1, bus_num, spi_ss);
 
     if (rc == SPI_STATUS_OK) {
         max_check_spi_sts = 0;
@@ -100,7 +143,7 @@ void bcmsw_spi_rreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
             buf[0] = BCM5325_SPI_CMD_NORMAL | BCM5325_SPI_CMD_READ |
                 ((chip_id & BCM5325_SPI_CHIPID_MASK) << BCM5325_SPI_CHIPID_SHIFT);
             buf[1] = (unsigned char)BCM5325_SPI_STS;
-            rc = BcmSpiSyncTrans(NULL, buf, BCM5325_SPI_PREPENDCNT, 1, bus_num, spi_ss);
+            rc = BcmSpiSyncTrans(buf, buf, BCM5325_SPI_PREPENDCNT, 1, bus_num, spi_ss);
             if (rc == SPI_STATUS_OK) {
                 /* check the bit 0 RACK bit is set */
                 if (buf[0] & BCM5325_SPI_CMD_RACK) {
@@ -118,7 +161,7 @@ void bcmsw_spi_rreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
             buf[0] = BCM5325_SPI_CMD_NORMAL | BCM5325_SPI_CMD_READ |
                 ((chip_id & BCM5325_SPI_CHIPID_MASK) << BCM5325_SPI_CHIPID_SHIFT);
             buf[1] = (unsigned char)0xf0;
-            rc = BcmSpiSyncTrans(NULL, buf, BCM5325_SPI_PREPENDCNT, len, bus_num, spi_ss);
+            rc = BcmSpiSyncTrans(buf, buf, BCM5325_SPI_PREPENDCNT, len, bus_num, spi_ss);
             if (rc == SPI_STATUS_OK) {
                 /* Write the data out in LE format to the switch */
                 for (i = 0; i < len; i++)
@@ -127,7 +170,7 @@ void bcmsw_spi_rreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
                 printk("BcmSpiSyncTrans failure \n");
             }
         }
-        BCM_ENET_DEBUG( 
+        BCM_ENET_LINK_DEBUG( 
             "Data: %02x%02x%02x%02x %02x%02x%02x%02x \n", *(data+7), *(data+6),
             *(data+5), *(data+4), *(data+3), *(data+2), *(data+1), *(data+0));
    }
@@ -139,9 +182,9 @@ void bcmsw_spi_wreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
     unsigned char buf[64];
     int i;
 
-    BCM_ENET_DEBUG("%s, spi_ss = %d, chip_id = %d, page = %d, " 
+    BCM_ENET_LINK_DEBUG("%s, spi_ss = %d, chip_id = %d, page = %d, " 
         "reg = %d, len = %d \n", (bus_num == LEG_SPI_BUS_NUM)?"Legacy SPI":"High Speed SPI", spi_ss, chip_id, page, reg, len);
-    BCM_ENET_DEBUG("Data: %02x%02x%02x%02x %02x%02x%02x%02x \n",
+    BCM_ENET_LINK_DEBUG("Data: %02x%02x%02x%02x %02x%02x%02x%02x \n",
         *(data+7), *(data+6), *(data+5), *(data+4), *(data+3), *(data+2),
         *(data+1), *(data+0));
 
@@ -164,7 +207,7 @@ void bcmsw_spi_wreg(int bus_num, int spi_ss, int chip_id, int page, int reg, uin
         buf[BCM5325_SPI_PREPENDCNT+i] = *(data + i);
     }
 
-    BCM_ENET_DEBUG("%02x:%02x:%02x:%02x%02x%02x\n", buf[5], buf[4], buf[3],
+    BCM_ENET_LINK_DEBUG("%02x:%02x:%02x:%02x%02x%02x\n", buf[5], buf[4], buf[3],
                     buf[2], buf[1], buf[0]);
     BcmSpiSyncTrans(buf, NULL, 0, len+BCM5325_SPI_PREPENDCNT, bus_num, spi_ss);
 
@@ -193,18 +236,18 @@ static int bcmsw_phy_access(struct ethswctl_data *e, int access_type)
             ethsw_phy_read_reg(phy_id, reg_offset, &phy_reg_val, ext_bit);
         }
         up(&bcm_ethlock_switch_config);
-        BCM_ENET_DEBUG("phy_reg_val =0x%x \n", phy_reg_val);
+        BCM_ENET_LINK_DEBUG("phy_reg_val =0x%x \n", phy_reg_val);
         data[1] = phy_reg_val >> 8;
         data[0] = phy_reg_val & 0xFF;
         if (copy_to_user((void*)(&e->data), (void*)&data, 4)) {
             return -EFAULT;
         }
-        BCM_ENET_DEBUG("e->data:%x %x  %x %x \n", e->data[3], e->data[2], e->data[1], e->data[0]);
+        BCM_ENET_LINK_DEBUG("e->data:%x %x  %x %x \n", e->data[3], e->data[2], e->data[1], e->data[0]);
     } else {
-        BCM_ENET_DEBUG("Phy Data: %x %x %x %x \n", e->data[3], e->data[2], 
+        BCM_ENET_LINK_DEBUG("Phy Data: %x %x %x %x \n", e->data[3], e->data[2], 
             e->data[1], e->data[0]);
         phy_reg_val = (e->data[1] << 8) | e->data[0];
-        BCM_ENET_DEBUG("phy_reg_val = %x \n", phy_reg_val);
+        BCM_ENET_LINK_DEBUG("phy_reg_val = %x \n", phy_reg_val);
         down(&bcm_ethlock_switch_config);
         if (access_type == MBUS_UBUS) {
             ethsw_phy_wreg(phy_id, reg_offset, &phy_reg_val);
@@ -229,13 +272,14 @@ void bcmsw_pmdio_rreg(int page, int reg, uint8 *data, int len)
     uint16 v;
     int i;
 
-    BCM_ENET_DEBUG("read op; page = %x; reg = %x; len = %d \n", 
+    BCM_ENET_LINK_DEBUG("read op; page = %x; reg = %x; len = %d \n", 
         (unsigned int) page, (unsigned int) reg, len);
     
     spin_lock(&bcm_extsw_access);
     
     v = (page << REG_PPM_REG16_SWITCH_PAGE_NUMBER_SHIFT) | REG_PPM_REG16_MDIO_ENABLE;
     ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG16, &v);
+
     v = (reg << REG_PPM_REG17_REG_NUMBER_SHIFT) | REG_PPM_REG17_OP_READ;
     ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG17, &v);
 
@@ -297,8 +341,9 @@ void bcmsw_pmdio_rreg(int page, int reg, uint8 *data, int len)
             break;
     }
 
-    BCM_ENET_DEBUG("read data = %02x %02x %02x %02x \n", 
+    BCM_ENET_LINK_DEBUG("read data = %02x %02x %02x %02x \n", 
         data[0], data[1], data[2], data[3]);
+
     spin_unlock(&bcm_extsw_access);
 }
 
@@ -307,9 +352,9 @@ void bcmsw_pmdio_wreg(int page, int reg, uint8 *data, int len)
     uint16 v;
     int i;
 
-    BCM_ENET_DEBUG("write op; page = %x; reg = %x; len = %d \n", 
+    BCM_ENET_LINK_DEBUG("write op; page = %x; reg = %x; len = %d \n", 
         (unsigned int) page, (unsigned int) reg, len);
-    BCM_ENET_DEBUG("given data = %02x %02x %02x %02x \n", 
+    BCM_ENET_LINK_DEBUG("given data = %02x %02x %02x %02x \n", 
         data[0], data[1], data[2], data[3]);
 
     spin_lock(&bcm_extsw_access);
@@ -337,8 +382,20 @@ void bcmsw_pmdio_wreg(int page, int reg, uint8 *data, int len)
                 *(uint32 *)data = swab32(*(uint32 *)data);
                 *((uint16 *)(data + 4)) = swab16(*((uint16 *)(data + 4)));
             } else {
-                *(uint16 *)data = swab32(*(uint16 *)data);
-                *((uint32 *)(data + 2)) = swab16(*((uint32 *)(data + 2)));
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+                     /*  Swab should be wrong,it will set the high 32 bits to zero.
+                      *  Don't swap for PAGE_AVTBL_ACCESS/REG_ARL_MAC_INDX_LO
+                      *  Might BCM guys make a mistake when copy above swab code.
+                      *  right code like this?
+                      *  *(uint16 *)data = swab16(*(uint16 *)data);
+                      *  *((uint32 *)(data + 2)) = swab32(*((uint32 *)(data + 2)));
+                      */
+                      if(!(page == PAGE_AVTBL_ACCESS && reg == REG_ARL_MAC_INDX_LO))
+#endif
+                      {
+                         *(uint16 *)data = swab32(*(uint16 *)data);
+                         *((uint32 *)(data + 2)) = swab16(*((uint32 *)(data + 2)));
+                      }
             }
             v = ((uint16 *)data)[0];
             ethsw_phy_wreg(PSEUDO_PHY_ADDR, REG_PSEUDO_PHY_MII_REG26, &v);
@@ -410,6 +467,7 @@ static void ethsw_write_reg(int addr, uint8 *data, int len)
 {
     volatile uint8 *base = (volatile uint8 *)
        (SWITCH_BASE + (addr & SWITCH_ADDR_MASK));
+    int val32;
 
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
     ethsw_phy_pll_up(0);
@@ -420,18 +478,52 @@ static void ethsw_write_reg(int addr, uint8 *data, int len)
     } else if (len == 2) {
         *(uint16 *)base = swab16(*(uint16 *)data);
     } else if (len == 4) {
-        *(uint32 *)base = swab32(*(uint32 *)data);
+        if ( (int)data & 0x3 )
+        {
+           val32 = ((*(uint16 *)data) << 16) | ((*(uint16 *)(data+2)) << 0);
+           *(uint32 *)base = swab32(val32);
+        }
+        else
+        {
+           *(uint32 *)base = swab32(*(uint32 *)data);
+        }
     } else if (len == 6) {
         if (addr % 4 == 0) {
-            *(uint32 *)base = swab32(*(uint32 *)data);
+            if ( (int)data & 0x3 )
+            {
+               val32 = ((*(uint16 *)data) << 16) | ((*(uint16 *)(data+2)) << 0);
+               *(uint32 *)base = swab32(val32);
+            }
+            else
+            {
+               *(uint32 *)base = swab32(*(uint32 *)data);
+            }
             *(uint16 *)(base + 4) = swab16(*(uint16 *)(data + 4));
         } else {
             *(uint16 *)base = swab16(*(uint16 *)data);
-            *(uint32 *)(base + 2) = swab32(*(uint32 *)(data + 2));
+            if ( (int)(data+2) & 0x3 )
+            {
+               val32 = ((*(uint16 *)(data+2)) << 16) | ((*(uint16 *)(data+4)) << 0);
+               *(uint32 *)(base + 2) = swab32(val32);
+            }
+            else
+            {
+               *(uint32 *)(base + 2) = swab32(*(uint32 *)(data + 2));
+            }
         }
     } else if (len == 8) {
-        *(uint32 *)base = swab32(*(uint32 *)data);
-        *(uint32 *)(base + 4) = swab32(*(uint32 *)(data + 4));
+         if ( (int)data & 0x3 )
+         {
+            val32 = ((*(uint16 *)data) << 16) | ((*(uint16 *)(data+2)) << 0);
+            *(uint32 *)base = swab32(val32);
+            val32 = ((*(uint16 *)(data+4)) << 16) | ((*(uint16 *)(data+6)) << 0);
+            *(uint32 *)(base + 4) = swab32(val32);
+         }
+         else
+         {
+            *(uint32 *)base = swab32(*(uint32 *)data);
+            *(uint32 *)(base + 4) = swab32(*(uint32 *)(data + 4));
+         }
     }
 }
 
@@ -439,8 +531,6 @@ int enet_ioctl_ethsw_regaccess(struct ethswctl_data *e)
 {
     int i, access_type = MBUS_UBUS;
     unsigned char data[8] = {0};
-
-    BCM_ENET_DEBUG("addr=0x%x; len=%d\n", e->offset, e->length);
 
 #if defined(CONFIG_BCM_ETH_PWRSAVE)
     ethsw_phy_pll_up(0);
@@ -451,34 +541,47 @@ int enet_ioctl_ethsw_regaccess(struct ethswctl_data *e)
     }
 
     if ( ((e->length != 1) && (e->length % 2)) || (e->length > 8)) {
-        BCM_ENET_DEBUG("Invalid length");
+        BCM_ENET_LINK_DEBUG("Invalid length");
         return -EINVAL;
     }
     if ( ((e->offset % 2) && (e->length == 2 || e->length == 6)) ||
          ((e->offset % 4) && (e->length == 4 || e->length == 8)) )
     {
-        BCM_ENET_DEBUG("Invalid alignment");
+        BCM_ENET_LINK_DEBUG("Invalid alignment");
         return -EINVAL;
     }
 
     if (e->type == TYPE_GET) {
         if (e->offset & IS_SPI_ACCESS)
             ethsw_rreg_ext(0, e->offset&(~IS_SPI_ACCESS), data, e->length, 1);
+#if defined(CONFIG_BCM_EXT_SWITCH)			
+        else if (e->unit == 1) {
+            extsw_rreg(((e->offset & 0xFF00)>>8), (e->offset & 0xFF), data, e->length);
+        }
+#endif /* EXT_SWITCH */		
         else
+        {
             ethsw_read_reg(e->offset, data, e->length);
+        }
         if (copy_to_user((void*)(&e->data), (void*)&data, e->length)) {
             return -EFAULT;
         }
-        BCM_ENET_DEBUG("Data: ");
+        BCM_ENET_LINK_DEBUG("Data: ");
         for (i = e->length-1; i >= 0; i--)
-            BCM_ENET_DEBUG("%02x ", e->data[i]);
-        BCM_ENET_DEBUG("\n");
+            BCM_ENET_LINK_DEBUG("%02x ", e->data[i]);
+        BCM_ENET_LINK_DEBUG("\n");
     } else {
-        BCM_ENET_DEBUG("Data: ");
+        BCM_ENET_LINK_DEBUG("Data: ");
         for (i = e->length-1; i >= 0; i--)
-            BCM_ENET_DEBUG("%02x ", data[i]);
-        BCM_ENET_DEBUG("\n");
-        ethsw_write_reg(e->offset, e->data, e->length);
+            BCM_ENET_LINK_DEBUG("%02x ", data[i]);
+        BCM_ENET_LINK_DEBUG("\n");
+#if defined(CONFIG_BCM_EXT_SWITCH)					
+        if (e->unit == 1) {
+            extsw_wreg(((e->offset & 0xFF00)>>8), (e->offset & 0xFF), e->data, e->length);
+        }
+        else
+#endif /* EXT_SWITCH */		
+            ethsw_write_reg(e->offset, e->data, e->length);
     }
     return BCM_E_NONE;
 }
@@ -572,7 +675,7 @@ int enet_ioctl_ethsw_info(struct net_device *dev, struct ethswctl_data *e)
     unsigned int vend_id = 0, dev_id = 0, rev_id = 0;
     uint8 data[4];
     unsigned int port_map, phy_map;
-	int epon_port = -1;
+    int epon_port = -1;
 
     if (e->val > BP_MAX_ENET_MACS) {
         if (copy_to_user((void*)(&e->ret_val), (void*)&bus_type, sizeof(int))) {
@@ -672,12 +775,10 @@ int enet_ioctl_ethsw_info(struct net_device *dev, struct ethswctl_data *e)
     phy_map = info->sw.port_map;
     if (vend_id == 0x6300) {
         int i;
-        for (i = 0; i < TOTAL_SWITCH_PORTS; i++) {
-			
-			if (info->sw.phy_id[i] & CONNECTED_TO_EPON_MAC) {
-				epon_port = i;
-			}
-		
+        for (i = 0; i < 8; i++) {
+            if (info->sw.phy_id[i] & CONNECTED_TO_EPON_MAC) {
+                epon_port = i;
+            }
             if (!IsPhyConnected(info->sw.phy_id[i]) || 
                 (info->sw.phy_id[i] & BCM_EXT_6829))
                 phy_map &= ~(1 << i);
@@ -686,8 +787,7 @@ int enet_ioctl_ethsw_info(struct net_device *dev, struct ethswctl_data *e)
     if (copy_to_user((void*)(&e->phy_portmap), (void*)&phy_map, sizeof(int))) {
         return -EFAULT;
     }
-	
-	
+
     if (copy_to_user((void*)(&e->epon_port), (void*)&epon_port, sizeof(int))) {
         return -EFAULT;
     }

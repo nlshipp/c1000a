@@ -1,4 +1,4 @@
-
+#include "cms.h"
 
 #define NUM_RRS 5
 /*****************************************************************************/
@@ -43,7 +43,7 @@ struct dns_message{
 /*****************************************************************************/
 typedef struct dns_request_s{
   char cname[NAME_SIZE];
-  char ip[16];
+  char ip[INET6_ADDRSTRLEN];
   int ttl;
   //BRCM
   int switch_on_timeout;  /* if this request times out, switch to secondary server */
@@ -54,12 +54,7 @@ typedef struct dns_request_s{
   struct dns_message message;
 
   /* where the request came from */
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-  struct in6_addr src_addr;
-#else
-  struct in_addr src_addr;
-#endif
-  int src_port;
+  struct sockaddr_storage src_info;
 
   /* the orginal packet */
   char original_buf[MAX_PACKET_SIZE];

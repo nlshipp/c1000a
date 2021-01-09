@@ -1090,6 +1090,66 @@ static struct net_device_stats * ppp_dev_collect_stats(struct net_device *dev_p)
 				(uint32_t)&bStats, BLOG_PARAM2_NO_CLEAR);
 
 	memcpy( cStats_p, dStats_p, sizeof(struct net_device_stats) );
+    
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+    /* Handle packet count statistics, adding in BlogStats_t entries
+       from the flowcache */
+    cStats_p->rx_packets += ( bStats.rx_packets + bStats_p->rx_packets );
+    cStats_p->tx_packets += ( bStats.tx_packets + bStats_p->tx_packets );
+    cStats_p->multicast  += ( bStats.multicast  + bStats_p->multicast );
+    cStats_p->tx_multicast_packets += ( bStats.tx_multicast_packets + bStats_p->tx_multicast_packets );
+    
+    /* NOTE: There are no broadcast packets in BlogStats_t since the
+       flowcache doesn't accelerate broadcast.  Thus, they aren't added here */
+ 
+    /* set byte counts to 0 if the bstat packet counts are non 0 and the
+       octet counts are 0 */
+    /* Handle RX byte counts */
+    if ( ((bStats.rx_bytes + bStats_p->rx_bytes) == 0) &&
+         ((bStats.rx_packets + bStats_p->rx_packets) > 0) )
+    {
+        cStats_p->rx_bytes = 0;
+    }
+    else
+    {
+       cStats_p->rx_bytes   += ( bStats.rx_bytes   + bStats_p->rx_bytes );
+    }
+
+    /* Handle TX byte counts */
+    if ( ((bStats.tx_bytes + bStats_p->tx_bytes) == 0) &&
+         ((bStats.tx_packets + bStats_p->tx_packets) > 0) )
+    {
+        cStats_p->tx_bytes = 0;
+    }
+    else
+    {
+       cStats_p->tx_bytes   += ( bStats.tx_bytes   + bStats_p->tx_bytes );
+    }
+
+    /* Handle RX multicast byte counts */
+    if ( ((bStats.rx_multicast_bytes + bStats_p->rx_multicast_bytes) == 0) &&
+         ((bStats.multicast + bStats_p->multicast) > 0) )
+    {
+        cStats_p->rx_multicast_bytes = 0;
+    }
+    else
+    {
+       cStats_p->rx_multicast_bytes   += ( bStats.rx_multicast_bytes   + bStats_p->rx_multicast_bytes );
+    }
+
+    /* Handle TX multicast byte counts */
+    if ( ((bStats.tx_multicast_bytes + bStats_p->tx_multicast_bytes) == 0) &&
+         ((bStats.tx_multicast_packets + bStats_p->tx_multicast_packets) > 0) )
+    {
+        cStats_p->tx_multicast_bytes = 0;
+    }
+    else
+    {
+       cStats_p->tx_multicast_bytes   += ( bStats.tx_multicast_bytes   + bStats_p->tx_multicast_bytes );
+    }    
+    
+#else
 	cStats_p->rx_packets += ( bStats.rx_packets + bStats_p->rx_packets );
 	cStats_p->tx_packets += ( bStats.tx_packets + bStats_p->tx_packets );
 
@@ -1115,7 +1175,10 @@ static struct net_device_stats * ppp_dev_collect_stats(struct net_device *dev_p)
 		cStats_p->tx_bytes   += ( bStats.tx_bytes   + bStats_p->tx_bytes );
 	}
 	cStats_p->multicast  += ( bStats.multicast  + bStats_p->multicast );
-
+#endif
+    
+    
+    
 	return cStats_p;
 }
 
@@ -1129,12 +1192,25 @@ static void ppp_dev_update_stats(struct net_device * dev_p,
 
 	bStats_p = ppp_dev_get_bstats(dev_p);
 
+
+    /* Base statistics */
 	bStats_p->rx_packets += blogStats_p->rx_packets;
 	bStats_p->tx_packets += blogStats_p->tx_packets;
 	bStats_p->rx_bytes   += blogStats_p->rx_bytes;
 	bStats_p->tx_bytes   += blogStats_p->tx_bytes;
 	bStats_p->multicast  += blogStats_p->multicast;
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+    /* Extended statistics */
+    bStats_p->tx_multicast_packets  += blogStats_p->tx_multicast_packets;
+    bStats_p->rx_multicast_bytes    += blogStats_p->rx_multicast_bytes;
+    bStats_p->tx_multicast_bytes    += blogStats_p->tx_multicast_bytes;
+    
+    /* NOTE: There are no broadcast packets in BlogStats_t since the
+       flowcache doesn't accelerate broadcast.  Thus, they aren't added here */
+    
+#endif    
+    
 	return;
 }
 
@@ -1418,6 +1494,21 @@ ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
 
 	++ppp->dev->stats.tx_packets;
 	ppp->dev->stats.tx_bytes += skb->len - 2;
+    
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+    /* Gather extended statistics based on the packet type */
+    switch (skb->pkt_type) {
+	case PACKET_BROADCAST:
+            ppp->dev->stats.tx_broadcast_packets ++;
+            break;
+
+	case PACKET_MULTICAST:
+            ppp->dev->stats.tx_multicast_packets++;
+            ppp->dev->stats.tx_multicast_bytes += skb->len - 2;
+            break;
+    }
+#endif   
 
 	switch (proto) {
 	case PPP_IP:
@@ -2023,7 +2114,21 @@ ppp_receive_nonmp_frame(struct ppp *ppp, struct sk_buff *skb)
 
 	++ppp->dev->stats.rx_packets;
 	ppp->dev->stats.rx_bytes += skb->len - 2;
+    
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+    /* Gather extended statistics based on the packet type */
+    switch (skb->pkt_type) {
+	case PACKET_BROADCAST:
+            ppp->dev->stats.rx_broadcast_packets ++;
+            break;
 
+	case PACKET_MULTICAST:
+            ppp->dev->stats.multicast++;
+            ppp->dev->stats.rx_multicast_bytes += skb->len - 2;
+            break;
+    }
+#endif    
+    
 	npi = proto_to_npindex(proto);
 	if (npi < 0) {
 		/* control or unknown frame - pass it to pppd */
@@ -2830,6 +2935,11 @@ ppp_get_stats(struct ppp *ppp, struct ppp_stats *st)
 	st->p.ppp_ibytes = ppp->cstats.rx_bytes;
 	st->p.ppp_opackets = ppp->cstats.tx_packets;
 	st->p.ppp_obytes = ppp->cstats.tx_bytes;
+    
+    /* TO DO - Add extended statistics (multicast, broadcast, etc) 
+       from the net_device_stats structure to the statistics 
+       structure returned via the ioctl  */    
+    
 #else
 	st->p.ppp_ipackets = ppp->dev->stats.rx_packets;
 	st->p.ppp_ierrors = ppp->dev->stats.rx_errors;

@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 #if TIME_WITH_SYS_TIME
 # include <sys/time.h>
 # include <time.h>
@@ -55,6 +56,13 @@
 #include <linux/if_packet.h>
 #endif
 #include <net/if_arp.h>
+#ifdef __sun__
+#include <sys/sockio.h>
+#include <sys/dlpi.h>
+#include <stropts.h>
+#include <fcntl.h>
+#include <libdevinfo.h>
+#endif
 
 #ifdef __KAME__
 #include <netinet6/in6_var.h>
@@ -63,7 +71,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <syslog.h>
@@ -72,21 +79,23 @@
 #include <string.h>
 #include <err.h>
 #include <netdb.h>
-
-#ifdef HAVE_GETIFADDRS 
-# ifdef HAVE_IFADDRS_H
-#  define USE_GETIFADDRS
-#  include <ifaddrs.h>
-# endif
-#endif
-
 #include <ifaddrs.h>
+
 #include <dhcp6.h>
 #include <config.h>
 #include <common.h>
 #include <timer.h>
 
-#if 0 //brcm: moved to common.h
+/* brcm start */
+#include "cms_msg.h"
+Dhcp6cStateChangedMsgBody dhcp6cMsgBody;
+
+static int findEncapVendorSpecificOption(const char *option, int len,
+                                  u_int16_t sub_option_num,
+                                  int *sub_option_offset, int *sub_option_len);
+static void sendAddrEventMessage __P((ifaddrconf_cmd_t, const char *, const char *));
+/* brcm end */
+
 #ifdef __linux__
 /* from /usr/include/linux/ipv6.h */
 
@@ -96,11 +105,6 @@ struct in6_ifreq {
 	unsigned int ifr6_ifindex;
 };
 #endif
-#endif
-//brcm
-static int findEncapVendorSpecificOption(const char *option, int len,
-                                  u_int16_t sub_option_num,
-                                  int *sub_option_offset, int *sub_option_len);
 
 #define MAXDNAME 255
 
@@ -119,7 +123,6 @@ static int copy_option __P((u_int16_t, u_int16_t, void *, struct dhcp6opt **,
 static ssize_t gethwid __P((char *, int, const char *, u_int16_t *));
 static char *sprint_uint64 __P((char *, int, u_int64_t));
 static char *sprint_auth __P((struct dhcp6_optinfo *));
-
 
 int
 dhcp6_copy_list(dst, src)
@@ -366,7 +369,6 @@ dhcp6_get_addr(optlen, cp, type, list)
 	struct dhcp6_list *list;
 {
 	void *val;
-	int option;
 
 	if (optlen % sizeof(struct in6_addr) || optlen == 0) {
 		dprintf(LOG_INFO, FNAME,
@@ -521,7 +523,7 @@ dhcp6_set_domain(type, list, p, optep, len)
 		memcpy(cp, name, nlen);
 		cp += nlen;
 	}
-	if (copy_option(type, optlen, tmpbuf, p, optep, len) != 0) {
+	if (copy_option(type, cp - tmpbuf, tmpbuf, p, optep, len) != 0) {
 		free(tmpbuf);
 		return -1;
 	}
@@ -670,8 +672,11 @@ dhcp6_auth_replaycheck(method, prev, current)
 	prev = ntohq(prev);
 	current = ntohq(current);
 
-	/* we call the singular point guilty */
-        if (prev == (current ^ 8000000000000000ULL)) {
+	/*
+	 * we call the singular point guilty, since we cannot guess
+	 * whether the serial number is increasing or not.
+	 */
+        if (prev == (current ^ 0x8000000000000000ULL)) {
 		dprintf(LOG_INFO, FNAME, "detected a singular point");
 		return (1);
 	}
@@ -712,7 +717,7 @@ getifaddr(addr, ifnam, prefix, plen, strong, ignoreflags)
 
 		if (ifa->ifa_addr->sa_family != AF_INET6)
 			continue;
-#ifndef __linux__
+#ifdef HAVE_SA_LEN
 		if (ifa->ifa_addr->sa_len > sizeof(sin6))
 			continue;
 #endif
@@ -877,7 +882,7 @@ sa6_plen2mask(sa6, plen)
 
 	memset(sa6, 0, sizeof(*sa6));
 	sa6->sin6_family = AF_INET6;
-#ifndef __linux__
+#ifdef HAVE_SA_LEN
 	sa6->sin6_len = sizeof(*sa6);
 #endif
 
@@ -914,7 +919,7 @@ in6addr2str(in6, scopeid)
 
 	memset(&sa6, 0, sizeof(sa6));
 	sa6.sin6_family = AF_INET6;
-#ifndef __linux__
+#ifdef HAVE_SA_LEN
 	sa6.sin6_len = sizeof(sa6);
 #endif
 	sa6.sin6_addr = *in6;
@@ -1093,6 +1098,137 @@ get_duid(idfile, duid, brcm_ifname)
 	return (-1);
 }
 
+#ifdef __sun__
+struct hwparms {
+	char *buf;
+	u_int16_t *hwtypep;
+	ssize_t retval;
+};
+
+static ssize_t
+getifhwaddr(const char *ifname, char *buf, u_int16_t *hwtypep, int ppa)
+{
+	int fd, flags;
+	char fname[MAXPATHLEN], *cp;
+	struct strbuf putctl;
+	struct strbuf getctl;
+	long getbuf[1024];
+	dl_info_req_t dlir;
+	dl_phys_addr_req_t dlpar;
+	dl_phys_addr_ack_t *dlpaa;
+
+	dprintf(LOG_DEBUG, FNAME, "trying %s ppa %d", ifname, ppa);
+
+	if (ifname[0] == '\0')
+		return (-1);
+	if (ppa >= 0 && !isdigit(ifname[strlen(ifname) - 1]))
+		(void) snprintf(fname, sizeof (fname), "/dev/%s%d", ifname,
+		    ppa);
+	else
+		(void) snprintf(fname, sizeof (fname), "/dev/%s", ifname);
+	getctl.maxlen = sizeof (getbuf);
+	getctl.buf = (char *)getbuf;
+	if ((fd = open(fname, O_RDWR)) == -1) {
+		dl_attach_req_t dlar;
+
+		cp = fname + strlen(fname) - 1;
+		if (!isdigit(*cp))
+			return (-1);
+		while (cp > fname) {
+			if (!isdigit(*cp))
+				break;
+			cp--;
+		}
+		if (cp == fname)
+			return (-1);
+		cp++;
+		dlar.dl_ppa = atoi(cp);
+		*cp = '\0';
+		if ((fd = open(fname, O_RDWR)) == -1)
+			return (-1);
+		dlar.dl_primitive = DL_ATTACH_REQ;
+		putctl.len = sizeof (dlar);
+		putctl.buf = (char *)&dlar;
+		if (putmsg(fd, &putctl, NULL, 0) == -1) {
+			(void) close(fd);
+			return (-1);
+		}
+		flags = 0;
+		if (getmsg(fd, &getctl, NULL, &flags) == -1) {
+			(void) close(fd);
+			return (-1);
+		}
+		if (getbuf[0] != DL_OK_ACK) {
+			(void) close(fd);
+			return (-1);
+		}
+	}
+	dlir.dl_primitive = DL_INFO_REQ;
+	putctl.len = sizeof (dlir);
+	putctl.buf = (char *)&dlir;
+	if (putmsg(fd, &putctl, NULL, 0) == -1) {
+		(void) close(fd);
+		return (-1);
+	}
+	flags = 0;
+	if (getmsg(fd, &getctl, NULL, &flags) == -1) {
+		(void) close(fd);
+		return (-1);
+	}
+	if (getbuf[0] != DL_INFO_ACK) {
+		(void) close(fd);
+		return (-1);
+	}
+	switch (((dl_info_ack_t *)getbuf)->dl_mac_type) {
+	case DL_CSMACD:
+	case DL_ETHER:
+	case DL_100VG:
+	case DL_ETH_CSMA:
+	case DL_100BT:
+		*hwtypep = ARPHRD_ETHER;
+		break;
+	default:
+		(void) close(fd);
+		return (-1);
+	}
+	dlpar.dl_primitive = DL_PHYS_ADDR_REQ;
+	dlpar.dl_addr_type = DL_CURR_PHYS_ADDR;
+	putctl.len = sizeof (dlpar);
+	putctl.buf = (char *)&dlpar;
+	if (putmsg(fd, &putctl, NULL, 0) == -1) {
+		(void) close(fd);
+		return (-1);
+	}
+	flags = 0;
+	if (getmsg(fd, &getctl, NULL, &flags) == -1) {
+		(void) close(fd);
+		return (-1);
+	}
+	if (getbuf[0] != DL_PHYS_ADDR_ACK) {
+		(void) close(fd);
+		return (-1);
+	}
+	dlpaa = (dl_phys_addr_ack_t *)getbuf;
+	if (dlpaa->dl_addr_length != 6) {
+		(void) close(fd);
+		return (-1);
+	}
+	(void) memcpy(buf, (char *)getbuf + dlpaa->dl_addr_offset,
+	    dlpaa->dl_addr_length);
+	return (dlpaa->dl_addr_length);
+}
+
+static int
+devfs_handler(di_node_t node, di_minor_t minor, void *arg)
+{
+	struct hwparms *parms = arg;
+
+	parms->retval = getifhwaddr(di_minor_name(minor), parms->buf,
+	    parms->hwtypep, di_instance(node));
+	return (parms->retval == -1 ? DI_WALK_CONTINUE : DI_WALK_TERMINATE);
+}
+#endif
+
 static ssize_t
 gethwid(buf, len, ifname, hwtypep)
 	char *buf;
@@ -1108,6 +1244,28 @@ gethwid(buf, len, ifname, hwtypep)
 	struct sockaddr_ll *sll;
 #endif
 	ssize_t l;
+
+#ifdef __sun__
+	if (ifname == NULL) {
+		di_node_t root;
+		struct hwparms parms;
+
+		if ((root = di_init("/", DINFOSUBTREE | DINFOMINOR |
+		    DINFOPROP)) == DI_NODE_NIL) {
+			dprintf(LOG_INFO, FNAME, "di_init failed");
+			return (-1);
+		}
+		parms.buf = buf;
+		parms.hwtypep = hwtypep;
+		parms.retval = -1;
+		(void) di_walk_minor(root, DDI_NT_NET, DI_CHECK_ALIAS, &parms,
+		    devfs_handler);
+		di_fini(root);
+		return (parms.retval);
+	} else {
+		return (getifhwaddr(ifname, buf, hwtypep, -1));
+	}
+#endif
 
 	if (getifaddrs(&ifap) < 0)
 		return (-1);
@@ -1191,6 +1349,7 @@ dhcp6_init_options(optinfo)
 	TAILQ_INIT(&optinfo->nispname_list);
 	TAILQ_INIT(&optinfo->bcmcs_list);
 	TAILQ_INIT(&optinfo->bcmcsname_list);
+	TAILQ_INIT(&optinfo->aftr_list);
 
 	optinfo->authproto = DHCP6_AUTHPROTO_UNDEF;
 	optinfo->authalgorithm = DHCP6_AUTHALG_UNDEF;
@@ -1228,6 +1387,7 @@ dhcp6_clear_options(optinfo)
 	dhcp6_clear_list(&optinfo->nispname_list);
 	dhcp6_clear_list(&optinfo->bcmcs_list);
 	dhcp6_clear_list(&optinfo->bcmcsname_list);
+	dhcp6_clear_list(&optinfo->aftr_list);
 
 	if (optinfo->relaymsg_msg != NULL)
 		free(optinfo->relaymsg_msg);
@@ -1279,6 +1439,8 @@ dhcp6_copy_options(dst, src)
 	if (dhcp6_copy_list(&dst->bcmcs_list, &src->bcmcs_list))
 		goto fail;
 	if (dhcp6_copy_list(&dst->bcmcsname_list, &src->bcmcsname_list))
+		goto fail;
+	if (dhcp6_copy_list(&dst->aftr_list, &src->aftr_list))
 		goto fail;
 	dst->elapsed_time = src->elapsed_time;
 	dst->refreshtime = src->refreshtime;
@@ -1342,12 +1504,11 @@ dhcp6_get_options(p, ep, optinfo)
 	struct dhcp6_optinfo *optinfo;
 {
 	struct dhcp6opt *np, opth;
-	int i, opt, optlen, reqopts;
-	u_int16_t num;
+	int i, opt, optlen, reqopts, num;
+	u_int16_t num16;
 	char *bp, *cp, *val;
 	u_int16_t val16;
 	u_int32_t val32;
-	struct in6_addr valaddr;
 	struct dhcp6opt_ia optia;
 	struct dhcp6_ia ia;
 	struct dhcp6_list sublist;
@@ -1412,7 +1573,7 @@ dhcp6_get_options(p, ep, optinfo)
 		/* option length field overrun */
 		if (np > ep) {
 			dprintf(LOG_INFO, FNAME, "malformed DHCP options");
-			return (-1);
+			goto fail;
 		}
 
 		switch (opt) {
@@ -1443,14 +1604,14 @@ dhcp6_get_options(p, ep, optinfo)
 			if (optlen < sizeof(u_int16_t))
 				goto malformed;
 			memcpy(&val16, cp, sizeof(val16));
-			num = ntohs(val16);
+			num16 = ntohs(val16);
 			dprintf(LOG_DEBUG, "", "  status code: %s",
-			    dhcp6_stcodestr(num));
+			    dhcp6_stcodestr(num16));
 
 			/* need to check duplication? */
 
 			if (dhcp6_add_listval(&optinfo->stcode_list,
-			    DHCP6_LISTVAL_STCODE, &num, NULL) == NULL) {
+			    DHCP6_LISTVAL_STCODE, &num16, NULL) == NULL) {
 				dprintf(LOG_ERR, FNAME, "failed to copy "
 				    "status code");
 				goto fail;
@@ -1466,7 +1627,7 @@ dhcp6_get_options(p, ep, optinfo)
 				u_int16_t opttype;
 
 				memcpy(&opttype, val, sizeof(u_int16_t));
-				num = ntohs(opttype);
+				num = (int)ntohs(opttype);
 
 				dprintf(LOG_DEBUG, "",
 					"  requested option: %s",
@@ -1742,7 +1903,7 @@ dhcp6_get_options(p, ep, optinfo)
 			    ia.iaid, ia.t1, ia.t2);
 
 			/* duplication check */
-			if (dhcp6_find_listval(&optinfo->iapd_list,
+			if (dhcp6_find_listval(&optinfo->iana_list,
 			    DHCP6_LISTVAL_IANA, &ia, 0)) {
 				dprintf(LOG_INFO, FNAME,
 				    "duplicated IA_NA %lu", ia.iaid);
@@ -1889,6 +2050,15 @@ dhcp6_get_options(p, ep, optinfo)
             memcpy(numBuf, &option_string[sub_option_offset], copyLen);
             optinfo->cwmpRetryIntervalMultiplier = strtoul(numBuf, NULL, 0);
             fprintf(stderr, "Found IntervalMultiplier %s/%d!!\n", numBuf, optinfo->cwmpRetryIntervalMultiplier);
+          }
+
+          break;
+      }
+      case DH6OPT_AFTR_NAME:
+      {
+          if (dhcp6_get_domain(optlen, cp, opt, &optinfo->aftr_list) == -1)
+          {
+             goto fail;
           }
 
           break;
@@ -2169,11 +2339,12 @@ sprint_uint64(buf, buflen, i64)
 	u_int64_t i64;
 {
 	u_int16_t rd0, rd1, rd2, rd3;
+	u_int16_t *ptr = (u_int16_t *)(void *)&i64;
 
-	rd0 = ntohs(*(u_int16_t *)(void *)&i64);
-	rd1 = ntohs(*((u_int16_t *)(void *)(&i64 + 1)));
-	rd2 = ntohs(*((u_int16_t *)(void *)(&i64 + 2)));
-	rd3 = ntohs(*((u_int16_t *)(void *)(&i64 + 3)));
+	rd0 = ntohs(*ptr++);
+	rd1 = ntohs(*ptr++);
+	rd2 = ntohs(*ptr++);
+	rd3 = ntohs(*ptr);
 
 	snprintf(buf, buflen, "%04x %04x %04x %04x", rd0, rd1, rd2, rd3);
 
@@ -2266,7 +2437,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 	struct dhcp6_optinfo *optinfo;
 {
 	struct dhcp6opt *p = optbp;
-	struct dhcp6_listval *stcode, *op, *d;
+	struct dhcp6_listval *stcode, *op;
 	int len = 0, optlen;
 	char *tmpbuf = NULL;
 
@@ -2310,6 +2481,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 		}
 		memcpy(p, tmpbuf, optlen);
 		free(tmpbuf);
+		tmpbuf = NULL;
 		p = (struct dhcp6opt *)((char *)p + optlen);
 		len += optlen;
 	}
@@ -2390,6 +2562,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 			goto fail;
 		}
 		free(tmpbuf);
+		tmpbuf = NULL;
 	}
 
 // brcm-begin
@@ -2474,6 +2647,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 		}
 		memcpy(p, tmpbuf, optlen);
 		free(tmpbuf);
+		tmpbuf = NULL;
 		p = (struct dhcp6opt *)((char *)p + optlen);
 		len += optlen;
 	}
@@ -2575,6 +2749,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 			default:
 				dprintf(LOG_ERR, FNAME,
 				    "unexpected authentication protocol");
+				free(auth);
 				goto fail;
 			}
 		}
@@ -2583,6 +2758,7 @@ dhcp6_set_options(type, optbp, optep, optinfo)
 		    &auth->dh6_auth_proto, &p, optep, &len) != 0) {
 			goto fail;
 		}
+		free(auth);
 	}
 
 	return (len);
@@ -3248,7 +3424,7 @@ dprintf(int level, const char *fname, const char *fmt, ...)
 		printfname = 0;
 
 //brcm: for verbose debugging, use if (1) here
-   if (foreground && debug_thresh >= level) {
+	if (foreground && debug_thresh >= level) {
 		time_t now;
 		struct tm *tm_now;
 		const char *month[] = {
@@ -3269,96 +3445,7 @@ dprintf(int level, const char *fname, const char *fmt, ...)
 		syslog(level, "%s%s%s", fname, printfname ? ": " : "", logbuf);
 }
 
-#if 0 //brcm: moved to addrconf.c
-int
-ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
-	ifaddrconf_cmd_t cmd;
-	char *ifname;
-	struct sockaddr_in6 *addr;
-	int plen;
-	int pltime;
-	int vltime;
-{
-#ifdef __KAME__
-	struct in6_aliasreq req;
-#endif
-#ifdef __linux__
-	struct in6_ifreq req;
-	struct ifreq ifr;
-#endif
-	unsigned long ioctl_cmd;
-	char *cmdstr;
-	int s;			/* XXX overhead */
-
-	switch(cmd) {
-	case IFADDRCONF_ADD:
-		cmdstr = "add";
-#ifdef __KAME__
-		ioctl_cmd = SIOCAIFADDR_IN6;
-#endif
-#ifdef __linux__
-		ioctl_cmd = SIOCSIFADDR;
-#endif
-		break;
-	case IFADDRCONF_REMOVE:
-		cmdstr = "remove";
-#ifdef __KAME__
-		ioctl_cmd = SIOCDIFADDR_IN6;
-#endif
-#ifdef __linux__
-		ioctl_cmd = SIOCDIFADDR;
-#endif
-		break;
-	default:
-		return (-1);
-	}
-
-	if ((s = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
-		dprintf(LOG_ERR, FNAME, "can't open a temporary socket: %s",
-		    strerror(errno));
-		return (-1);
-	}
-
-	memset(&req, 0, sizeof(req));
-#ifdef __KAME__
-	req.ifra_addr = *addr;
-	memcpy(req.ifra_name, ifname, sizeof(req.ifra_name));
-	(void)sa6_plen2mask(&req.ifra_prefixmask, plen);
-	/* XXX: should lifetimes be calculated based on the lease duration? */
-	req.ifra_lifetime.ia6t_vltime = vltime;
-	req.ifra_lifetime.ia6t_pltime = pltime;
-#endif
-#ifdef __linux__
-	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
-	if (ioctl(s, SIOGIFINDEX, &ifr) < 0) {
-		dprintf(LOG_NOTICE, FNAME, "failed to get the index of %s: %s",
-		    ifname, strerror(errno));
-		close(s); 
-		return (-1); 
-	}
-	memcpy(&req.ifr6_addr, &addr->sin6_addr, sizeof(struct in6_addr));
-	req.ifr6_prefixlen = plen;
-	req.ifr6_ifindex = ifr.ifr_ifindex;
-#endif
-
-	if (ioctl(s, ioctl_cmd, &req)) {
-		dprintf(LOG_NOTICE, FNAME, "failed to %s an address on %s: %s",
-		    cmdstr, ifname, strerror(errno));
-		close(s);
-		return (-1);
-	}
-
-	dprintf(LOG_DEBUG, FNAME, "%s an address %s/%d on %s", cmdstr,
-	    addr2str((struct sockaddr *)addr), plen, ifname);
-
-	close(s);
-
-	return (0);
-}
-#endif
-
-//brcm
+/* brcm start */
 int findEncapVendorSpecificOption(const char *option, int len,
                                   u_int16_t sub_option_num,
                                   int *sub_option_offset, int *sub_option_len)
@@ -3396,3 +3483,204 @@ int findEncapVendorSpecificOption(const char *option, int len,
    return 0;
 }
 
+int
+ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
+	ifaddrconf_cmd_t cmd;
+	char *ifname;
+	struct sockaddr_in6 *addr;
+	int plen;
+	int pltime;
+	int vltime;
+{
+	char extAddr[BUFLEN_48];
+	char *cmdstr;
+
+	switch(cmd) {
+	case IFADDRCONF_ADD:
+		cmdstr = "add";
+		break;
+	case IFADDRCONF_REMOVE:
+		cmdstr = "remove";
+		break;
+	default:
+		return (-1);
+	}
+
+	dprintf(LOG_DEBUG, FNAME, "%s an address %s/%d on %s", cmdstr,
+		addr2str((struct sockaddr *)addr), plen, ifname);
+
+	snprintf(extAddr, sizeof(extAddr), "%s/%d", addr2str((struct sockaddr *)addr), plen);
+	sendAddrEventMessage(cmd, ifname, extAddr);
+
+	return 0;
+}
+
+void sendAddrEventMessage(ifaddrconf_cmd_t cmd, const char *ifname, const char *addr)
+{
+	/* TODO: Currently, we always assume br0 as the  PD interface */
+	if ( strncmp(ifname, "br", 2) == 0 )  /* address of the PD interface */
+	{
+		snprintf(dhcp6cMsgBody.pdIfAddress, sizeof(dhcp6cMsgBody.pdIfAddress), "%s", addr);
+	}
+	else  /* address of the WAN interface */
+	{
+		dhcp6cMsgBody.addrAssigned = TRUE;
+		dhcp6cMsgBody.addrCmd      = cmd;
+		snprintf(dhcp6cMsgBody.ifname, sizeof(dhcp6cMsgBody.ifname), "%s", ifname);
+		snprintf(dhcp6cMsgBody.address, sizeof(dhcp6cMsgBody.address), "%s", addr);
+	}
+
+	dprintf(LOG_NOTICE, FNAME, "DHCP6C_ADDR_CHANGED");
+
+	return;
+}  /* End of sendAddrEventMessage() */
+/* brcm end */
+
+#if 0 //brcm: No configuration here. Let CMS do the job
+int
+ifaddrconf(cmd, ifname, addr, plen, pltime, vltime)
+	ifaddrconf_cmd_t cmd;
+	char *ifname;
+	struct sockaddr_in6 *addr;
+	int plen;
+	int pltime;
+	int vltime;
+{
+#ifdef __KAME__
+	struct in6_aliasreq req;
+#endif
+#ifdef __linux__
+	struct in6_ifreq req;
+	struct ifreq ifr;
+#endif
+#ifdef __sun__
+	struct lifreq req;
+#endif
+	unsigned long ioctl_cmd;
+	char *cmdstr;
+	int s;			/* XXX overhead */
+
+	switch(cmd) {
+	case IFADDRCONF_ADD:
+		cmdstr = "add";
+#ifdef __KAME__
+		ioctl_cmd = SIOCAIFADDR_IN6;
+#endif
+#ifdef __linux__
+		ioctl_cmd = SIOCSIFADDR;
+#endif
+#ifdef __sun__
+		ioctl_cmd = SIOCLIFADDIF;
+#endif
+		break;
+	case IFADDRCONF_REMOVE:
+		cmdstr = "remove";
+#ifdef __KAME__
+		ioctl_cmd = SIOCDIFADDR_IN6;
+#endif
+#ifdef __linux__
+		ioctl_cmd = SIOCDIFADDR;
+#endif
+#ifdef __sun__
+		ioctl_cmd = SIOCLIFREMOVEIF;
+#endif
+		break;
+	default:
+		return (-1);
+	}
+
+	if ((s = socket(PF_INET6, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+		dprintf(LOG_ERR, FNAME, "can't open a temporary socket: %s",
+		    strerror(errno));
+		return (-1);
+	}
+
+	memset(&req, 0, sizeof(req));
+#ifdef __KAME__
+	req.ifra_addr = *addr;
+	memcpy(req.ifra_name, ifname, sizeof(req.ifra_name));
+	(void)sa6_plen2mask(&req.ifra_prefixmask, plen);
+	/* XXX: should lifetimes be calculated based on the lease duration? */
+	req.ifra_lifetime.ia6t_vltime = vltime;
+	req.ifra_lifetime.ia6t_pltime = pltime;
+#endif
+#ifdef __linux__
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+	if (ioctl(s, SIOGIFINDEX, &ifr) < 0) {
+		dprintf(LOG_NOTICE, FNAME, "failed to get the index of %s: %s",
+		    ifname, strerror(errno));
+		close(s); 
+		return (-1); 
+	}
+	memcpy(&req.ifr6_addr, &addr->sin6_addr, sizeof(struct in6_addr));
+	req.ifr6_prefixlen = plen;
+	req.ifr6_ifindex = ifr.ifr_ifindex;
+#endif
+#ifdef __sun__
+	strncpy(req.lifr_name, ifname, sizeof (req.lifr_name));
+#endif
+
+	if (ioctl(s, ioctl_cmd, &req)) {
+		dprintf(LOG_NOTICE, FNAME, "failed to %s an address on %s: %s",
+		    cmdstr, ifname, strerror(errno));
+		close(s);
+		return (-1);
+	}
+
+#ifdef __sun__
+	memcpy(&req.lifr_addr, addr, sizeof (*addr));
+	if (ioctl(s, SIOCSLIFADDR, &req) == -1) {
+		dprintf(LOG_NOTICE, FNAME, "failed to %s new address on %s: %s",
+		    cmdstr, ifname, strerror(errno));
+		close(s);
+		return (-1);
+	}
+#endif
+
+	dprintf(LOG_DEBUG, FNAME, "%s an address %s/%d on %s", cmdstr,
+	    addr2str((struct sockaddr *)addr), plen, ifname);
+
+	close(s);
+	return (0);
+}
+#endif //brcm
+
+int
+safefile(path)
+	const char *path;
+{
+	struct stat s;
+	uid_t myuid;
+
+	/* no setuid */
+	if (getuid() != geteuid()) {
+		dprintf(LOG_NOTICE, FNAME,
+		    "setuid'ed execution not allowed");
+		return (-1);
+	}
+
+	if (lstat(path, &s) != 0) {
+		dprintf(LOG_NOTICE, FNAME, "lstat failed: %s",
+		    strerror(errno));
+		return (-1);
+	}
+
+	/* the file must be owned by the running uid */
+	myuid = getuid();
+	if (s.st_uid != myuid) {
+		dprintf(LOG_NOTICE, FNAME, "%s has invalid owner uid", path);
+		return (-1);
+	}
+
+	switch (s.st_mode & S_IFMT) {
+	case S_IFREG:
+		break;
+	default:
+		dprintf(LOG_NOTICE, FNAME, "%s is an invalid file type 0x%o",
+		    path, (s.st_mode & S_IFMT));
+		return (-1);
+	}
+
+	return (0);
+}

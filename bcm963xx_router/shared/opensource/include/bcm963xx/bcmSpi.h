@@ -20,7 +20,7 @@
     software in any way with any other Broadcom software provided under a
     license other than the GPL, without Broadcom's express prior written
     consent.
-*/                       
+*/
 
 #ifndef __BCM_SPI_H__
 #define __BCM_SPI_H__
@@ -33,23 +33,46 @@
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
 
+struct bcmspi_xferInfo
+{
+    struct spi_transfer *pCurXfer;
+    u32                  remTxLen;
+    u32                  remRxLen;
+    u32                  prependCnt;
+    u16                  maxLen;
+    char                *rxBuf;
+    const char          *txBuf;
+    u16                  msgType;
+    u32                  addr;
+    u8                   addrLen;
+    u8                   addrOffset;
+    unsigned char        header[16];
+    unsigned char       *pHdr;
+    u8                   bitRedux;
+    u32                  delayUsecs;
+};
+
 struct bcmspi
 {
-    spinlock_t               lock;
-    char *                   devName;
-    int                      irq;
-    unsigned                 bus_num;
-    unsigned                 num_chipselect;  
-    u8                       stopping;
-    struct list_head         queue;
-    struct platform_device  *pdev;
-    struct spi_transfer     *curTrans;
+   spinlock_t               lock;
+   unsigned int             bus_num;
+   unsigned int             num_chipselect;
+   struct list_head         queue;
+   struct platform_device  *pdev;
+   u8                       stopping;
+   struct spi_message      *pCurMsg;
+   u8                       xferIdx;
+   u8                       pingProgNext;
+   u8                       pingEndNext;
+   u8                       ping0Started;
+   u8                       ping0Xfer;
+
+   u8                       ping1Started;
+   u8                       ping1Xfer;
+   struct bcmspi_xferInfo   spiXfer[2];
 };
 #endif
 
-#define BCM_SPI_READ  0
-#define BCM_SPI_WRITE 1
-#define BCM_SPI_FULL  2
 
 #endif /* __BCM_SPI_H__ */
 

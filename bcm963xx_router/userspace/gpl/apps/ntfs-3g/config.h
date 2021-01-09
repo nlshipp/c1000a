@@ -1,8 +1,19 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define this to 1 if you want to enable support of encrypted files in
+   libntfs and utilities. */
+/* #undef ENABLE_CRYPTO */
+
 /* Define to 1 if debug should be enabled */
 /* #undef ENABLE_DEBUG */
+
+/* Define to 1 if the nfconv patch should be enabled */
+/* #undef ENABLE_NFCONV */
+
+/* Define this to 1 if you want to enable generation of DCE compliant UUIDs.
+   */
+/* #undef ENABLE_UUID */
 
 /* Define to 1 if using internal fuse */
 #define FUSE_INTERNAL 1
@@ -15,6 +26,9 @@
 
 /* Define to 1 if you have the <byteswap.h> header file. */
 #define HAVE_BYTESWAP_H 1
+
+/* Define to 1 if you have the `clock_gettime' function. */
+#define HAVE_CLOCK_GETTIME 1
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #define HAVE_CTYPE_H 1
@@ -60,6 +74,9 @@
 
 /* Define to 1 if you have the `getopt_long' function. */
 #define HAVE_GETOPT_LONG 1
+
+/* Define to 1 if you have the `gettimeofday' function. */
+#define HAVE_GETTIMEOFDAY 1
 
 /* Define to 1 if you have the `hasmntopt' function. */
 #define HAVE_HASMNTOPT 1
@@ -108,6 +125,9 @@
 
 /* Define to 1 if you have the <mntent.h> header file. */
 #define HAVE_MNTENT_H 1
+
+/* Define to 1 if you have the <pwd.h> header file. */
+#define HAVE_PWD_H 1
 
 /* Define to 1 if you have the `realpath' function. */
 #define HAVE_REALPATH 1
@@ -179,6 +199,9 @@
 /* Define to 1 if `st_atim' is member of `struct stat'. */
 /* #undef HAVE_STRUCT_STAT_ST_ATIM */
 
+/* Define to 1 if `st_atimensec' is member of `struct stat'. */
+#define HAVE_STRUCT_STAT_ST_ATIMENSEC 1
+
 /* Define to 1 if `st_atimespec' is member of `struct stat'. */
 /* #undef HAVE_STRUCT_STAT_ST_ATIMESPEC */
 
@@ -200,6 +223,9 @@
 
 /* Define to 1 if you have the <sys/byteorder.h> header file. */
 /* #undef HAVE_SYS_BYTEORDER_H */
+
+/* Define to 1 if you have the <sys/disk.h> header file. */
+/* #undef HAVE_SYS_DISK_H */
 
 /* Define to 1 if you have the <sys/endian.h> header file. */
 /* #undef HAVE_SYS_ENDIAN_H */
@@ -239,6 +265,9 @@
 
 /* Define to 1 if you have the `utime' function. */
 #define HAVE_UTIME 1
+
+/* Define to 1 if you have the `utimensat' function. */
+/* #undef HAVE_UTIMENSAT */
 
 /* Define to 1 if you have the <utime.h> header file. */
 #define HAVE_UTIME_H 1
@@ -281,19 +310,22 @@
 #define PACKAGE_NAME "ntfs-3g"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "ntfs-3g 2009.4.4"
+#define PACKAGE_STRING "ntfs-3g 2012.1.15"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "ntfs-3g"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2009.4.4"
+#define PACKAGE_VERSION "2012.1.15"
+
+/* POSIX ACL support */
+/* #undef POSIXACLS */
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "2009.4.4"
+#define VERSION "2012.1.15"
 
 /* Define to 1 if this is a Windows OS */
 /* #undef WINDOWS */
@@ -305,6 +337,9 @@
 /* Define to 1 if your processor stores words with the least significant byte
    first (like Intel and VAX, unlike Motorola and SPARC). */
 /* #undef WORDS_LITTLEENDIAN */
+
+/* system extended attributes mappings */
+/* #undef XATTR_MAPPINGS */
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #define _FILE_OFFSET_BITS 64

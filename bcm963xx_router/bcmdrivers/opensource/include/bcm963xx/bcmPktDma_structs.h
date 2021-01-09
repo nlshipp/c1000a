@@ -1,7 +1,7 @@
 #ifndef __PKTDMASTRUCTS_H_INCLUDED__
 #define __PKTDMASTRUCTS_H_INCLUDED__
 
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include "bcmPktDma_defines.h"
 
 #if defined(FAP_4KE)
@@ -51,7 +51,8 @@ typedef struct {
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     uint32 address;
     uint16 source;
-    uint16 rxChannel;
+    uint16 rsvd;
+    uint32 rxChannel;
 #endif
 } BcmPktDma_txRecycle_t;
 
@@ -61,8 +62,11 @@ typedef struct BcmPktDma_LocalEthTxDma
    HOST_VOLATILE int txHeadIndex;
    HOST_VOLATILE int txTailIndex;
    int               numTxBds;
+#if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
+   int          bdsAllocated;
+#endif
    volatile DmaChannelCfg *txDma;    /* location of transmit DMA register set */
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if ((defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) && defined(DBL_DESC))
     volatile DmaDesc16 *txBdsBase;   /* save non-aligned address for free */
     volatile DmaDesc16 *txBds;       /* Memory location of tx Dma BD ring */
 #else
@@ -75,12 +79,15 @@ typedef struct BcmPktDma_LocalEthTxDma
     UINT32 ulLoThresh;
     UINT32 ulHiThresh;
     UINT32 ulDropped;
+    uint32      txDropThr[ENET_TX_EGRESS_QUEUES_MAX];    /* Tx Threshold when crossed pkt is dropped */
+    uint32      txDropThrPkts[ENET_TX_EGRESS_QUEUES_MAX];/* Number of pkts dropped because of thresh */
 #endif
    int          txOwnership;
    int          channel;
    uint32       fapIdx;
 } BcmPktDma_LocalEthTxDma;
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
 /* NOTE: Keep this in sync with BcmPktDma_XtmRxDma in bcmxtmrtimpl.h */
 typedef struct BcmPktDma_LocalXtmRxDma
 {
@@ -134,6 +141,7 @@ typedef struct BcmPktDma_LocalXtmTxDma
     volatile DmaChannelCfg *txDma;
     volatile DmaDesc       *txBdsBase;   /* save non-aligned address for free */
     volatile DmaDesc       *txBds;
+    volatile DmaStateRam   *txStateRam;
     BcmPktDma_txRecycle_t  *txRecycle;
     volatile int            txEnabled;
 
@@ -142,10 +150,12 @@ typedef struct BcmPktDma_LocalXtmTxDma
     // int                  channel;    Not required for xtm. Same as ulDmaIndex
     uint32                  fapIdx;
 
+#ifdef CONFIG_BCM96368
     /* Field added for SW Scheduler in BCM6368. Only Manipulted/controlled by
      * SW Scheduler that runs in BCM6368 PTM bonded mode.
      */
     int                     txSchedHeadIndex ;
+#endif
     /* For SW WFQ implementation */
     UINT16 ulAlg;
     UINT16 ulWeightValue;
@@ -155,30 +165,34 @@ typedef struct BcmPktDma_LocalXtmTxDma
     UINT32 ulDropped;
 #endif
 } BcmPktDma_LocalXtmTxDma;
-
+#endif /* CONFIG_BCM_XTMCFG */
 
 typedef struct BcmPktDma_HostBds {
     int eth_rxbds[ENET_RX_CHANNELS_MAX];
     int eth_txbds[ENET_TX_CHANNELS_MAX];
-#if !defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE))
     int xtm_rxbds[XTM_RX_CHANNELS_MAX];
     int xtm_txbds[XTM_TX_CHANNELS_MAX];
 #endif
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818) 
     int eth_rxdqm[ENET_RX_CHANNELS_MAX];
     int eth_txdqm[ENET_TX_CHANNELS_MAX];
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     int xtm_rxdqm[XTM_RX_CHANNELS_MAX];
     int xtm_txdqm[XTM_TX_CHANNELS_MAX];
+#endif
 #endif
 } BcmPktDma_HostBds;
 
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 typedef struct BcmPktDma_FapBds {
     int eth_rxbds[ENET_RX_CHANNELS_MAX];
     int eth_txbds[ENET_TX_CHANNELS_MAX];
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     int xtm_rxbds[XTM_RX_CHANNELS_MAX];
     int xtm_txbds[XTM_TX_CHANNELS_MAX];
+#endif
 } BcmPktDma_FapBds;
 #endif
 
@@ -187,15 +201,17 @@ typedef struct BcmPktDma_FapBds {
 typedef struct BcmPktDma_FwdBds {
     int eth_rxbds[1];
     int eth_txbds[1];
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     int xtm_rxbds[1];
     int xtm_txbds[1];
+#endif
 } BcmPktDma_FwdBds;
 #endif
 
 
 typedef struct BcmPktDma_Bds{
     BcmPktDma_HostBds host;
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
     BcmPktDma_FapBds  fap;
 #endif
 #if defined(CONFIG_BCM96368)

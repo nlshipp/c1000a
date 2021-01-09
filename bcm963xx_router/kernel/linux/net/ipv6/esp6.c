@@ -42,6 +42,10 @@
 #include <net/protocol.h>
 #include <linux/icmpv6.h>
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+#include <linux/blog.h>
+#endif
+
 struct esp_skb_cb {
 	struct xfrm_skb_cb xfrm;
 	void *tmp;
@@ -145,6 +149,10 @@ static int esp6_output(struct xfrm_state *x, struct sk_buff *skb)
 	u8 *tail;
 	struct esp_data *esp = x->data;
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	blog_skip(skb);
+#endif
+
 	/* skb is pure payload to encrypt */
 	err = -ENOMEM;
 
@@ -203,6 +211,20 @@ static int esp6_output(struct xfrm_state *x, struct sk_buff *skb)
 			      XFRM_SKB_CB(skb)->seq.output);
 
 	ESP_SKB_CB(skb)->tmp = tmp;
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
+	if((skb_headroom(skb) < 32) ||
+	   (skb_tailroom(skb) < 16))
+	{
+		req->areq.alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->areq.alloc_buff_spu = 0;
+	}
+	req->areq.headerLen = esph->enc_data + crypto_aead_ivsize(aead) - skb->data;
+#endif
+   
 	err = crypto_aead_givencrypt(req);
 	if (err == -EINPROGRESS)
 		goto error;
@@ -282,6 +304,10 @@ static int esp6_input(struct xfrm_state *x, struct sk_buff *skb)
 	struct scatterlist *sg;
 	struct scatterlist *asg;
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	blog_skip(skb);
+#endif
+
 	if (!pskb_may_pull(skb, sizeof(*esph) + crypto_aead_ivsize(aead))) {
 		ret = -EINVAL;
 		goto out;
@@ -322,6 +348,19 @@ static int esp6_input(struct xfrm_state *x, struct sk_buff *skb)
 	aead_request_set_callback(req, 0, esp_input_done, skb);
 	aead_request_set_crypt(req, sg, sg, elen, iv);
 	aead_request_set_assoc(req, asg, sizeof(*esph));
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SPU)
+	if((skb_headroom(skb) < 32) ||
+	   (skb_tailroom(skb) < 16))
+	{
+		req->alloc_buff_spu = 1;
+	}
+	else
+	{
+		req->alloc_buff_spu = 0;
+	}
+	req->headerLen = sizeof(*esph) + crypto_aead_ivsize(aead);
+#endif
 
 	ret = crypto_aead_decrypt(req);
 	if (ret == -EINPROGRESS)

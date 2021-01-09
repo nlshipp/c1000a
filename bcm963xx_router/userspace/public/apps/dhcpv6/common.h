@@ -103,7 +103,7 @@
 static __inline u_int8_t
 sysdep_sa_len (const struct sockaddr *sa)
 {
-#ifdef __linux__
+#ifndef HAVE_SA_LEN
   switch (sa->sa_family)
     {
     case AF_INET:
@@ -124,18 +124,9 @@ extern char *device;
 /* search option for dhcp6_find_listval() */
 #define MATCHLIST_PREFIXLEN 0x1
 
-//brcm: moved from common.c
+/* brcm start */
 extern void sendDhcp6cEventMessage __P((void));
-#ifdef __linux__
-/* from /usr/include/linux/ipv6.h */
-
-struct in6_ifreq {
-	struct in6_addr ifr6_addr;
-	u_int32_t ifr6_prefixlen;
-	unsigned int ifr6_ifindex;
-};
-#endif
-
+/* brcm end */
 
 /* common.c */
 typedef enum { IFADDRCONF_ADD, IFADDRCONF_REMOVE } ifaddrconf_cmd_t;
@@ -191,6 +182,7 @@ extern int duidcmp __P((struct duid *, struct duid *));
 extern void duidfree __P((struct duid *));
 extern int ifaddrconf __P((ifaddrconf_cmd_t, char *, struct sockaddr_in6 *,
 			   int, int, int));
+extern int safefile __P((const char *));
 
 /* missing */
 #ifndef HAVE_STRLCAT

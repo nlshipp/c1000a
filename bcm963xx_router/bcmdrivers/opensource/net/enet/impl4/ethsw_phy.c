@@ -53,10 +53,17 @@ void ethsw_phy_read_reg(int phy_id, int reg, uint16 *data, int ext_bit)
            to access phy in another interrupt context (like the packet rx isr (napi)). We can use spin_lock_irqsave but the phy access takes >50uS and
            it disables all the interrupts on the local CPU(not just the Phy interrupt) */
     if (!in_interrupt) {
+#if !defined(CONFIG_BCM96818)
         BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
+#endif
 #if defined(CONFIG_BCM963268)
         BcmHalInterruptDisable(INTERRUPT_ID_GPHY);
 #endif
+#if defined(CONFIG_BCM96828)
+        BcmHalInterruptDisable(INTERRUPT_ID_GPHY0);
+        BcmHalInterruptDisable(INTERRUPT_ID_GPHY1);
+#endif
+
     }
     atomic_inc(&phy_read_ref_cnt);
     spin_lock(&bcm_ethlock_phy_access);
@@ -78,9 +85,15 @@ void ethsw_phy_read_reg(int phy_id, int reg, uint16 *data, int ext_bit)
     atomic_dec(&phy_read_ref_cnt);
     if (!in_interrupt) {
         if (atomic_read(&phy_read_ref_cnt) == 0) {
+#if !defined(CONFIG_BCM96818)
             BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
             BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
+#endif
+#if defined(CONFIG_BCM96828) 
+           BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+           BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
 #endif
         }
     }
@@ -115,10 +128,17 @@ void ethsw_phy_write_reg(int phy_id, int reg, uint16 *data, int ext_bit)
            to access phy in another interrupt context (like the packet rx isr (napi)). We can use spin_lock_irqsave but the phy access takes >50uS and
            it disables all the interrupts on the local CPU(not just the Phy interrupt) */
     if (!in_interrupt) {
+#if !defined(CONFIG_BCM96818)
         BcmHalInterruptDisable(INTERRUPT_ID_EPHY);
+#endif
 #if defined(CONFIG_BCM963268)
         BcmHalInterruptDisable(INTERRUPT_ID_GPHY);
 #endif
+#if  defined(CONFIG_BCM96828)
+		BcmHalInterruptDisable(INTERRUPT_ID_GPHY0);
+        BcmHalInterruptDisable(INTERRUPT_ID_GPHY1);
+#endif
+
     }
     atomic_inc(&phy_write_ref_cnt);
     spin_lock(&bcm_ethlock_phy_access);
@@ -139,10 +159,17 @@ void ethsw_phy_write_reg(int phy_id, int reg, uint16 *data, int ext_bit)
     atomic_dec(&phy_write_ref_cnt);
     if (!in_interrupt) {
         if (atomic_read(&phy_write_ref_cnt) <= 0) {
+#if !defined(CONFIG_BCM96818)
             BcmHalInterruptEnable(INTERRUPT_ID_EPHY);
-#if defined(CONFIG_BCM963268)
+#endif
+#if defined(CONFIG_BCM963268) 
             BcmHalInterruptEnable(INTERRUPT_ID_GPHY);
 #endif
+#if defined(CONFIG_BCM96828)
+			BcmHalInterruptEnable(INTERRUPT_ID_GPHY0);
+            BcmHalInterruptEnable(INTERRUPT_ID_GPHY1);
+#endif
+
         }
     }
 }

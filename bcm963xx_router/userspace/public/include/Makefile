@@ -3,27 +3,29 @@
 #  Copyright (c) 2008  Broadcom Corporation
 #  All Rights Reserved
 #
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
+#  <:label-BRCM:2012:DUAL/GPL:standard
 #  
-# 
+#  Unless you and Broadcom execute a separate written software license
+#  agreement governing use of this software, this software is licensed
+#  to you under the terms of the GNU General Public License version 2
+#  (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+#  with the following added to such license:
 #  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+#     As a special exception, the copyright holders of this software give
+#     you permission to link this software with independent modules, and
+#     to copy and distribute the resulting executable under terms of your
+#     choice, provided that you also meet, for each linked independent
+#     module, the terms and conditions of the license of that module.
+#     An independent module is a module which is not derived from this
+#     software.  The special exception does not apply to any modifications
+#     of the software.
+#  
+#  Not withstanding the above, under no circumstances may you combine
+#  this software in any way with any other Broadcom software provided
+#  under a license other than the GPL, without Broadcom's express prior
+#  written consent.
+#  
+#  :>
 #
 #***********************************************************************/
 
@@ -31,8 +33,10 @@ VERSION_FILE=cms_version.h
 COLORS_FILE=bcm_colors.h
 ASSERT_FILE=bcm_assert.h
 SWVERSION_FILE=bcm_swversion.h
+REALTIME_FILE=bcm_realtime.h
 
-all install: $(VERSION_FILE) $(COLORS_FILE) $(ASSERT_FILE) $(SWVERSION_FILE)
+all install: $(VERSION_FILE) $(COLORS_FILE) $(ASSERT_FILE) $(SWVERSION_FILE) \
+             $(REALTIME_FILE)
 
 clean: force $(VERSION_FILE)
 
@@ -40,6 +44,7 @@ force:
 	rm -f $(VERSION_FILE) $(COLORS_FILE) linux/$(COLORS_FILE)
 	rm -f $(ASSERT_FILE) linux/$(ASSERT_FILE)
 	rm -f $(SWVERSION_FILE)
+	rm -f $(REALTIME_FILE)
 
 modsw_clean: generic_modsw_base_clean
 
@@ -99,3 +104,8 @@ bcm_assert.h:
 $(SWVERSION_FILE):
 	@echo "Making symlink to $@"
 	@ln -s ../../../kernel/linux/include/linux/bcm_swversion.h .
+	
+$(REALTIME_FILE):
+	@echo "Making symlink to $@"
+	@ln -s ../../../kernel/linux/include/linux/$@ .
+

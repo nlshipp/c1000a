@@ -4,30 +4,36 @@
  *
  * Copyright (C) 2003  Manuel Novoa III  <mjn3@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <ctype.h>
 #include "libbb.h"
 
-extern const char *bb_skip_whitespace(const char *s)
+char* FAST_FUNC skip_whitespace(const char *s)
 {
-	while (isspace(*s)) {
-		++s;
-	}
+	/* In POSIX/C locale (the only locale we care about: do we REALLY want
+	 * to allow Unicode whitespace in, say, .conf files? nuts!)
+	 * isspace is only these chars: "\t\n\v\f\r" and space.
+	 * "\t\n\v\f\r" happen to have ASCII codes 9,10,11,12,13.
+	 * Use that.
+	 */
+	while (*s == ' ' || (unsigned char)(*s - 9) <= (13 - 9))
+		s++;
 
-	return s;
+	return (char *) s;
+}
+
+char* FAST_FUNC skip_non_whitespace(const char *s)
+{
+	while (*s != '\0' && *s != ' ' && (unsigned char)(*s - 9) > (13 - 9))
+		s++;
+
+	return (char *) s;
+}
+
+char* FAST_FUNC skip_dev_pfx(const char *tty_name)
+{
+	if (strncmp(tty_name, "/dev/", 5) == 0)
+		tty_name += 5;
+	return (char*)tty_name;
 }

@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "dns_list.h"
+#include "dns_io.h"
+#include "dns_mapping.h"
 
 dns_request_t *dns_request_list;
 /* Last request in dns_request_list */
@@ -10,7 +12,7 @@ dns_request_t *dns_request_last;
 static int dns_list_count=0;
 
 /*****************************************************************************/
-int dns_list_add(dns_request_t *r, int switch_on_timeout)
+int dns_list_add(dns_request_t *r)
 {
   dns_request_t *new;
 
@@ -26,7 +28,6 @@ int dns_list_add(dns_request_t *r, int switch_on_timeout)
 
   memcpy(new, r, sizeof(*r));
   new->expiry = time(NULL) + DNS_TIMEOUT;
-  new->switch_on_timeout = switch_on_timeout;
   new->retx_count = 0;
   new->prev = NULL;
   new->next = dns_request_list;
@@ -59,46 +60,6 @@ dns_request_t *dns_list_find_by_id(dns_request_t *req)
 }
 
 
-/*****************************************************************************/
-void dns_list_unarm_all_requests(void)
-{
-   dns_request_t *tmp = dns_request_list;
-
-   if (NULL == tmp) {
-      debug("no requests to unarm.");
-      return;
-   }
-
-   debug("unarm first request on list (%p)\n", tmp);
-   tmp->switch_on_timeout = 0;
-
-   dns_list_unarm_requests_after_this(tmp);
-
-   return;
-}
-
-
-/*****************************************************************************/
-void dns_list_unarm_requests_after_this(const dns_request_t *r)
-{
-   dns_request_t *tmp;
-
-   if (NULL == r) {
-      debug("null request passed in!");
-      return;
-   }
-
-   tmp = r->next;
-
-   while (tmp) {
-      debug("unarm request at %p\n", tmp);
-      tmp->switch_on_timeout = 0;
-      tmp = tmp->next;
-   }
-
-   return;
-}
-
 
 
 /*****************************************************************************/
@@ -122,6 +83,45 @@ int dns_list_remove(dns_request_t *r)
   free(r);
 
   dns_list_count--;
+  return 1;
+}
+
+
+/*****************************************************************************/
+int dns_list_remove_related_requests_and_swap(dns_request_t *r)
+{
+  UBOOL8 dnsSwapNeeded = FALSE;
+  char dnsUsed[INET6_ADDRSTRLEN]={0};
+  dns_request_t *headPtr, *next;
+  
+  if (NULL == r) {
+    debug("null request passed in!");
+    return 0;
+  }
+
+  /* For the first time call dns_mapping_is_dns_swap_needed, dnsUsed is null
+  * and if dnsSwapNeeded TRUE, the subsequent calls will use dnsUsde to match
+  * for the requests with the same dns for removing them in the request list.
+  */
+  dnsSwapNeeded = dns_mapping_is_dns_swap_needed(r, dnsUsed);
+  if (dnsSwapNeeded)
+  {
+    dns_list_remove(r);  
+    headPtr = dns_request_list;
+    while (headPtr) {
+       next = headPtr->next;
+       cmsLog_notice("next request, dnsUsed %s", dnsUsed);
+       if (dns_mapping_is_dns_swap_needed(headPtr, dnsUsed)) {
+          dns_list_remove(headPtr);  
+       }        
+       headPtr = next;
+    }
+  }
+
+  if (dnsSwapNeeded) {
+    dns_mapping_do_dns_swap(dnsUsed);
+  }
+  
   return 1;
 }
 

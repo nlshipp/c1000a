@@ -7,7 +7,7 @@
 #
 
 #BRCM begin
-#PF_EXT_SLIB:=ah addrtype conntrack ecn icmp iprange owner policy realm recent tos ttl unclean CLUSTERIP DNAT ECN LOG MASQUERADE MIRROR NETMAP REDIRECT REJECT SAME SNAT TOS TTL ULOG
+#PF_EXT_SLIB:=ah addrtype conntrack ecn icmp iprange owner policy realm recent tos ttl unclean CLUSTERIP DNAT ECN LOG MASQUERADE MIRROR NETMAP REDIRECT REJECT SAME SNAT TOS TTL ULOG IP
 #PF6_EXT_SLIB:=ah dst eui64 frag hbh hl icmp6 ipv6header mh owner policy rt HL LOG REJECT
 #PFX_EXT_SLIB:=connbytes connmark connlimit comment dccp dscp esp hashlimit helper length limit mac mark multiport physdev pkttype quota sctp state statistic standard string tcp tcpmss time u32 udp CLASSIFY CONNMARK DSCP MARK NFLOG NFQUEUE NOTRACK TCPMSS TRACE
 
@@ -15,10 +15,13 @@ PF_EXT_SLIB:=icmp
 PFX_EXT_SLIB:=TCPMSS SKIPLOG
 ifneq ($(strip $(BRCM_KERNEL_NF_FIREWALL)),)
 PF_EXT_SLIB+=LOG
-PFX_EXT_SLIB+=limit standard state tcp udp NFQUEUE
+PFX_EXT_SLIB+=limit standard state tcp udp NFQUEUE multiport
+endif
+ifneq ($(strip $(BRCM_KERNEL_NF_MATCH_RECENT)),)
+PFX_EXT_SLIB+=recent
 endif
 ifneq ($(strip $(BRCM_KERNEL_NF_NAT)),)
-PF_EXT_SLIB+=DNAT MASQUERADE REDIRECT SNAT
+PF_EXT_SLIB+=DNAT MASQUERADE REDIRECT SNAT IP
 ifneq ($(strip $(BUILD_DYNAHELPER)),)
 PF_EXT_SLIB+=DYNAHELPER
 endif

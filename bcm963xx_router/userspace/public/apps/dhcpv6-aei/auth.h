@@ -62,4 +62,3 @@ extern int dhcp6_verify_mac __P((char *, ssize_t, int, int, size_t,
 extern int dhcp6_reconf_verify_mac __P((char *, ssize_t, int, int, size_t,
 	 char *,int));
 #endif
-

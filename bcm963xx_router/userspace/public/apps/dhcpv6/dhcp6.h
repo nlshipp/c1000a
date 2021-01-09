@@ -31,6 +31,28 @@
 #ifndef __DHCP6_H_DEFINED
 #define __DHCP6_H_DEFINED
 
+#ifdef __sun__
+#define	__P(x)	x
+typedef uint8_t u_int8_t;
+#ifndef	U_INT16_T_DEFINED
+#define	U_INT16_T_DEFINED
+typedef uint16_t u_int16_t;
+#endif
+#ifndef	U_INT32_T_DEFINED
+#define	U_INT32_T_DEFINED
+typedef uint32_t u_int32_t;
+#endif
+typedef uint64_t u_int64_t;
+#ifndef CMSG_SPACE
+#define	CMSG_SPACE(l) \
+	((unsigned int)_CMSG_HDR_ALIGN(sizeof (struct cmsghdr) + (l)))
+#endif
+#ifndef CMSG_LEN
+#define	CMSG_LEN(l) \
+	((unsigned int)_CMSG_DATA_ALIGN(sizeof (struct cmsghdr)) + (l))
+#endif
+#endif
+
 /* Error Values */
 #define DH6ERR_FAILURE		16
 #define DH6ERR_AUTHFAIL		17
@@ -85,8 +107,6 @@
 
 #define DHCP6_IRT_DEFAULT 86400	/* 1 day */
 #define DHCP6_IRT_MINIMUM 600
-
-#define IPV6_V6ONLY             26
 
 /* DUID: DHCP unique Identifier */
 struct duid {
@@ -179,6 +199,7 @@ struct dhcp6_optinfo {
 	struct dhcp6_list nispname_list; /* NIS+ domain list */
 	struct dhcp6_list bcmcs_list; /* BCMC server list */
 	struct dhcp6_list bcmcsname_list; /* BCMC domain list */
+	struct dhcp6_list aftr_list; /* AFTR list */
 	char acsURL[CMS_MAX_ACS_URL_LENGTH];    /* acsURL from dhcp server */
 	char acsProvisioningCode[CMS_MAX_ACS_PROVISIONING_CODE_LENGTH];    /* acs provisioning code from dhcp server */
 	u_int32_t cwmpRetryMinimumWaitInterval;  /* for TR69 */
@@ -304,6 +325,10 @@ struct vendor_class_data {
 #define DH6OPT_REMOTE_ID 37
 #define DH6OPT_SUBSCRIBER_ID 38
 #define DH6OPT_CLIENT_FQDN 39
+
+/* brcm start */
+#define DH6OPT_AFTR_NAME 64
+/* brcm end */
 
 /* The followings are KAME specific. */
 

@@ -94,8 +94,8 @@ static void usage(void)
 	fprintf(stderr, "%s ", strxf_xfrmproto(IPPROTO_DSTOPTS));
 	fprintf(stderr, "]\n");
 
- 	fprintf(stderr, "MODE := [ transport | tunnel | beet ](default=transport)\n");
- 	//fprintf(stderr, "REQID - number(default=0)\n");
+	fprintf(stderr, "MODE := [ transport | tunnel | beet ](default=transport)\n");
+	//fprintf(stderr, "REQID - number(default=0)\n");
 	fprintf(stderr, "LEVEL := [ required | use ](default=required)\n");
 
 	exit(-1);

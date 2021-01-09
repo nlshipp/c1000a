@@ -1,21 +1,32 @@
 /*
-<:copyright-gpl
- Copyright 2007 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2010:DUAL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2010 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
+
 
 #ifndef __PKTCMF_6816_PUBLIC_H_INCLUDED__
 #define __PKTCMF_6816_PUBLIC_H_INCLUDED__
@@ -102,5 +113,7 @@ extern int pktCmfIf( pktCmf_if_t callback, int *parg1, int *parg2 );
 extern HOOKV pktCmfSaveSwitchPortState;      /* Binding with Switch ENET */
 extern HOOKV pktCmfRestoreSwitchPortState;   /* Binding with Switch ENET */
 extern HOOKV pktCmfResetSwitch;              /* LAB trigger of reset_switch() */
+
+#define  PKTCMF_MAX_VPORTS  8
 
 #endif /* __PKTCMF_6816_PUBLIC_H_INCLUDED__ */

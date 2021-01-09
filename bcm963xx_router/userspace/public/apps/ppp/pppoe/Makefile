@@ -44,7 +44,7 @@ endif
 COPTS = -s -pipe -Wall -Os -fno-strict-aliasing 
 COPTS += $(BRCM_WERROR_CFLAGS)
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
-LIBS = $(ATMLIBDIR)/libatm.a -L../../../libs -ldbus -ldbussend_msg
+LIBS = $(ATMLIBDIR)/libatm.a -L../../../../public/include -ldbus -ldbussend_msg
 COPTS +=  -DAEI_CONTROL_LAYER
 else
 LIBS = $(ATMLIBDIR)/libatm.a
@@ -79,6 +79,8 @@ endif
 
 # cwu
 INCLUDE_DIRS= -I. -I../include \
+              -I../../../../private/apps/ctl_layer/tr69fw/include \
+              -I../../../../private/apps/ctl_layer/include \
               -I$(KERNEL_DIR) \
               -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD) \
               -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD) \

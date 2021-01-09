@@ -12,4 +12,20 @@ int AEI_send_redirect (struct nfq_q_handle *qh, int id, struct nfq_data * payloa
 void AEI_get_lan_ip(char *addr);
 void AEI_getCaptiveAllowList();
 void AEI_getCaptiveURLandIPAddr(char *fileName, char *url, char *ipAddr, int *flag);
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+char *AEI_getdomain(char *data, char *url);
+int AEI_checkCaptiveAllowDomain(char *allowDomain, char* host);
+void AEI_getCaptiveAllowDomain();
+#endif
+#if defined (AEI_WLAN_URL_REDIRECT)
+void AEI_processSSID234UrlRedirect(char *mac,char *url,int size,char *ifname,char *match);
+void AEI_urltrim(char *url_redirect);
+int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac,char *brname);
+#else
+int AEI_SendPacketWithDestMac(char *data, int len, unsigned char *dmac);
+#endif
+#if defined(AEI_VDSL_TR098_QWEST)
+CmsRet AEI_send_msg_to_set_oneTimeRedirectURLFlag();
+#endif
+
 #endif

@@ -38,8 +38,14 @@ int dns_construct_header(dns_request_t *m)
 {
   char *ptr = m->original_buf;
   int dummy = 0;
-
-  m->message.header.flags.flags = 0x8000; //response
+#ifdef AEI_CONTROL_LAYER
+  if (m->message.question[0].type == AAA)
+	m->message.header.flags.flags = 0x8180;
+  else
+	m->message.header.flags.flags = 0x8000;
+#else
+    m->message.header.flags.flags = 0x8000; //response
+#endif
   SET_UINT16_TO_N( ptr, m->message.header.id, dummy );
   SET_UINT16_TO_N( ptr, m->message.header.flags.flags, dummy );
   SET_UINT16_TO_N( ptr, m->message.header.qdcount, dummy );
@@ -50,21 +56,58 @@ int dns_construct_header(dns_request_t *m)
   return 0;
 }
 /*****************************************************************************/
+#ifdef AEI_CONTROL_LAYER
+void dns_construct_reject_reply(dns_request_t *m)
+{
+    int len;
+
+  /* point to end of orginal packet */
+  m->here = &m->original_buf[m->numread];
+
+  m->message.header.ancount = 1;
+  m->message.header.flags.f.question = 1;
+  dns_construct_header( m );
+  if( m->message.question[0].type == A ){
+      SET_UINT16_TO_N( m->here, 0xc00c, m->numread ); /* pointer to name */
+      SET_UINT16_TO_N( m->here, CNAME, m->numread );      /* type */
+      SET_UINT16_TO_N( m->here, IN, m->numread ); /* class */
+	  if(m->ttl > 0) {
+      SET_UINT32_TO_N( m->here, m->ttl, m->numread );  /* ttl */
+    }
+    else {
+      SET_UINT32_TO_N( m->here, 10000, m->numread );  /* ttl */
+    }
+    len = dns_construct_name( m->cname, m->here + 2 );
+	SET_UINT16_TO_N( m->here, len, m->numread );
+	m->numread += len;
+  }
+}
+#endif
+
+/*****************************************************************************/
+
 void dns_construct_reply( dns_request_t *m )
 {
   int len;
 
   /* point to end of orginal packet */ 
   m->here = &m->original_buf[m->numread];
+#ifdef AEI_CONTROL_LAYER
+  if(m->message.question[0].type == AAA)
+	m->message.header.ancount = 2;
+  else
+	m->message.header.ancount = 1;
+#else
+    m->message.header.ancount = 1;
+#endif
 
-  m->message.header.ancount = 1;
   m->message.header.flags.f.question = 1;
   dns_construct_header( m );
 
   if( m->message.question[0].type == A ){
       /* standard lookup so return and IP */
       struct in_addr in;  
-      inet_aton( m->ip, &in );
+      inet_pton( AF_INET, m->ip, &in );
       SET_UINT16_TO_N( m->here, 0xc00c, m->numread ); /* pointer to name */
       SET_UINT16_TO_N( m->here, A, m->numread );      /* type */
       SET_UINT16_TO_N( m->here, IN, m->numread );     /* class */
@@ -91,9 +134,45 @@ void dns_construct_reply( dns_request_t *m )
       len = dns_construct_name( m->cname, m->here + 2 );
       SET_UINT16_TO_N( m->here, len, m->numread );      /* datalen */
       m->numread += len;
+	}
+ #ifdef AEI_CONTROL_LAYER
+	/*added by libby function:support IPV6 hostname  dns */
+  else if(m->message.question[0].type == AAA ){
+	 struct in6_addr in6;
+	 inet_pton(AF_INET6, m->ip, &in6);
+
+	  SET_UINT16_TO_N( m->here, 0xc00c, m->numread ); /* pointer to name */
+      SET_UINT16_TO_N( m->here, CNAME, m->numread );      /* type */
+      SET_UINT16_TO_N( m->here, IN, m->numread ); /* class */
+	  if(m->ttl > 0) {
+      SET_UINT32_TO_N( m->here, m->ttl, m->numread );  /* ttl */
+    }
+    else {
+      SET_UINT32_TO_N( m->here, 10000, m->numread );  /* ttl */
+    }
+    len = dns_construct_name( m->cname, m->here + 2 );
+	SET_UINT16_TO_N( m->here, len, m->numread );
+	m->numread += len;
+	/*add the second objiect addr informations*/
+	 m->here +=len;
+	 SET_UINT16_TO_N( m->here, 0xc02d, m->numread );
+	 SET_UINT16_TO_N( m->here, AAA, m->numread );
+	 SET_UINT16_TO_N( m->here, IN, m->numread );
+	 if(m->ttl > 0) {
+       SET_UINT32_TO_N( m->here, m->ttl, m->numread );  /* ttl */
+     }
+     else {
+       SET_UINT32_TO_N( m->here, 10000, m->numread );  /* ttl */
+     }
+     SET_UINT16_TO_N( m->here, sizeof(in6.s6_addr), m->numread );
+	 memcpy( m->here, &in6.s6_addr, sizeof(in6.s6_addr) );
+	 m->numread += sizeof( in6.s6_addr);
   }
-}
+#endif
+
+  }
 /*****************************************************************************/
+
 void dns_construct_error_reply(dns_request_t *m)
 {
      /* point to end of orginal packet */ 

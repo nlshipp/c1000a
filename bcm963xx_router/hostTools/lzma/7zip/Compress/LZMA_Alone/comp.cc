@@ -238,7 +238,7 @@ sqlzma_cm(int try_lzma, z_stream *stream, Bytef *next_in, uInt avail_in,
 
 #if 1	// CONFIG_MIPS_BRCM
 		// Disable ZLIB compression, as we have disabled it in target system to save memory
-		// ZLIB components will still run and take resources on host system, but as SquashFS+LZMA 
+		// ZLIB components will still run and take resources on host system, but as SquashFS+LZMA
 		// is not a very clean implementation, this is the safer choice
 		if (!err) {
 			if (!is_lzma(*next_out))

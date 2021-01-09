@@ -11,4 +11,3 @@ int netlink_dad_start( int *fd );
 int netlink_recv( int fd, struct dhcp6_if ** pp_if );
 
 #endif  //NETLINK_DAD_H_
-

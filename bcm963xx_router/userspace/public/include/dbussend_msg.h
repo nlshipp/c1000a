@@ -5,20 +5,20 @@
 
 typedef struct _dbussend_msg
 {
-    unsigned long data_length;    
-    unsigned char buffer[0];
+    int data_length;
+    char buffer[];
 }dbussend_msg_st, *p_dbussend_msg_st;
 
 typedef struct _dbussend_cfg
-{    
+{
     DBusBusType type;
     int print_reply;
     int print_reply_literal;
-    int reply_timeout;    
+    int reply_timeout;
     int message_type;
     char *dest;
     char *path;
-    char *address;    
+    char *address;
 }dbussend_cfg_st, *pdbussend_cfg_st;
 
 typedef struct _dbussend_hdl
@@ -37,4 +37,3 @@ int dbussend_sendmsg(dbussend_hdl_st *p_dbussend_hdl, const char *interface, con
 int dbussend_sendmsg_methodcall(dbussend_hdl_st *p_dbussend_hdl, const char *dest, const char *interface, const char *method, void *p_dbussend_msg, int len);
 
 #endif
-

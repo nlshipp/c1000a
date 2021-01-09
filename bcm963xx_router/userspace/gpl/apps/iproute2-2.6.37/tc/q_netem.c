@@ -42,7 +42,7 @@ static void explain1(const char *arg)
 	fprintf(stderr, "Illegal \"%s\"\n", arg);
 }
 
-/* Upper bound on size of distribution 
+/* Upper bound on size of distribution
  *  really (TCA_BUF_MAX - other headers) / sizeof (__s16)
  */
 #define MAX_DIST	(16*1024)
@@ -282,7 +282,7 @@ static int netem_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 	    addattr_l(n, 1024, TCA_NETEM_CORR, &cor, sizeof(cor)) < 0)
 			return -1;
 
-	if (present[TCA_NETEM_REORDER] && 
+	if (present[TCA_NETEM_REORDER] &&
 	    addattr_l(n, 1024, TCA_NETEM_REORDER, &reorder, sizeof(reorder)) < 0)
 		return -1;
 
@@ -393,4 +393,3 @@ struct qdisc_util netem_qdisc_util = {
 	.parse_qopt	= netem_parse_opt,
 	.print_qopt	= netem_print_opt,
 };
-

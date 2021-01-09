@@ -3,71 +3,55 @@
 #  Copyright (c) 2006  Broadcom Corporation
 #  All Rights Reserved
 #
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
+#  <:label-BRCM:2006:DUAL/GPL:standard
 #  
-# 
+#  Unless you and Broadcom execute a separate written software license
+#  agreement governing use of this software, this software is licensed
+#  to you under the terms of the GNU General Public License version 2
+#  (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+#  with the following added to such license:
 #  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+#     As a special exception, the copyright holders of this software give
+#     you permission to link this software with independent modules, and
+#     to copy and distribute the resulting executable under terms of your
+#     choice, provided that you also meet, for each linked independent
+#     module, the terms and conditions of the license of that module.
+#     An independent module is a module which is not derived from this
+#     software.  The special exception does not apply to any modifications
+#     of the software.
+#  
+#  Not withstanding the above, under no circumstances may you combine
+#  this software in any way with any other Broadcom software provided
+#  under a license other than the GPL, without Broadcom's express prior
+#  written consent.
+#  
+#  :>
 #
 #***********************************************************************/
 
+
 #
-# To add an app, add it to APP_DIRS, and write the target rule in the
-# last section of this Makefile
+# You do not need to modify this Makefile to add an app.
+# Simply create a .autodetect in the subdir and this Makefile will enter
+# that directory during make and make clean.  (Auto detected directories
+# are listed in the AUTODETECT_SUBDIRS variable.  Type make show_subdirs)
 #
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
-APP_DIRS = dhcpv6-aei
+HARDCODED_SUBDIRS := dhcpv6-aei sshd ipsec-tools ledctl dhrystone tcpdump \
+                     sendpackets
 else
-APP_DIRS = dhcpv6
-endif
-APP_DIRS += ppp sshd ipsec-tools ledctl dhrystone tcpdump sendpackets
-
-#
-# We need to declare these directory names as phony targets,
-# otherwise make will think the directories themselves are
-# the targets and will never execute the cmds.
-# See GNU Make, 4.6 
-#
-.PHONY : $(APP_DIRS)
-
-
-# Some apps have names that are different from their directory
-# name, so need to list them explictly here.
-ifneq ($(strip $(AEI_CONTROL_LAYER)),)
-all : $(APP_DIRS) pppd dhcpv6
-else
-all : $(APP_DIRS) pppd
+HARDCODED_SUBDIRS := dhcpv6 sshd ipsec-tools ledctl dhrystone tcpdump \
+                     sendpackets
 endif
 
+SUBDIRS = $(HARDCODED_SUBDIRS) $(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS)
 
+
+# === this is the default target ===
+# Need to add a level of indirection here so that AUTODETECT_SUBDIRS and
+# MODSW_SUBDIRS can be populated in make.common/make.modsw before we build.
 #
-# Cleaning rules
-# See example in GNU Make, 4.6
-# (ppp does not have a top level Makefile, so we can't just cd into
-# and do a make clean.  Remove ppp from APP_DIRS and write out
-# an explicit rule.)
-#
-clean: 
-	for dir in $(subst ppp,,$(APP_DIRS)); do \
-		$(MAKE) -C $$dir clean; \
-	done
-	$(MAKE) -C ppp/pppoe clean
+all : make_all_subdirs
 
 
 #
@@ -80,6 +64,11 @@ CURR_DIR := $(shell pwd)
 BUILD_DIR:=$(subst /userspace, /userspace,$(CURR_DIR))
 BUILD_DIR:=$(word 1, $(BUILD_DIR))
 
+# automatically set BCM_BASE_BUILD_DIR so that the modsw dirs can compile
+BCM_BASE_BUILD_DIR := $(BUILD_DIR)
+export BCM_BASE_BUILD_DIR
+
+
 include $(BUILD_DIR)/make.common
 
 ifneq ($(strip $(BUILD_VODSL)),)
@@ -90,6 +79,27 @@ export BUILD_DIR
 export CFLAGS
 
 
+#
+# We need to declare these directory names as phony targets,
+# otherwise make will think the directories themselves are
+# the targets and will never execute the cmds.
+# See GNU Make, 4.6 
+#
+.PHONY : $(SUBDIRS)
+
+ifneq ($(strip $(AEI_CONTROL_LAYER)),)
+make_all_subdirs : $(SUBDIRS) pppd dhcpv6
+else
+make_all_subdirs : $(SUBDIRS) pppd
+endif
+
+
+clean: generic_subdir_clean
+	$(MAKE) -C ppp/pppoe clean
+
+modsw_clean: generic_modsw_base_clean
+
+
 ##############################################################
 # 
 # Rules for inidividual apps
@@ -97,6 +107,11 @@ export CFLAGS
 # is modified via make menuconfig)
 #
 ##############################################################
+
+
+$(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS): 
+	$(MAKE) -C $@
+
 
 ifneq ($(strip $(BUILD_SSHD)),)
 sshd:
@@ -110,7 +125,7 @@ endif
 ifneq ($(strip $(BUILD_IPV6)),)
 ifneq ($(strip $(AEI_CONTROL_LAYER)),)
 dhcpv6: sanity_check
-	$(MAKE) -C dhcpv6-aei
+	$(MAKE) -j1 -C dhcpv6-aei
 else
 dhcpv6:
 	(tar xkjf dhcpv6.tar.bz2 2> /dev/null || true)

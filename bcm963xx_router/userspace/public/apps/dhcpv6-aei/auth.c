@@ -150,7 +150,7 @@ dhcp6_calc_mac(buf, len, proto, alg, off, key)
 
 	return (0);
 }
-	
+
 #ifdef CONFIG_IOT_RECONFIGURATION
 int
 dhcp6_reconf_verify_mac(buf, len, proto, alg, off, key,key_len)
@@ -263,7 +263,11 @@ hmacmd5_invalidate(hmacmd5_t *ctx)
 {
 	md5_invalidate(&ctx->md5ctx);
 	memset(ctx->key, 0, sizeof(ctx->key));
+#if defined(AEI_COVERITY_FIX)
+	memset(ctx, 0, sizeof(hmacmd5_t));
+#else
 	memset(ctx, 0, sizeof(ctx));
+#endif
 }
 
 /*

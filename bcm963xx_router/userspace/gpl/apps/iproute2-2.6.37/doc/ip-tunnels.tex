@@ -24,29 +24,29 @@
 
 \item
 Q: In linux-2.0.36 I used:
-\begin{verbatim} 
+\begin{verbatim}
     ifconfig tunl1 10.0.0.1 pointopoint 193.233.7.65
-\end{verbatim} 
+\end{verbatim}
 to create tunnel. It does not work in 2.2.0!
 
 A: You are right, it does not work. The command written above is split to two commands.
 \begin{verbatim}
     ip tunnel add MY-TUNNEL mode ipip remote 193.233.7.65
-\end{verbatim} 
+\end{verbatim}
 will create tunnel device with name \verb|MY-TUNNEL|. Now you may configure
 it with:
-\begin{verbatim} 
+\begin{verbatim}
     ifconfig MY-TUNNEL 10.0.0.1
-\end{verbatim} 
+\end{verbatim}
 Certainly, if you prefer name \verb|tunl1| to \verb|MY-TUNNEL|,
 you still may use it.
 
 \item
 Q: In linux-2.0.36 I used:
-\begin{verbatim} 
+\begin{verbatim}
     ifconfig tunl0 10.0.0.1
     route add -net 10.0.0.0 gw 193.233.7.65 dev tunl0
-\end{verbatim} 
+\end{verbatim}
 to tunnel net 10.0.0.0 via router 193.233.7.65. It does not
 work in 2.2.0! Moreover, \verb|route| prints a funny error sort of
 ``network unreachable'' and after this I found a strange direct route
@@ -55,7 +55,7 @@ to 10.0.0.0 via \verb|tunl0| in routing table.
 A: Yes, in 2.2 the rule that {\em normal} gateway must reside on directly
 connected network has not any exceptions. You may tell kernel, that
 this particular route is {\em abnormal}:
-\begin{verbatim} 
+\begin{verbatim}
   ifconfig tunl0 10.0.0.1 netmask 255.255.255.255
   ip route add 10.0.0.0/8 via 193.233.7.65 dev tunl0 onlink
 \end{verbatim}
@@ -63,7 +63,7 @@ Note keyword \verb|onlink|, it is the magic key that orders kernel
 not to check for consistency of gateway address.
 Probably, after this explanation you have already guessed another method
 to cheat kernel:
-\begin{verbatim} 
+\begin{verbatim}
   ifconfig tunl0 10.0.0.1 netmask 255.255.255.255
   route add -host 193.233.7.65 dev tunl0
   route add -net 10.0.0.0 netmask 255.0.0.0 gw 193.233.7.65
@@ -211,7 +211,7 @@ and add routes with \verb|route| utility.
 NBMA tunnels are different. To route something via NBMA tunnel
 you have to explain to driver, where it should deliver packets to.
 The only way to make it is to create special routes with gateway
-address pointing to desired endpoint. F.e.\ 
+address pointing to desired endpoint. F.e.\
 \begin{verbatim}
     ip route add 10.0.0.0/24 via <A> dev tunl0 onlink
 \end{verbatim}
@@ -234,7 +234,7 @@ Command \verb|ip tunnel add| has several additional options.
 
 \item \verb|ttl N| --- set fixed TTL \verb|N| on tunneled packets.
 	\verb|N| is number in the range 1--255. 0 is special value,
-	meaning that packets inherit TTL value. 
+	meaning that packets inherit TTL value.
 		Default value is: \verb|inherit|.
 
 \item \verb|tos T| --- set fixed tos \verb|T| on tunneled packets.
@@ -450,10 +450,10 @@ and you need to setup corresponding classes only on it.
 Though you have to pay for this convenience,
 if routing will change, your tunnel will fail.
 
-Suppose that CBQ class \verb|1:ABC| has been created on device \verb|eth0| 
+Suppose that CBQ class \verb|1:ABC| has been created on device \verb|eth0|
 specially for tunnel \verb|Cisco| with endpoints \verb|S| and \verb|D|.
 Now you can select IPIP packets with addresses \verb|S| and \verb|D|
-with some classifier and map them to class \verb|1:ABC|. F.e.\ 
+with some classifier and map them to class \verb|1:ABC|. F.e.\
 it is easy to make with \verb|rsvp| classifier:
 \begin{verbatim}
     tc filter add dev eth0 pref 100 proto ip rsvp \

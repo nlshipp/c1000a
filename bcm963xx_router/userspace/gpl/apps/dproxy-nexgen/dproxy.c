@@ -1,8 +1,25 @@
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <netdb.h>
 #include <sys/socket.h>
 #include <linux/sockios.h>
 #include <netinet/in.h>
@@ -22,303 +39,180 @@
 #include "dns_construct.h"
 #include "dns_io.h"
 #include "dns_dyn_cache.h"
-#include "dns_probe.h"
+#include "dns_mapping.h"
+#include "prctl.h"
+
 /*****************************************************************************/
 /*****************************************************************************/
 int dns_main_quit;
-int dns_sock;
+int dns_sock[2]={-1, -1};
 fd_set rfds;
 
 //BRCM
-int dns_querysock;
-int dns_querysock_ipv6;
-int dns_queryport_ipv6 = -1;
+int dns_querysock[2]={-1, -1};
 #ifdef DMP_X_ITU_ORG_GPON_1
 static unsigned int dns_query_error = 0;
 #endif
 
-int dns_wanup = 0;
 /* CMS message handle */
 void *msgHandle=NULL;
 int msg_fd;
-
-#ifndef DNS_PROBE
-extern time_t dns_recover_time;
-#endif
-extern void dns_probe_print(void);
-
-
-// from dns_subnet.c
-extern void dns_sunbet_init(void);
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-extern UBOOL8 dns_subnet_map(struct in6_addr *lanIp, char *dns1);
-#else
-extern UBOOL8 dns_subnet_map(struct in_addr *lanIp, char *dns1);
-#endif
 
 
 #if defined(AEI_VDSL_DNS_CACHE)
 time_t syn_time=0;
 int enable_dns_cache=0;
- 
+
 int dns_cache_enabled()
 {
    time_t t=time(NULL);
    if (t-syn_time>3)
    {
 	syn_time=t;
-   	struct stat stats;
-   	if(stat("/var/dns_cache", &stats) == 0)
+	struct stat stats;
+	if(stat("/var/dns_cache", &stats) == 0)
 	  enable_dns_cache=1;
 	else
 	  enable_dns_cache=0;
    }
    return enable_dns_cache;
-   
+
 }
 #endif
-
-/*****************************************************************************/
-int is_connected()
-{
-#if 0 //BRCM
-  FILE *fp;
-  if(!config.ppp_detect)return 1;
-
-  fp = fopen( config.ppp_device_file, "r" );
-  if(!fp)return 0;
-  fclose(fp);
-  return 1;
-#endif
-  //BRCM
-  return dns_wanup;
-}
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-
-#define CT_RANDOM_PORT_START   11000
-#define CT_RANDOM_PORT_END     21000
-
-/*****************************************************************************/
-int dns_init_ipv6socket()
-{
-  struct sockaddr_in6 mySocketAddress;
-  int ipv6socket = -1;
-  int a,b,z;
-  a = CT_RANDOM_PORT_START;
-  b = CT_RANDOM_PORT_END;
-  
-  ipv6socket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
-
-  /* Error */
-  if( ipv6socket < 0 )
-  {
-     debug_perror("Could not create ipv6socket");
-     return -1;
-  } 
-
-  memset((void *)&mySocketAddress, 0, sizeof(mySocketAddress));
-  z = ((double)rand()/RAND_MAX)*(b-a) + a;
-
-  dns_queryport_ipv6 = z;
-
-  mySocketAddress.sin6_family = AF_INET6;
-  mySocketAddress.sin6_addr = in6addr_any;
-  mySocketAddress.sin6_port = htons(z);
-  
-  /* bind() the socket to the interface */
-  if (bind(ipv6socket, (struct sockaddr *)&mySocketAddress, sizeof(mySocketAddress)) < 0)
-  {
-     debug_perror("dns_init: bind: Could not bind to port");
-     return -1;
-  }
-
-  return ipv6socket;
-}
 
 /*****************************************************************************/
 int dns_init()
 {
-  int ret;
-  int opt = 1;
-  struct sockaddr_in6 mySocketAddress;
+  struct addrinfo hints, *res, *p;
+  int errcode;
+  int ret, i, on=1;
 
-  /* Clear it out */
-  memset((void *)&mySocketAddress, 0, sizeof(mySocketAddress));
-    
-  dns_sock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  memset(&hints, 0, sizeof (hints));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_flags = AI_PASSIVE;
 
-  /* Error */
-  if( dns_sock < 0 )
+  /*
+   * BRCM:
+   * Open sockets to receive DNS queries from LAN.
+   * dns_sock[0] is used for DNS queries over IPv4
+   * dns_sock[1] is used for DNS queries over IPv6
+   */
+  errcode = getaddrinfo(NULL, PORT_STR, &hints, &res);
+  if (errcode != 0)
   {
-     debug_perror("Could not create socket");
-     exit(1);
-  } 
-
-  mySocketAddress.sin6_family = AF_INET6;
-  mySocketAddress.sin6_addr = in6addr_any;
-  mySocketAddress.sin6_port = htons(PORT);
- 
-  /* bind() the socket to the interface */
-  if (bind(dns_sock, (struct sockaddr *)&mySocketAddress, sizeof(mySocketAddress)) < 0)
-  {
-     debug_perror("dns_init: bind: Could not bind to port");
-     exit(1);
+     debug("gai err %d %s", errcode, gai_strerror(errcode));
+     exit(1) ;
   }
 
-  setsockopt(dns_sock, SOL_IP, IPV6_PKTINFO, &opt, sizeof(opt));
-
-  dns_querysock_ipv6 = dns_init_ipv6socket();
-  while(dns_querysock_ipv6 <0 )
+  p = res;
+  while (p)
   {
-     dns_querysock_ipv6 = dns_init_ipv6socket();
-  }
+     if ( p->ai_family == AF_INET )   i = 0;
+     else if ( p->ai_family == AF_INET6 )   i = 1;
+     else {
+        debug_perror("Unknown protocol!!\n");
+        goto next_lan;
+     }
 
-  // BRCM: use a different socket for queries so we can use ephemeral port
-  // Our corp DNS server does not like queries with src port 53.
-  dns_querysock = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+     dns_sock[i] = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
 
-  /* Error */
-  if( dns_querysock < 0 )
-  {
-     debug_perror("Could not create query socket");
-     exit(1);
-  } 
+     if (dns_sock[i] < 0)
+     {
+        debug("Could not create dns_sock[%d]", i);
+        goto next_lan;
+     }
 
-  memset((void *)&mySocketAddress, 0, sizeof(mySocketAddress));
-
-  mySocketAddress.sin6_family = AF_INET6;
-  mySocketAddress.sin6_addr = in6addr_any;
-  mySocketAddress.sin6_port = htons(0);
-  
-  /* bind() the socket to the interface */
-  if (bind(dns_querysock, (struct sockaddr *)&mySocketAddress, sizeof(mySocketAddress)) < 0)
-  {
-     debug_perror("dns_init: bind: Could not bind to ephmeral port");
-     exit(1);
-  }
-
-
-  // BRCM: Connect to ssk
-  if ((ret = cmsMsg_init(EID_DNSPROXY, &msgHandle)) != CMSRET_SUCCESS) 
-  {
-    debug_perror("dns_init: cmsMsg_init() failed");
-    exit(1);
-  }
-  cmsMsg_getEventHandle(msgHandle, &msg_fd);
-
-  dns_main_quit = 0;
-
-  FD_ZERO( &rfds );
-  FD_SET( dns_sock, &rfds );
-  FD_SET( dns_querysock_ipv6, &rfds );
-  FD_SET( dns_querysock, &rfds );
-  FD_SET( msg_fd, &rfds );
-
-#ifdef DNS_DYN_CACHE
-  dns_dyn_hosts_add();
+#ifdef IPV6_V6ONLY
+     if ( (p->ai_family == AF_INET6) && 
+          (setsockopt(dns_sock[i], IPPROTO_IPV6, IPV6_V6ONLY, 
+                      &on, sizeof(on)) < 0) )
+     {
+        debug_perror("Could not set IPv6 only option for LAN");
+        close(dns_sock[i]);
+        goto next_lan;
+     }
 #endif
 
-  //BCM
-  dns_wanup = dns_probe_init();
-  
-  return 1;
-}
+     /* bind() the socket to the interface */
+     if (bind(dns_sock[i], p->ai_addr, p->ai_addrlen) < 0){
+        debug("dns_init: bind: dns_sock[%d] can't bind to port", i);
+        close(dns_sock[i]);
+     }
 
-void dns_handle_ipv6srvaddr_changed(CmsMsgHeader *msg)
-{
-   if(msg == NULL)
-   {
-      printf("dproxy get the msg to change the IPv6 DNS server address, but the message is NULL \n");
-      return;
-   }
-
-   if(msg->wordData == 0) /* Clear the IPv6 DNS Server Address*/
-   {
-      if(name_server_ipv6)
-      {
-         free(name_server_ipv6);
-         name_server_ipv6 = NULL;
-      }
-   }
-   else if(msg->wordData == 1) /* Set the IPv6 DNS Server Address*/
-   {
-      if(msg->dataLength>0)
-      {
-         char data[128];
-         char *separator = NULL;
-         memcpy(data, (char *) (msg + 1), msg->dataLength);
-         while ((separator = strchr(data, ',')))
-         {
-            /* TODO: Now only support one IPv6 DNS Server Address*/
-            *separator = '\0';
-         }
-         if(name_server_ipv6)
-         {
-            free(name_server_ipv6);
-         }
-         name_server_ipv6 = malloc(strlen(data)+1);
-         if(name_server_ipv6 == NULL)
-         {
-            printf("dns_handle_ipv6srvaddr_changed alloc memory failed\n");
-            return;
-         }
-         strcpy(name_server_ipv6, data);
-      }
-   }
-}
-
-#else /* DMP_X_BROADCOM_COM_IPV6_1 */
-/*****************************************************************************/
-int dns_init()
-{
-  struct sockaddr_in sa;
-  struct in_addr ip;
-  int ret;
-
-  /* Clear it out */
-  memset((void *)&sa, 0, sizeof(sa));
-    
-  dns_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-  /* Error */
-  if( dns_sock < 0 ){
-	 debug_perror("Could not create socket");
-	 exit(1);
-  } 
-
-  ip.s_addr = INADDR_ANY;
-  sa.sin_family = AF_INET;
-  memcpy((void *)&sa.sin_addr, (void *)&ip, sizeof(struct in_addr));
-  sa.sin_port = htons(PORT);
-  
-  /* bind() the socket to the interface */
-  if (bind(dns_sock, (struct sockaddr *)&sa, sizeof(struct sockaddr)) < 0){
-	 debug_perror("dns_init: bind: Could not bind to port");
-	 exit(1);
+next_lan:
+     p = p->ai_next;
   }
 
+  freeaddrinfo(res);
 
-  // BRCM: use a different socket for queries so we can use ephemeral port
-  // Our corp DNS server does not like queries with src port 53.
-  dns_querysock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-  /* Error */
-  if( dns_querysock < 0 ){
-	 debug_perror("Could not create query socket");
-	 exit(1);
-  } 
-
-  ip.s_addr = INADDR_ANY;
-  sa.sin_family = AF_INET;
-  memcpy((void *)&sa.sin_addr, (void *)&ip, sizeof(struct in_addr));
-  sa.sin_port = htons(0);
-  
-  /* bind() the socket to the interface */
-  if (bind(dns_querysock, (struct sockaddr *)&sa, sizeof(struct sockaddr)) < 0){
-	 debug_perror("dns_init: bind: Could not bind to ephmeral port");
-	 exit(1);
+  if ( (dns_sock[0] < 0) && (dns_sock[1] < 0) )
+  {
+     debug_perror("Cannot create sockets for LAN");
+     exit(1) ;
   }
 
+  /*
+   * BRCM:
+   * use different sockets to send queries to WAN so we can use ephemeral port
+   * dns_querysock[0] is used for DNS queries sent over IPv4
+   * dns_querysock[1] is used for DNS queries sent over IPv6
+   */
+  errcode = getaddrinfo(NULL, "0", &hints, &res);
+  if (errcode != 0)
+  {
+     debug("gai err %d %s", errcode, gai_strerror(errcode));
+     exit(1) ;
+  }
+
+  p = res;
+  while (p)
+  {
+     if ( p->ai_family == AF_INET )   i = 0;
+     else if ( p->ai_family == AF_INET6 )   i = 1;
+     else
+     {
+        debug_perror("Unknown protocol!!\n");
+        goto next_wan;
+     }
+
+     dns_querysock[i] = socket(p->ai_family, p->ai_socktype, 
+                               p->ai_protocol);
+
+     if (dns_querysock[i] < 0)
+     {
+        debug("Could not create dns_querysock[%d]", i);
+        goto next_wan;
+     }
+
+#ifdef IPV6_V6ONLY
+     if ( (p->ai_family == AF_INET6) && 
+          (setsockopt(dns_querysock[i], IPPROTO_IPV6, IPV6_V6ONLY, 
+                     &on, sizeof(on)) < 0) )
+     {
+        debug_perror("Could not set IPv6 only option for WAN");
+        close(dns_querysock[i]);
+        goto next_wan;
+     }
+#endif
+
+     /* bind() the socket to the interface */
+     if (bind(dns_querysock[i], p->ai_addr, p->ai_addrlen) < 0){
+        debug("dns_init: bind: dns_querysock[%d] can't bind to port", i);
+        close(dns_querysock[i]);
+     }
+
+next_wan:
+     p = p->ai_next;
+  }
+
+  freeaddrinfo(res);
+
+  if ( (dns_querysock[0] < 0) && (dns_querysock[1] < 0) )
+  {
+     debug_perror("Cannot create sockets for WAN");
+     exit(1) ;
+  }
 
   // BRCM: Connect to ssk
   if ((ret = cmsMsg_init(EID_DNSPROXY, &msgHandle)) != CMSRET_SUCCESS) {
@@ -330,8 +224,15 @@ int dns_init()
   dns_main_quit = 0;
 
   FD_ZERO( &rfds );
-  FD_SET( dns_sock, &rfds );
-  FD_SET( dns_querysock, &rfds );
+  if (dns_sock[0] > 0)
+     FD_SET( dns_sock[0], &rfds );
+  if (dns_sock[1] > 0)  
+     FD_SET( dns_sock[1], &rfds );
+  if (dns_querysock[0] > 0)  
+     FD_SET( dns_querysock[0], &rfds );
+  if (dns_querysock[1] > 0)  
+     FD_SET( dns_querysock[1], &rfds );
+
   FD_SET( msg_fd, &rfds );
 
 #ifdef DNS_DYN_CACHE
@@ -342,72 +243,97 @@ int dns_init()
   cache_purge( config.purge_time );
 #endif
 
-  //BCM
-  dns_wanup = dns_probe_init();
-  
   return 1;
 }
-#endif  /* DMP_X_BROADCOM_COM_IPV6_1 */
 
 
 /*****************************************************************************/
 void dns_handle_new_query(dns_request_t *m)
 {
-  struct in_addr in;
-  int retval = -1;
-  dns_dyn_list_t *dns_entry;
- 
-  /*BRCM: support IPv4 only*/
-  if( m->message.question[0].type == A /*|| m->message.question[0].type == AAA*/){
-      /* standard query */
-      //retval = cache_lookup_name( m->cname, m->ip );
-      
+   int retval = -1;
+   dns_dyn_list_t *dns_entry;
+   char srcIP[INET6_ADDRSTRLEN];
+   int query_type = m->message.question[0].type;
+
+   if( query_type == A )
+   {
+      retval = 0;         
 #ifdef DNS_DYN_CACHE
 #if defined(AEI_VDSL_DNS_CACHE) 
     retval = cache_lookup_name( m->cname, m->ip );
-    if(1 != retval) 
+#ifdef AEI_CONTROL_LAYER
+    if (0==retval)
+    {
+        char name_app[128] = {0};
+        snprintf( name_app, sizeof(name_app)-1, "[%s]", m->cname );
+        retval = cache_lookup_name( name_app, m->ip );
+        if (retval==1)
+            retval= 5;
+    }
+#endif
+   
+    if(0 == retval) 
     {
         if(!dns_cache_enabled())
             retval = 0;
         else
         {
 #endif
-      if ((dns_entry = dns_dyn_find(m))) {
-        strcpy(m->ip, inet_ntoa(dns_entry->addr));
-        m->ttl = abs(dns_entry->expiry - time(NULL));
-        retval = 1;
-      }
-      else
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
+      if ((dns_entry = dns_dyn_find(m))) 
       {
-         //ipv4 dns is up
-         if( is_connected())
-         {
-            retval = 0;
-         }
-         //ipv4 dns is down
-         else
-         {
-            if(name_server_ipv6)
-               retval = 6;           
-            else
-               retval = 0;
-         }
-      }
-
+#if defined(AEI_COVERITY_FIX)
+          /*CID 12232: Copy into fixed size buffer*/
+          strlcpy(m->ip, inet_ntoa(dns_entry->addr), sizeof(m->ip));
 #else
-        retval = 0;
+         strcpy(m->ip, inet_ntoa(dns_entry->addr));
 #endif
+         m->ttl = abs(dns_entry->expiry - time(NULL));
+         retval = 1;
+#ifndef AEI_CONTROL_LAYER 
+         debug(".... %s, srcPort=%d, retval=%d\n", m->cname, ((struct sockaddr_in *)&m->src_info)->sin_port, retval); 
+#endif
+      }
 #if defined(AEI_VDSL_DNS_CACHE) 
         }
     }
 #endif
+#endif      
+   }
+   else if( query_type == AAA)
+   { /* IPv6 todo */
+#if defined(AEI_CONTROL_LAYER)
+  		/*modify by libby support IPV6*/
+#ifdef AEI_VDSL_DNS_CACHE
+		char name_app[128] = {0};
+		snprintf( name_app, sizeof(name_app)-1, "[%s]", m->cname );
+		retval = cache_lookup_name( name_app, m->ip );
+		//strcpy(m->cname,name_app);
+		if( 1 != retval )
+#endif
 #endif
 
-  }else if( m->message.question[0].type == PTR ) {
+// To support query to WAN IPv6 DNS server (retval == 6),
+// must implement CMS_MSG_DNSPROXY_IPV6_CHANGED to notice IPv6 DNS server info change.
+#if defined(AEI_CONTROL_LAYER)
+		{
+			debug(" remote ipv6 dns server address is %s\n", name_server_ipv6 );
+			if(name_server_ipv6)
+			{
+				retval = 6;
+			}
+			else
+			{
+				retval = 0;
+			}
+		}
+#else
+     retval = 0;
+#endif
+   }
+   else if( query_type == PTR ) 
+   {
+      retval = 0;   
       /* reverse lookup */
-      //retval = cache_lookup_ip( m->ip, m->cname );
-
 #ifdef DNS_DYN_CACHE
 #ifdef AEI_VDSL_DNS_CACHE
         if(!dns_cache_enabled())
@@ -415,150 +341,128 @@ void dns_handle_new_query(dns_request_t *m)
         else
         {
 #endif
-      if ((dns_entry = dns_dyn_find(m))) {
-        strcpy(m->cname, dns_entry->cname);
-        m->ttl = abs(dns_entry->expiry - time(NULL));
-        retval = 1;
+      if ((dns_entry = dns_dyn_find(m))) 
+      {
+#if defined(AEI_COVERITY_FIX)
+          /*CID 12232: Copy into fixed size buffer*/
+          strlcpy(m->cname, dns_entry->cname, sizeof(m->cname));
+#else
+         strcpy(m->cname, dns_entry->cname);
+#endif
+         m->ttl = abs(dns_entry->expiry - time(NULL));
+         retval = 1;
+#ifndef AEI_CONTROL_LAYER 
+         debug("TYPE==PTR.... %s, srcPort=%d, retval=%d\n", m->cname,  ((struct sockaddr_in *)&m->src_info)->sin_port, retval); 
+#endif
+         
       }
-      else 
-        retval = 0;
 #ifdef AEI_VDSL_DNS_CACHE
         }
 #endif	
 #endif
-
-  }
-  else if( m->message.question[0].type == AAA)
-  { /* IPv6 */
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-      debug(" remote ipv6 dns server address is %s\n", name_server_ipv6 );
-      if(name_server_ipv6)
-      {
-         retval = 6;
-      }
-      else
-      {
-         retval = 0;
-      }
-#else
-      retval = 0;
-#endif
-  }
-  else //BRCM
-  {
-      retval = 0;
-  }
-
-#ifndef DMP_X_BROADCOM_COM_IPV6_1   /* Fixme ~~~~ inet_ntoa cannot be used for IPv6 address; Use inet_ntop */
-  debug(".......... %s ---- %s\n", m->cname, inet_ntoa(m->src_addr));
-#endif /* !DMP_X_BROADCOM_COM_IPV6_1 */
+   }  
+   else /* BRCM:  For all other query_type including TXT, SPF... */
+   {
+       retval = 0;
+   }
+   
+   inet_ntop( m->src_info.ss_family, 
+              get_in_addr(&m->src_info), 
+              srcIP, INET6_ADDRSTRLEN );
+   cmsLog_notice("dns_handle_new_query: %s %s, srcPort=%d, retval=%d\n", 
+                  m->cname, srcIP, 
+                  ((struct sockaddr_in *)&m->src_info)->sin_port, 
+                  retval);
+   
   switch( retval )
   {
-
      case 0:
      {
-        char dns1[CMS_IPADDR_LENGTH];
-        debug("config.name_server=%s is_connected=%d", config.name_server, is_connected());
+        char dns1[INET6_ADDRSTRLEN];
+        int proto;
 
-        if (dns_subnet_map(&(m->src_addr), dns1) == TRUE)
+        if (dns_mapping_find_dns_ip(&(m->src_info), query_type, 
+                                    dns1, &proto) == TRUE)
         {
-#ifndef DMP_X_BROADCOM_COM_IPV6_1   /* Fixme ~~~~ inet_ntoa cannot be used for IPv6 address; Use inet_ntop */
-           cmsLog_notice("Found dns %s for subnet %s", dns1, inet_ntoa(m->src_addr));
-#endif /* !DMP_X_BROADCOM_COM_IPV6_1 */
-           inet_aton(dns1, &in);
+           struct sockaddr_storage sa;
+           int sock;
+
+           cmsLog_notice("Found dns %s for subnet %s", dns1, srcIP);
+           dns_list_add(m);
+
+           if (proto == AF_INET)
+           {
+              sock = dns_querysock[0];
+              ((struct sockaddr_in *)&sa)->sin_port = PORT;
+              inet_pton(proto, dns1, &(((struct sockaddr_in *)&sa)->sin_addr));
+           }
+           else
+           {
+              sock = dns_querysock[1];
+              ((struct sockaddr_in6 *)&sa)->sin6_port = PORT;
+              inet_pton( proto, dns1, 
+                         &(((struct sockaddr_in6 *)&sa)->sin6_addr) );
+           }
+           sa.ss_family = proto;
+           dns_write_packet( sock, &sa, m );
         }
         else
         {
-            inet_aton( config.name_server, &in );
+            cmsLog_debug("No dns service.");
         }   
-    
-        if( is_connected()){
-           debug("Adding to list-> id: %d\n", m->message.header.id);
-#ifndef DNS_PROBE
-           dns_list_add(m, dns_probe_is_primary_up());
-#else
-            dns_list_add(m,0);
-#endif
-           /* relay the query untouched */
-           debug("sending query out on dns_querysock\n");
-        }else{
-           debug("wan not up, No DNS information: send to magic ppp addr.\n");
-        }
-        dns_write_packet( dns_querysock, in, PORT, m );
         break;
      }
 
      case 1:
         dns_construct_reply( m );
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-        dns_write_packet_ipv6( dns_sock, m->src_addr, m->src_port, m );
-#else
-        dns_write_packet( dns_sock, m->src_addr, m->src_port, m );
-#endif
-        debug("Cache hit\n");
+        /* Only IPv4 can support caching now */
+        dns_write_packet(dns_sock[0], &m->src_info, m);
         break;
 
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-     case 6:
-
-        debug(" remote ipv6 dns server address is %s\n", name_server_ipv6 );
-
-        if(name_server_ipv6)
-        {
-           struct in6_addr in6;
-           inet_pton(AF_INET6, name_server_ipv6, &in6);
-
-           dns_list_add(m, dns_probe_is_primary_up());
-
-           dns_write_packet_ipv6( dns_querysock_ipv6, in6, PORT, m );
-        }
-        break;
-#endif
      default:
-        debug("Unknown query type: %d\n", m->message.question[0].type );
+        debug("Unknown query type: %d\n", query_type);
    }
 }
 /*****************************************************************************/
 void dns_handle_request(dns_request_t *m)
 {
-  struct in_addr in;
   dns_request_t *ptr = NULL;
 
   /* request may be a new query or a answer from the upstream server */
   ptr = dns_list_find_by_id(m);
 
   if( ptr != NULL ){
-      debug("Found query in list; id 0x%04x flags 0x%04x\n ip %s --- cname %s\n", 
-             m->message.header.id, m->message.header.flags.flags, m->ip, m->cname);
+      debug("Found query in list; id 0x%04x flags 0x%04x\n ip %s - cname %s\n", 
+             m->message.header.id, m->message.header.flags.flags, 
+             m->ip, m->cname);
 
       /* message may be a response */
       if( m->message.header.flags.flags & 0x8000)
       {
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-          dns_write_packet_ipv6( dns_sock, ptr->src_addr, ptr->src_port, m );
-          char ipaddr[40];
-          inet_ntop(AF_INET6, &ptr->src_addr, ipaddr, sizeof(ipaddr));
-          debug("---->sending to  %s:%d thru sock %d\n", ipaddr, ptr->src_port, dns_sock);
-          inet_ntop(AF_INET6, &m->src_addr, ipaddr, sizeof(ipaddr));
-          debug("Replying with answer from %s, id 0x%04x\n", ipaddr, m->message.header.id);
-#else
-          dns_write_packet( dns_sock, ptr->src_addr, ptr->src_port, m );
-          debug("Replying with answer from %s, id 0x%04x\n", inet_ntoa( m->src_addr), m->message.header.id);
-#endif
-          dns_list_unarm_requests_after_this( ptr );  // BRCM
+          int sock;
+          char srcIP[INET6_ADDRSTRLEN];
+
+          if (ptr->src_info.ss_family == AF_INET)
+             sock = dns_sock[0];
+          else
+             sock = dns_sock[1];
+
+          inet_ntop( m->src_info.ss_family, 
+                     get_in_addr(&m->src_info), 
+                     srcIP, INET6_ADDRSTRLEN );
+   
+          debug("Replying with answer from %s, id 0x%04x\n", 
+                 srcIP, m->message.header.id);
+          dns_write_packet( sock, &ptr->src_info, m );
           dns_list_remove( ptr );         
+          
 #ifdef DMP_X_ITU_ORG_GPON_1
           if( m->message.header.flags.f.rcode != 0 ){ // lookup failed
               dns_query_error++;
               debug("dns_query_error = %u\n", dns_query_error);
           }
 #endif
-      #if 0 //BRCM: Don't write to cache for saving device resource.
-          if( m->message.header.flags.f.rcode == 0 ){ // lookup was succesful
-              debug("Cache append: %s ----> %s\n", m->cname, m->ip );
-              cache_name_append( m->cname, m->ip );
-          }
-      #endif
+
 #ifdef DNS_DYN_CACHE
 #ifdef AEI_VDSL_DNS_CACHE
       if(dns_cache_enabled())
@@ -568,23 +472,49 @@ void dns_handle_request(dns_request_t *m)
              dns_dyn_cache_add(m);
           }
 #endif
-          //BRCM
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-          /* mwang: this is clearly wrong, need ipv6-review here */
-          dns_probe_activate((uint32) m->src_addr.s6_addr);
-#else
-          dns_probe_activate(m->src_addr.s_addr);
-#endif
       }
       else
       {
-         debug("Duplicate query to %s (retx_count=%d)", m->cname, ptr->retx_count);
+         debug( "Duplicate query to %s (retx_count=%d)", 
+                m->cname, ptr->retx_count );
+
          if (ptr->retx_count < MAX_RETX_COUNT)
          {
+            char dns1[INET6_ADDRSTRLEN];
+            int proto;
+
             debug("=>send again\n");
             ptr->retx_count++;
-            inet_aton( config.name_server, &in );
-            dns_write_packet( dns_querysock, in, PORT, m );
+            cmsLog_debug("retx_count=%d", ptr->retx_count);
+
+            if (dns_mapping_find_dns_ip(&(m->src_info), 
+                                        m->message.question[0].type, 
+                                        dns1, &proto) == TRUE)
+            {
+               struct sockaddr_storage sa;
+               int sock;
+
+               if (proto == AF_INET)
+               {
+                  sock = dns_querysock[0];
+                  ((struct sockaddr_in *)&sa)->sin_port = PORT;
+                  inet_pton( proto, dns1, 
+                             &(((struct sockaddr_in *)&sa)->sin_addr) );
+               }
+               else
+               {
+                  sock = dns_querysock[1];
+                  ((struct sockaddr_in6 *)&sa)->sin6_port = PORT;
+                  inet_pton( proto, dns1, 
+                             &(((struct sockaddr_in6 *)&sa)->sin6_addr) );
+               }
+               sa.ss_family = proto;
+               dns_write_packet( sock, &sa, m );
+            }
+            else
+            {
+               cmsLog_debug("No dns service for duplicate query??");
+            }   
          }
          else
          {
@@ -603,7 +533,12 @@ void dns_handle_request(dns_request_t *m)
 /*****************************************************************************/
 static void processCmsMsg(void)
 {
+#ifdef AEI_COVERITY_FIX
+   /*Coverity CID 12493: Use of untrusted scalar value (TAINTED_SCALAR)*/
+   CmsMsgHeader *msg = NULL;
+#else
   CmsMsgHeader *msg;
+#endif
   CmsRet ret;
 
   while( (ret = cmsMsg_receiveWithTimeout(msgHandle, &msg, 0)) == CMSRET_SUCCESS) {
@@ -623,17 +558,6 @@ static void processCmsMsg(void)
       }
       break;
 
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-    case CMS_MSG_DNSPROXY_IPV6_CHANGED:
-      dns_handle_ipv6srvaddr_changed(msg);
-      if ((ret = cmsMsg_sendReply(msgHandle, msg, CMSRET_SUCCESS)) != CMSRET_SUCCESS) 
-      {
-         cmsLog_error("send response for msg 0x%x failed, ret=%d", msg->type, ret);
-      }
-      break;
-
-#endif
-
     case CMS_MSG_DNSPROXY_RELOAD:
       cmsLog_debug("received CMS_MSG_DNSPROXY_RELOAD\n");
       /* Reload config file */
@@ -641,12 +565,11 @@ static void processCmsMsg(void)
       dns_dyn_hosts_add();
 #endif
 
-      /* load the /var/wandns into the linked list for dns/subnet pair */
-      dns_sunbet_init();
+      /* load the /var/dnsinfo.conf into the linked list for determining
+      * which dns ip to use for the dns query.
+      */
+      dns_mapping_conifg_init();
      
-
-      dns_wanup = dns_probe_init();
-
       /*
        * During CDRouter dhcp scaling tests, this message is sent a lot to dnsproxy.
        * To make things more efficient/light weight, the sender of the message does
@@ -657,10 +580,9 @@ static void processCmsMsg(void)
 #ifdef SUPPORT_DEBUG_TOOLS
 
     case CMS_MSG_DNSPROXY_DUMP_STATUS:
-       printf("\n============= Dump dnsproxy status=====\n");
-       printf("config.name_server=%s config.domain=%s dns_wanup=%d\n",
-              config.name_server, config.domain_name, dns_wanup);
-       dns_probe_print();
+       printf("\n============= Dump dnsproxy status=====\n\n");
+       printf("WAN interface; LAN IP/MASK; Primary DNS IP,Secondary DNS IP;\n");
+       prctl_runCommandInShellBlocking("cat /var/dnsinfo.conf");
        dns_list_print();
        dns_dyn_print();
        break;
@@ -709,7 +631,9 @@ static void processCmsMsg(void)
   }
   
   if (ret == CMSRET_DISCONNECTED) {
-    cmsLog_error("lost connection to smd, exiting now.");
+    if (!cmsFil_isFilePresent(SMD_SHUTDOWN_IN_PROGRESS)) {
+      cmsLog_error("lost connection to smd, exiting now.");
+    }
     dns_main_quit = 1;
   }
 }
@@ -719,170 +643,93 @@ int dns_main_loop()
 {
     struct timeval tv, *ptv;
     fd_set active_rfds;
-    int next_probe_time = 0;
     int retval;
     dns_request_t m;
     dns_request_t *ptr, *next;
-#if defined(AEI_VDSL_DNS_CACHE) 
-    int purge_time = PURGE_TIMEOUT;
-#endif
 
     while( !dns_main_quit )
     {
-      /* set the one second time out */
-      //BRCM: set timeout to the earliest pending request's timeout or
-      //next probe time (if in probing procedure). If there
-      //is no pending requests and not in probing procedure, timeout will
-      //be 0, causing select() to wait forever until received packets on
-      //any sockets.
+
       int next_request_time = dns_list_next_time();
-      if (next_request_time) {
-         if (next_request_time < next_probe_time || !next_probe_time) {
-            debug("use next_request_time = %d", next_request_time);
-            tv.tv_sec = next_request_time;
-         } else {
-            tv.tv_sec = next_probe_time;
-         }
-      } else {
-         tv.tv_sec = next_probe_time;
-      }
-	tv.tv_usec = 0;
-      if (tv.tv_sec == 0) { /* To wait indefinitely */
+      
+      if (next_request_time == 1) {
+          tv.tv_sec = next_request_time;
+          tv.tv_usec = 0;
+          ptv = &tv;
+          cmsLog_notice("select timeout = %lu seconds", tv.tv_sec);          
+       } else {
          ptv = NULL;
-         debug("\n\n=============select will wait indefinitely============");
-      } else {
-        tv.tv_usec = 0;
-        ptv = &tv;
-        debug("select timeout = %lu seconds", tv.tv_sec);
-     }
+         cmsLog_debug("\n\n =============select will wait indefinitely============");          
+       }
 
-      /* now copy the main rfds in the active one as it gets modified by select*/
+
+      /* copy the main rfds in the active one as it gets modified by select*/
       active_rfds = rfds;
-
       retval = select( FD_SETSIZE, &active_rfds, NULL, NULL, ptv );
+
       if (retval){
          debug("received something");
 
          if (FD_ISSET(msg_fd, &active_rfds)) { /* message from ssk */
             debug("received cms message");
             processCmsMsg();
-
-         } else if (FD_ISSET(dns_sock, &active_rfds)) { /* DNS message */
-            debug("received DNS message (LAN side)");
+         } else if ((dns_sock[0] > 0) && FD_ISSET(dns_sock[0], &active_rfds)) {
+            debug("received DNS message (LAN side IPv4)");
             /* data is now available */
             bzero(&m, sizeof(dns_request_t));
             //BRCM
-            //dns_read_packet( dns_sock, &m );
-            if (dns_read_packet(dns_sock, &m) == 0) {
+            if (dns_read_packet(dns_sock[0], &m) == 0) {
                dns_handle_request( &m );
             }
-
-         } else if (FD_ISSET(dns_querysock, &active_rfds)) {
-            debug("received DNS response (WAN side)");
+         } else if ((dns_sock[1] > 0) && FD_ISSET(dns_sock[1], &active_rfds)) {
+            debug("received DNS message (LAN side IPv6)");
+            /* data is now available */
             bzero(&m, sizeof(dns_request_t));
-            if (dns_read_packet(dns_querysock, &m) == 0 && !dns_probe_response(&m))
+            //BRCM
+            if (dns_read_packet(dns_sock[1], &m) == 0) {
                dns_handle_request( &m );
-         }
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-         else if (FD_ISSET(dns_querysock_ipv6, &active_rfds)) 
-         {
+            }
+         } else if ((dns_querysock[0] > 0) && 
+                    FD_ISSET(dns_querysock[0], &active_rfds)) {
+            debug("received DNS response (WAN side IPv4)");
+            bzero(&m, sizeof(dns_request_t));
+            if (dns_read_packet(dns_querysock[0], &m) == 0)
+               dns_handle_request( &m );
+         } else if ((dns_querysock[1] > 0) && 
+                    FD_ISSET(dns_querysock[1], &active_rfds)) {
             debug("received DNS response (WAN side IPv6)");
             bzero(&m, sizeof(dns_request_t));
-            if (dns_read_packet(dns_querysock_ipv6, &m) == 0 && !dns_probe_response(&m))
-            {
+            if (dns_read_packet(dns_querysock[1], &m) == 0)
                dns_handle_request( &m );
-            }
          }
-#endif
       } else { /* select time out */
          time_t now = time(NULL);
-         int doSwitch=0;
-#ifndef DNS_PROBE
-         debug("select timed out, next_request_time=%d next_probe_time=%d dns_recover_time=%d",
-                next_request_time, next_probe_time, dns_recover_time);
-#endif
-         /*
-          * There could be several reasons for select timeout.
-          * a) It is time for switching back to primary server.  This will be
-          *    handled at the end of the else block in dns_probe().
-          * b) A query timed out, but we know from other dns responses that the
-          *    dns server is actually up. The UDP request or response from this
-          *    query was simply lost.  Do not switch dns servers.  Do not send an error
-          *    reply to the LAN client, just let it timeout.  This is what the LAN
-          *    client would experience if no dnsproxy was here.
-          * c) A query timed out, and we suspect the primary server is down.
-          *    Switch to the secondary DNS server.
-          */
-#ifndef DNS_PROBE
-         if (now >= dns_recover_time) {
-            dns_probe_switchback();
-         }
-#endif
          ptr = dns_request_list;
          while (ptr) {
             next = ptr->next;
-
             if (ptr->expiry <= now) {
                char date_time_buf[DATE_TIME_BUFLEN];
                get_date_time_str(date_time_buf, sizeof(date_time_buf));
 
                debug("removing expired request %p\n", ptr);
-               debug("%s dnsproxy: query for %s timed out after %d secs "
-                      "(type=%d switch_on_timeout=%d retx_count=%d)\n",
-                      date_time_buf, ptr->cname, DNS_TIMEOUT,
-                      (unsigned int) ptr->message.question[0].type,
-                      ptr->switch_on_timeout, ptr->retx_count);
+               cmsLog_notice("%s dnsproxy: query for %s timed out after %d secs (type=%d retx_count=%d)",  
+                  date_time_buf, ptr->cname, DNS_TIMEOUT, (unsigned int) ptr->message.question[0].type, ptr->retx_count);
 
-               if (ptr->switch_on_timeout)
-               {
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-                  /*TODO : We also need to support the IPv6 DNS Server address Switch feature*/
-                  if(ptr->message.question[0].type != AAA)
-                     doSwitch = 1;
-#else
-                  doSwitch = 1;
-#endif
-                  /*
-                   * I don't see the point of sending an error reply to
-                   * the LAN client.  Why not just let it timeout.  It will
-                   * resend the request anyways, right?  Since the original
-                   * dproxy code did it, I'll leave it here.  mwang 8/31/09.
-                   */
-                  dns_construct_error_reply(ptr);
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
-                  dns_write_packet_ipv6( dns_sock, ptr->src_addr, ptr->src_port, ptr );
-#else
-                  dns_write_packet( dns_sock, ptr->src_addr, ptr->src_port, ptr );
-#endif
+               /*  dns1 and dns2 will be swapped if possible in dns_list_remove_related_requests_and_swap call */
+               if (dns_list_remove_related_requests_and_swap(ptr)) {
+                  /* reset to the header since dns_list_remove_related_requests_and_swap may free the dns requests with 
+                  * the using the same dns ip
+                  */
+                  ptr = dns_request_list;
+                  continue;
                }
-
-               dns_list_remove(ptr);
+               
             }
 
             ptr = next;
          }
 
-#ifndef DNS_PROBE
-         if (doSwitch) {
-            dns_probe_set_recover_time();
-         }
-#endif
-
-#if defined(DNS_PROBE) && defined(AEI_VDSL_DNS_PROBE)
-         dns_probe_time_init();
-#endif
       } /* if (retval) */
-
-      //BRCM
-      next_probe_time = dns_probe();
-
-#if defined(AEI_VDSL_DNS_CACHE) 
-      purge_time--;
-      if( !purge_time ){
-         cache_purge( config.purge_time );
-         purge_time = PURGE_TIMEOUT;
-      }
-#endif
 
     }  /* while (!dns_main_quit) */
    return 0;
@@ -976,8 +823,6 @@ void usage(char * program , char * message ) {
 int get_options( int argc, char ** argv ) 
 {
   char c = 0;
-  int not_daemon = 0;
-  int want_printout = 0;
   char * progname = argv[0];
   SINT32 logLevelNum;
   CmsLogLevel logLevel=DEFAULT_LOG_LEVEL;
@@ -993,16 +838,19 @@ int get_options( int argc, char ** argv )
   		conf_load(optarg);
 		break;
 	 case 'd':
-		not_daemon = 1;
 		break;
      case 'D':
+#if defined(AEI_COVERITY_FIX)
+         /*CID 12233: Copy into fixed size buffer*/
+         strlcpy(config.domain_name, optarg, sizeof(config.domain_name));
+#else
         strcpy(config.domain_name, optarg);
+#endif
         break;
 	 case 'h':
 		usage(progname,"");
 		return -1;
 	 case 'P':
-		want_printout = 1;
 		break;
          case 'v':
          	logLevelNum = atoi(optarg);
@@ -1057,8 +905,18 @@ int main(int argc, char **argv)
 	  exit(1);
   }
 
-  signal(SIGHUP, sig_hup);
+  /* detach from terminal and detach from smd session group. */
+  if (setsid() < 0)
+  {
+    cmsLog_error("could not detach from terminal");
+    exit(-1);
+  }
 
+  /* ignore some common, problematic signals */
+  signal(SIGINT, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
+
+  signal(SIGHUP, sig_hup);
   dns_init();
 
 //BRCM: Don't fork a task again!

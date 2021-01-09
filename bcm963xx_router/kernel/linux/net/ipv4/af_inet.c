@@ -831,9 +831,9 @@ int inet_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
                case SIOCSDMZ: // Advanced DMZ
                         printk(KERN_EMERG"SIOCSDMZ go\n");
                         err = arp_ioctl(net, cmd, (void __user *)arg);
-                        
-                        break;           
-#endif                        
+
+                        break;
+#endif
 		default:
 			if (sk->sk_prot->ioctl)
 				err = sk->sk_prot->ioctl(sk, cmd, arg);

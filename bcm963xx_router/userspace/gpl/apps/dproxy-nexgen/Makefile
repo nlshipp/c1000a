@@ -2,7 +2,7 @@
 # In most cases, you only need to modify this first section.
 #
 EXE=dnsproxy
-OBJS=dproxy.o dns_decode.o dns_list.o conf.o dns_construct.o dns_io.o dns_probe.o dns_dyn_cache.o dns_subnet.o cache.o
+OBJS=dproxy.o dns_decode.o dns_list.o conf.o dns_construct.o dns_io.o dns_dyn_cache.o dns_mapping.o cache.o
 LIBS=-lcms_msg $(CMS_COMMON_LIBS)
 CUSTOM_CFLAGS=-DDNS_DYN_CACHE
 
@@ -53,11 +53,6 @@ ALLOWED_INCLUDE_PATHS := -I.\
 # license implications of what you are doing.
 #
 ALLOWED_LIB_DIRS := /lib:/lib/gpl:/lib/public
-
-
-ifneq ($(strip $(BUILD_DPROXYWITHPROBE)),)
-CUSTOM_CFLAGS += -DDNS_PROBE
-endif
 
 
 # treat all warnings as errors

@@ -29,7 +29,7 @@
 #include <board.h>
 void usbledTimerStart(void);
 void usbledTimerEnd(void);
-void usbledTimerExpire(void);	
+void usbledTimerExpire(void);
 extern int usb_led_flag;
 #endif
 /* This file contains declarations of usbcore internals that are mostly

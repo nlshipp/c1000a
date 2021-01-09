@@ -110,7 +110,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 	{
 		snprintf(_tmpstr, sizeof(_tmpstr), "FRAG:%u ", ntohs(ih->frag_off) & IP_OFFSET);
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 	}
 #else
 		printk("FRAG:%u ", ntohs(ih->frag_off) & IP_OFFSET);
@@ -144,7 +144,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 		{
 			snprintf(_tmpstr, sizeof(_tmpstr), "%02X", op[i]);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 		}
 #else
 			printk("%02X", op[i]);
@@ -178,7 +178,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -190,7 +190,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 					snprintf(_tmpstr, sizeof(_tmpstr), "SPT=%u DPT=%u ",
 		       ntohs(th->source), ntohs(th->dest));
-					strcat(_logstr, _tmpstr);	
+					strcat(_logstr, _tmpstr);
 #else
 		printk("SPT=%u DPT=%u ",
 		       ntohs(th->source), ntohs(th->dest));
@@ -201,7 +201,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		{
 			snprintf(_tmpstr, sizeof(_tmpstr), "SEQ=%u ACK=%u ",
 			       ntohl(th->seq), ntohl(th->ack_seq));
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 		}
 #else
 			printk("SEQ=%u ACK=%u ",
@@ -210,14 +210,14 @@ static void dump_packet(const struct nf_loginfo *info,
 		/* Max length: 13 "WINDOW=65535 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "WINDOW=%u ", ntohs(th->window));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("WINDOW=%u ", ntohs(th->window));
 #endif
 		/* Max length: 9 "RES=0x3F " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 				snprintf(_tmpstr, sizeof(_tmpstr), "RES=0x%02x ", (u8)(ntohl(tcp_flag_word(th) & TCP_RESERVED_BITS) >> 22));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("RES=0x%02x ", (u8)(ntohl(tcp_flag_word(th) & TCP_RESERVED_BITS) >> 22));
 #endif
@@ -273,7 +273,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		/* Max length: 11 "URGP=65535 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "URGP=%u ", ntohs(th->urg_ptr));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("URGP=%u ", ntohs(th->urg_ptr));
 #endif
@@ -307,7 +307,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			{
 				snprintf(_tmpstr, sizeof(_tmpstr), "%02X", op[i]);
-				strcat(_logstr, _tmpstr);	
+				strcat(_logstr, _tmpstr);
 			}
 #else
 				printk("%02X", op[i]);
@@ -349,7 +349,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -362,7 +362,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		snprintf(_tmpstr, sizeof(_tmpstr), "SPT=%u DPT=%u LEN=%u ",
 		       ntohs(uh->source), ntohs(uh->dest),
 		       ntohs(uh->len));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("SPT=%u DPT=%u LEN=%u ",
 		       ntohs(uh->source), ntohs(uh->dest),
@@ -408,7 +408,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -419,7 +419,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		/* Max length: 18 "TYPE=255 CODE=255 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "TYPE=%u CODE=%u ", ich->type, ich->code);
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("TYPE=%u CODE=%u ", ich->type, ich->code);
 #endif
@@ -431,7 +431,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -447,7 +447,7 @@ static void dump_packet(const struct nf_loginfo *info,
 			snprintf(_tmpstr, sizeof(_tmpstr), "ID=%u SEQ=%u ",
 			       ntohs(ich->un.echo.id),
 			       ntohs(ich->un.echo.sequence));
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("ID=%u SEQ=%u ",
 			       ntohs(ich->un.echo.id),
@@ -460,7 +460,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "PARAMETER=%u ",
 			       ntohl(ich->un.gateway) >> 24);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("PARAMETER=%u ",
 			       ntohl(ich->un.gateway) >> 24);
@@ -470,7 +470,7 @@ static void dump_packet(const struct nf_loginfo *info,
 			/* Max length: 24 "GATEWAY=255.255.255.255 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "GATEWAY=%pI4 ", &ich->un.gateway);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("GATEWAY=%pI4 ", &ich->un.gateway);
 #endif
@@ -500,7 +500,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			{
 				snprintf(_tmpstr, sizeof(_tmpstr), "MTU=%u ", ntohs(ich->un.frag.mtu));
-				strcat(_logstr, _tmpstr);	
+				strcat(_logstr, _tmpstr);
 			}
 #else
 				printk("MTU=%u ", ntohs(ich->un.frag.mtu));
@@ -530,7 +530,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -541,7 +541,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		/* Length: 15 "SPI=0xF1234567 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "SPI=0x%x ", ntohl(ah->spi));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("SPI=0x%x ", ntohl(ah->spi));
 #endif
@@ -568,7 +568,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 			snprintf(_tmpstr, sizeof(_tmpstr), "INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 #else
 			printk("INCOMPLETE [%u bytes] ",
 			       skb->len - iphoff - ih->ihl*4);
@@ -579,7 +579,7 @@ static void dump_packet(const struct nf_loginfo *info,
 		/* Length: 15 "SPI=0xF1234567 " */
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "SPI=0x%x ", ntohl(eh->spi));
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("SPI=0x%x ", ntohl(eh->spi));
 #endif
@@ -589,7 +589,7 @@ static void dump_packet(const struct nf_loginfo *info,
 	default:
 #if defined(AEI_LOG_FIREWALL_DROP)
 		snprintf(_tmpstr, sizeof(_tmpstr), "PROTO=%u ", ih->protocol);
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 #else
 		printk("PROTO=%u ", ih->protocol);
 #endif
@@ -604,7 +604,7 @@ static void dump_packet(const struct nf_loginfo *info,
 			snprintf(_tmpstr, sizeof(_tmpstr), "UID=%u GID=%u ",
 				skb->sk->sk_socket->file->f_cred->fsuid,
 				skb->sk->sk_socket->file->f_cred->fsgid);
-			strcat(_logstr, _tmpstr);	
+			strcat(_logstr, _tmpstr);
 		}
 #else
 			printk("UID=%u GID=%u ",
@@ -619,7 +619,7 @@ static void dump_packet(const struct nf_loginfo *info,
 #if defined(AEI_LOG_FIREWALL_DROP)
 	{
 		snprintf(_tmpstr, sizeof(_tmpstr), "MARK=0x%x ", skb->mark);
-		strcat(_logstr, _tmpstr);	
+		strcat(_logstr, _tmpstr);
 	}
 #else
 		printk("MARK=0x%x ", skb->mark);

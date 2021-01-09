@@ -3,27 +3,29 @@
  *  Copyright (c) 2006-2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -51,6 +53,9 @@
 typedef enum
 {
    LOG_LEVEL_ERR    = 3, /**< Message at error level. */
+#ifdef AEI_CMS_LOG_DEBUG
+   LOG_LEVEL_AEIDEBUG  = 4 , /**< Message at aeidebug level. */
+#endif
    LOG_LEVEL_NOTICE = 5, /**< Message at notice level. */
    LOG_LEVEL_DEBUG  = 7  /**< Message at debug level. */
 } CmsLogLevel;
@@ -102,18 +107,27 @@ typedef enum
 #define cmsLog_error(args...)
 #define cmsLog_notice(args...)
 #define cmsLog_debug(args...)
+#ifdef AEI_CMS_LOG_DEBUG
+#define cmsLog_aeidebug(args...)
+#endif
 #endif
 
 #ifdef CMS_LOG2
 #define cmsLog_error(args...)  log_log(LOG_ERR, __FUNCTION__, __LINE__, args)
 #define cmsLog_notice(args...) log_log(LOG_NOTICE, __FUNCTION__, __LINE__, args)
 #define cmsLog_debug(args...)
+#ifdef AEI_CMS_LOG_DEBUG
+#define cmsLog_aeidebug(args...)
+#endif
 #endif
 
 #ifdef CMS_LOG3
 #define cmsLog_error(args...)  log_log(LOG_ERR, __FUNCTION__, __LINE__, args)
 #define cmsLog_notice(args...) log_log(LOG_NOTICE, __FUNCTION__, __LINE__, args)
 #define cmsLog_debug(args...)  log_log(LOG_DEBUG, __FUNCTION__, __LINE__, args)
+#ifdef AEI_CMS_LOG_DEBUG
+#define cmsLog_aeidebug(args...)  log_log(LOG_WARNING, __FUNCTION__, __LINE__, args)
+#endif
 #endif
 
 

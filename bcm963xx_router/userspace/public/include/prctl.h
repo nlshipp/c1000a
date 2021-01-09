@@ -5,19 +5,25 @@
  *    Copyright (c) 2006 Broadcom Corporation
  *    All Rights Reserved
  * 
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License, version 2, as published by
- * the Free Software Foundation (the "GPL").
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
  * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
  * 
- * 
- * A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- * writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
  * 
  * :>
  *
@@ -100,12 +106,17 @@ typedef struct
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 #ifdef SUPPORT_HTTPD_SSL
   SINT32 serverFd2; /*for httpd only*/
-  SINT32 eid;		/*which eid ?*/		  	
+  SINT32 eid;		/*which eid ?*/
 #endif
 #endif
    SINT32 maxFd;      /**< Close all fd's up to and including this, but excluding
                        *   the stdinFd, stdoutFd, stderrFd, and serverFd */
    UBOOL8 inheritSigint;  /**< Check if the process needs to inherit sigint. */
+   UBOOL8 setSched;  /**< set child's scheduling policy and priority */
+   SINT32 schedPolicy; /**< scheduling policy (if setSched is 1).  See sched.h for values. */
+   SINT32 schedPriority; /**< scheduling priority (if setSched is 1) */
+   UINT32 cpuMask;     /**< allowed CPU mask (if non-zero) */
+   const char *cpuGroupName; /**< put process in this cpu group (if not NULL) */
 } SpawnProcessInfo;
 
 
@@ -166,6 +177,38 @@ extern CmsRet prctl_terminateProcessForcefully(SINT32 pid);
 extern CmsRet prctl_signalProcess(SINT32 pid, SINT32 sig);
 
 
+/** Set a process's scheduler params
+ *
+ * @param pid      (IN) pid to set (if 0, will affect calling process)
+ * @param policy   (IN) scheduling policy, same as sched_setscheduler
+ * @param priority (IN) priority, same as sched_setscheduler
+ *
+ * @return CmsRet enum.
+ */
+extern CmsRet prctl_setScheduler(SINT32 pid, SINT32 policy, SINT32 priority);
+
+
+/** Set a process's CPU mask
+ *
+ * @param pid      (IN) pid to set (if 0, will affect calling process)
+ * @param cpuMask  (IN) bitmask of CPU's which this pid is allowed to run on
+ *
+ * @return CmsRet enum.
+ */
+extern CmsRet prctl_setCpuMask(SINT32 pid, UINT32 cpuMask);
+
+
+/** Set a process's cgroups membership
+ *
+ * @param pid       (IN) pid to set (if 0, will affect calling process)
+ * @param groupBase (IN) path to the base of the cgroups tree
+ * @param groupName (IN) name of the group
+ *
+ * @return CmsRet enum.
+ */
+extern CmsRet prctl_setCgroup(SINT32 pid, const char *groupBase, const char *groupName);
+
+
 /** Execute the given command and wait indefinately for it to exit.
  *
  * Ported over from 3.x bcmSystemMute() to ease porting effort.  This function can be
@@ -197,6 +240,9 @@ int prctl_runCommandInShellWithTimeout(char *command);
 
 /** Given a process name, return the pid.
  *
+ * If there are multiple processes with the same name, there is no guarantee
+ * on which pid will be returned.
+ *
  * @param name (IN) the name of the process
  *
  * @return on success, the pid, otherwise, CMS_INVALID_PID
@@ -204,6 +250,20 @@ int prctl_runCommandInShellWithTimeout(char *command);
 int prctl_getPidByName(const char *name);
 
 #define CONFIG_CMS_UTIL_HAS_GETPIDBYNAME   1
+
+
+/** Given a pid, fill the given buffer with the process name.
+ *
+ * @param pid     (IN) the pid
+ * @param nameBuf (IN/OUT) the buffer which will hold the process name.  On
+ *                    return, the buffer is guaranteed to be NULL terminated.
+ *                    If the buffer is too short to hold the full name, the
+ *                    name will be truncated.
+ * @param nameBufLen (IN)  the length of the nameBuf.
+ *
+ * @return 0 on success, -1 on error.
+ */
+int prctl_getNameByPid(int pid, char *nameBuf, int nameBufLen);
 
 
 #endif /* __PRCTL_H__ */

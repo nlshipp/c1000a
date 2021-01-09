@@ -157,4 +157,3 @@ void print_size_table(FILE *fp, const char *prefix, struct rtattr *rta)
 	}
 #endif
 }
-

@@ -1,25 +1,31 @@
 /***********************************************************************
  *
- *  Copyright (c) 2006-2009  Broadcom Corporation
- *  All Rights Reserved
+ * Copyright (c) 2006-2012  Broadcom Corporation
+ * All Rights Reserved
  *
-<:label-BRCM:2006-2009:DUAL/GPL:standard
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
-
-:>
+ * <:label-BRCM:2006-2012:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+ * :>
  *
  ************************************************************************/
 
@@ -55,6 +61,7 @@ Boston, MA 02111-1307, USA.
  * Before the application exits, call cmsMsg_cleanup().
  */
 
+
 /*!\enum CmsMsgType
  * \brief  Enumeration of possible message types
  *
@@ -65,6 +72,9 @@ Boston, MA 02111-1307, USA.
  * Voice event messages are from                  0x10002000-0x100020ff
  * Voice request/response messages are from       0x10002100-0x100021ff
  * GPON OMCI request/response messages are from   0x10002200-0x100022ff
+ * Customers should add messages from             0x20000000-0x2fffffff
+ * All other values are reserved for future use.
+ *
  * Note that a message type does not specify whether it is a
  * request or response, that is indicated via the flags field of
  * CmsMsgHeader.
@@ -93,6 +103,8 @@ typedef enum
                                                        *   has had their value changed.
                                                        */
    CMS_MSG_WAN_ERRORSAMPLES_AVAILABLE           = 0x1000025D,/**< WAN connection has vectoring error samples available */
+   CMS_MSG_WAN_ERRORSAMPLES_AVAILABLE_LINE1     = 0x1000025E,/**< WAN connection has vectoring error samples available for line 1, keep CMS_MSG_WAN_ERRORSAMPLES_AVAILABLE+1*/
+   CMS_MSG_GET_SHMID                            = 0x10000261, /**< Used by apps to get shmid from smd. */
    CMS_MSG_SHMID                                = 0x10000262, /**< Sent from ssk to smd when shmid is obtained. */
    CMS_MSG_MDM_INITIALIZED                      = 0x10000263, /**< Sent from ssk to smd when MDM has been initialized. */
    CMS_MSG_DHCPC_STATE_CHANGED                  = 0x10000264, /**< Sent from dhcp client when state changes, see also DhcpcStateChangeMsgBody */
@@ -105,11 +117,12 @@ typedef enum
    CMS_MSG_TRACERT_STATE_CHANGED                = 0x1000026B, /**< Traceroute state changed (completed, or stopped) */
    CMS_MSG_DNSPROXY_RELOAD	                    = 0x10000270, /**< Sent to dnsproxy to force it reload config file without restart */
    CMS_MSG_SNTP_STATE_CHANGED 	                = 0x10000271, /**< SNTP state changed */
-#ifdef DMP_X_BROADCOM_COM_IPV6_1
+#if defined (DMP_X_BROADCOM_COM_IPV6_1) ||defined (AEI_CONTROL_LAYER)
    CMS_MSG_DNSPROXY_IPV6_CHANGED                = 0x10000272, /**< Sent to dnsproxy to inform the DProxy IPv6 DNS server address */
 #endif
    CMS_MSG_DNSPROXY_GET_STATS	                = 0x10000273, /**< Sent to dnsproxy to get DNS query error statistic */
    CMS_MSG_MCPD_RELOAD	                        = 0x10000276, /**< Sent to mcpd to force it reload config file without restart */
+   CMS_MSG_MCPD_CTL   	                        = 0x10000277, /**< Sent to mcpd to force it reload config file without restart */
    CMS_MSG_CONFIG_WRITTEN                       = 0x10000280, /**< Event sent when a config file is written. */
    CMS_MSG_CONFIG_UPLOAD_COMPLETE               = 0x10000281, /**< Event sent when a remote configuration cycle has ended. */
 
@@ -118,6 +131,10 @@ typedef enum
 
    CMS_MSG_DNSPROXY_DUMP_STATUS                 = 0x100002A1, /* Tell dnsproxy to dump its current status */
    CMS_MSG_DNSPROXY_DUMP_STATS                  = 0x100002A2, /* Tell dnsproxy to dump its statistics */
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)
+   CMS_MSG_RASTATUS6_INFO                       = 0x100002A3, /**< Sent from rastatus6 when RA is received, see also RAStatus6MsgBody */
+#endif
+   
 #ifdef BRCM_WLAN
    CMS_MSG_WLAN_CHANGED          	            = 0x10000300,  /**< wlmngr jhc*/
 #endif
@@ -137,7 +154,7 @@ typedef enum
    CMS_MSG_TR69_GETRPCMETHODS_DIAG              = 0x10000806, /**< request tr69c send out a GetRpcMethods */
    CMS_MSG_DSL_LOOP_DIAG_COMPLETE               = 0x10000807, /**< dsl loop diagnostic completes */
 
-   CMS_MSG_START_APP                            = 0x10000807, /**< request smd to start an app; pid is returned in the wordData */
+   CMS_MSG_START_APP                            = 0x10000808, /**< request smd to start an app; pid is returned in the wordData */
    CMS_MSG_RESTART_APP                          = 0x10000809, /**< request smd to stop and then start an app; pid is returned in the wordData */
    CMS_MSG_STOP_APP                             = 0x1000080A, /**< request smd to stop an app */
    CMS_MSG_IS_APP_RUNNING                       = 0x1000080B, /**< request to check if the the application is running or not */
@@ -145,6 +162,11 @@ typedef enum
    CMS_MSG_TERMINATE                            = 0x1000080D,  /**< request app to terminate, a response means action has started. */
 
    CMS_MSG_REBOOT_SYSTEM                        = 0x10000850,  /**< request smd to reboot, a response means reboot sequence has started. */
+
+   CMS_MSG_DUMP_EID_INFO                        = 0x1000085A,  /**< request smd to dump its eid info DB */
+   CMS_MSG_RESCAN_EID_INFO                      = 0x1000085B,  /**< request smd to rescan the eid info files (future) */
+   CMS_MSG_ADD_EID_INFO                         = 0x1000085C,  /**< request smd to add given eid info to its DB (future) */
+   CMS_MSG_APPLY_EID_INFO                       = 0x1000085D,  /**< request smd to apply EID settings (future) */
 
    CMS_MSG_SET_LOG_LEVEL                        = 0x10000860,  /**< request app to set its log level. */
    CMS_MSG_SET_LOG_DESTINATION                  = 0x10000861,  /**< request app to set its log destination. */
@@ -163,6 +185,7 @@ typedef enum
 #if defined(AEI_SIGNED_FIRMWARE)
    CMS_MSG_VERIFY_AEI_IMAGE						= 0x10000876,  /**< verify the sending broadcom format image is an CMS_IMAGE_FORMAT_ACTIONTEC format image. */
 #endif
+
    CMS_MSG_GET_WAN_LINK_STATUS                  = 0x10000880,  /**< request current WAN LINK status. */
    CMS_MSG_GET_WAN_CONN_STATUS                  = 0x10000881,  /**< request current WAN Connection status. */
    CMS_MSG_GET_LAN_LINK_STATUS                  = 0x10000882,  /**< request current LAN LINK status. */
@@ -194,11 +217,15 @@ typedef enum
    CMS_MSG_DEINIT_VODSL                         = 0x10002007, /**< Voice init request. */
    CMS_MSG_RESTART_VODSL_CALLMGR                = 0x10002008, /**< Voice call manager re-start request. */
    CMS_MSG_DEFAULT_VODSL                        = 0x10002009, /**< Voice call manager set defaults request. */
-
 #ifdef DMP_X_BROADCOM_COM_NTR_1
-   CMS_MSG_VOICE_NTR_CONFIG_CHANGED             = 0x10002009, /**< Voice NTR Configuration parameter changed private event msg. */
+   CMS_MSG_VOICE_NTR_CONFIG_CHANGED             = 0x1000200A, /**< Voice NTR Configuration parameter changed private event msg. */
 #endif /* DMP_X_BROADCOM_COM_NTR_1 */
    CMS_MSG_VOICE_GET_RTP_STATS                  = 0x10002010, /**< Voice get RTP PM stats msg (OMCI). */
+
+#ifdef DMP_X_BROADCOM_COM_EPON_1
+   CMS_MSG_EPONMAC_BOOT_COMPLETE                = 0x10002011, /**< Voice notification from eponapp that EPON mac has booted. */
+#endif /* DMP_X_BROADCOM_COM_EPON_1 */
+   CMS_MSG_ROUTING_UPDATE                       = 0x10002012, /**< Voice routing-specific element changed. */
 
    CMS_MSG_VOICE_DIAG                           = 0x10002100, /**< request voice diagnostic to be run */
    CMS_MSG_VOICE_STATISTICS_REQUEST             = 0x10002101, /**< request for Voice call statistics */
@@ -244,7 +271,8 @@ typedef enum
    CMS_MSG_OMCI_DEBUG_MKERR_SWDLERR3            = 0x10002209, /**< GPON OMCI debug corrupt next section to cause CRC error on SW DL image */
 
 
-   CMS_MSG_OMCI_MCPD_SEND_REPLY                 = 0x10002220, /**< MCPD to OMCID message to send and get reply IGMP message */
+   CMS_MSG_OMCI_IGMP_ADMISSION_CONTROL          = 0x10002220, /**< mcpd request admission control from omcid */
+   CMS_MSG_OMCI_MLD_ADMISSION_CONTROL           = 0x10002221, /**< mcpd request admission control from omcid */
    CMS_MSG_OMCI_CAPTURE_STATE_ON                = 0x10002230, /**< Start the capture of OMCI msgs from OLT */
    CMS_MSG_OMCI_CAPTURE_STATE_OFF               = 0x10002231, /**< Stop the capture of OMCI msgs from OLT */
    CMS_MSG_OMCI_CAPTURE_REPLAY_ON               = 0x10002232, /**< Start the playback of OMCI msgs */
@@ -272,6 +300,7 @@ typedef enum
 #ifdef DMP_PERIODICSTATSBASE_1
    CMS_MSG_PERIODIC_STATISTICS_TIMER            = 0x10002407,
 #endif
+
    CMS_MSG_OMCIPMD_MCAST_COUNTER_REQ            = 0x10002410, /**< OMCIPMD command message request for multicast RX octets. */
    CMS_MSG_OMCIPMD_MCAST_COUNTER_RSP            = 0x10002411, /**< OMCIPMD command message response for multicast RX octets. */
 #if defined (DMP_CAPTIVEPORTAL_1)
@@ -279,6 +308,7 @@ typedef enum
    CMS_MSG_SET_ONE_TIME_REDIRECT_URL_FLAG       = 0x10002412,
 #endif
 #endif
+
    CMS_MSG_OMCID_OMCIPMD_REQUEST                = 0x10002420, /**< OMCIPMD command message request. */
    CMS_MSG_ENCAPSULATED_OMCI                    = 0x10002421, /**< OMCIPMD encapsulated OMCI raw frame. */
 #ifdef DMP_DOWNLOAD_1
@@ -300,14 +330,16 @@ typedef enum
    CMS_MSG_GET_NTH_GPON_WAN_LINK_INFO           = 0x10002506,  /**< Get GPON WAN LINK connection info */
    CMS_MSG_RESPONSE_DU_STATE_CHANGE             = 0x10002507, /**< response Deployment Unit state change */
    CMS_MSG_GPON_LINK_STATUS_CHANGE              = 0x10002508, /**< GPON Link Status Change */
+
    CMS_MSG_BMU_CLI                              = 0x10002600, /**< Internal commands from command line interface */
    CMS_MSG_BMU_GET_STATUS                       = 0x10002601, /**<  */
+
 
 #ifdef AEI_VDSL_CUSTOMER_NCS
    CMS_MSG_SET_PortMapping_LeaseDuration        = 0x10002602,
    CMS_MSG_GET_PortMapping_Remaining_Time       = 0x10002603,
    CMS_MSG_USER_AUTH_CHANGED                    = 0x10002604,
-   CMS_MSG_FORCE_WAN_LINK_CHANGE                = 0x10002605,    
+   CMS_MSG_FORCE_WAN_LINK_CHANGE                = 0x10002605,
 #endif
 #ifdef AEI_VDSL_CUSTOMER_TELUS
    CMS_MSG_TR69_ALG_ENABLE                      = 0x10002606,
@@ -319,10 +351,10 @@ typedef enum
 #if defined(DMP_UPNPDISCBASIC_1) && defined (DMP_UPNPDISCADV_1)
     CMS_MSG_UPNP_DISCOVERY_INFO                 = 0x10002609,   /*Send upnp device and service info */
 #endif
-#ifdef AEI_VDSL_CUSTOMER_NCS	
+#ifdef AEI_VDSL_CUSTOMER_NCS
     CMS_MSG_GET_LANHOSTS_RENEW                  = 0x10002610,  /**< ask mynetwork to renew the lanhost table */
     CMS_MSG_SET_LEASE_TO_SCRATCHPAD             = 0x10002611,  /**< ask mynetwork to write the LANhosts info into the flash*/
-    CMS_MSG_GET_LEASE_TO_SCRATCHPAD             = 0x10002612,  /**< ask XXX to read the LANhosts info from the flash*/ 
+    CMS_MSG_GET_LEASE_TO_SCRATCHPAD             = 0x10002612,  /**< ask XXX to read the LANhosts info from the flash*/
     CMS_MSG_DHCPD_HOST_ACTIVE                   = 0x10002613, /**< Sent from mynetwork to ssk to notify lan host active state */
     CMS_MSG_TR69_TIMER_VALUE_CHANGED            = 0x10002614,
     CMS_MSG_WLAN_RESTORE_DEFAULT                = 0x10002615,
@@ -361,18 +393,16 @@ typedef enum
 #if defined(AEI_VDSL_CUSTOMER_BELLALIANT)
    CMS_MSG_NSLOOKUP_BACKOFF_RETURN              = 0x10002631, // NSLOOKUP return
 #endif
-   CMS_MSG_LASERD_LOAD_PARAMS                   = 0x10002650, /**< LaserD command to load NVRAM params to optics device*/
-   CMS_MSG_LASERD_STORE_PARAMS                  = 0x10002651, /**< LaserD command to copy params from optics device and store in NVRAM */
-   CMS_MSG_LASERD_CLEAR_PARAMS                  = 0x10002652, /**< LaserD command to clear params in optics device or in NVRAM */
-   CMS_MSG_LASERD_DUMP_PARAMS                   = 0x10002653, /**< LaserD command to dump to console params from optics device or NVRAM */
    CMS_MSG_OSGID_PRINT                          = 0x10002654, /**< OSGID command to print debug info to console */
 #if defined(AEI_VDSL_DHCP_LEASE)
    CMS_MSG_DHCPD_RELOAD_LEASE_FILE              = 0x10002655,
    CMS_MSG_DHCP_LEASES_UPDATED                  = 0x10002656,
    CMS_MSG_UPDATE_LEASE_TIME_REMAINING          = 0x10002657,
 #endif
-#ifdef AEI_VDSL_CUSTOMER_TELUS
-   CMS_MSG_LHCM_IPINTERFACE_CHANGE              = 0x10002658,/*LANHostConfigManagement IP gateway change*/   
+#if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+   CMS_MSG_LHCM_IPINTERFACE_CHANGE              = 0x10002658,/*LANHostConfigManagement IP gateway change*/
+#endif
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
    CMS_MSG_WPSCOUNT_SYNC                        = 0x10002659,
 #endif
 #if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_TR098_QWEST) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
@@ -386,10 +416,37 @@ typedef enum
    CMS_MSG_STATS_DIAG_COMPLETED                 = 0x10002663,
 #endif
 
-#ifdef AEI_SUPPORT_IPV6_STATICROUTE
-   CMS_MSG_AEI_CTL_INFOR_FOR_STATIC_ROUTE   = 0x10002664,
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+   CMS_MSG_PPPD_DISCONNTECT                      = 0x10002665,
+   CMS_MSG_DHCP_VLAN_VENDOR                      = 0x10002666,
+   CMS_MSG_DHCP_NTP_SERVER_FOUND                 = 0x10002668, //ADD BY LARRY @2012/08/24
 #endif
 
+#ifdef AEI_CONTROL_LAYER
+#ifdef AEI_SUPPORT_IPV6_STATICROUTE
+    CMS_MSG_AEI_CTL_INFOR_FOR_STATIC_ROUTE   = 0x10002664,
+#endif
+#if defined(AEI_VDSL_CUSTOMER_TELUS) || defined(AEI_VDSL_CUSTOMER_TELUS_V2000H)||defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
+    CMS_MSG_AEI_CTL_GET_PHYTYPE_IFNAME       = 0x10002667,
+#endif
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+   CMS_MSG_SELECT_VALID_RESERVATION                = 0x10002669,
+   CMS_MSG_DSL_STANDARD_PROFILE_CHANGE                = 0x10002670,
+   CMS_MSG_AEI_CLEAR_30MIN_PACKETS                 = 0x10002671,
+   CMS_MSG_VODSL_SET_LOGLEVEL                      = 0x10002672,
+   CMS_MSG_TR69_SESSION_END                        = 0x10002673,
+   CMS_MSG_TIMER_CHANGED                           = 0x10002674,
+   CMS_MSG_UPDATE_SIPMODE                          = 0x10002675,
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+   CMS_MSG_TR69C_ENABLE_CWMP_FLAG                = 0x10002676,
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+   CMS_MSG_SIP_REG_OK                = 0x10002677,
+   CMS_MSG_SIP_REG_FAIL                = 0x10002678,
+   CMS_MSG_VOICE_CONFIG_AEIVOICESHUTDOWN     = 0x10002679,
+#endif
 } CmsMsgType;
 
 #if defined(AEI_VDSL_DHCP_LEASE)
@@ -469,47 +526,48 @@ typedef struct
  * Most of the fields should be self-explainatory.
  *
  */
-typedef struct cms_msg_header {
-    CmsMsgType type;   /**< specifies what message this is. */
-    CmsEntityId src;   /**< CmsEntityId of the sender; for apps that can have
-			*   multiple instances, use the MAKE_SPECIFI_EID macro. */
-    CmsEntityId dst;   /**< CmsEntityId of the receiver; for apps that can have
-			*   multiple instances, use the MAKE_SPECIFI_EID macro. */
-    union {
-        UINT16 all;     /**< All 16 bits of the flags at once. */
-        struct {
-            UINT16 event:1;    /**< This is a event msg. */
-            UINT16 request:1;  /**< This is a request msg. */
-            UINT16 response:1; /**< This is a response msg. */
-            UINT16 requeue:1;  /**< Tell smd to send this msg back to sender. */
-            UINT16 bounceIfNotRunning:1; /**< Do not launch the app to receive this message if
-					  *  it is not already running. */
-            UINT16 unused:11;  /**< For future expansion. */
-        } bits;
-    } flags;  /**< Modifiers to the type of message. */
-    UINT16 sequenceNumber;     /**< "Optional", but read the explanation below.
-				*
-				* Senders of request or event message types
-				* are free to set this to whatever
-				* they want, or leave it unitialized.  Senders
-				* are not required to increment the sequence
-				* number with every new message sent.
-				* However, response messages must 
-				* return the same sequence number as the
-				* request message.
-				* 
-				*/
-    struct cms_msg_header *next;   /**< Allows CmsMsgHeaders to be chained. */
-    UINT32 wordData;   /**< As an optimization, allow one word of user
-			*   data in msg hdr.
-			*
-			* For messages that have only one word of data,
-			* we can just put the data in this field.
-			* One good use is for response messages that just
-			* need to return a status code.  The message type
-			* determines whether this field is used or not.
-			*/
-    UINT32 dataLength; /**< Amount of data following the header.  0 if no additional data. */
+typedef struct cms_msg_header
+{
+   CmsMsgType  type;  /**< specifies what message this is. */
+   CmsEntityId src;   /**< CmsEntityId of the sender; for apps that can have
+                       *   multiple instances, use the MAKE_SPECIFI_EID macro. */
+   CmsEntityId dst;   /**< CmsEntityId of the receiver; for apps that can have
+                       *   multiple instances, use the MAKE_SPECIFI_EID macro. */
+   union {
+      UINT16 all;     /**< All 16 bits of the flags at once. */
+      struct {
+         UINT16 event:1;    /**< This is a event msg. */
+         UINT16 request:1;  /**< This is a request msg. */
+         UINT16 response:1; /**< This is a response msg. */
+         UINT16 requeue:1;  /**< Tell smd to send this msg back to sender. */
+         UINT16 bounceIfNotRunning:1; /**< Do not launch the app to receive this message if
+                                       *  it is not already running. */
+         UINT16 unused:11;  /**< For future expansion. */
+      } bits;
+   } flags;  /**< Modifiers to the type of message. */
+   UINT16 sequenceNumber;     /**< "Optional", but read the explanation below.
+                               *
+                               * Senders of request or event message types
+                               * are free to set this to whatever
+                               * they want, or leave it unitialized.  Senders
+                               * are not required to increment the sequence
+                               * number with every new message sent.
+                               * However, response messages must 
+                               * return the same sequence number as the
+                               * request message.
+                               * 
+                               */
+   struct cms_msg_header *next;   /**< Allows CmsMsgHeaders to be chained. */
+   UINT32 wordData;   /**< As an optimization, allow one word of user
+                       *   data in msg hdr.
+                       *
+                       * For messages that have only one word of data,
+                       * we can just put the data in this field.
+                       * One good use is for response messages that just
+                       * need to return a status code.  The message type
+                       * determines whether this field is used or not.
+                       */
+   UINT32 dataLength; /**< Amount of data following the header.  0 if no additional data. */
 } CmsMsgHeader;
 
 #define flags_event        flags.bits.event      /**< Convenience macro for accessing event bit in msg hdr */
@@ -520,12 +578,15 @@ typedef struct cms_msg_header {
 
 #define EMPTY_MSG_HEADER   {0, 0, 0, {0}, 0, 0, 0, 0} /**< Initialize msg header to empty */
 
+
 /** Data body for CMS_MSG_REGISTER_DELAYED_MSG.
-*/
-typedef struct {
-    UINT32 delayMs;  /**< Number of milliseconds in the future to deliver this message. */
+ */
+typedef struct
+{
+   UINT32  delayMs; /**< Number of milliseconds in the future to deliver this message. */
 
 } RegisterDelayedMsgBody;
+
 
 /** Data body for CMS_MSG_DHCPC_STATE_CHANGED message type.
  *
@@ -551,12 +612,13 @@ typedef struct
    UINT32 cwmpRetryIntervalMultiplier; /**< dhcp server may provide this */
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
    UINT32 ledControl;
-#endif  
+#endif
 //#if defined(AEI_VDSL_CUSTOMER_TELUS)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
    unsigned int lease_time;
-#endif  
+#endif
 } DhcpcStateChangedMsgBody;
+
 
 /** Data body for CMS_MSG_DHCP6C_STATE_CHANGED message type.
  *
@@ -567,6 +629,7 @@ typedef struct
    UBOOL8 addrAssigned;    /**< Have we been assigned an IPv6 address ? */
    UBOOL8 dnsAssigned;     /**< Have we been assigned dns server addresses ? */
    UBOOL8 domainNameAssigned;     /**< Have we been assigned dns server addresses ? */
+   UBOOL8 aftrAssigned;     /**< Have we been assigned aftr name ? */
    char sitePrefix[BUFLEN_48];   /**< New site prefix, if prefixAssigned==TRUE */
    UINT32 prefixPltime;
    UINT32 prefixVltime;
@@ -582,22 +645,47 @@ typedef struct
    char acsProvisioningCode[CMS_MAX_ACS_PROVISIONING_CODE_LENGTH];  /** dhcp server may provide this */
    UINT32 cwmpRetryMinimumWaitInterval; /**< dhcp server may provide this */
    UINT32 cwmpRetryIntervalMultiplier; /**< dhcp server may provide this */
+   char aftr[CMS_AFTR_NAME_LENGTH];      /**< dhcp server may provide this */
 } Dhcp6cStateChangedMsgBody;
+
+
+/** Data body for CMS_MSG_RASTATUS6_INFO message type.
+ *
+ */
+typedef struct
+{
+   char pio_prefix[CMS_IPADDR_LENGTH];  /**< prefix info in PIO, we only support one prefix in one RA message */
+   UINT8 pio_prefixLen;
+   UINT32 pio_plt;
+   UINT32 pio_vlt;
+   UBOOL8 pio_A_flag;
+   UBOOL8 pio_L_flag;
+   char dns_servers[CMS_IPADDR_LENGTH*2];  /**< RFC6106, we only support up to two DNS servers in one RA message */
+   UINT32 dns_lifetime;
+   char domainName[BUFLEN_32];  /**< RFC6106, we only support up to 32 characters in one RA message */
+   UINT32 domainName_lifetime;
+   char router[BUFLEN_40];  /**< source IP of the RA message */
+   UINT32 router_lifetime;
+   UBOOL8 router_M_flags;
+   UBOOL8 router_O_flags;
+   char ifName[BUFLEN_32];  /** < the interface which receives the RA */
+} RAStatus6MsgBody;
+
 
 /*!\PPPOE state defines 
  * (was in syscall.h before)
  */
 
-#define BCM_PPPOE_CLIENT_STATE_PADO          0  /* waiting for PADO */
-#define BCM_PPPOE_CLIENT_STATE_PADS          1  /* got PADO, waiting for PADS */
-#define BCM_PPPOE_CLIENT_STATE_CONFIRMED     2  /* got PADS, session ID confirmed */
-#define BCM_PPPOE_CLIENT_STATE_DOWN          3  /* totally down */
-#define BCM_PPPOE_CLIENT_STATE_UP            4  /* totally up */
-#define BCM_PPPOE_SERVICE_AVAILABLE          5  /* ppp service is available on the remote */
+#define BCM_PPPOE_CLIENT_STATE_PADO          0   /* waiting for PADO */
+#define BCM_PPPOE_CLIENT_STATE_PADS          1   /* got PADO, waiting for PADS */
+#define BCM_PPPOE_CLIENT_STATE_CONFIRMED     2   /* got PADS, session ID confirmed */
+#define BCM_PPPOE_CLIENT_STATE_DOWN          3   /* totally down */
+#define BCM_PPPOE_CLIENT_STATE_UP            4   /* totally up */
+#define BCM_PPPOE_SERVICE_AVAILABLE          5   /* ppp service is available on the remote */
 #define BCM_PPPOE_AUTH_FAILED                7
 #define BCM_PPPOE_RETRY_AUTH                 8
 #define BCM_PPPOE_REPORT_LASTCONNECTERROR    9
-#define BCM_PPPOE_CLIENT_STATE_UNCONFIGURED   10
+#define BCM_PPPOE_CLIENT_STATE_UNCONFIGURED   10 
 #define BCM_PPPOE_CLIENT_IPV6_STATE_UP   11
 #define BCM_PPPOE_CLIENT_IPV6_STATE_DOWN   12
 
@@ -620,28 +708,31 @@ typedef struct
 #define LAN_LINK_UP                   0
 #define LAN_LINK_DISABLED             1
 
+
 /** Data body for CMS_MSG_PPPOE_STATE_CHANGED message type.
  *
  */
-typedef struct {
-    UINT8 pppState;       /**< pppoe states */
-    char ip[BUFLEN_32];   /**< New IP address, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
-    char mask[BUFLEN_32]; /**< New netmask, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
-    char gateway[BUFLEN_32];    /**< New gateway, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
-    char nameserver[BUFLEN_64]; /**< New nameserver, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
-    char servicename[BUFLEN_256]; /**< service name, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
-    char ppplastconnecterror[PPP_CONNECT_ERROR_REASON_LEN];
+typedef struct
+{
+   UINT8 pppState;       /**< pppoe states */
+   char ip[BUFLEN_32];   /**< New IP address, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
+   char mask[BUFLEN_32]; /**< New netmask, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
+   char gateway[BUFLEN_32];    /**< New gateway, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
+   char nameserver[BUFLEN_64]; /**< New nameserver, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
+   char servicename[BUFLEN_256]; /**< service name, if pppState==BCM_PPPOE_CLIENT_STATE_UP */
+   char ppplastconnecterror[PPP_CONNECT_ERROR_REASON_LEN];
 } PppoeStateChangeMsgBody;
+
 
 /*!\enum NetworkAccessMode
  * \brief Different types of network access modes, returned by cmsDal_getNetworkAccessMode
  *        and also in the wordData field of CMS_MSG_GET_NETWORK_ACCESS_MODE
  */
 typedef enum {
-    NETWORK_ACCESS_DISABLED = 0,    /**< access denied */
-    NETWORK_ACCESS_LAN_SIDE = 1,    /**< access from LAN */
-    NETWORK_ACCESS_WAN_SIDE = 2,    /**< access from WAN */
-    NETWORK_ACCESS_CONSOLE = 3      /**< access from serial console */
+   NETWORK_ACCESS_DISABLED   = 0,  /**< access denied */
+   NETWORK_ACCESS_LAN_SIDE   = 1,  /**< access from LAN */
+   NETWORK_ACCESS_WAN_SIDE   = 2,  /**< access from WAN */
+   NETWORK_ACCESS_CONSOLE    = 3   /**< access from serial console */
 } NetworkAccessMode;
 
 #if defined(AEI_VDSL_MYNETWORK)
@@ -653,19 +744,28 @@ typedef enum {
 } DhcpEventType;
 #endif
 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+typedef struct {
+   InstanceIdStack iidStack;
+   char standard[BUFLEN_32];
+   char profile[BUFLEN_8];
+}DslStandardAndProfileMsgBody;
+#endif
+
 /** Data body for CMS_MSG_DHCPD_HOST_INFO message type.
  *
  */
-typedef struct {
-    UBOOL8 deleteHost;  /**< TRUE if we are deleting a LAN host, otherwise we are adding or editing LAN host */
-    SINT32 leaseTimeRemaining;      /** Number of seconds left in the lease, -1 means no expiration */
-    char ifName[CMS_IFNAME_LENGTH]; /**< brx which this host is on */
-    char ipAddr[BUFLEN_48];         /**< IP Address of the host */
-    char macAddr[MAC_STR_LEN + 1];  /**< mac address of the host */
-    char addressSource[BUFLEN_32];  /** source of IP address assignment, same value as
-				     * LANDevice.{i}.Hosts.Host.{i}.addressSource */
-    char interfaceType[BUFLEN_32];  /** type of interface used by LAN host, same values as 
-				     * LANDevice.{i}.Hosts.Host.{i}.InterfaceType */
+typedef struct
+{
+   UBOOL8 deleteHost;  /**< TRUE if we are deleting a LAN host, otherwise we are adding or editing LAN host */
+   SINT32 leaseTimeRemaining;      /** Number of seconds left in the lease, -1 means no expiration */
+   char ifName[CMS_IFNAME_LENGTH]; /**< brx which this host is on */
+   char ipAddr[BUFLEN_48];         /**< IP Address of the host */
+   char macAddr[MAC_STR_LEN+1];    /**< mac address of the host */
+   char addressSource[BUFLEN_32];  /** source of IP address assignment, same value as
+                                     * LANDevice.{i}.Hosts.Host.{i}.addressSource */
+   char interfaceType[BUFLEN_32];  /** type of interface used by LAN host, same values as 
+                                     * LANDevice.{i}.Hosts.Host.{i}.InterfaceType */
 #if defined(AEI_VDSL_CUSTOMER_NCS)
     UBOOL8 active;                  /** the host is active or not , same value as */
     int icon;                       /** Device Identifer according to DHCP option 12/60 */
@@ -673,11 +773,11 @@ typedef struct {
 #endif
 #if defined(AEI_VDSL_MYNETWORK)
     DhcpEventType eventType;
-#endif 	
-    char hostName[BUFLEN_64];       /** Both dhcpd and data model specify hostname as 64 bytes */
-    char oui[BUFLEN_8];             /** Host's manufacturing OUI */
-    char serialNum[BUFLEN_64];      /** Host's serial number */
-    char productClass[BUFLEN_64];   /** Host's product class */
+#endif
+   char hostName[BUFLEN_64];       /** Both dhcpd and data model specify hostname as 64 bytes */
+   char oui[BUFLEN_8];             /** Host's manufacturing OUI */
+   char serialNum[BUFLEN_64];      /** Host's serial number */
+   char productClass[BUFLEN_64];   /** Host's product class */
 #if defined (AEI_VDSL_CUSTOMER_NCS)
     char userClassID[BUFLEN_256];
     char venderClassID[BUFLEN_256];
@@ -688,10 +788,11 @@ typedef struct {
     char macs[BUFLEN_128];
     char option60String[BUFLEN_16];
 #endif
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE)||defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
    UBOOL8 isStb;                  /** The lan host pc is stb or not */
 #endif
 } DhcpdHostInfoMsgBody;
+
 
 /** Data body for CMS_MSG_GET_LEASE_TIME_REMAINING message type.
  *
@@ -701,127 +802,148 @@ typedef struct {
  * of the mac address that was given.
  *
  */
-typedef struct {
-    char ifName[CMS_IFNAME_LENGTH]; /**< brx which this host is on */
-    char macAddr[MAC_STR_LEN + 1];  /**< mac address of the host */
+typedef struct
+{
+   char ifName[CMS_IFNAME_LENGTH]; /**< brx which this host is on */
+   char macAddr[MAC_STR_LEN+1];    /**< mac address of the host */
 } GetLeaseTimeRemainingMsgBody;
 
-typedef enum {
-    VOICE_DIAG_CFG_SHOW = 0,
-    VOICE_DIAG_EPTCMD = 1,
-    VOICE_DIAG_STUNLKUP = 2,
-    VOICE_DIAG_STATS_SHOW = 3,
-    VOICE_DIAG_PROFILE = 4,
-    VOICE_DIAG_EPTAPP_HELP = 5,
-    VOICE_DIAG_EPTAPP_SHOW = 6,
-    VOICE_DIAG_EPTAPP_CREATECNX = 7,
-    VOICE_DIAG_EPTAPP_DELETECNX = 8,
-    VOICE_DIAG_EPTAPP_MODIFYCNX = 9,
-    VOICE_DIAG_EPTAPP_EPTSIG = 10,
-    VOICE_DIAG_EPTAPP_SET = 11,
-    VOICE_DIAG_EPTPROV = 12,
-    VOICE_DIAG_EPTAPP_DECTTEST = 13,
-    VOICE_DIAG_DECT_MEM_SET = 14,
-    VOICE_DIAG_DECT_MEM_GET = 15,
-    VOICE_DIAG_DECT_MODE_SET = 16,
-    VOICE_DIAG_DECT_MODE_GET = 17,
-    VOICE_DIAG_EPTPROBE = 18,
+
+
+typedef enum 
+{
+   VOICE_DIAG_CFG_SHOW           = 0,
+   VOICE_DIAG_EPTCMD             = 1,
+   VOICE_DIAG_STUNLKUP           = 2,
+   VOICE_DIAG_STATS_SHOW         = 3,
+   VOICE_DIAG_PROFILE            = 4,
+   VOICE_DIAG_EPTAPP_HELP        = 5,
+   VOICE_DIAG_EPTAPP_SHOW        = 6,
+   VOICE_DIAG_EPTAPP_CREATECNX   = 7,
+   VOICE_DIAG_EPTAPP_DELETECNX   = 8,
+   VOICE_DIAG_EPTAPP_MODIFYCNX   = 9,
+   VOICE_DIAG_EPTAPP_EPTSIG      = 10,
+   VOICE_DIAG_EPTAPP_SET         = 11,
+   VOICE_DIAG_EPTPROV            = 12,
+   VOICE_DIAG_EPTAPP_DECTTEST    = 13,
+   VOICE_DIAG_DECT_MEM_SET       = 14,
+   VOICE_DIAG_DECT_MEM_GET       = 15,
+   VOICE_DIAG_DECT_MODE_SET      = 16,
+   VOICE_DIAG_DECT_MODE_GET      = 17,
+   VOICE_DIAG_EPTPROBE           = 18,
 } VoiceDiagType;
 
 /** Data body for Voice diagonistic message */
-typedef struct {
-    VoiceDiagType type;
-    char cmdLine[BUFLEN_128];
+typedef struct
+{
+  VoiceDiagType type;
+  char cmdLine[BUFLEN_128];  
 } VoiceDiagMsgBody;
 
 /** Data body for Voice Line Obj */
-typedef struct {
-    char regStatus[BUFLEN_128];
-    char callStatus[BUFLEN_128];
+typedef struct
+{
+   char regStatus[BUFLEN_128];
+   char callStatus[BUFLEN_128];
 } VoiceLineObjStatus;
+
 
 /** Data body for CMS_MSG_PING_DATA message type.
  *
  */
-typedef struct {
-    char diagnosticsState[BUFLEN_32];  /**< Ping state: requested, none, completed... */
-    char interface[BUFLEN_32];   /**< interface on which ICMP request is sent */
+typedef struct
+{
+   char diagnosticsState[BUFLEN_32];  /**< Ping state: requested, none, completed... */
+   char interface[BUFLEN_32];   /**< interface on which ICMP request is sent */
 #ifdef AEI_CONTROL_PING6
     char host[BUFLEN_48]; /**< Host -- either IPv6 address form or hostName to send ICMPv6 request to */
 #else
-    char host[BUFLEN_32]; /**< Host -- either IP address form or hostName to send ICMP request to */
+   char host[BUFLEN_32]; /**< Host -- either IP address form or hostName to send ICMP request to */
 #endif
-    UINT32 numberOfRepetitions; /**< Number of ICMP requests to send */
-    UINT32 timeout;     /**< Timeout in seconds */
-    UINT32 dataBlockSize;       /**< DataBlockSize  */
-    UINT32 DSCP;        /**< DSCP */
-    UINT32 successCount;        /**< SuccessCount */
-    UINT32 failureCount;        /**< FailureCount */
-    UINT32 averageResponseTime;         /**< AverageResponseTime */
-    UINT32 minimumResponseTime;         /**< MinimumResponseTime */
-    UINT32 maximumResponseTime;         /**< MaximumResponseTime */
-    CmsEntityId requesterId;
-} PingDataMsgBody;
+   UINT32 numberOfRepetitions; /**< Number of ICMP requests to send */
+   UINT32    timeout;	/**< Timeout in seconds */
+   UINT32    dataBlockSize;	/**< DataBlockSize  */
+   UINT32    DSCP;	/**< DSCP */
+   UINT32    successCount;	/**< SuccessCount */
+   UINT32    failureCount;	/**< FailureCount */
+   UINT32    averageResponseTime;	/**< AverageResponseTime */
+   UINT32    minimumResponseTime;	/**< MinimumResponseTime */
+   UINT32    maximumResponseTime;	/**< MaximumResponseTime */
+   CmsEntityId requesterId;
+}PingDataMsgBody;
+
+
 
 /** Data body for the CMS_MSG_WATCH_WAN_CONNECTION message type.
  *
  */
-typedef struct {
-    MdmObjectId oid;              /**< Object Identifier */
-    InstanceIdStack iidStack;     /**< Instance Id Stack. for the ip/ppp Conn Object */
-    UBOOL8 isAdd;                 /**< add  wan connection to ssk list if TRUE.  */
-    UBOOL8 isStatic;              /**< If TRUE, it is is bridge, static IPoE and IPoA, FALSE: pppox or dynamic IPoE */
-    UBOOL8 isDeleted;             /**< Used for auto detect feature only.  If TRUE, the wan interface is removed.*/
-    UBOOL8 isAutoDetectChange;    /**< Used for auto detect feature only.  If TRUE, there is a change on the layer 2 auto detect flag */
+ typedef struct
+{
+   MdmObjectId oid;              /**< Object Identifier */
+   InstanceIdStack iidStack;     /**< Instance Id Stack. for the ip/ppp Conn Object */
+   UBOOL8 isAdd;                 /**< add  wan connection to ssk list if TRUE.  */
+   UBOOL8 isStatic;              /**< If TRUE, it is is bridge, static IPoE and IPoA, FALSE: pppox or dynamic IPoE */   
+   UBOOL8 isDeleted;             /**< Used for auto detect feature only.  If TRUE, the wan interface is removed.*/  
+   UBOOL8 isAutoDetectChange;    /**< Used for auto detect feature only.  If TRUE, there is a change on the layer 2 auto detect flag */  
 } WatchedWanConnection;
 
 /*
  * Data body for the CMS_MSG_DHCPD_DENY_VENDOR_ID message type
  */
-typedef struct {
-    long deny_time;             /* Return from time(), in host order */
-    unsigned char chaddr[16];   /* Usually the MAC address */
-    char vendor_id[BUFLEN_256]; /**< max length in RFC 2132 is 255 bytes, add 1 for null terminator */
-    char ifName[CMS_IFNAME_LENGTH];  /**< The interface that dhcpd got this msg on */
-} DHCPDenyVendorID;
+typedef struct
+{
+   long deny_time; /* Return from time(), in host order */
+   unsigned char chaddr[16]; /* Usually the MAC address */
+   char vendor_id[BUFLEN_256]; /**< max length in RFC 2132 is 255 bytes, add 1 for null terminator */
+   char ifName[CMS_IFNAME_LENGTH];  /**< The interface that dhcpd got this msg on */
+}DHCPDenyVendorID;
 
 /*
  * Data body for CMS_MSG_GET_DEVICE_INFO message type.
  */
-typedef struct {
-    char oui[BUFLEN_8];              /**< manufacturer OUI of device */
-    char serialNum[BUFLEN_64];       /**< serial number of device */
-    char productClass[BUFLEN_64];    /**< product class of device */
+typedef struct
+{
+   char oui[BUFLEN_8];              /**< manufacturer OUI of device */
+   char serialNum[BUFLEN_64];       /**< serial number of device */
+   char productClass[BUFLEN_64];    /**< product class of device */
 } GetDeviceInfoMsgBody;
 
-typedef enum {
-    USER_REQUEST_CONNECTION_DOWN = 0,
-    USER_REQUEST_CONNECTION_UP = 1
+
+typedef enum 
+{
+   USER_REQUEST_CONNECTION_DOWN  = 0,
+   USER_REQUEST_CONNECTION_UP    = 1
 } UserConnectionRequstType;
+
 
 /*
  * Data body for CMS_MSG_WATCH_DSL_LOOP_DIAG message type.
  */
-typedef struct {
-    InstanceIdStack iidStack;
+typedef struct
+{
+   InstanceIdStack iidStack;
 } dslDiagMsgBody;
+
 
 /** Data body for CMS_MSG_VENDOR_CONFIG_UPDATE message type.
  *
  */
-typedef struct {
-    char name[BUFLEN_64];              /**< name of configuration file */
-    char version[BUFLEN_16];           /**< version of configuration file */
-    char date[BUFLEN_64];              /**< date when config is updated */
-    char description[BUFLEN_256];      /**< description of config file */
+typedef struct
+{
+   char name[BUFLEN_64];              /**< name of configuration file */
+   char version[BUFLEN_16];           /**< version of configuration file */
+   char date[BUFLEN_64];              /**< date when config is updated */
+   char description[BUFLEN_256];      /**< description of config file */
 } vendorConfigUpdateMsgBody;
 
-typedef enum {
+typedef enum
+{
     MCAST_INTERFACE_ADD = 0,
     MCAST_INTERFACE_DELETE
 } McastInterfaceAction;
 
-typedef enum {
+typedef enum
+{
     OMCI_IGMP_PHY_NONE = 0,
     OMCI_IGMP_PHY_ETHERNET,
     OMCI_IGMP_PHY_MOCA,
@@ -830,24 +952,27 @@ typedef enum {
     OMCI_IGMP_PHY_GPON
 } OmciIgmpPhyType;
 
-typedef enum {
+typedef enum
+{
     OMCI_IGMP_MSG_JOIN = 0,
     OMCI_IGMP_MSG_RE_JOIN,
     OMCI_IGMP_MSG_LEAVE
 } OmciIgmpMsgType;
 
-/** Data body for CMS_MSG_OMCI_MCPD_SEND_REPLY message type.
+/** Data body for CMS_MSG_OMCI_IGMP_ADMISSION_CONTROL message type.
  *
  */
-typedef struct {
-    UINT16 tci;
-    UINT32 sourceIpAddress;
-    UINT32 groupIpAddress;
-    UINT32 clientIpAddress;
-    UINT16 phyPort;
+typedef struct
+{
+    UINT16  tci;
+    UINT32  sourceIpAddress;
+    UINT32  groupIpAddress;
+    UINT32  clientIpAddress;
+    UINT16  phyPort;
     OmciIgmpPhyType phyType;
     OmciIgmpMsgType msgType;
 } OmciIgmpMsgBody;
+
 
 typedef enum
 {
@@ -871,10 +996,7 @@ typedef struct {
 } GponWanServiceParams;
 
 typedef struct {
-   union {
-      UINT32 gemIdxBitMap;               /**< GEM port index bit Map - RG-Light only */   
-      UINT32 gemPortIndex;               /**< GEM port index - RG-Full only */   
-   };
+   UINT32 gemPortIndex;               /**< GEM port index - RG-Full only. RG-Light uses the gemIdxArrayStruct in gponInterfaceArray  */   
    UINT16 portID;                     /**< It is a logical port ID which maps o the gem port index. eg. 3000 maps to gem port 0 */  
    OmciFLowDirection flowDirection;   /**< Gem Port flow direction */
    OmciGponWanServiceType serviceType;/**< Type of GemPort - Bi-directional, Multicast or Broadcast  */
@@ -900,7 +1022,8 @@ typedef struct
    } msg;
 }OmciPingDataMsgBody;
 
-/** Data body for CMS_MSG_APP_TERMINATED message type.
+/** Data body for CMS_MSG_TRACERT_DATA message type of OMCI.
+ *
  */
 typedef struct
 {
@@ -914,15 +1037,20 @@ typedef struct
    } msg;
 }OmciTracertDataMsgBody;
 
+/** Data body for CMS_MSG_APP_TERMINATED message type.
+ *
+ */
+typedef struct
+{
+   CmsEntityId eid;      /**< Entity id of the exit process */
+   SINT32 sigNum;        /**< signal number */   
+   SINT32 exitCode;      /**< process exit code */   
+} appTermiatedMsgBody;
+
+
 /** Data body for the CMS_MSG_GET_NTH_GPON_WAN_LINK_IF_NAME
  *
  */
-typedef struct {
-    CmsEntityId eid;      /**< Entity id of the exit process */
-    SINT32 sigNum;        /**< signal number */
-    SINT32 exitCode;      /**< process exit code */
-} appTermiatedMsgBody;
-
 typedef struct
 {
    UINT32 linkEntryIdx;       /**< Nth WAN link entry - send in request */
@@ -933,21 +1061,22 @@ typedef struct
 /** Data body for CMS_MSG_REQUEST_DU_STATE_CHANGE message type.
  *
  */
-typedef struct {
-    char operation[BUFLEN_32];   /**< Install, Update, Uninstall, install_at_bootup */
-    char URL[BUFLEN_1024]; /**< Location of DU to be installed/update */
-    char UUID[BUFLEN_40];    /**< Unique ID to describe DU,36 bytes */
-    char username[BUFLEN_256]; /**< Optional username for file server */
-    char password[BUFLEN_256]; /**< Optional password for file server */
-    char executionEnv[BUFLEN_256]; /**< Environment to execute EU */
-    char version[BUFLEN_32]; /**< Version of DU */
-    char commandKey[BUFLEN_32]; /**< Command Key of op request */
-    UINT16 reqId;
-    int FaultCode;
+typedef struct
+{
+   char operation[BUFLEN_32];   /**< Install, Update, Uninstall, install_at_bootup */
+   char URL[BUFLEN_1024]; /**< Location of DU to be installed/update */
+   char UUID[BUFLEN_40];    /**< Unique ID to describe DU,36 bytes */
+   char username[BUFLEN_256]; /**< Optional username for file server */
+   char password[BUFLEN_256]; /**< Optional password for file server */
+   char executionEnv[BUFLEN_256]; /**< Environment to execute EU */
+   char version[BUFLEN_32]; /**< Version of DU */
+   char commandKey[BUFLEN_32]; /**< Command Key of op request */
+   UINT16 reqId;
+   int FaultCode;
 } DUrequestStateChangedMsgBody;
 
 /*!\Software modules operation defines 
-*/
+ */
 #define SW_MODULES_OPERATION_INSTALL              "install"
 #define SW_MODULES_OPERATION_UNINSTALL            "uninstall"
 #define SW_MODULES_OPERATION_UPDATE               "update"
@@ -984,18 +1113,32 @@ typedef struct
 /** Data body for CMS_MSG_REQUEST_EU_STATE_CHANGE message type.
  *
  */
-typedef struct {
-    char operation[BUFLEN_32];   /**< Install, Update, Uninstall */
-    char name[BUFLEN_32]; /**< Name of EU */
-    char alias[BUFLEN_32]; /**< Alias Name of EU */
-    char euid[BUFLEN_64]; /**< EUID of EU */
-    char status[BUFLEN_32]; /**< Status of EU; idle, starting, active and stopping */
-    char description[BUFLEN_128]; /**< Description of EU */
+typedef struct
+{
+   char operation[BUFLEN_32];   /**< Install, Update, Uninstall */
+   char name[BUFLEN_32]; /**< Name of EU */
+   char alias[BUFLEN_32]; /**< Alias Name of EU */
+   char euid[BUFLEN_64]; /**< EUID of EU */
+   char status[BUFLEN_32]; /**< Status of EU; idle, starting, active and stopping */
+   char description[BUFLEN_128]; /**< Description of EU */
 } EUrequestStateChangedMsgBody;
 
-#ifdef DMP_PERIODICSTATSBASE_1
-/** Data body for the CMS_MSG_PERIODIC_STATISTICS_TIMER message type.
+/** Data body for the reply of CMS_MSG_DNSPROXY_GET_STATS
+ *
  */
+ typedef struct
+{
+   UINT32 dnsErrors; 	      /**< dns query error counter  */
+} DnsGetStatsMsgBody;
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+typedef struct {
+    UBOOL8 enable;
+    UINT32 sampleInterval;
+    char sampleName[BUFLEN_128];
+} PeriodicStatsMsgBody;
+#endif
+
 /*!\SNTP state defines 
  */
 #define SNTP_STATE_DISABLED                0   
@@ -1009,297 +1152,292 @@ extern "C" {
 #endif
 
 /** Initialize messaging system.
+ *
+ * This function should be called early in startup.
+ * 
+ * @param eid       (IN)  Entity id of the calling process.
+ * @param msgHandle (OUT) On successful return, this will point
+ *                        to a msg_handle which should be used in subsequent messaging calls.
+ *                        The caller is responsible for freeing the msg_handle by calling
+ *                        cmsMsg_cleanup().
+ *
+ * @return CmsRet enum.
  */
- typedef struct
-{
-   UINT32 dnsErrors; 	      /**< dns query error counter  */
-} DnsGetStatsMsgBody;
+CmsRet cmsMsg_init(CmsEntityId eid, void **msgHandle);
 
-/*!\SNTP state defines 
+
+/** Clean up messaging system.
+ *
+ * This function should be called before the application exits.
+ * @param msgHandle (IN) This was the msg_handle that was
+ *                       created by cmsMsg_init().
  */
-typedef struct {
-    UBOOL8 enable;
-    UINT32 sampleInterval;
-    char sampleName[BUFLEN_128];
-} PeriodicStatsMsgBody;
-#endif
+void cmsMsg_cleanup(void **msgHandle);
 
-/*!\SNTP state defines 
-*/
-#define SNTP_STATE_DISABLED                0
-#define SNTP_STATE_UNSYNCHRONIZED          1
-#define SNTP_STATE_SYNCHRONIZED            2
-#define SNTP_STATE_FAIL_TO_SYNCHRONIZE     3
-#define SNTP_STATE_ERROR                   4
+
+/** Send a message (blocking).
+ *
+ * This call is potentially blocking if the communcation channel is
+ * clogged up, but in practice, it will not block.  If blocking becomes
+ * a real problem, we can create a non-blocking version of this function.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
+ *                       more data depending on the message type.
+ *                       The caller must fill in all the fields.
+ *                       The total length of the message is the length
+ *                       of the message header plus any additional data
+ *                       as specified in the dataLength field in the CmsMsgHeader.
+ * @return CmsRet enum.
+ */
+CmsRet cmsMsg_send(void *msgHandle, const CmsMsgHeader *buf);
+
+
+/** Send a reply/response message to the given request message.
+ *
+ * Same notes about blocking from cmsMsg_send() apply.
+ * Note that only a message header will be sent by this
+ * function.  If the initial request message contains additional
+ * data, this function will not send that data back.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param msg       (IN) The request message that we want to send
+ *                       a response to.  This function does not modify
+ *                       or free this message.  Caller is still required
+ *                       to deal with it appropriately.
+ * @param retCode   (IN) The return code to put into the wordData
+ *                       field of the return message.
+ * @return CmsRet enum.
+ */
+CmsRet cmsMsg_sendReply(void *msgHandle, const CmsMsgHeader *msg, CmsRet retCode);
+
+
+/** Send a message and wait for a simple response.
+ *
+ * This function starts out by calling cmsMsg_send().
+ * Then it waits for a response.  The result of the response is expected in
+ * the wordData field of the response message.  The value in the wordData is
+ * returned to the caller.  The response message must not have any additional
+ * data after the header.  The response message is freed by this function.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
+ *                       more data depending on the message type.
+ *                       The caller must fill in all the fields.
+ *                       The total length of the message is the length
+ *                       of the message header plus any additional data
+ *                       as specified in the dataLength field in the CmsMsgHeader.
+ *
+ * @return CmsRet enum, which is either the response code from the recipient of the msg,
+ *                      or a local error.
+ */
+CmsRet cmsMsg_sendAndGetReply(void *msgHandle, const CmsMsgHeader *buf);
+
+
+/** Send a message and wait up to a timeout time for a simple response.
+ *
+ * This function is the same as cmsMsg_sendAndGetReply() except there
+ * is a limit, expressed as a timeout, on how long this function will
+ * wait for a response.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
+ *                       more data depending on the message type.
+ *                       The caller must fill in all the fields.
+ *                       The total length of the message is the length
+ *                       of the message header plus any additional data
+ *                       as specified in the dataLength field in the CmsMsgHeader.
+ * @param timeoutMilliSeconds (IN) Timeout in milliseconds.
+ *
+ * @return CmsRet enum, which is either the response code from the recipient of the msg,
+ *                      or a local error.
+ */
+CmsRet cmsMsg_sendAndGetReplyWithTimeout(void *msgHandle,
+                                         const CmsMsgHeader *buf,
+                                         UINT32 timeoutMilliSeconds);
+
+
+/** Send a message and wait up to a timeout time for a response that can
+ *	have a data section.
+ *
+ * This function is the same as cmsMsg_sendAndGetReply() except this
+ * returns a cmsMsgHeader and a data section if applicable.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
+ *                       more data depending on the message type.
+ *                       The caller must fill in all the fields.
+ *                       The total length of the message is the length
+ *                       of the message header plus any additional data
+ *                       as specified in the dataLength field in the CmsMsgHeader.
+ * @param replyBuf (IN/OUT) On entry, replyBuf is the address of a pointer to
+ *                       a buffer that will hold the reply message.
+ *                       The caller must allocate enough space in the replyBuf
+ *                       to hold the message header and any data that might
+ *                       come back in the reply message.  (This is a dangerous
+ *                       interface!  This function does not verify that the
+ *                       caller has allocated enough space to hold the reply
+ *                       message.  Memory corruption will occur if the reply
+ *                       message contains more data than the caller has
+ *                       allocated.  Note there is also no reason for this
+ *                       parameter to be address of pointer, a simple pointer
+ *                       to replyBuf would have been sufficient.)
+ *                       On successful return, replyBuf will point to a
+ *                       CmsMsgHeader possibly followed by more data if the
+ *                       reply message contains a data section.
+ *
+ * @return CmsRet enum, which is either the response code from the recipient of the msg,
+ *                      or a local error.
+ */
+CmsRet cmsMsg_sendAndGetReplyBuf(void *msgHandle, 
+                                 const CmsMsgHeader *buf,
+                                 CmsMsgHeader **replyBuf);
+
+
+/** Send a message and wait up to a timeout time for a response that can
+ *	have a data section.
+ *
+ * This function is the same as cmsMsg_sendAndGetReplyBuf() except there
+ * is a limit, expressed as a timeout, on how long this function will
+ * wait for a response.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by
+ *                       cmsMsg_init().
+ * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
+ *                       more data depending on the message type.
+ *                       The caller must fill in all the fields.
+ *                       The total length of the message is the length
+ *                       of the message header plus any additional data
+ *                       as specified in the dataLength field in the CmsMsgHeader.
+ * @param replyBuf (IN/OUT) On entry, replyBuf is the address of a pointer to
+ *                       a buffer that will hold the reply message.
+ *                       The caller must allocate enough space in the replyBuf
+ *                       to hold the message header and any data that might
+ *                       come back in the reply message.  (This is a dangerous
+ *                       interface!  This function does not verify that the
+ *                       caller has allocated enough space to hold the reply
+ *                       message.  Memory corruption will occur if the reply
+ *                       message contains more data than the caller has
+ *                       allocated.  Note there is also no reason for this
+ *                       parameter to be address of pointer, a simple pointer
+ *                       to replyBuf would have been sufficient.)
+ *                       On successful return, replyBuf will point to a
+ *                       CmsMsgHeader possibly followed by more data if the
+ *                       reply message contains a data section.
+ *
+ * @param timeoutMilliSeconds (IN) Timeout in milliseconds.
+ *
+ * @return CmsRet enum, which is either the response code from the recipient of the msg,
+ *                      or a local error.
+ */
+CmsRet cmsMsg_sendAndGetReplyBufWithTimeout(void *msgHandle, 
+                                            const CmsMsgHeader *buf,
+                                            CmsMsgHeader **replyBuf,
+                                            UINT32 timeoutMilliSeconds);
+
+
+/** Receive a message (blocking).
+ *
+ * This call will block until a message is received.
+ * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
+ * @param buf      (OUT) On successful return, buf will point to a CmsMsgHeader
+ *                       and possibly followed by more data depending on msg type.
+ *                       The caller is responsible for freeing the message by calling
+ *                       cmsMsg_free().
+ * @return CmsRet enum.
+ */
+CmsRet cmsMsg_receive(void *msgHandle, CmsMsgHeader **buf);
+
+
+/** Receive a message with timeout.
+ *
+ * This call will block until a message is received or until the timeout is reached.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
+ * @param buf      (OUT) On successful return, buf will point to a CmsMsgHeader
+ *                       and possibly followed by more data depending on msg type.
+ *                       The caller is responsible for freeing the message by calling
+ *                       cmsMsg_free().
+ * @param timeoutMilliSeconds (IN) Timeout in milliseconds.  0 means do not block,
+ *                       otherwise, block for the specified number of milliseconds.
+ * @return CmsRet enum.
+ */
+CmsRet cmsMsg_receiveWithTimeout(void *msgHandle,
+                                 CmsMsgHeader **buf,
+                                 UINT32 timeoutMilliSeconds);
+
+
+/** Put a received message back into a temporary "put-back" queue.
+ *
+ * Since the RCL calls cmsMsg_receive, it may get an asynchronous event
+ * message that is intended for the higher level application.  So it needs
+ * to preserve the message in the msgHandle so the higher level application
+ * can detect and receive it.  This happens in two steps: first the message
+ * is put in a temporary "put-back" queue in the msgHandle (this function),
+ * and then all messages in the put-back queue are sent smd with the
+ * requeue bit set.  Smd will send the message back to this app again
+ * therefore allowing the upper level application to receive it.
+ *
+ * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
+ * @param buf       (IN) The message to put back.
+ */
+void cmsMsg_putBack(void *msgHandle, CmsMsgHeader **buf);
+
+
+/** Cause all messages in the put-back queue to get requeued in the 
+ *  msgHandle's communications link.
+ *
+ * See the comments in cmsMsg_putBack() for a description of how
+ * this function works in conjunction with cmsMsg_putBack().
+ *
+ * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
+ */
+void cmsMsg_requeuePutBacks(void *msgHandle);
+
+
+/** Make a copy of the specified message, including any additional data beyond the header.
+ *
+ * @param  buf      (IN) The message to copy.
+ * @return duplicate of the specified message.
+ */
+CmsMsgHeader *cmsMsg_duplicate(const CmsMsgHeader *buf);
+
+
+
+/** Get operating system dependent handle to detect available message to receive.
+ *
+ * This allows the application to get the operating system dependent handle
+ * to detect a message that is available to be received so it can wait on the handle along
+ * with other private event handles that the application manages.
+ * In UNIX like operating systems, this will return a file descriptor
+ * which the application can then use in select.
+ * 
+ * @param msgHandle    (IN) This was the msgHandle created by cmsMsg_init().
+ * @param eventHandle (OUT) This is the OS dependent event handle.  For LINUX,
+ *                          eventHandle is the file descriptor number.
+ * @return CmsRet enum.
+ */
+CmsRet cmsMsg_getEventHandle(const void *msgHandle, void *eventHandle);
+
+
+/** Get the eid of the creator of this message handle.
+ * 
+ * This function is used by the CMS libraries which are given a message handle
+ * but needs to find out who the message handle belongs to.
+ * 
+ * @param msgHandle    (IN) This was the msgHandle created by cmsMsg_init().
+ * 
+ * @return CmsEntityId of the creator of the msgHandle.
+ */
+CmsEntityId cmsMsg_getHandleEid(const void *msgHandle);
 
 #ifdef __cplusplus
-extern "C" {
+} /* end of extern "C" */
 #endif
 
-    /** Initialize messaging system.
-     *
-     * This function should be called early in startup.
-     * 
-     * @param eid       (IN)  Entity id of the calling process.
-     * @param msgHandle (OUT) On successful return, this will point
-     *                        to a msg_handle which should be used in subsequent messaging calls.
-     *                        The caller is responsible for freeing the msg_handle by calling
-     *                        cmsMsg_cleanup().
-     *
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_init(CmsEntityId eid, void **msgHandle);
-
-    /** Clean up messaging system.
-     *
-     * This function should be called before the application exits.
-     * @param msgHandle (IN) This was the msg_handle that was
-     *                       created by cmsMsg_init().
-     */
-    void cmsMsg_cleanup(void **msgHandle);
-
-    /** Send a message (blocking).
-     *
-     * This call is potentially blocking if the communcation channel is
-     * clogged up, but in practice, it will not block.  If blocking becomes
-     * a real problem, we can create a non-blocking version of this function.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
-     *                       more data depending on the message type.
-     *                       The caller must fill in all the fields.
-     *                       The total length of the message is the length
-     *                       of the message header plus any additional data
-     *                       as specified in the dataLength field in the CmsMsgHeader.
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_send(void *msgHandle, const CmsMsgHeader * buf);
-
-    /** Send a reply/response message to the given request message.
-     *
-     * Same notes about blocking from cmsMsg_send() apply.
-     * Note that only a message header will be sent by this
-     * function.  If the initial request message contains additional
-     * data, this function will not send that data back.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param msg       (IN) The request message that we want to send
-     *                       a response to.  This function does not modify
-     *                       or free this message.  Caller is still required
-     *                       to deal with it appropriately.
-     * @param retCode   (IN) The return code to put into the wordData
-     *                       field of the return message.
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_sendReply(void *msgHandle, const CmsMsgHeader * msg, CmsRet retCode);
-
-    /** Send a message and wait for a simple response.
-     *
-     * This function starts out by calling cmsMsg_send().
-     * Then it waits for a response.  The result of the response is expected in
-     * the wordData field of the response message.  The value in the wordData is
-     * returned to the caller.  The response message must not have any additional
-     * data after the header.  The response message is freed by this function.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
-     *                       more data depending on the message type.
-     *                       The caller must fill in all the fields.
-     *                       The total length of the message is the length
-     *                       of the message header plus any additional data
-     *                       as specified in the dataLength field in the CmsMsgHeader.
-     *
-     * @return CmsRet enum, which is either the response code from the recipient of the msg,
-     *                      or a local error.
-     */
-    CmsRet cmsMsg_sendAndGetReply(void *msgHandle, const CmsMsgHeader * buf);
-
-    /** Send a message and wait up to a timeout time for a simple response.
-     *
-     * This function is the same as cmsMsg_sendAndGetReply() except there
-     * is a limit, expressed as a timeout, on how long this function will
-     * wait for a response.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
-     *                       more data depending on the message type.
-     *                       The caller must fill in all the fields.
-     *                       The total length of the message is the length
-     *                       of the message header plus any additional data
-     *                       as specified in the dataLength field in the CmsMsgHeader.
-     * @param timeoutMilliSeconds (IN) Timeout in milliseconds.
-     *
-     * @return CmsRet enum, which is either the response code from the recipient of the msg,
-     *                      or a local error.
-     */
-    CmsRet cmsMsg_sendAndGetReplyWithTimeout(void *msgHandle, const CmsMsgHeader * buf, UINT32 timeoutMilliSeconds);
-
-    /** Send a message and wait up to a timeout time for a response that can
-     *	have a data section.
-     *
-     * This function is the same as cmsMsg_sendAndGetReply() except this
-     * returns a cmsMsgHeader and a data section if applicable.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
-     *                       more data depending on the message type.
-     *                       The caller must fill in all the fields.
-     *                       The total length of the message is the length
-     *                       of the message header plus any additional data
-     *                       as specified in the dataLength field in the CmsMsgHeader.
-     * @param replyBuf (IN/OUT) On entry, replyBuf is the address of a pointer to
-     *                       a buffer that will hold the reply message.
-     *                       The caller must allocate enough space in the replyBuf
-     *                       to hold the message header and any data that might
-     *                       come back in the reply message.  (This is a dangerous
-     *                       interface!  This function does not verify that the
-     *                       caller has allocated enough space to hold the reply
-     *                       message.  Memory corruption will occur if the reply
-     *                       message contains more data than the caller has
-     *                       allocated.  Note there is also no reason for this
-     *                       parameter to be address of pointer, a simple pointer
-     *                       to replyBuf would have been sufficient.)
-     *                       On successful return, replyBuf will point to a
-     *                       CmsMsgHeader possibly followed by more data if the
-     *                       reply message contains a data section.
-     *
-     * @return CmsRet enum, which is either the response code from the recipient of the msg,
-     *                      or a local error.
-     */
-    CmsRet cmsMsg_sendAndGetReplyBuf(void *msgHandle, const CmsMsgHeader * buf, CmsMsgHeader ** replyBuf);
-
-    /** Send a message and wait up to a timeout time for a response that can
-     *	have a data section.
-     *
-     * This function is the same as cmsMsg_sendAndGetReplyBuf() except there
-     * is a limit, expressed as a timeout, on how long this function will
-     * wait for a response.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by
-     *                       cmsMsg_init().
-     * @param buf       (IN) This buf contains a CmsMsgHeader and possibly
-     *                       more data depending on the message type.
-     *                       The caller must fill in all the fields.
-     *                       The total length of the message is the length
-     *                       of the message header plus any additional data
-     *                       as specified in the dataLength field in the CmsMsgHeader.
-     * @param replyBuf (IN/OUT) On entry, replyBuf is the address of a pointer to
-     *                       a buffer that will hold the reply message.
-     *                       The caller must allocate enough space in the replyBuf
-     *                       to hold the message header and any data that might
-     *                       come back in the reply message.  (This is a dangerous
-     *                       interface!  This function does not verify that the
-     *                       caller has allocated enough space to hold the reply
-     *                       message.  Memory corruption will occur if the reply
-     *                       message contains more data than the caller has
-     *                       allocated.  Note there is also no reason for this
-     *                       parameter to be address of pointer, a simple pointer
-     *                       to replyBuf would have been sufficient.)
-     *                       On successful return, replyBuf will point to a
-     *                       CmsMsgHeader possibly followed by more data if the
-     *                       reply message contains a data section.
-     *
-     * @param timeoutMilliSeconds (IN) Timeout in milliseconds.
-     *
-     * @return CmsRet enum, which is either the response code from the recipient of the msg,
-     *                      or a local error.
-     */
-    CmsRet cmsMsg_sendAndGetReplyBufWithTimeout(void *msgHandle,
-                                                const CmsMsgHeader * buf,
-                                                CmsMsgHeader ** replyBuf, UINT32 timeoutMilliSeconds);
-
-    /** Receive a message (blocking).
-     *
-     * This call will block until a message is received.
-     * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
-     * @param buf      (OUT) On successful return, buf will point to a CmsMsgHeader
-     *                       and possibly followed by more data depending on msg type.
-     *                       The caller is responsible for freeing the message by calling
-     *                       cmsMsg_free().
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_receive(void *msgHandle, CmsMsgHeader ** buf);
-
-    /** Receive a message with timeout.
-     *
-     * This call will block until a message is received or until the timeout is reached.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
-     * @param buf      (OUT) On successful return, buf will point to a CmsMsgHeader
-     *                       and possibly followed by more data depending on msg type.
-     *                       The caller is responsible for freeing the message by calling
-     *                       cmsMsg_free().
-     * @param timeoutMilliSeconds (IN) Timeout in milliseconds.  0 means do not block,
-     *                       otherwise, block for the specified number of milliseconds.
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_receiveWithTimeout(void *msgHandle, CmsMsgHeader ** buf, UINT32 timeoutMilliSeconds);
-
-    /** Put a received message back into a temporary "put-back" queue.
-     *
-     * Since the RCL calls cmsMsg_receive, it may get an asynchronous event
-     * message that is intended for the higher level application.  So it needs
-     * to preserve the message in the msgHandle so the higher level application
-     * can detect and receive it.  This happens in two steps: first the message
-     * is put in a temporary "put-back" queue in the msgHandle (this function),
-     * and then all messages in the put-back queue are sent smd with the
-     * requeue bit set.  Smd will send the message back to this app again
-     * therefore allowing the upper level application to receive it.
-     *
-     * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
-     * @param buf       (IN) The message to put back.
-     */
-    void cmsMsg_putBack(void *msgHandle, CmsMsgHeader ** buf);
-
-    /** Cause all messages in the put-back queue to get requeued in the 
-     *  msgHandle's communications link.
-     *
-     * See the comments in cmsMsg_putBack() for a description of how
-     * this function works in conjunction with cmsMsg_putBack().
-     *
-     * @param msgHandle (IN) This was the msgHandle created by cmsMsg_init().
-     */
-    void cmsMsg_requeuePutBacks(void *msgHandle);
-
-    /** Make a copy of the specified message, including any additional data beyond the header.
-     *
-     * @param  buf      (IN) The message to copy.
-     * @return duplicate of the specified message.
-     */
-    CmsMsgHeader *cmsMsg_duplicate(const CmsMsgHeader * buf);
-
-    /** Get operating system dependent handle to detect available message to receive.
-     *
-     * This allows the application to get the operating system dependent handle
-     * to detect a message that is available to be received so it can wait on the handle along
-     * with other private event handles that the application manages.
-     * In UNIX like operating systems, this will return a file descriptor
-     * which the application can then use in select.
-     * 
-     * @param msgHandle    (IN) This was the msgHandle created by cmsMsg_init().
-     * @param eventHandle (OUT) This is the OS dependent event handle.  For LINUX,
-     *                          eventHandle is the file descriptor number.
-     * @return CmsRet enum.
-     */
-    CmsRet cmsMsg_getEventHandle(const void *msgHandle, void *eventHandle);
-
-    /** Get the eid of the creator of this message handle.
-     * 
-     * This function is used by the CMS libraries which are given a message handle
-     * but needs to find out who the message handle belongs to.
-     * 
-     * @param msgHandle    (IN) This was the msgHandle created by cmsMsg_init().
-     * 
-     * @return CmsEntityId of the creator of the msgHandle.
-     */
-    CmsEntityId cmsMsg_getHandleEid(const void *msgHandle);
-
-#ifdef __cplusplus
-}                               /* end of extern "C" */
-#endif
-#endif                          // __CMS_MSG_H__
+#endif // __CMS_MSG_H__

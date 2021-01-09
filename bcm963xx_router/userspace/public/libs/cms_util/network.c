@@ -3,37 +3,47 @@
  *  Copyright (c) 2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  * 
  ************************************************************************/
 
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if.h>
+#include <linux/mii.h>
+#include "bcmnet.h"
 
 #include "cms.h"
 #include "cms_util.h"
 #include "oal.h"
+
+/* Local functions */
+static UINT16 cmsNet_mdio_read(int skfd, struct ifreq *ifr, int phy_id, int location);
+static CmsRet cmsNet_getSpeedSetting(int skfd, struct ifreq *ifr, int phy_id,
+                                     int *speed, UBOOL8 *fullDuplex, UBOOL8 *linkUp);
+
 
 CmsRet cmsNet_getLanInfo(const char *lan_ifname, struct in_addr *lan_ip, struct in_addr *lan_subnetmask)
 {
@@ -46,6 +56,44 @@ UBOOL8 cmsNet_isInterfaceUp(const char *ifname)
    return (oal_isInterfaceUp(ifname));
 }
 
+#ifdef AEI_CONTROL_LAYER
+int net_func_get_link_local_address(char *lladdr, char *ifname)
+{
+	int rv = -1;
+	char cmd[100];
+	memset(cmd, 0, 100);
+	FILE *fp = NULL;
+	sprintf(cmd, "ip -6 address show %s",ifname);
+	if ((fp = popen(cmd, "r")) != NULL)
+	{
+		char line[1024];
+		while (fgets(line, sizeof(line), fp))
+		{
+			char* p = NULL;
+			p = strstr(line, "scope link");
+			if ( p != NULL)
+			{
+				p = strstr(line, "/");
+#ifdef AEI_COVERITY_FIX
+				if ( p != NULL)
+#endif
+				{
+					strcpy(p, "\0");
+					p = strstr(line, "inet6");
+					if(p != NULL)
+					{
+						sprintf(lladdr, "%s", p+6);
+						rv = 0;
+						break;
+					}
+				}
+			}
+		}
+		pclose(fp);
+	}
+	return rv;
+}
+#endif
 
 UBOOL8 cmsNet_isAddressOnLanSide(const char *ipAddr)
 {
@@ -85,19 +133,40 @@ UBOOL8 cmsNet_isAddressOnLanSide(const char *ipAddr)
       }
    }
 #if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
-   else
+   else if(ipAddr!=NULL)
    {
       /* ipv6 address */
       char lanAddr6[CMS_IPADDR_LENGTH];
 
-      if (oal_getLanAddr6("br0", lanAddr6) != CMSRET_SUCCESS)
+      if (oal_getBr0Addr6("br0",(char*)ipAddr,lanAddr6) != CMSRET_SUCCESS)
       {
+       //cmsLog_error("\n@@ip_addr=%s,br0_lanAddr6=%s\n",ipAddr,lanAddr6);
          cmsLog_error("oal_getLanAddr6 returns error.");
       }
       else
       {
+      //cmsLog_error("\n@@ip_addr=%s,br0_lanAddr6=%s\n",ipAddr,lanAddr6);
+        if(strncmp(ipAddr, "fe80", 4)==0)
+        {
+          if(net_func_get_link_local_address(lanAddr6,"br0")==-1)
+		{
+		cmsLog_error("fail to get link local addr");
+		    onLanSide = FALSE;
+		}
+		  else
+			{
+			cmsLog_error("strcmp libby ipaddr is %s",ipAddr);
+		    cmsLog_error("strcmp libby lanAddr6 is %s",lanAddr6);
+			onLanSide = TRUE;
+			}
+        }
+		else
          /* see if the client addr is in the same subnet as br0. */
          onLanSide = cmsNet_isHostInSameSubnet(ipAddr, lanAddr6);
+        //if(onLanSide)
+		// cmsLog_error("\n@@onLanSide=true\n");
+        //else
+        //    cmsLog_error("\n@@onLanSide=false\n");
       }
    }
 #endif
@@ -175,7 +244,11 @@ void cmsNet_inet_cidrton(const char *cp, struct in_addr *ipAddr, struct in_addr 
    ipAddr->s_addr = 0;
    ipMask->s_addr = 0;
 
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(addrStr, cp, sizeof(addrStr));
+#else
    strncpy(addrStr, cp, sizeof(addrStr));
+#endif
 
    if ((addr = strtok_r((char *)cp, "/", &last)) != NULL)
    {
@@ -205,7 +278,11 @@ SINT32 cmsNet_getIfindexByIfname(char *ifname)
    struct ifreq ifr;
 
    /* open socket to get INET info */
+#ifdef AEI_COVERITY_FIX
+   if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
+#else
    if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) <= 0)
+#endif
    {
       cmsLog_error("socket returns error. sockfd=%d", sockfd);
       return -1;
@@ -232,6 +309,270 @@ SINT32 cmsNet_getIfindexByIfname(char *ifname)
 
 }  /* End of cmsNet_getIfindexByIfname() */
 
+CmsRet cmsNet_getMacAddrByIfname(char *ifname, unsigned char *macAddr)
+{
+   CmsRet         ret = CMSRET_SUCCESS;
+   int            sockfd;
+   struct ifreq   ifr;
+
+   if (ifname == NULL || macAddr == NULL)
+   {
+      return CMSRET_INVALID_ARGUMENTS;
+   }
+   
+#ifdef AEI_COVERITY_FIX
+   if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
+#else
+   /* open socket to get INET info */
+   if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) <= 0)
+#endif
+   {
+      cmsLog_error("socket returns error. sockfd=%d", sockfd);
+      return CMSRET_SOCKET_ERROR;
+   }
+
+   memset(&ifr, 0, sizeof(struct ifreq));
+   cmsUtl_strncpy(ifr.ifr_name, ifname, CMS_IFNAME_LENGTH);
+
+   if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) >= 0)
+   {
+      memcpy(macAddr, (unsigned char *)&ifr.ifr_hwaddr.sa_data, MAC_ADDR_LEN);
+   }
+   else
+   {
+      cmsLog_error("SIOCGIFHWADDR returns error.");
+      ret = CMSRET_INTERNAL_ERROR;
+   }
+   
+   close(sockfd);
+
+   return ret;
+
+}  /* End of cmsNet_getMacAddrByIfname() */
+
+UINT16 cmsNet_mdio_read(int skfd, struct ifreq *ifr, int phy_id, int location)
+{
+    UINT16 *data = (UINT16 *)(&ifr->ifr_data);
+
+    data[0] = phy_id;
+    data[1] = location;
+    data[3] = phy_id  >> 24;
+    if (ioctl(skfd, SIOCGMIIREG, ifr) < 0)
+    {
+        cmsLog_error("SIOCGMIIREG on %s failed", ifr->ifr_name);
+        return 0;
+    }
+    
+    return data[3];
+
+}  /* End of cmsNet_mdio_read() */
+
+CmsRet cmsNet_getSpeedSetting(int skfd, struct ifreq *ifr, int phy_id,
+                              int *speed, UBOOL8 *fullDuplex, UBOOL8 *linkUp)
+{
+   UINT16 bmcr = cmsNet_mdio_read(skfd, ifr, phy_id, MII_BMCR);
+   UINT16 bmsr = cmsNet_mdio_read(skfd, ifr, phy_id, MII_BMSR);
+
+   if (bmcr == 0xffff  ||  bmsr == 0x0000)
+   {
+      cmsLog_error("No MII transceiver present!.");
+      return CMSRET_INTERNAL_ERROR;
+   }
+
+   if (bmcr & BMCR_ANENABLE)
+   {
+      cmsLog_debug("Interface %s Auto-negotiation enabled.", ifr->ifr_name);
+      
+      UINT16 nway_advert = cmsNet_mdio_read(skfd, ifr, phy_id, MII_ADVERTISE);
+      UINT16 lkpar       = cmsNet_mdio_read(skfd, ifr, phy_id, MII_LPA);
+      UINT16 gig_ctrl    = cmsNet_mdio_read(skfd, ifr, phy_id, MII_CTRL1000);
+      UINT16 gig_status  = cmsNet_mdio_read(skfd, ifr, phy_id, MII_STAT1000);
+      
+      if ((gig_ctrl & ADVERTISE_1000FULL) && (gig_status & LPA_1000FULL))
+      {
+         *speed      = 1000;
+         *fullDuplex = TRUE;
+         
+         cmsLog_debug("The autonegotiated media type is 1000BT Full Duplex");
+      }
+      else if ((gig_ctrl & ADVERTISE_1000HALF) && (gig_status & LPA_1000HALF))
+      {
+         *speed      = 1000;
+         *fullDuplex = FALSE;
+         
+         cmsLog_debug("The autonegotiated media type is 1000BT Half Duplex");
+      }
+      else if (lkpar & ADVERTISE_LPACK)
+      {
+         const char *media_names[] = {"10baseT",
+                                      "10baseT-FD",
+                                      "100baseTx",
+                                      "100baseTx-FD",
+                                      "100baseT4",
+                                      "Flow-control"};
+         int negotiated = nway_advert & lkpar & 
+                          (ADVERTISE_100BASE4 |
+                           ADVERTISE_100FULL |
+                           ADVERTISE_100HALF |
+                           ADVERTISE_10FULL |
+                           ADVERTISE_10HALF);
+         int max_capability = 0;
+
+         /* Scan for the highest negotiated capability, highest priority
+          * (100baseTx-FDX) to lowest (10baseT-HDX).
+          */
+         int media_priority[] = {8, 9, 7, 6, 5, 0};     /* media_names[i-5] */
+         int i;
+            
+         for (i = 0; media_priority[i]; i++)
+         {
+            if (negotiated & (1 << media_priority[i]))
+            {
+               max_capability = media_priority[i];
+               break;
+            }
+         }
+         if (max_capability)
+         {
+            cmsLog_debug("The autonegotiated media type is %s", media_names[max_capability - 5]);
+            
+            if (cmsUtl_strstr((char *)&media_names[max_capability - 5], "10base") != NULL)
+            {
+               *speed = 10;
+            }
+            else
+            {
+               *speed = 100;
+            }
+            if (cmsUtl_strstr((char *)&media_names[max_capability - 5], "FD") != NULL)
+            {
+               *fullDuplex = TRUE;
+            }
+            else
+            {
+               *fullDuplex = FALSE;    /* half */
+            } 
+         }
+         else
+         {
+            cmsLog_error("No common media type was autonegotiated!\n"
+                         "This is extremely unusual and typically indicates a "
+                         "configuration error.\n" "Perhaps the advertised "
+                         "capability set was intentionally limited.");
+            return CMSRET_INTERNAL_ERROR;
+         }
+      }
+   }
+   else
+   {
+      *speed      = (bmcr & BMCR_SPEED100) ? 100 : 10;
+      *fullDuplex = (bmcr & BMCR_FULLDPLX) ? TRUE : FALSE;
+      
+      cmsLog_debug("Auto-negotiation disabled. Speed fixed at %d mbps %s-duplex",
+                   *speed, *fullDuplex ? "full":"half");
+   }
+   
+   bmsr = cmsNet_mdio_read(skfd, ifr, phy_id, MII_BMSR);
+   bmsr = cmsNet_mdio_read(skfd, ifr, phy_id, MII_BMSR);
+    
+   *linkUp = (bmsr & BMSR_LSTATUS) ? TRUE : FALSE;
+   
+   cmsLog_debug("Link is %s.", *linkUp ? "up" : "down");
+
+   return CMSRET_SUCCESS;
+
+}  /* End of cmsNet_getSpeedSetting() */
+
+CmsRet cmsNet_getEthLinkStatus(char *ifname, int port, int *speed, UBOOL8 *fullDuplex, UBOOL8 *linkUp)
+{
+   CmsRet ret = CMSRET_SUCCESS;
+   struct ifreq   ifr;
+   int skfd;
+   int emac_ports = 0;
+   int phy_id     = 0;
+   UINT16 *data;
+
+   if (ifname == NULL)
+   {
+      return CMSRET_INVALID_ARGUMENTS;
+   }
+   
+#ifdef AEI_COVERITY_FIX
+   if ((skfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
+#else
+   /* open socket to get INET info */
+   if ((skfd = socket(AF_INET, SOCK_DGRAM, 0)) <= 0)
+#endif
+   {
+      cmsLog_error("socket returns error. skfd=%d", skfd);
+      return CMSRET_SOCKET_ERROR;
+   }
+   
+   memset(&ifr, 0, sizeof(struct ifreq));
+   cmsUtl_strncpy(ifr.ifr_name, ifname, CMS_IFNAME_LENGTH);
+
+   if (ioctl(skfd, SIOCGIFINDEX, &ifr) < 0 )
+   {
+      cmsLog_error("ioctl failed. check if %s exists.", ifr.ifr_name);
+      close(skfd);
+      return CMSRET_SOCKET_ERROR;
+   }
+
+   /* Find out whether the interface is Ethernet Switch or not. */
+   ifr.ifr_data = (char*)&emac_ports;
+   if (ioctl(skfd, SIOCGQUERYNUMPORTS, &ifr) < 0)
+   {
+      cmsLog_error("interface %s ioctl SIOCGQUERYNUMPORTS error!", ifr.ifr_name);
+      close(skfd);
+      return CMSRET_SOCKET_ERROR;
+   }
+   if (emac_ports < 0)
+   {
+      cmsLog_error("ioctl SIOCGQUERYNUMPORTS returns invalid port number %d", emac_ports);
+      close(skfd);
+      return CMSRET_INTERNAL_ERROR;
+   }
+   if (emac_ports > 1)
+   {
+      cmsLog_debug("interface %s is Ethernet Switch, use port argument");
+
+      if (port >= emac_ports)
+      {
+         cmsLog_error("Invalid port, interface %s Ethernet Switch port range 0 to %d.",
+                      ifr.ifr_name, emac_ports-1);
+         close(skfd);
+         return CMSRET_INVALID_ARGUMENTS;
+      }
+      phy_id = port;
+   }
+   else
+   {
+      /* get phy id */
+      data = (UINT16 *)(&ifr.ifr_data);
+      data[0] = 0;
+      data[3] = 0;
+      if (ioctl(skfd, SIOCGMIIPHY, &ifr) < 0)
+      {
+         cmsLog_error("Interface %s ioctl SIOCGMIIPHY error!", ifr.ifr_name);
+         close(skfd);
+         return CMSRET_SOCKET_ERROR;
+      }
+
+      /* returned phy id carries n data[3] flags if phy is
+       * internal/external phy/phy on ext switch.
+       * we save it in higher byte to pass to kernel when 
+       * phy is accessed.
+       */
+      phy_id = data[0] | (((int)data[3]) << 24);
+   }
+   
+   ret = cmsNet_getSpeedSetting(skfd, &ifr, phy_id, speed, fullDuplex, linkUp);
+   
+   close(skfd);
+   
+   return ret;
+   
+}  /* End of cmsNet_getEthLinkStatus() */
 
 CmsRet cmsNet_getIfNameList(char **ifNameList)
 {
@@ -245,131 +586,16 @@ CmsRet cmsNet_getPersistentWanIfNameList(char **PersistentWanifNameList)
 }
 #endif
 
-
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
-
-CmsRet cmsNet_getIfAddr6(const char *ifname, UINT32 addrIdx,
-                         char *ipAddr, UINT32 *ifIndex, UINT32 *prefixLen, UINT32 *scope, UINT32 *ifaFlags)
+CmsRet cmsNet_getGMACPortIfNameList(char **GMACPortIfNameList)
 {
-   return oal_getIfAddr6(ifname, addrIdx, ipAddr, ifIndex, prefixLen, scope, ifaFlags);
+   return (oal_Net_getGMACPortIfNameList(GMACPortIfNameList));
 }
-
-
-CmsRet cmsNet_getGloballyUniqueIfAddr6(const char *ifname, char *ipAddr, UINT32 *prefixLen)
-{
-   UINT32 addrIdx=0;
-   UINT32 netlinkIndex=0;
-   UINT32 scope=0;
-   UINT32 ifaflags=0;
-   CmsRet ret=CMSRET_SUCCESS;
-
-   while (CMSRET_SUCCESS == ret)
-   {
-      ret = cmsNet_getIfAddr6(ifname, addrIdx, ipAddr, &netlinkIndex,
-                              prefixLen, &scope, &ifaflags);
-      if ((CMSRET_SUCCESS == ret) && (0 == scope))  // found it
-         return CMSRET_SUCCESS;
-
-      addrIdx++;
-   }
-
-   // if we get here, then we did not find one
-   return CMSRET_NO_MORE_INSTANCES;
-}
-
-
-UBOOL8 cmsNet_areIp6AddrEqual(const char *ip6Addr1, const char *ip6Addr2)
-{
-   char address1[CMS_IPADDR_LENGTH];
-   char address2[CMS_IPADDR_LENGTH];
-   UINT32 plen1 = 0;
-   UINT32 plen2 = 0;
-   struct in6_addr   in6Addr1, in6Addr2;
-   CmsRet ret;
-
-   if (IS_EMPTY_STRING(ip6Addr1) && IS_EMPTY_STRING(ip6Addr2))
-   {
-      return TRUE;
-   }
-   if (ip6Addr1 == NULL || ip6Addr2 == NULL)
-   {
-      return FALSE;
-   }
-
-   if ((ret = cmsUtl_parsePrefixAddress(ip6Addr1, address1, &plen1)) != CMSRET_SUCCESS)
-   {
-      cmsLog_error("cmsUtl_parsePrefixAddress returns error. ret=%d", ret);
-      return FALSE;
-   }
-   if ((ret = cmsUtl_parsePrefixAddress(ip6Addr2, address2, &plen2)) != CMSRET_SUCCESS)
-   {
-      cmsLog_error("cmsUtl_parsePrefixAddress returns error. ret=%d", ret);
-      return FALSE;
-   }
-
-   if (inet_pton(AF_INET6, address1, &in6Addr1) <= 0)
-   {
-      cmsLog_error("Invalid address1=%s", address1);
-      return FALSE;
-   }
-   if (inet_pton(AF_INET6, address2, &in6Addr2) <= 0)
-   {
-      cmsLog_error("Invalid address2=%s", address2);
-      return FALSE;
-   }
-
-   return ((memcmp(&in6Addr1, &in6Addr2, sizeof(struct in6_addr)) == 0) && (plen1 == plen2));
-
-}  /* cmsNet_areIp6AddrEqual() */
-
-UBOOL8 cmsNet_areIp6DnsEqual(const char *dnsServers1, const char *dnsServers2)
-{
-   char dnsPri1[CMS_IPADDR_LENGTH];
-   char dnsSec1[CMS_IPADDR_LENGTH];
-   char dnsPri2[CMS_IPADDR_LENGTH];
-   char dnsSec2[CMS_IPADDR_LENGTH];
-   CmsRet ret;
-
-   *dnsPri1 = '\0';
-   *dnsSec1 = '\0';
-   *dnsPri2 = '\0';
-   *dnsSec2 = '\0';
-
-   if (IS_EMPTY_STRING(dnsServers1) && IS_EMPTY_STRING(dnsServers2))
-   {
-      return TRUE;
-   }
-   if (dnsServers1 == NULL || dnsServers2 == NULL)
-   {
-      return FALSE;
-   }
-
-   if ((ret = cmsUtl_parseDNS(dnsServers1, dnsPri1, dnsSec1, FALSE)) != CMSRET_SUCCESS)
-   {
-      cmsLog_error("cmsUtl_parseDNS returns error. ret=%d", ret);
-      return FALSE;
-   }
-   if ((ret = cmsUtl_parseDNS(dnsServers2, dnsPri2, dnsSec2, FALSE)) != CMSRET_SUCCESS)
-   {
-      cmsLog_error("cmsUtl_parseDNS returns error. ret=%d", ret);
-      return FALSE;
-   }
-
-   if (!cmsNet_areIp6AddrEqual(dnsPri1, dnsPri2) ||
-       !cmsNet_areIp6AddrEqual(dnsSec2, dnsSec2))
-   {
-      return FALSE;
-   }
-
-   return TRUE;
-
-}  /* cmsNet_areIp6DnsEqual() */
 
 UBOOL8 cmsNet_isHostInSameSubnet(const char *addrHost, const char *addrPrefix)
 {
-   char address[CMS_IPADDR_LENGTH];
-   char prefix1[CMS_IPADDR_LENGTH];
-   char prefix2[CMS_IPADDR_LENGTH];
+   char address[INET6_ADDRSTRLEN];
+   char prefix1[INET6_ADDRSTRLEN];
+   char prefix2[INET6_ADDRSTRLEN];
    UINT32 plen = 0;
    CmsRet ret;
 
@@ -417,6 +643,128 @@ UBOOL8 cmsNet_isHostInSameSubnet(const char *addrHost, const char *addrPrefix)
    return (cmsNet_areIp6AddrEqual(prefix1, prefix2));
 
 }  /* cmsNet_isHostInSameSubnet() */
+
+
+UBOOL8 cmsNet_areIp6AddrEqual(const char *ip6Addr1, const char *ip6Addr2)
+{
+   char address1[CMS_IPADDR_LENGTH];
+   char address2[CMS_IPADDR_LENGTH];
+   UINT32 plen1 = 0;
+   UINT32 plen2 = 0;
+   struct in6_addr   in6Addr1, in6Addr2;
+   CmsRet ret;
+
+   if (IS_EMPTY_STRING(ip6Addr1) && IS_EMPTY_STRING(ip6Addr2))
+   {
+      return TRUE;
+   }
+   if (ip6Addr1 == NULL || ip6Addr2 == NULL)
+   {
+      return FALSE;
+   }
+
+   if ((ret = cmsUtl_parsePrefixAddress(ip6Addr1, address1, &plen1)) != CMSRET_SUCCESS)
+   {
+      cmsLog_error("cmsUtl_parsePrefixAddress returns error. ret=%d", ret);
+      return FALSE;
+   }
+   if ((ret = cmsUtl_parsePrefixAddress(ip6Addr2, address2, &plen2)) != CMSRET_SUCCESS)
+   {
+      cmsLog_error("cmsUtl_parsePrefixAddress returns error. ret=%d", ret);
+      return FALSE;
+   }
+
+   if (inet_pton(AF_INET6, address1, &in6Addr1) <= 0)
+   {
+      cmsLog_error("Invalid address1=%s", address1);
+      return FALSE;
+   }
+   if (inet_pton(AF_INET6, address2, &in6Addr2) <= 0)
+   {
+      cmsLog_error("Invalid address2=%s", address2);
+      return FALSE;
+   }
+
+   return ((memcmp(&in6Addr1, &in6Addr2, sizeof(struct in6_addr)) == 0) && (plen1 == plen2));
+
+}  /* cmsNet_areIp6AddrEqual() */
+
+
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+
+CmsRet cmsNet_getIfAddr6(const char *ifname, UINT32 addrIdx,
+                         char *ipAddr, UINT32 *ifIndex, UINT32 *prefixLen, UINT32 *scope, UINT32 *ifaFlags)
+{
+   return oal_getIfAddr6(ifname, addrIdx, ipAddr, ifIndex, prefixLen, scope, ifaFlags);
+}
+
+
+CmsRet cmsNet_getGloballyUniqueIfAddr6(const char *ifname, char *ipAddr, UINT32 *prefixLen)
+{
+   UINT32 addrIdx=0;
+   UINT32 netlinkIndex=0;
+   UINT32 scope=0;
+   UINT32 ifaflags=0;
+   CmsRet ret=CMSRET_SUCCESS;
+
+   while (CMSRET_SUCCESS == ret)
+   {
+      ret = cmsNet_getIfAddr6(ifname, addrIdx, ipAddr, &netlinkIndex,
+                              prefixLen, &scope, &ifaflags);
+      if ((CMSRET_SUCCESS == ret) && (0 == scope))  // found it
+         return CMSRET_SUCCESS;
+
+      addrIdx++;
+   }
+
+   // if we get here, then we did not find one
+   return CMSRET_NO_MORE_INSTANCES;
+}
+
+
+
+UBOOL8 cmsNet_areIp6DnsEqual(const char *dnsServers1, const char *dnsServers2)
+{
+   char dnsPri1[CMS_IPADDR_LENGTH];
+   char dnsSec1[CMS_IPADDR_LENGTH];
+   char dnsPri2[CMS_IPADDR_LENGTH];
+   char dnsSec2[CMS_IPADDR_LENGTH];
+   CmsRet ret;
+
+   *dnsPri1 = '\0';
+   *dnsSec1 = '\0';
+   *dnsPri2 = '\0';
+   *dnsSec2 = '\0';
+
+   if (IS_EMPTY_STRING(dnsServers1) && IS_EMPTY_STRING(dnsServers2))
+   {
+      return TRUE;
+   }
+   if (dnsServers1 == NULL || dnsServers2 == NULL)
+   {
+      return FALSE;
+   }
+
+   if ((ret = cmsUtl_parseDNS(dnsServers1, dnsPri1, dnsSec1, FALSE)) != CMSRET_SUCCESS)
+   {
+      cmsLog_error("cmsUtl_parseDNS returns error. ret=%d", ret);
+      return FALSE;
+   }
+   if ((ret = cmsUtl_parseDNS(dnsServers2, dnsPri2, dnsSec2, FALSE)) != CMSRET_SUCCESS)
+   {
+      cmsLog_error("cmsUtl_parseDNS returns error. ret=%d", ret);
+      return FALSE;
+   }
+
+   if (!cmsNet_areIp6AddrEqual(dnsPri1, dnsPri2) ||
+       !cmsNet_areIp6AddrEqual(dnsSec2, dnsSec2))
+   {
+      return FALSE;
+   }
+
+   return TRUE;
+
+}  /* cmsNet_areIp6DnsEqual() */
 
 CmsRet cmsNet_subnetIp6SitePrefix(const char *sp, UINT8 subnetId, UINT32 snPlen, char *snPrefix)
 {
@@ -483,5 +831,47 @@ CmsRet cmsNet_subnetIp6SitePrefix(const char *sp, UINT8 subnetId, UINT32 snPlen,
 
 }  /* cmsNet_subnetIp6SitePrefix() */
 
+CmsRet cmsUtl_prefixMacToAddress(const char *prefix, UINT8 *mac, char *addr)
+{
+   struct in6_addr in6_addr;
+   SINT32 i;
+
+   cmsLog_debug("prefix<%s>", prefix);
+
+   if (inet_pton(AF_INET6, prefix, &in6_addr) <= 0)
+   {
+      cmsLog_error("inet_pton returns error");
+      return CMSRET_INVALID_ARGUMENTS;
+   }
+
+   for ( i = 8; i <= 15; i++ ) 
+   {
+      if (in6_addr.s6_addr[i] != 0)
+      {
+         cmsLog_error("prefix is not 0 at 64 LSB");
+         return CMSRET_INVALID_ARGUMENTS;
+      };
+   };
+
+   /* create EUI-64 from MAC-48 */
+   in6_addr.s6_addr[ 8] = mac[0] ^ 0x02;
+   in6_addr.s6_addr[ 9] = mac[1];
+   in6_addr.s6_addr[10] = mac[2];
+   in6_addr.s6_addr[11] = 0xff;
+   in6_addr.s6_addr[12] = 0xfe;
+   in6_addr.s6_addr[13] = mac[3];
+   in6_addr.s6_addr[14] = mac[4];
+   in6_addr.s6_addr[15] = mac[5];
+
+   if (inet_ntop(AF_INET6, &in6_addr, addr, CMS_IPADDR_LENGTH) == NULL)
+   {
+      cmsLog_error("inet_ntop returns error");
+      return CMSRET_INTERNAL_ERROR;
+   }
+
+   cmsLog_debug("addr<%s>", addr);
+
+   return CMSRET_SUCCESS;
+}
 #endif
 

@@ -43,4 +43,3 @@ unsigned avdevice_version(void);
 void avdevice_register_all(void);
 
 #endif /* AVDEVICE_AVDEVICE_H */
-

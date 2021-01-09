@@ -244,6 +244,14 @@ config SCHEDSTATS
 	  If you aren't debugging the scheduler or trying to tune a specific
 	  application, you can say N to avoid the very slight overhead
 	  this adds.
+	  
+config BCM_SCHEDAUDIT
+	bool "Broadcom Scheduler Audit features"
+	depends on PROC_FS
+	default n
+	help
+	  If you say Y here, the /proc/<pid>/bcm_schedaudit file will be
+	  provided to allow auditing of scheduler performance.
 
 config TIMER_STATS
 	bool "Collect kernel timers statistics"

@@ -4,7 +4,7 @@ libfakeroot.lo: libfakeroot.c config.h communicate.h fakerootconfig.h \
  /usr/include/gnu/stubs-32.h /usr/include/sys/types.h \
  /usr/include/bits/types.h /usr/include/bits/typesizes.h \
  /usr/include/time.h \
- /usr/lib/gcc/i686-redhat-linux/4.6.0/include/stddef.h \
+ /usr/lib/gcc/i686-redhat-linux/4.6.3/include/stddef.h \
  /usr/include/endian.h /usr/include/bits/endian.h \
  /usr/include/bits/byteswap.h /usr/include/sys/select.h \
  /usr/include/bits/select.h /usr/include/bits/sigset.h \
@@ -12,7 +12,7 @@ libfakeroot.lo: libfakeroot.c config.h communicate.h fakerootconfig.h \
  /usr/include/bits/pthreadtypes.h /usr/include/sys/stat.h \
  /usr/include/bits/stat.h /usr/include/sys/utsname.h \
  /usr/include/bits/utsname.h \
- /usr/lib/gcc/i686-redhat-linux/4.6.0/include/stdint.h \
+ /usr/lib/gcc/i686-redhat-linux/4.6.3/include/stdint.h \
  /usr/include/stdint.h /usr/include/bits/wchar.h /usr/include/inttypes.h \
  message.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
  /usr/include/bits/waitstatus.h /usr/include/xlocale.h \
@@ -23,7 +23,7 @@ libfakeroot.lo: libfakeroot.c config.h communicate.h fakerootconfig.h \
  /usr/include/bits/string.h /usr/include/bits/string2.h \
  /usr/include/stdio.h /usr/include/libio.h /usr/include/_G_config.h \
  /usr/include/wchar.h \
- /usr/lib/gcc/i686-redhat-linux/4.6.0/include/stdarg.h \
+ /usr/lib/gcc/i686-redhat-linux/4.6.3/include/stdarg.h \
  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
  /usr/include/bits/stdio.h /usr/include/dlfcn.h /usr/include/bits/dlfcn.h \
  /usr/include/unistd.h /usr/include/bits/posix_opt.h \
@@ -60,7 +60,7 @@ fakerootconfig.h:
 
 /usr/include/time.h:
 
-/usr/lib/gcc/i686-redhat-linux/4.6.0/include/stddef.h:
+/usr/lib/gcc/i686-redhat-linux/4.6.3/include/stddef.h:
 
 /usr/include/endian.h:
 
@@ -88,7 +88,7 @@ fakerootconfig.h:
 
 /usr/include/bits/utsname.h:
 
-/usr/lib/gcc/i686-redhat-linux/4.6.0/include/stdint.h:
+/usr/lib/gcc/i686-redhat-linux/4.6.3/include/stdint.h:
 
 /usr/include/stdint.h:
 
@@ -138,7 +138,7 @@ message.h:
 
 /usr/include/wchar.h:
 
-/usr/lib/gcc/i686-redhat-linux/4.6.0/include/stdarg.h:
+/usr/lib/gcc/i686-redhat-linux/4.6.3/include/stdarg.h:
 
 /usr/include/bits/stdio_lim.h:
 

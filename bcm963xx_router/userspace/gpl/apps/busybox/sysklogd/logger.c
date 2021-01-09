@@ -4,50 +4,16 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <string.h>
-#include <stdlib.h>
-
-#include "busybox.h"
-#if !defined CONFIG_SYSLOGD
-
+/*
+ * Done in syslogd_and_logger.c:
+#include "libbb.h"
 #define SYSLOG_NAMES
-#include <sys/syslog.h>
-
-#else
-#include <sys/syslog.h>
-#  ifndef __dietlibc__
-	/* We have to do this since the header file defines static
-	 * structures.  Argh.... bad libc, bad, bad...
-	 */
-	typedef struct _code {
-		char *c_name;
-		int c_val;
-	} CODE;
-	extern CODE prioritynames[];
-	extern CODE facilitynames[];
-#  endif
-#endif
+#define SYSLOG_NAMES_CONST
+#include <syslog.h>
+*/
 
 /* Decode a symbolic name to a numeric value
  * this function is based on code
@@ -56,19 +22,19 @@
  *
  * Original copyright notice is retained at the end of this file.
  */
-static int decode(char *name, CODE * codetab)
+static int decode(char *name, const CODE *codetab)
 {
-	CODE *c;
+	const CODE *c;
 
 	if (isdigit(*name))
-		return (atoi(name));
+		return atoi(name);
 	for (c = codetab; c->c_name; c++) {
 		if (!strcasecmp(name, c->c_name)) {
-			return (c->c_val);
+			return c->c_val;
 		}
 	}
 
-	return (-1);
+	return -1;
 }
 
 /* Decode a symbolic name to a numeric value
@@ -83,87 +49,75 @@ static int pencode(char *s)
 	char *save;
 	int lev, fac = LOG_USER;
 
-	for (save = s; *s && *s != '.'; ++s);
+	for (save = s; *s && *s != '.'; ++s)
+		;
 	if (*s) {
 		*s = '\0';
 		fac = decode(save, facilitynames);
 		if (fac < 0)
-			bb_error_msg_and_die("unknown facility name: %s", save);
+			bb_error_msg_and_die("unknown %s name: %s", "facility", save);
 		*s++ = '.';
 	} else {
 		s = save;
 	}
 	lev = decode(s, prioritynames);
 	if (lev < 0)
-		bb_error_msg_and_die("unknown priority name: %s", save);
+		bb_error_msg_and_die("unknown %s name: %s", "priority", save);
 	return ((lev & LOG_PRIMASK) | (fac & LOG_FACMASK));
 }
 
+#define strbuf bb_common_bufsiz1
 
-extern int logger_main(int argc, char **argv)
+int logger_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int logger_main(int argc UNUSED_PARAM, char **argv)
 {
-	int pri = LOG_USER | LOG_NOTICE;
-	int option = 0;
-	int c, i, opt;
-	char buf[1024], name[128];
+	char *str_p, *str_t;
+	int opt;
+	int i = 0;
 
 	/* Fill out the name string early (may be overwritten later) */
-	my_getpwuid(name, geteuid(), sizeof(name));
+	str_t = uid2uname_utoa(geteuid());
 
 	/* Parse any options */
-	while ((opt = getopt(argc, argv, "p:st:")) > 0) {
-		switch (opt) {
-			case 's':
-				option |= LOG_PERROR;
-				break;
-			case 'p':
-				pri = pencode(optarg);
-				break;
-			case 't':
-				safe_strncpy(name, optarg, sizeof(name));
-				break;
-			default:
-				bb_show_usage();
-		}
-	}
+	opt = getopt32(argv, "p:st:", &str_p, &str_t);
 
-	openlog(name, option, (pri | LOG_FACMASK));
-	if (optind == argc) {
-		do {
-			/* read from stdin */
-			i = 0;
-			while ((c = getc(stdin)) != EOF && c != '\n' &&
-					i < (sizeof(buf)-1)) {
-				buf[i++] = c;
+	if (opt & 0x2) /* -s */
+		i |= LOG_PERROR;
+	//if (opt & 0x4) /* -t */
+	openlog(str_t, i, 0);
+	i = LOG_USER | LOG_NOTICE;
+	if (opt & 0x1) /* -p */
+		i = pencode(str_p);
+
+	argv += optind;
+	if (!argv[0]) {
+		while (fgets(strbuf, COMMON_BUFSIZE, stdin)) {
+			if (strbuf[0]
+			 && NOT_LONE_CHAR(strbuf, '\n')
+			) {
+				/* Neither "" nor "\n" */
+				syslog(i, "%s", strbuf);
 			}
-			if (i > 0) {
-				buf[i++] = '\0';
-				syslog(pri, "%s", buf);
-			}
-		} while (c != EOF);
+		}
 	} else {
 		char *message = NULL;
-		int len = argc - optind; /* for the space between the args
-					    and  '\0' */
-		opt = len;
-		argv += optind;
-		for (i = 0; i < opt; i++) {
-			len += strlen(*argv);
-			message = xrealloc(message, len);
-			if(!i)
-				message[0] = 0;
-			 else
-			strcat(message, " ");
-			strcat(message, *argv);
-			argv++;
-		}
-		syslog(pri, "%s", message);
+		int len = 0;
+		int pos = 0;
+		do {
+			len += strlen(*argv) + 1;
+			message = xrealloc(message, len + 1);
+			sprintf(message + pos, " %s", *argv),
+			pos = len;
+		} while (*++argv);
+		syslog(i, "%s", message + 1); /* skip leading " " */
 	}
 
 	closelog();
 	return EXIT_SUCCESS;
 }
 
+/* Clean up. Needed because we are included from syslogd_and_logger.c */
+#undef strbuf
 
 /*-
  * Copyright (c) 1983, 1993
@@ -199,6 +153,3 @@ extern int logger_main(int argc, char **argv)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-
-

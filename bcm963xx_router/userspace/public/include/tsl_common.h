@@ -1,9 +1,9 @@
 /* FILE NAME: tsl_common.h
- * PURPOSE: the header file 
+ * PURPOSE: the header file
  * NOTES:
  * REASON:
- *      DESCRIPTION:  
- *      CREATOR: Yunhai Zhu  
+ *      DESCRIPTION:
+ *      CREATOR: Yunhai Zhu
  *      DATE: 2010/9/1
  */
 
@@ -16,7 +16,7 @@ extern "C" {
 
 /***********************************************************
  *
- *      Define included files according the platform 
+ *      Define included files according the platform
  *
  ************************************************************/
 #if defined _WIN32
@@ -104,7 +104,7 @@ extern "C" {
 #endif
 
 #ifdef _VXWORK
-#define inline 
+#define inline
 #endif
 
 #ifdef _SOLARIS
@@ -154,7 +154,7 @@ typedef size_t                  tsl_size_t;
 
 
 #define TSL_B_FALSE 0
-#define TSL_B_TRUE  1  
+#define TSL_B_TRUE  1
 typedef int tsl_bool;
 
 typedef enum{
@@ -167,7 +167,7 @@ typedef enum{
 #define TSL_RV_ERR               -10
 #define TSL_RV_ERR_PARM          -11
 #define TSL_RV_FAIL              -20
-#define TSL_RV_FAIL_MEM          -21   
+#define TSL_RV_FAIL_MEM          -21
 #define TSL_RV_FAIL_FUNC         -22
 typedef int tsl_rv;
 
@@ -178,14 +178,14 @@ typedef enum{
         tsl_rv_err_parm          = -11,
         tsl_rv_fail              = -20,
         tsl_rv_fail_mem          = -21,
-        tsl_rv_fail_func         = -22      
+        tsl_rv_fail_func         = -22
 } tsl_rv_t;
 
 
 
 /***********************************************************
  *
- *              Define Common Macro 
+ *              Define Common Macro
  *
  ************************************************************/
 /*return with rv*/
@@ -262,7 +262,7 @@ typedef enum{
 #define TSL_FVASSERT_VRV_ACT(cond, act)      TSL_VASSERT_VRV_ACT(cond, act)
 
 
-#define _MALLOC(size)            malloc(size) 
+#define _MALLOC(size)            malloc(size)
 #define _CALLOC(size, size_t)    calloc(size, size_t)
 #define _FREE(ptr)               free(ptr)
 
@@ -281,36 +281,36 @@ typedef enum{
         TSL_VASSERT_RV_ACT(ptr != NULL, rv, act);                                  \
 }
 #define TSL_SMALLOC(ptr, type, size) TSL_SMALLOC_RV(ptr, type, size, TSL_RV_FAIL_MEM)
-                 
+
 
 #define TSL_MALLOC_RV(ptr, type, rv)                                               \
 {                                                                                  \
         TSL_VASSERT_RV((ptr = (type *)_MALLOC(sizeof(type))) != NULL, rv);         \
         memset(ptr, 0, sizeof(type));                                              \
         TSL_VASSERT_RV(ptr != NULL, rv);                                           \
-}                                          
+}
 #define TSL_MALLOC_RV_ACT(ptr, type, rv, act)                                       \
 {                                                                                  \
         TSL_VASSERT_RV_ACT((ptr = (type *)_MALLOC(sizeof(type))) != NULL, rv, act);\
         memset(ptr, 0, sizeof(type));                                              \
         TSL_VASSERT_RV_ACT(ptr != NULL, rv, act);                                  \
 }
-#define TSL_MALLOC_ACT(ptr, type, act)        TSL_MALLOC_RV_ACT(ptr, type, TSL_RV_FAIL_MEM, act)                    
-#define TSL_MALLOC(ptr, type)                 TSL_MALLOC_RV(ptr, type, TSL_RV_FAIL_MEM)                    
+#define TSL_MALLOC_ACT(ptr, type, act)        TSL_MALLOC_RV_ACT(ptr, type, TSL_RV_FAIL_MEM, act)
+#define TSL_MALLOC(ptr, type)                 TSL_MALLOC_RV(ptr, type, TSL_RV_FAIL_MEM)
 
 #define TSL_FREE(ptr) _FREE(ptr)
 
 #ifndef _DEBUG
-#define printf(format, arg...)  
+#define printf(format, arg...)
 #endif
-        
+
 
 #define tsl_printf(format, arg...)              \
 do{\
     fprintf(stdout, format, ##arg);\
 }while(0)
 
-//#define tsl_printf(format, arg...) 
+//#define tsl_printf(format, arg...)
 
 #define MEM_ALIGN(size, boundary) \
     (((size) + ((boundary) - 1)) & ~((boundary) - 1))
@@ -321,4 +321,3 @@ do{\
 
 
 #endif
-

@@ -1,19 +1,19 @@
 /*	$Id: ifaddrs.c,v 1.1.2.1 2011/07/25 01:42:47 lzhang Exp $	*/
 /* 	from USAGI: ifaddrs.c,v 1.20.2.1 2002/12/08 08:22:23 yoshfuji Exp */
 
-/* 
+/*
  * Copyright (C)2000 YOSHIFUJI Hideaki
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -250,14 +250,31 @@ nl_getmsg (int sd, int request, int seq, struct nlmsghdr **nlhp, int *done)
   int result = 0, read_size;
   int msg_flags;
   pid_t pid = getpid ();
+  void *actual_buff = NULL;
+
   for (;;)
     {
       void *newbuff = realloc (buff, bufsize);
+#ifdef AEI_COVERITY_FIX
+    if (newbuff == NULL)
+    {
+        result = -1;
+        break;
+    }
+    else if(bufsize < lastbufsize)
+         {
+             free(newbuff);
+             result = -1;
+             break;
+         }
+#else
       if (newbuff == NULL || bufsize < lastbufsize)
 	{
 	  result = -1;
 	  break;
 	}
+#endif
+
       buff = newbuff;
       result = read_size =
 	nl_recvmsg (sd, request, seq, buff, bufsize, &msg_flags);
@@ -294,14 +311,36 @@ nl_getmsg (int sd, int request, int seq, struct nlmsghdr **nlhp, int *done)
 	}
       break;
     }
-  if (result < 0)
+
+	// SW-Bug #7208
+    do{
+    if(result > 0 )
+    {
+        actual_buff = malloc(result);
+        if (NULL == actual_buff)
+        {
+            actual_buff = buff;
+            break;
+        }
+      
+        memcpy(actual_buff, buff,result);
+        free(buff);
+        buff = NULL;
+    }
+
+    }while(0);
+      
+    if (result < 0)
     if (buff)
       {
 	int saved_errno = errno;
 	free (buff);
+#ifdef AEI_COVERITY_FIX
+    buff = NULL;
+#endif
 	__set_errno (saved_errno);
       }
-  *nlhp = (struct nlmsghdr *) buff;
+  *nlhp = (struct nlmsghdr *) actual_buff;
   return result;
 }
 

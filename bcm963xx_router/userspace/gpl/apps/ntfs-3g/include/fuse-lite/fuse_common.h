@@ -16,13 +16,18 @@
 #define _FUSE_COMMON_H_
 
 #include "fuse_opt.h"
+#include <stdio.h> /* temporary */
 #include <stdint.h>
 
 /** Major version of FUSE library interface */
 #define FUSE_MAJOR_VERSION 2
 
 /** Minor version of FUSE library interface */
+#ifdef POSIXACLS
+#define FUSE_MINOR_VERSION 8
+#else
 #define FUSE_MINOR_VERSION 7
+#endif
 
 #define FUSE_MAKE_VERSION(maj, min)  ((maj) * 10 + (min))
 #define FUSE_VERSION FUSE_MAKE_VERSION(FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION)
@@ -30,6 +35,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifdef POSIXACLS
+/*
+ * FUSE_CAP_DONT_MASK: don't apply umask to file mode on create operations
+ */
+#define FUSE_CAP_DONT_MASK	(1 << 6)
+#endif
+
+#define FUSE_CAP_BIG_WRITES	(1 << 5)
 
 /**
  * Information about open files
@@ -104,10 +118,12 @@ struct fuse_conn_info {
 	 */
 	unsigned max_readahead;
 
+	unsigned capable;
+	unsigned want;
 	/**
 	 * For future use.
 	 */
-	unsigned reserved[27];
+	unsigned reserved[25];
     };
 
 struct fuse_session;

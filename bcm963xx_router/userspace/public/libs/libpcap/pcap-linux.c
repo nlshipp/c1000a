@@ -1013,8 +1013,12 @@ static void	pcap_cleanup_linux( pcap_t *handle )
 			 * in 2.0[.x] kernels.
 			 */
 			memset(&ifr, 0, sizeof(ifr));
+#ifdef AEI_COVERITY_FIX
+			strlcpy(ifr.ifr_name, handle->md.device,sizeof(ifr.ifr_name));
+#else
 			strncpy(ifr.ifr_name, handle->md.device,
 			    sizeof(ifr.ifr_name));
+#endif
 			if (ioctl(handle->fd, SIOCGIFFLAGS, &ifr) == -1) {
 				fprintf(stderr,
 				    "Can't restore interface flags (SIOCGIFFLAGS failed: %s).\n"
@@ -1824,11 +1828,20 @@ scan_sys_class_net(pcap_if_t **devlistp, char *errbuf)
 	if (fd < 0) {
 		(void)snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "socket: %s", pcap_strerror(errno));
+#ifdef AEI_COVERITY_FIX
+	(void)closedir(sys_class_net_d);
+#endif
 		return (-1);
 	}
 
 	for (;;) {
 		errno = 0;
+#ifdef AEI_COVERITY_FIX
+		if (sys_class_net_d == NULL)
+		{
+			break;
+		}
+#endif
 		ent = readdir(sys_class_net_d);
 		if (ent == NULL) {
 			/*
@@ -1881,7 +1894,11 @@ scan_sys_class_net(pcap_if_t **devlistp, char *errbuf)
 		 * Get the flags for this interface, and skip it if
 		 * it's not up.
 		 */
+#ifdef AEI_COVERITY_FIX
+		strlcpy(ifrflags.ifr_name, name, sizeof(ifrflags.ifr_name));
+#else
 		strncpy(ifrflags.ifr_name, name, sizeof(ifrflags.ifr_name));
+#endif
 		if (ioctl(fd, SIOCGIFFLAGS, (char *)&ifrflags) < 0) {
 			if (errno == ENXIO)
 				continue;
@@ -1957,6 +1974,9 @@ scan_proc_net_dev(pcap_if_t **devlistp, char *errbuf)
 	if (fd < 0) {
 		(void)snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "socket: %s", pcap_strerror(errno));
+#ifdef AEI_COVERITY_FIX
+		(void)fclose(proc_net_f);
+#endif
 		return (-1);
 	}
 

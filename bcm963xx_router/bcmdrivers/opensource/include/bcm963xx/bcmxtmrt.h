@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl
- Copyright 2007 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2007:DUAL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2007 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 
@@ -37,7 +47,11 @@
 #define LSC_RAW_ENET_MODE                   0x80000000
 #define CELL_PAYLOAD_SIZE                   48
 #define CELL_SIZE                           (5 + CELL_PAYLOAD_SIZE)
+#if defined(CONFIG_BCM963268)
+#define MAX_VCIDS                           15
+#else
 #define MAX_VCIDS                           16
+#endif
 
 #define XTMRT_DEV_OPENED                    1
 #define XTMRT_DEV_CLOSED                    2
@@ -60,6 +74,9 @@
 #define XTMRT_CMD_GLOBAL_UNINITIALIZATION   13
 #define XTMRT_CMD_TOGGLE_PORT_DATA_STATUS_CHANGE	  14
 #define XTMRT_CMD_SET_TEQ_DEVCTX            15
+#define XTMRT_CMD_SET_DS_SEQ_DEVIATION 	  16
+#define XTMRT_CMD_GLOBAL_REINITIALIZATION   17
+#define XTMRT_CMD_SET_ATMBOND_SID_MODE      18
 
 #define XTMRT_CMD_PORT_DATA_STATUS_DISABLED  0
 #define XTMRT_CMD_PORT_DATA_STATUS_ENABLED   1
@@ -75,13 +92,13 @@ typedef struct XtmrtGlobalInitParms
     UINT32 ulReceiveQueueSizes[MAX_RECEIVE_QUEUES];
     XtmBondConfig bondConfig ;
 
-    UINT32 *pulMibTxOctetCountBase;
     UINT32 ulMibRxClrOnRead;
-    UINT32 *pulMibRxCtrl;
-    UINT32 *pulMibRxMatch;
-    UINT32 *pulMibRxOctetCount;
-    UINT32 *pulMibRxPacketCount;
-    UINT32 *pulRxCamBase ;
+    volatile UINT32 *pulMibTxOctetCountBase;
+    volatile UINT32 *pulMibRxCtrl;
+    volatile UINT32 *pulMibRxMatch;
+    volatile UINT32 *pulMibRxOctetCount;
+    volatile UINT32 *pulMibRxPacketCount;
+    volatile UINT32 *pulRxCamBase;
 
 } XTMRT_GLOBAL_INIT_PARMS, *PXTMRT_GLOBAL_INIT_PARMS;
 
@@ -116,15 +133,16 @@ typedef struct XtmrtCellHdlr
 
 typedef struct XtmrtTransmitQueueId
 {
-    UINT32 ulQosQId;
     UINT32 ulPortId;
     UINT32 ulPtmPriority;
     UINT32 ulWeightAlg;
     UINT32 ulWeightValue;
     UINT32 ulSubPriority;
     UINT32 ulQueueSize;
+    UINT32 ulMinBitRate;            /* 0 indicates no shaping */
     UINT32 ulShapingRate;           /* 0 indicates no shaping */
-    UINT32 ulShapingBurstSize;
+    UINT16 usShapingBurstSize;
+    UINT16 usQosQId;
     UINT32 ulQueueIndex;
     UINT32 ulBondingPortId;      /* Read-only */
 #if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
@@ -142,6 +160,7 @@ typedef struct XtmrtLinkStatusChange
     UINT32 ulLinkDataMask ;
     UINT32 ulOtherLinkUsRate ;
     UINT32 ulOtherLinkDsRate ;
+    UINT32 ulDsSeqDeviation ;   /* Only for bonding */
     UINT32 ulTrafficType ;
     UINT32 ulTransmitQueueIdsSize;
     XTMRT_TRANSMIT_QUEUE_ID TransmitQueueIds[MAX_TRANSMIT_QUEUES];
@@ -159,7 +178,8 @@ typedef struct XtmrtNetdevTxchannel
 typedef struct XtmrtTogglePortDataStatusChange
 {
     UINT32 ulPortId;
-    UINT32 ulPortDataStatus ;
+    UINT32 ulPortDataUsStatus ;
+    UINT32 ulPortDataDsStatus ;
 } XTMRT_TOGGLE_PORT_DATA_STATUS_CHANGE, *PXTMRT_TOGGLE_PORT_DATA_STATUS_CHANGE;
 
 #if defined(__cplusplus)

@@ -1,20 +1,29 @@
 /*
-<:copyright-gpl
  Copyright 2002-2010 Broadcom Corp. All Rights Reserved.
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+ <:label-BRCM:2011:DUAL/GPL:standard    
+ 
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
+ 
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
+ 
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
+ 
+ :>
 */
 #ifndef _BCMENET_H_
 #define _BCMENET_H_
@@ -25,7 +34,7 @@
 #include <linux/skbuff.h>
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>
-#include <bcm_map.h>
+#include <bcm_map_part.h>
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
 #include <linux/netdevice.h>
@@ -47,6 +56,8 @@
  * (80 ENET buffers = 8 tx queues * 10 buffers per tx queue)
  */
 #define ENET_CACHE_SMARTFLUSH
+
+#define PKTC /* packet chaining from WLAN */
 
 /* misc. configuration */
 #define DMA_FC_THRESH_LO        5
@@ -71,8 +82,18 @@
 
 #define NUM_PORTS                   1
 
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
+#define IsExternalSwitchPort(port) (((port < MAX_EXT_SWITCH_PORTS) && (BpGetPortConnectedToExtSwitch()>=0))?1:0)
+#else
 #define IsExternalSwitchPort(port) ((port < MAX_EXT_SWITCH_PORTS)?1:0)
+#endif
 #define LOGICAL_PORT_TO_PHYSICAL_PORT(port) ( (port < MAX_EXT_SWITCH_PORTS) ? port : (port-MAX_EXT_SWITCH_PORTS))
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+#define WHOLE_N_MAX_THRESHOLD 3
+#define AEI_IS_CPU_FREE() (((avenrun[0] + (FIXED_1/200)) >> FSHIFT) < WHOLE_N_MAX_THRESHOLD ?1 : 0) 
+#endif
+
 
 typedef struct extsw_info_s {
     unsigned int switch_id;
@@ -149,16 +170,20 @@ typedef struct {
 #define BRCM_TAG_EGRESS     0x40000000
 #define BRCM_TAG_INGRESS    0x60000000
 
-#if (defined(CONFIG_BCM96816) && defined(DBL_DESC))
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 #define MAX_MARK_VALUES   32
-#define MAX_GEM_IDS       32
+#define MAX_GEM_IDS       CONFIG_BCM_MAX_GEM_PORTS
 #define MAX_GPON_IFS      40
 /* The bits[0:6] of status field in DmaDesc are Rx Gem ID. For now, we are
    using only 5 bits */
+#if defined(CONFIG_BCM96816)
 #define RX_GEM_ID_MASK    0x1F
+#else
+#define RX_GEM_ID_MASK    0x7F
+#endif
 #endif
 
-#if defined(CONFIG_BCM96816)
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 #define MAX_6829_IFS      2
 #define BCM6829LINKMASK   0xFF00
 
@@ -179,6 +204,9 @@ typedef struct BcmEnet_RxDma {
     int      rxIrq;   /* rx dma irq */
     struct sk_buff *freeSkbList;
     uint32   channel;
+#if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
+    int      bdsAllocated;
+#endif
 
 #if defined(RXCHANNEL_PKT_RATE_LIMIT)
     volatile DmaDesc *rxBdsStdBy;
@@ -189,9 +217,17 @@ typedef struct BcmEnet_RxDma {
 } BcmEnet_RxDma;
 
 #if defined(AEI_VDSL_STATS_DIAG)
-struct enet_multicast_stats {
-    unsigned long rx_multicast_bytes;
-    unsigned long tx_multicast_bytes;
+struct enet_dev_stats {
+    unsigned long rx_packets;
+    unsigned long long rx_bytes;
+    unsigned long tx_packets;
+    unsigned long long tx_bytes;
+    unsigned long rx_multicast_packets;
+    unsigned long long rx_multicast_bytes;
+    unsigned long tx_multicast_packets;
+    unsigned long long tx_multicast_bytes;
+    unsigned long unicast_discarded_packets;
+    unsigned long multicast_discarded_packets;
 };
 #endif
 
@@ -200,11 +236,17 @@ typedef struct BcmEnet_devctrl {
     struct net_device *next_dev;        /* next device */
     struct net_device_stats stats;      /* statistics used by the kernel */
     volatile DmaRegs *dmaCtrl;          /* EMAC DMA register base address */
+#if defined(CONFIG_BCM_GMAC)
+    volatile DmaRegs *gmacDmaCtrl;      /* GMAC DMA register base address */
+    int             gmacPort;           /* gmac capable port bit map */
+#endif /* defined(CONFIG_BCM_GMAC) */
     struct tasklet_struct task;         /* tasklet */
     int             linkState;          /* link status */
     int             wanPort;            /* wan port selection */          
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
     int             softSwitchingMap;   /* software switching port map */
+#endif
+#if defined(CONFIG_BCM96816)
     int             softSwitchingMap6829; /* software switching port map for 6829 */
     int             mocaLinkState;      /* holds link state for moca phy */
     int             wanPort6829;        /* wan port selection on 6829 */
@@ -227,7 +269,7 @@ typedef struct BcmEnet_devctrl {
     ETHERNET_MAC_INFO EnetInfo[2];
     IOCTL_MIB_INFO MibInfo;
 
-#ifdef CONFIG_BCM96816
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
     /* For gpon virtual interfaces */
     int gem_count;                      /* Number of gem ids */
     int gponifid;   /* Unique ifindex in [0:31] for gpon virtual interface  */
@@ -253,13 +295,16 @@ typedef struct BcmEnet_devctrl {
     int enetTxChannel;   /* default iuDMA channel to use for enet tx - Aug 2010 */
 #endif
 
+    int eee_enable_request_flag[2];
+
 #if defined(AEI_VDSL_TOOLBOX)
     UINT16 usMirrorInFlags;
     UINT16 usMirrorOutFlags;
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
-    struct enet_multicast_stats multi_stats;
+    struct enet_dev_stats dev_stats;
 #endif
+
 } BcmEnet_devctrl;
 
 #ifndef CARDNAME
@@ -319,7 +364,41 @@ typedef struct enet_xmit_params {
 #define ENET_RX_UNLOCK() spin_unlock_bh(&global.pVnetDev0_g->ethlock_rx)
 #define ENET_MOCA_TX_LOCK() spin_lock_bh(&global.pVnetDev0_g->ethlock_moca_tx)
 #define ENET_MOCA_TX_UNLOCK() spin_unlock_bh(&global.pVnetDev0_g->ethlock_moca_tx)
+#ifdef AEI_ABBA_FIX
+//we know the printk below could cause problem, but for make sure we experienced this problem,
+//still leave there;
+//NOTE: the production code should remove following printk.
+#define MAX_LOCKUP_DETECT 10000
+#define ENET_RX_LOCK_WITH_UNLOCK_TX() \
+{ \
+	unsigned int loop_counter=0; \
+	while(!spin_trylock_bh(&global.pVnetDev0_g->ethlock_rx)){ \
+		if(!spin_trylock_bh(&global.pVnetDev0_g->ethlock_tx)){ \
+			if(loop_counter++>MAX_LOCKUP_DETECT){ \
+				spin_unlock_bh(&global.pVnetDev0_g->ethlock_tx); \
+				spin_lock_bh(&global.pVnetDev0_g->ethlock_tx); \
+			} \
+		} else {\
+			spin_unlock_bh(&global.pVnetDev0_g->ethlock_tx); \
+		} \
+	} \
+}
+#endif
+
 #endif /* !FAP_4KE */
+#ifdef DYING_GASP_API
+int enet_send_dying_gasp_pkt(void);
+#endif
+
+/* Accessor functions */
+int bcm63xx_enet_isExtSwPresent(void);
+unsigned int bcm63xx_enet_extSwId(void);
+void ethsw_phyport_rreg2(int phy_id, int reg, uint16 *data, int flags);
+void ethsw_phyport_wreg2(int phy_id, int reg, uint16 *data, int flags);
+int enet_logport_to_phyid(int log_port);
+#if defined(CONFIG_BCM_ARL) || defined(CONFIG_BCM_ARL_MODULE)
+int bcm63xx_enet_getPortFromName(char *pIfName, int *pUnit, int *pPort);
+#endif
 
 #endif /* _BCMENET_H_ */
 

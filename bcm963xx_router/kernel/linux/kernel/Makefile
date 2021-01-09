@@ -28,6 +28,12 @@ CFLAGS_REMOVE_cgroup-debug.o = -pg
 CFLAGS_REMOVE_sched_clock.o = -pg
 endif
 
+LINUXINCLUDE += -I$(BUILD_DIR)/shared/broadcom/include/bcm963xx \
+	-I$(BUILD_DIR)/bcmdrivers/opensource/include/bcm963xx \
+	-I$(BUILD_DIR)/shared/opensource/include/bcm963xx 
+
+
+
 obj-$(CONFIG_FREEZER) += freezer.o
 obj-$(CONFIG_PROFILING) += profile.o
 obj-$(CONFIG_SYSCTL_SYSCALL_CHECK) += sysctl_check.o

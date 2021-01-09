@@ -1,140 +1,126 @@
-/* dhcpd.h */
-#ifndef _DHCPD_H
-#define _DHCPD_H
+/* vi: set sw=4 ts=4: */
+/*
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
+ */
+#ifndef UDHCP_DHCPD_H
+#define UDHCP_DHCPD_H 1
 
-#include <netinet/ip.h>
-#include <netinet/udp.h>
+PUSH_AND_SET_FUNCTION_VISIBILITY_TO_HIDDEN
 
-#include "libbb_udhcp.h"
-#include "leases.h"
-#include "version.h"
-
-/************************************/
-/* Defaults _you_ may want to tweak */
-/************************************/
-
-/* the period of time the client is allowed to use that address */
-#define LEASE_TIME              (60*60*24*10) /* 10 days of seconds */
-#define LEASES_FILE		"/var/lib/misc/udhcpd.leases"
-
-/* where to find the DHCP server configuration file */
+/* Defaults you may want to tweak */
+/* Default max_lease_sec */
+#define DEFAULT_LEASE_TIME      (60*60*24 * 10)
+#define LEASES_FILE             CONFIG_DHCPD_LEASES_FILE
+/* Where to find the DHCP server configuration file */
 #define DHCPD_CONF_FILE         "/etc/udhcpd.conf"
 
-/*****************************************************************/
-/* Do not modify below here unless you know what you are doing!! */
-/*****************************************************************/
-
-/* DHCP protocol -- see RFC 2131 */
-#define SERVER_PORT		67
-#define CLIENT_PORT		68
-
-#define DHCP_MAGIC		0x63825363
-
-/* DHCP option codes (partial list) */
-#define DHCP_PADDING		0x00
-#define DHCP_SUBNET		0x01
-#define DHCP_TIME_OFFSET	0x02
-#define DHCP_ROUTER		0x03
-#define DHCP_TIME_SERVER	0x04
-#define DHCP_NAME_SERVER	0x05
-#define DHCP_DNS_SERVER		0x06
-#define DHCP_LOG_SERVER		0x07
-#define DHCP_COOKIE_SERVER	0x08
-#define DHCP_LPR_SERVER		0x09
-#define DHCP_HOST_NAME		0x0c
-#define DHCP_BOOT_SIZE		0x0d
-#define DHCP_DOMAIN_NAME	0x0f
-#define DHCP_SWAP_SERVER	0x10
-#define DHCP_ROOT_PATH		0x11
-#define DHCP_IP_TTL		0x17
-#define DHCP_MTU		0x1a
-#define DHCP_BROADCAST		0x1c
-#define DHCP_NTP_SERVER		0x2a
-#define DHCP_WINS_SERVER	0x2c
-#define DHCP_REQUESTED_IP	0x32
-#define DHCP_LEASE_TIME		0x33
-#define DHCP_OPTION_OVER	0x34
-#define DHCP_MESSAGE_TYPE	0x35
-#define DHCP_SERVER_ID		0x36
-#define DHCP_PARAM_REQ		0x37
-#define DHCP_MESSAGE		0x38
-#define DHCP_MAX_SIZE		0x39
-#define DHCP_T1			0x3a
-#define DHCP_T2			0x3b
-#define DHCP_VENDOR		0x3c
-#define DHCP_CLIENT_ID		0x3d
-
-#define DHCP_END		0xFF
-
-
-#define BOOTREQUEST		1
-#define BOOTREPLY		2
-
-#define ETH_10MB		1
-#define ETH_10MB_LEN		6
-
-#define DHCPDISCOVER		1
-#define DHCPOFFER		2
-#define DHCPREQUEST		3
-#define DHCPDECLINE		4
-#define DHCPACK			5
-#define DHCPNAK			6
-#define DHCPRELEASE		7
-#define DHCPINFORM		8
-
-#define BROADCAST_FLAG		0x8000
-
-#define OPTION_FIELD		0
-#define FILE_FIELD		1
-#define SNAME_FIELD		2
-
-/* miscellaneous defines */
-#define MAC_BCAST_ADDR		(uint8_t *) "\xff\xff\xff\xff\xff\xff"
-#define OPT_CODE 0
-#define OPT_LEN 1
-#define OPT_DATA 2
-
-struct option_set {
-	uint8_t *data;
-	struct option_set *next;
-};
 
 struct static_lease {
-	uint8_t *mac;
-	uint32_t *ip;
 	struct static_lease *next;
+	uint32_t nip;
+	uint8_t mac[6];
 };
 
 struct server_config_t {
-	uint32_t server;		/* Our IP, in network order */
-	uint32_t start;		/* Start address of leases, network order */
-	uint32_t end;			/* End of leases, network order */
-	struct option_set *options;	/* List of DHCP options loaded from the config file */
-	char *interface;		/* The name of the interface to use */
-	int ifindex;			/* Index number of the interface to use */
-	uint8_t arp[6];		/* Our arp address */
-	unsigned long lease;		/* lease time in seconds (host order) */
-	unsigned long max_leases; 	/* maximum number of leases (including reserved address) */
-	char remaining; 		/* should the lease file be interpreted as lease time remaining, or
-			 		 * as the time the lease expires */
-	unsigned long auto_time; 	/* how long should udhcpd wait before writing a config file.
-					 * if this is zero, it will only write one on SIGUSR1 */
-	unsigned long decline_time; 	/* how long an address is reserved if a client returns a
-				    	 * decline message */
-	unsigned long conflict_time; 	/* how long an arp conflict offender is leased for */
-	unsigned long offer_time; 	/* how long an offered address is reserved */
-	unsigned long min_lease; 	/* minimum lease a client can request*/
+	char *interface;                /* interface to use */
+//TODO: ifindex, server_nip, server_mac
+// are obtained from interface name.
+// Instead of querying them *once*, create update_server_network_data_cache()
+// and call it before any usage of these fields.
+// update_server_network_data_cache() must re-query data
+// if more than N seconds have passed after last use.
+	int ifindex;
+	uint32_t server_nip;
+#if ENABLE_FEATURE_UDHCP_PORT
+	uint16_t port;
+#endif
+	uint8_t server_mac[6];          /* our MAC address (used only for ARP probing) */
+	struct option_set *options;     /* list of DHCP options loaded from the config file */
+	/* start,end are in host order: we need to compare start <= ip <= end */
+	uint32_t start_ip;              /* start address of leases, in host order */
+	uint32_t end_ip;                /* end of leases, in host order */
+	uint32_t max_lease_sec;         /* maximum lease time (host order) */
+	uint32_t min_lease_sec;         /* minimum lease time a client can request */
+	uint32_t max_leases;            /* maximum number of leases (including reserved addresses) */
+	uint32_t auto_time;             /* how long should udhcpd wait before writing a config file.
+	                                 * if this is zero, it will only write one on SIGUSR1 */
+	uint32_t decline_time;          /* how long an address is reserved if a client returns a
+	                                 * decline message */
+	uint32_t conflict_time;         /* how long an arp conflict offender is leased for */
+	uint32_t offer_time;            /* how long an offered address is reserved */
+	uint32_t siaddr_nip;            /* "next server" bootp option */
 	char *lease_file;
 	char *pidfile;
-	char *notify_file;		/* What to run whenever leases are written */
-	uint32_t siaddr;		/* next server bootp option */
-	char *sname;			/* bootp server name */
-	char *boot_file;		/* bootp boot file option */
+	char *notify_file;              /* what to run whenever leases are written */
+	char *sname;                    /* bootp server name */
+	char *boot_file;                /* bootp boot file option */
 	struct static_lease *static_leases; /* List of ip/mac pairs to assign static leases */
-};
+} FIX_ALIASING;
 
-extern struct server_config_t server_config;
-extern struct dhcpOfferedAddr *leases;
+#define server_config (*(struct server_config_t*)&bb_common_bufsiz1)
+/* client_config sits in 2nd half of bb_common_bufsiz1 */
 
+#if ENABLE_FEATURE_UDHCP_PORT
+#define SERVER_PORT (server_config.port)
+#else
+#define SERVER_PORT 67
+#endif
+
+
+typedef uint32_t leasetime_t;
+typedef int32_t signed_leasetime_t;
+
+struct dyn_lease {
+	/* Unix time when lease expires. Kept in memory in host order.
+	 * When written to file, converted to network order
+	 * and adjusted (current time subtracted) */
+	leasetime_t expires;
+	/* "nip": IP in network order */
+	uint32_t lease_nip;
+	/* We use lease_mac[6], since e.g. ARP probing uses
+	 * only 6 first bytes anyway. We check received dhcp packets
+	 * that their hlen == 6 and thus chaddr has only 6 significant bytes
+	 * (dhcp packet has chaddr[16], not [6])
+	 */
+	uint8_t lease_mac[6];
+	char hostname[20];
+	uint8_t pad[2];
+	/* total size is a multiply of 4 */
+} PACKED;
+
+extern struct dyn_lease *g_leases;
+
+struct dyn_lease *add_lease(
+		const uint8_t *chaddr, uint32_t yiaddr,
+		leasetime_t leasetime,
+		const char *hostname, int hostname_len
+		) FAST_FUNC;
+int is_expired_lease(struct dyn_lease *lease) FAST_FUNC;
+struct dyn_lease *find_lease_by_mac(const uint8_t *mac) FAST_FUNC;
+struct dyn_lease *find_lease_by_nip(uint32_t nip) FAST_FUNC;
+uint32_t find_free_or_expired_nip(const uint8_t *safe_mac) FAST_FUNC;
+
+
+/* Config file parser will pass static lease info to this function
+ * which will add it to a data structure that can be searched later */
+void add_static_lease(struct static_lease **st_lease_pp, uint8_t *mac, uint32_t nip) FAST_FUNC;
+/* Find static lease IP by mac */
+uint32_t get_static_nip_by_mac(struct static_lease *st_lease, void *arg) FAST_FUNC;
+/* Check to see if an IP is reserved as a static IP */
+int is_nip_reserved(struct static_lease *st_lease, uint32_t nip) FAST_FUNC;
+/* Print out static leases just to check what's going on (debug code) */
+#if defined CONFIG_UDHCP_DEBUG && CONFIG_UDHCP_DEBUG >= 2
+void log_static_leases(struct static_lease **st_lease_pp) FAST_FUNC;
+#else
+# define log_static_leases(st_lease_pp) ((void)0)
+#endif
+
+
+void read_config(const char *file) FAST_FUNC;
+void write_leases(void) FAST_FUNC;
+void read_leases(const char *file) FAST_FUNC;
+
+
+POP_SAVED_FUNCTION_VISIBILITY
 
 #endif

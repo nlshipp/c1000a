@@ -2,13 +2,13 @@
 These were the tests done to validate the Diffserv scripts.
 This document will be updated continously. If you do more
 thorough validation testing please post the details to the
-diffserv mailing list. 
+diffserv mailing list.
 Nevertheless, these tests should serve for basic validation.
 
 AFCBQ, EFCBQ, EFPRIO
 ----------------------
 
-generate all possible DSCPs and observe that they 
+generate all possible DSCPs and observe that they
 get sent to the proper classes. In the case of AF also
 to the correct Virtual Queues.
 
@@ -32,7 +32,7 @@ Edge31-cb-chains
 -ftp with data direction from 10.2.0.2
 
 	*observe that the metering/policing works correctly (and the marking
-	as well). In this case the mark used will be 1. 
+	as well). In this case the mark used will be 1.
 
 	Metering: The data throughput should not exceed 2*CIR1 + 2*CIR2
 	which is roughly: 5mbps
@@ -46,7 +46,7 @@ than subnet 10.2.0.0/24).
 Edge31-ca-u32
 --------------
 
-Generate data using modified tcpblast from 10.2.0.2 (behind eth2) to the 
+Generate data using modified tcpblast from 10.2.0.2 (behind eth2) to the
 discard port of 10.1.0.2 (behind eth1)
 
 1) generate with src tos = 0x88
@@ -65,7 +65,7 @@ discard port of 10.1.0.2 (behind eth1)
 	Marking: Should vary between 0x98 and 0x0
 
 4) generate with src tos any other than the above
-	Metering: Allocated throughput should not exceed CIR1 
+	Metering: Allocated throughput should not exceed CIR1
 	approximately 1.5mbps
 	Marking: Should be consistent at 0x0
 
@@ -78,9 +78,9 @@ Edge32-cb-u32, Edge32-cb-chains
 -ftp with data direction from 10.2.0.2
 
 	*observe that the metering/policing works correctly (and the marking
-	as well). 
+	as well).
 
-	Metering: 
+	Metering:
         The data throughput should not exceed 2*CIR1 + 2*CIR2
 	+ 2*PIR2 + PIR1 for u32 which is roughly: 6mbps
         The data throughput should not exceed 2*CIR1 + 5*CIR2
@@ -98,7 +98,7 @@ but the data was not remarked etc.
 Edge32-ca-u32
 --------------
 
-Generate data using modified tcpblast from 10.2.0.2 (behind eth2) to the 
+Generate data using modified tcpblast from 10.2.0.2 (behind eth2) to the
 discard port of 10.1.0.2 (behind eth1)
 
 1) generate with src tos = 0x88
@@ -117,7 +117,7 @@ discard port of 10.1.0.2 (behind eth1)
 	Marking: Should vary between 0x98 and 0x0
 
 4) generate with src tos any other than the above
-	Metering: Allocated throughput should not exceed CIR1 
+	Metering: Allocated throughput should not exceed CIR1
 	approximately 1mbps
 	Marking: Should be consistent at 0x0
 

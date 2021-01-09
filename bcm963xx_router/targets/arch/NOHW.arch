@@ -1,0 +1,13 @@
+
+@@  @@
+-BUILD_CMFAPI=dynamic
+-BUILD_CMFD=dynamic
+-BUILD_CMFCTL=dynamic
+-BRCM_DRIVER_FAP=m
+-BRCM_DRIVER_FAP_GSO=y
+-# BRCM_DRIVER_FAP_LAYER2 is not set
++# BRCM_DRIVER_FAP is not set
++# BUILD_CMFAPI is not set
++# BUILD_CMFCTL is not set 
+-BUILD_FAPCTL=y
+

@@ -3,7 +3,7 @@
  * (C) 2000 by Matthew G. Marsh <mgm@paktronix.com>
  *
  * This software is distributed under GNU GPL v2, 1991
- * 
+ *
  * ipt_FTOS.h borrowed heavily from ipt_TOS.h  11/09/2000
 */
 #ifndef _IPT_FTOS_H

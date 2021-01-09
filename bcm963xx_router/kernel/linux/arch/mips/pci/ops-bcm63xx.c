@@ -1,24 +1,27 @@
-/* 
-* <:copyright-BRCM:2011:GPL/GPL:standard
-* 
-*    Copyright (c) 2011 Broadcom Corporation
-*    All Rights Reserved
-* 
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License, version 2, as published by
-* the Free Software Foundation (the "GPL").
-* 
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-* 
-* 
-* A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-* writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* Boston, MA 02111-1307, USA.
-* 
-* :>
+/*
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:> 
 */
 #include <linux/types.h>
 #include <linux/pci.h>
@@ -80,7 +83,6 @@ uint32 pci63xx_wlan_soft_config_space[WLAN_ONCHIP_DEV_NUM][WLAN_ONCHIP_PCI_HDR_D
 	 },
 };                                      
 #endif
-
 #if (defined(CONFIG_BCM96368) || defined(CONFIG_BCM96816))
 
 static bool pci_mem_size_rd = FALSE;
@@ -120,7 +122,7 @@ static int pci63xx_int_usb_write(unsigned int devfn, int where, u32 * value, int
             }
             break;
         case 4:
-            DPRINT("W => Slot: %d Where: %2X Len: %d Data: %08lX\n",
+            DPRINT("W => Slot: %d Where: %2X Len: %d Data: %08X\n",
                 PCI_SLOT(devfn), where, size, *value);
             switch (where) {
                 case PCI_BASE_ADDRESS_0:
@@ -155,7 +157,7 @@ static int pci63xx_int_usb_read(unsigned int devfn, int where, u32 * value, int 
     switch (where) {
         case PCI_VENDOR_ID:
         case PCI_DEVICE_ID:
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
             retValue = PCI_VENDOR_ID_BROADCOM | 0x68000000;
 #else
             retValue = PCI_VENDOR_ID_BROADCOM | 0x63000000;
@@ -193,7 +195,7 @@ static int pci63xx_int_usb_read(unsigned int devfn, int where, u32 * value, int 
             retValue = PCI_VENDOR_ID_BROADCOM;
             break;
         case PCI_SUBSYSTEM_ID:
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
             retValue = 0x6800;
 #else
             retValue = 0x6300;
@@ -219,7 +221,7 @@ static int pci63xx_int_usb_read(unsigned int devfn, int where, u32 * value, int 
             break;
         case 4:
             *value = retValue;
-            DPRINT("R <= Slot: %d Where: %2X Len: %d Data: %08lX\n",
+            DPRINT("R <= Slot: %d Where: %2X Len: %d Data: %08X\n",
                 PCI_SLOT(devfn), where, size, *value);
             break;
         default:
@@ -251,7 +253,7 @@ static int pci63xx_int_usb20_write(unsigned int devfn, int where, u32 * value, i
             }
             break;
         case 4:
-            DPRINT("W => Slot: %d Where: %2X Len: %d Data: %08lX\n",
+            DPRINT("W => Slot: %d Where: %2X Len: %d Data: %08X\n",
                 PCI_SLOT(devfn), where, size, *value);
             switch (where) {
                 case PCI_BASE_ADDRESS_0:
@@ -286,7 +288,7 @@ static int pci63xx_int_usb20_read(unsigned int devfn, int where, u32 * value, in
     switch (where) {
         case PCI_VENDOR_ID:
         case PCI_DEVICE_ID:
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
             retValue = PCI_VENDOR_ID_BROADCOM | 0x68000000;
 #else
             retValue = PCI_VENDOR_ID_BROADCOM | 0x63000000;
@@ -324,7 +326,7 @@ static int pci63xx_int_usb20_read(unsigned int devfn, int where, u32 * value, in
             retValue = PCI_VENDOR_ID_BROADCOM;
             break;
         case PCI_SUBSYSTEM_ID:
-#if defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)
             retValue = 0x6800;
 #else
             retValue = 0x6300;
@@ -350,7 +352,7 @@ static int pci63xx_int_usb20_read(unsigned int devfn, int where, u32 * value, in
             break;
         case 4:
             *value = retValue;
-            DPRINT("R <= Slot: %d Where: %2X Len: %d Data: %08lX\n",
+            DPRINT("R <= Slot: %d Where: %2X Len: %d Data: %08X\n",
                 PCI_SLOT(devfn), where, size, *value);
             break;
         default:
@@ -361,7 +363,7 @@ static int pci63xx_int_usb20_read(unsigned int devfn, int where, u32 * value, in
 }
 #endif
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) 
 /* --------------------------------------------------------------------------
     Name: pci63xx_wlan_pci_write
     Abstract: PCI Config write on internal device(s)
@@ -427,12 +429,14 @@ static int pci63xx_wlan_pci_read(unsigned int devfn, int where, u32 * val, int s
              /* Special case for reading PCI device range */
             if ((where >= PCI_BASE_ADDRESS_0) && (where <= PCI_BASE_ADDRESS_5)) {
                 if (data == 0xffffffff) {
-                	if (where == PCI_BASE_ADDRESS_0)
-                		*val = 0xFFFF0000;//PCI_SIZE_64K;
-                	else 
-                		*val = 0;
+                    if (where == PCI_BASE_ADDRESS_0)
+                        *val = 0xffffe000;/* PCI_SIZE_8K */
+                    else 
+                        *val = 0xffffffff;
                 }
             }
+            if(where == PCI_ROM_ADDRESS)
+                *val = 0xffffffff;
             break;
         default:
             break;
@@ -455,7 +459,7 @@ int bcm63xx_pcibios_read(struct pci_bus *bus, unsigned int devfn,
         return pci63xx_int_usb20_read(devfn, where, val, size);
 #endif
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) 
     if (PCI_SLOT(devfn) == WLAN_ONCHIP_DEV_SLOT)
        	return pci63xx_wlan_pci_read(devfn, where, val, size);
 #endif
@@ -564,32 +568,38 @@ struct pci_ops bcm63xx_pci_ops = {
 };
 
 
-#if defined(CONFIG_BCM96816) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM963268)
+#if defined(PCIEH)
 /* supported external PCIE devices */
 enum pcie_device_supported {UNSPECIFIED, SWITCH_8232104c};
 #define PCIID_SWITCH_8232104c  0x8232104c
 /* supported devices */
-enum pcie_device_supported device_detected = UNSPECIFIED;
+enum pcie_device_supported first_device_detected = UNSPECIFIED;
 
-/* check supported devices */
-static void bcm63xx_pcie_detect_device(void)
+/* check supported devices, setup config properly before calling */
+static u32 bcm63xx_pcie_detect_first_device(void)
 {	
-	u32 devid;
+    u32 devid;
 	
-	devid = *(u32*)(((u8*)PCIEH)+PCIEH_DEV_OFFSET);
+    devid = *(u32*)(((u8*)PCIEH)+PCIEH_DEV_OFFSET);
 
-	if(devid == PCIID_SWITCH_8232104c) {
-		device_detected = SWITCH_8232104c;
-	} 	  
-	return;
+    switch(devid) {
+        case PCIID_SWITCH_8232104c:
+            first_device_detected = SWITCH_8232104c;
+            break;
+        default:
+            first_device_detected = UNSPECIFIED;
+    }
+
+    return devid;
 }
+
 static inline u32 CFGOFFSET(u32 bus, u32 devfn, u32 where)
 {
     if(bus == BCM_BUS_PCIE_ROOT ) {
         /* access offset 0 */
         return where;
     } else {
-        /* access offset 0x8000*/
+        /* access offset */
         return PCIEH_DEV_OFFSET|where;
     }
 }
@@ -598,29 +608,35 @@ static inline u32 CFGOFFSET(u32 bus, u32 devfn, u32 where)
 
 static inline u32 READCFG32(u32 addr)
 {
-    DPRINT("pcie_reading addr(0x%x) = 0x%x\n", (((u8*)PCIEH) + (addr&~3)),*(u32 *)(((u8*)PCIEH) + (addr&~3)));
+    DPRINT("pcie_reading addr(0x%x) = 0x%x\n", (unsigned int)(((u8*)PCIEH) + (addr&~3)),*(u32*)(((u8*)PCIEH) + (addr&~3)));
     return *(u32 *)(((u8*)PCIEH) + (addr&~3));
 }
 
 static inline void WRITECFG32(u32 addr, u32 data)
 {
-    DPRINT("pcie_writing addr(0x%x) = 0x%x\n", (((u8*)PCIEH) + (addr & ~3)), data);
+    DPRINT("pcie_writing addr(0x%x) = 0x%x\n", (unsigned int)(((u8*)PCIEH) + (addr & ~3)), data);
     *(u32 *)(((u8*)PCIEH) + (addr & ~3)) = data;
 }
 
-static void  pci63xx_pcie_config_select(struct pci_bus *bus, int devfn)
+static void pci63xx_pcie_config_select_by_numbers(u32 bus_no, u32 dev_no, u32 func_no)
 {
     /* set device bus/func/func */
-    
+#if defined(UBUS2_PCIE)
+    /* disable data bus error for enumeration */
+    //PCIEH_MISC_REGS->misc_ctrl |= PCIE_MISC_CTRL_CFG_READ_UR_MODE;
+    PCIEH_PCIE_EXT_CFG_REGS->index = ((bus_no<<PCIE_EXT_CFG_BUS_NUM_SHIFT)|(dev_no <<PCIE_EXT_CFG_DEV_NUM_SHIFT)|(func_no<<PCIE_EXT_CFG_FUNC_NUM_SHIFT));
+    DPRINT("PCIEH_PCIE_EXT_CFG_REGS->index(%d/%d/%d) = 0x%x\n", bus_no, dev_no, func_no, (unsigned int) PCIEH_PCIE_EXT_CFG_REGS->index );
+#else    
     PCIEH_BRIDGE_REGS->bridgeOptReg2 &= ~(PCIE_BRIDGE_OPT_REG2_cfg_type1_bus_no_MASK |
     		PCIE_BRIDGE_OPT_REG2_cfg_type1_dev_no_MASK|PCIE_BRIDGE_OPT_REG2_cfg_type1_func_no_MASK);
      
-    PCIEH_BRIDGE_REGS->bridgeOptReg2 |= ((bus->number<<PCIE_BRIDGE_OPT_REG2_cfg_type1_bus_no_SHIFT) |
-    		((PCI_SLOT(devfn))<<PCIE_BRIDGE_OPT_REG2_cfg_type1_dev_no_SHIFT) |
-    		((PCI_FUNC(devfn))<<PCIE_BRIDGE_OPT_REG2_cfg_type1_func_no_SHIFT) |
+    PCIEH_BRIDGE_REGS->bridgeOptReg2 |= ((bus_no<<PCIE_BRIDGE_OPT_REG2_cfg_type1_bus_no_SHIFT) |
+    		(dev_no<<PCIE_BRIDGE_OPT_REG2_cfg_type1_dev_no_SHIFT) |
+    		(func_no<<PCIE_BRIDGE_OPT_REG2_cfg_type1_func_no_SHIFT) |
         PCIE_BRIDGE_OPT_REG2_cfg_type1_bd_sel_MASK );
+    DPRINT("PCIEH_BRIDGE_REGS->bridgeOptReg2 = 0x%x\n", (unsigned int) PCIEH_BRIDGE_REGS->bridgeOptReg2 );
+#endif
 
-		DPRINT("PCIEH_BRIDGE_REGS->bridgeOptReg2 = 0x%x\n", (unsigned int) PCIEH_BRIDGE_REGS->bridgeOptReg2 );
 }
 
 /* this is the topology of deviceid/vendorid 0x8232104c 
@@ -630,51 +646,56 @@ static void  pci63xx_pcie_config_select(struct pci_bus *bus, int devfn)
     |--- (DS #1, bus N+1) --- Dev #1 (bus N+3)
     |--- (DS #2, bus N+1) --- Dev #2 (bus N+4)
 */
-static int pci63xx_pcie_can_access_switch8232104c(struct pci_bus *bus, int devfn)
+static int pci63xx_pcie_can_access_switch8232104c_by_numbers(u32 bus_no, u32 dev_no, u32 func_no)
 {
-  u32 devno;	
-  devno = PCI_SLOT(devfn);	
-
-  /* disable data bus error for enumeration */
-	PCIEH_BRIDGE_REGS->bridgeOptReg2 |= (PCIE_BRIDGE_OPT_REG2_dis_pcie_abort_MASK );
+    
+    /* disable data bus error for enumeration */
+#if defined(UBUS2_PCIE)	
+    PCIEH_MISC_REGS->misc_ctrl |= PCIE_MISC_CTRL_CFG_READ_UR_MODE;
+#else
+    PCIEH_BRIDGE_REGS->bridgeOptReg2 |= (PCIE_BRIDGE_OPT_REG2_dis_pcie_abort_MASK );
+#endif
 																					
-  if ((bus->number == BCM_BUS_PCIE_DEVICE + 1) && (devno <= 2)) {
-		return TRUE;
-  } else if ((bus->number >= BCM_BUS_PCIE_DEVICE + 2 ) && (bus->number <= BCM_BUS_PCIE_DEVICE + 4)) {
-  	/*support single function device*/
-    return (devno == 0); 
-  }       
-    return FALSE;
-	
+    if ((bus_no == BCM_BUS_PCIE_DEVICE + 1) && (dev_no <= 2)) {
+        return TRUE;
+    } else if ((bus_no >= BCM_BUS_PCIE_DEVICE + 2 ) && (bus_no <= BCM_BUS_PCIE_DEVICE + 4)) {
+    /*support single function device*/
+        return (dev_no == 0); 
+    }
+    return FALSE;	
 }
-static int pci63xx_pcie_can_access(struct pci_bus *bus, int devfn)
+
+
+static int pci63xx_pcie_can_access_by_numbers(u32 bus_no, u32 dev_no, u32 func_no)
 {
-    u32 devno;
-
-    devno = PCI_SLOT(devfn);
-
+		
     /* select device */
-    pci63xx_pcie_config_select(bus, devfn);
-      
-    if (bus->number == BCM_BUS_PCIE_ROOT ) {
-        /* bridge */
-        return (devno == 0); /*otherwise will loop for the rest of the device*/
+    pci63xx_pcie_config_select_by_numbers(bus_no, dev_no, func_no);
 
-    } else if (bus->number == BCM_BUS_PCIE_DEVICE) {
+    if (bus_no == BCM_BUS_PCIE_ROOT ) {
+        /* bridge */
+        return (dev_no == 0); /*otherwise will loop for the rest of the device*/
+    } else if (bus_no == BCM_BUS_PCIE_DEVICE) {
         /* upstream port or end device */
         /* check link up*/
         if(!(PCIEH_BLK_1000_REGS->dlStatus&PCIE_IP_BLK1000_DL_STATUS_PHYLINKUP_MASK)) {
             return 0;
         }
-        bcm63xx_pcie_detect_device();	    		   
+        bcm63xx_pcie_detect_first_device();
 
-       	return (devno == 0); /*otherwise will loop for the rest of the device*/
-    } else {
-        if(device_detected == SWITCH_8232104c)
-            return pci63xx_pcie_can_access_switch8232104c(bus, devfn);
+       	return (dev_no == 0); /*otherwise will loop for the rest of the device*/
+    } else { 	
+        if(first_device_detected == SWITCH_8232104c)
+            return pci63xx_pcie_can_access_switch8232104c_by_numbers(bus_no, dev_no, func_no);
     }
 	    
-    return 0;         
+    return 0;      	
+	
+}
+
+static int pci63xx_pcie_can_access(struct pci_bus *bus, int devfn)
+{
+    return pci63xx_pcie_can_access_by_numbers(bus->number,PCI_SLOT(devfn), PCI_FUNC(devfn));     
 }
 
 static int bcm63xx_pciebios_read(struct pci_bus *bus, unsigned int devfn,
@@ -744,6 +765,25 @@ static int bcm63xx_pciebios_write(struct pci_bus *bus, unsigned int devfn,
     return PCIBIOS_SUCCESSFUL;
 
 }
+
+#if 0
+bool bcm63xx_pcie_early_detect_ext_bridge(void)
+{
+    u32 cfgaddr;
+	
+    /* setup bus numbers on the headers */
+    cfgaddr = CFGOFFSET(BCM_BUS_PCIE_ROOT, 0, PCI_PRIMARY_BUS);	
+    WRITECFG32(cfgaddr, 0xff<<16 |(BCM_BUS_PCIE_DEVICE<<8)| BCM_BUS_PCIE_ROOT);
+	
+    /* setup chip access */
+    if (pci63xx_pcie_can_access_by_numbers(BCM_BUS_PCIE_DEVICE, 0, 0)) {
+        bcm63xx_pcie_detect_first_device();  			
+        if(first_device_detected != UNSPECIFIED)
+        return TRUE;
+    }
+    return FALSE;
+}
+#endif
 
 struct pci_ops bcm63xx_pcie_ops = {
     .read   = bcm63xx_pciebios_read,

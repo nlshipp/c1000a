@@ -35,7 +35,7 @@
 #define SQUASHFS_ALLOC(a)		kmalloc(a, GFP_KERNEL)
 #define SQUASHFS_FREE(a)		kfree(a)
 #endif
-#define SQUASHFS_CACHED_FRAGMENTS	CONFIG_SQUASHFS_FRAGMENT_CACHE_SIZE	
+#define SQUASHFS_CACHED_FRAGMENTS	CONFIG_SQUASHFS_FRAGMENT_CACHE_SIZE
 #define SQUASHFS_MAJOR			3
 #define SQUASHFS_MINOR			0
 #define SQUASHFS_MAGIC			0x73717368
@@ -287,7 +287,7 @@ struct squashfs_dev_inode_header {
 	unsigned int		nlink;
 	unsigned short		rdev;
 } __attribute__ ((packed));
-	
+
 struct squashfs_symlink_inode_header {
 	SQUASHFS_BASE_INODE_HEADER;
 	unsigned int		nlink;
@@ -344,7 +344,7 @@ union squashfs_inode_header {
 	struct squashfs_ldir_inode_header	ldir;
 	struct squashfs_ipc_inode_header	ipc;
 };
-	
+
 struct squashfs_dir_entry {
 	unsigned int		offset:13;
 	unsigned int		type:3;
@@ -597,7 +597,7 @@ struct squashfs_dev_inode_header_1 {
 	unsigned int		guid:4; /* index into guid table */
 	unsigned short		rdev;
 } __attribute__ ((packed));
-	
+
 struct squashfs_symlink_inode_header_1 {
 	unsigned int		inode_type:4;
 	unsigned int		mode:12; /* protection */
@@ -714,7 +714,7 @@ struct squashfs_dev_inode_header_2 {
 	unsigned int		guid:8; /* index into guid table */
 	unsigned short		rdev;
 } __attribute__ ((packed));
-	
+
 struct squashfs_symlink_inode_header_2 {
 	unsigned int		inode_type:4;
 	unsigned int		mode:12; /* protection */
@@ -770,7 +770,7 @@ union squashfs_inode_header_2 {
 	struct squashfs_ldir_inode_header_2	ldir;
 	struct squashfs_ipc_inode_header_2	ipc;
 };
-	
+
 struct squashfs_dir_header_2 {
 	unsigned int		count:8;
 	unsigned int		start_block:24;
@@ -913,7 +913,7 @@ struct squashfs_fragment_entry_2 {
 #define SQUASHFS_SWAP(value, p, pos, tbits) _SQUASHFS_SWAP(value, p, pos, \
 		tbits, b_pos)
 #else
-	/* convert from big endian to little endian */ 
+	/* convert from big endian to little endian */
 #define SQUASHFS_SWAP(value, p, pos, tbits) _SQUASHFS_SWAP(value, p, pos, \
 		tbits, 64 - tbits - b_pos)
 #endif

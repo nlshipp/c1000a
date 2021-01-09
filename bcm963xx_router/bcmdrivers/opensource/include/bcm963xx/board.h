@@ -35,7 +35,11 @@ Boston, MA 02111-1307, USA.
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define BOARD_H_API_VER 1
+
+/* BOARD_H_API_VER increases when other modules (such as PHY) depend on */
+/* a new function in the board driver or in boardparms.h                */
+
+#define BOARD_H_API_VER 3
 
 /*****************************************************************************/
 /*          board ioctl calls for flash, led and some other utilities        */
@@ -77,50 +81,94 @@ extern "C" {
 #define BOARD_IOCTL_SET_STANDBY_TIMER           _IOWR(BOARD_IOCTL_MAGIC, 31, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_BOOT_IMAGE_OPERATION        _IOWR(BOARD_IOCTL_MAGIC, 32, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_TIMEMS                  _IOWR(BOARD_IOCTL_MAGIC, 33, BOARD_IOCTL_PARMS)
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-#define BOARD_IOCTL_GET_GPON_OPTICS_TYPE        _IOWR(BOARD_IOCTL_MAGIC, 47, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_GET_DEFAULT_OPTICAL_PARAMS  _IOWR(BOARD_IOCTL_MAGIC, 48, BOARD_IOCTL_PARMS)
-#else
 #define BOARD_IOCTL_GET_GPON_OPTICS_TYPE        _IOWR(BOARD_IOCTL_MAGIC, 34, BOARD_IOCTL_PARMS)
 #define BOARD_IOCTL_GET_DEFAULT_OPTICAL_PARAMS  _IOWR(BOARD_IOCTL_MAGIC, 35, BOARD_IOCTL_PARMS)
-#endif
+#define BOARD_IOCTL_ALLOC_MAC_ADDRESSES         _IOWR(BOARD_IOCTL_MAGIC, 36, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_RELEASE_MAC_ADDRESSES       _IOWR(BOARD_IOCTL_MAGIC, 37, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SPI_SLAVE_INIT              _IOWR(BOARD_IOCTL_MAGIC, 38, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SPI_SLAVE_READ              _IOWR(BOARD_IOCTL_MAGIC, 39, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SPI_SLAVE_WRITE             _IOWR(BOARD_IOCTL_MAGIC, 40, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_NUM_FE_PORTS            _IOWR(BOARD_IOCTL_MAGIC, 41, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_NUM_GE_PORTS            _IOWR(BOARD_IOCTL_MAGIC, 42, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_NUM_VOIP_PORTS          _IOWR(BOARD_IOCTL_MAGIC, 43, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_SWITCH_PORT_MAP         _IOWR(BOARD_IOCTL_MAGIC, 44, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_PERS_NAME               _IOWR(BOARD_IOCTL_MAGIC, 45, BOARD_IOCTL_PARMS)
+
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-#define BOARD_IOCTL_GET_SN              _IOWR(BOARD_IOCTL_MAGIC, 34, BOARD_IOCTL_PARMS)    
-#define BOARD_IOCTL_POWER_LED_ON        _IOWR(BOARD_IOCTL_MAGIC, 35, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_POWER_LED_FLASH     _IOWR(BOARD_IOCTL_MAGIC, 36, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_GET_FW_VERSION      _IOWR(BOARD_IOCTL_MAGIC, 37, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_RESET_FW_VERSION    _IOWR(BOARD_IOCTL_MAGIC, 38, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_SET_FW_VERSION      _IOWR(BOARD_IOCTL_MAGIC, 39, BOARD_IOCTL_PARMS)
+#define BASE_AEI_IOCPRIVATE	50
+#define BOARD_IOCTL_GET_SN              _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 1, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_POWER_LED_ON        _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 2, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_POWER_LED_FLASH     _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 3, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_FW_VERSION      _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 4, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_RESET_FW_VERSION    _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 5, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SET_FW_VERSION      _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 6, BOARD_IOCTL_PARMS)
 
 #if defined(AEI_VDSL_SMARTLED)
-#define BOARD_IOCTL_SET_INET            _IOWR(BOARD_IOCTL_MAGIC, 40, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_SET_INET_TRAFFIC_BLINK _IOWR(BOARD_IOCTL_MAGIC, 41, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SET_INET            _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 7, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SET_INET_TRAFFIC_BLINK _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 8, BOARD_IOCTL_PARMS)
+#endif
+#if defined(AEI_CONFIG_JFFS) || defined(AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD)
+#define BOARD_IOCTL_GET_DUAL_FW_VERSION _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 9, BOARD_IOCTL_PARMS)
+#endif
+#ifdef AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
+#define BOARD_IOCTL_GET_DUAL_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 10, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SET_DUAL_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 11, BOARD_IOCTL_PARMS)
+#else
+#define BOARD_IOCTL_GET_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 10, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_SET_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 11, BOARD_IOCTL_PARMS)
+#endif
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+#define BOARD_IOCTL_GET_PRODUCTID _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 12, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_FS_OFFSET _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 13, BOARD_IOCTL_PARMS)
 #endif
 
-#ifdef AEI_VDSL_UPGRADE_DUALIMG_HISTORY_SPAD
-#define BOARD_IOCTL_GET_DUAL_FW_VERSION _IOWR(BOARD_IOCTL_MAGIC, 42, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_GET_DUAL_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, 43, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_SET_DUAL_UG_INFO _IOWR(BOARD_IOCTL_MAGIC, 44, BOARD_IOCTL_PARMS)
-#endif
-#if defined(AEI_SIGNED_FIRMWARE)
-#define BOARD_IOCTL_GET_PRODUCTID _IOWR(BOARD_IOCTL_MAGIC, 45, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_GET_FS_OFFSET _IOWR(BOARD_IOCTL_MAGIC, 46, BOARD_IOCTL_PARMS)
-#endif   
-#define BOARD_IOCTL_SET_WLANLEDMODE _IOWR(BOARD_IOCTL_MAGIC, 53, BOARD_IOCTL_PARMS)
-#define BOARD_IOCTL_GET_WLANLEDMODE _IOWR(BOARD_IOCTL_MAGIC, 54, BOARD_IOCTL_PARMS)
-#endif
-#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) 
-#define BOARD_IOCTL_GET_POWERLED_STATUS  _IOWR(BOARD_IOCTL_MAGIC, 50, BOARD_IOCTL_PARMS) 
-#define BOARD_IOCTL_GET_FLASH_TOTAL  _IOWR(BOARD_IOCTL_MAGIC, 51, BOARD_IOCTL_PARMS) 
-#define BOARD_IOCTL_GET_FLASH_USED  _IOWR(BOARD_IOCTL_MAGIC, 52, BOARD_IOCTL_PARMS)
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#define BOARD_IOCTL_GET_POWERLED_STATUS  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 14, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_FLASH_TOTAL  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 15, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_FLASH_USED  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 16, BOARD_IOCTL_PARMS)
+
+#define BOARD_IOCTL_SET_WLANLEDMODE _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+17, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_GET_WLANLEDMODE _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+18, BOARD_IOCTL_PARMS)
+#define AEI_BOARD_IOCTL_WIRELESS_REDLED    _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+19, BOARD_IOCTL_PARMS)
+
 #endif
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
-#define BOARD_IOCTL_PARTITION_WRITE  _IOWR(BOARD_IOCTL_MAGIC, 55, BOARD_IOCTL_PARMS)
+#define BOARD_IOCTL_PARTITION_WRITE  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE+20, BOARD_IOCTL_PARMS)
+#endif
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+#define BOARD_IOCTL_ADJUST_NVRAM      _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 21, BOARD_IOCTL_PARMS)
+#endif
+#endif
+#if defined(AEI_VDSL_DEBUG_NVRAM)
+#define BOARD_IOCTL_PRINT_NVRAM 	  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 25, BOARD_IOCTL_PARMS)
+#endif
+#if defined(AEI_VOIP_LED)
+#define AEI_BOARD_IOCTL_VOIP_LED _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 22, BOARD_IOCTL_PARMS)
+#endif
+#if defined(AEI_VDSL_CHECK_FLASH_ID)
+#define AEI_BOARD_IOCTL_GET_NAND_FLASH_ID  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 23, BOARD_IOCTL_PARMS)
 #endif
 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#define AEI_BOARD_IOCTL_SET_WAN_TYPE  _IOWR(BOARD_IOCTL_MAGIC, BASE_AEI_IOCPRIVATE + 24, BOARD_IOCTL_PARMS)
+#endif
 
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+typedef enum
+{
+    AEI_BOARD_UNKNOWN,
+    AEI_BOARD_C1000A,
+    AEI_BOARD_C1000B,
+    AEI_BOARD_C2000A,
+    AEI_BOARD_V1000H,
+    AEI_BOARD_V2000H,
+    AEI_BOARD_V1000W,
+    AEI_BOARD_R1000H,
+    AEI_BOARD_FV2200,
+    AEI_BOARD_V2200H,
+    AEI_BOARD_END
+} AEI_BOARD_ID;
 
-#if defined(AEI_VDSL_CUSTOMER_NCS) 
 #define BP_ACTIVE_HIGH                          0x0000
 #define BP_ACTIVE_LOW                           0x8000
 
@@ -139,7 +187,18 @@ extern "C" {
 #endif
 #endif // AEI_VDSL_CUSTOMER_NCS
 
-    
+
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+typedef enum
+{
+    AEI_WAN_NONE,
+    AEI_WAN_XDSL,
+    AEI_WAN_ETHERNET,
+    AEI_WAN_END
+} AEI_WAN_TYPE;
+#endif
+
 // for the action in BOARD_IOCTL_PARMS for flash operation
 typedef enum 
 {
@@ -153,7 +212,12 @@ typedef enum
     FLASH_SIZE,
     SET_CS_PARAM,
     BACKUP_PSI,
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    SYSLOG,
+    SYSLOGONREBOOT
+#else
     SYSLOG
+#endif
 } BOARD_IOCTL_ACTION;
     
 typedef struct boardIoctParms
@@ -189,6 +253,15 @@ typedef enum
 #if defined(AEI_VDSL_CUSTOMER_NCS)
     kLedUsb,
     kLedPower,
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    AEI_kLedWlan,
+    AEI_kLedWlanAct,
+    AEI_kLedWlanGreen,
+    AEI_kLedWlanRed,
+#endif
+#if defined(AEI_63168_CHIP)
+    kLedEnetWan,
+#endif
 #endif
     kLedEnd                             // NOTE: Insert the new led name before this one.
 } BOARD_LED_NAME;
@@ -204,17 +277,21 @@ typedef enum
 #endif
     kLedStateSlowBlinkContinues,         /* slow blink continues at 2HZ interval */
     kLedStateFastBlinkContinues,         /* fast blink continues at 4HZ interval */
+#if defined(AEI_VOIP_LED)
+    kLedStateAmberBlinkContinues,
+    kLedStateMWIBlinkContinues,
+#endif
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
     kLedStateAmberSlowBlinkContinues,
     kLedStateAmberAndGreenSlowBlinkContinues,
 #endif
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_VDSL_CUSTOMER_BELLALIANT)
-    kLedStateUserWANGreenRedVerySlowBlinkContinues, /*rotate between green and red in a 1 second on/off interval*/   
-    kLedStatePowerOneSecondBlinkContinues,          /*rotate between green and off in a 1 second on/off interva*/ 
+    kLedStateUserWANGreenRedVerySlowBlinkContinues, /*rotate between green and red in a 1 second on/off interval*/
+    kLedStatePowerOneSecondBlinkContinues,          /*rotate between green and off in a 1 second on/off interva*/
 #endif
     kLedStateUserWpsInProgress,          /* 200ms on, 100ms off */
     kLedStateUserWpsError,               /* 100ms on, 100ms off */
-    kLedStateUserWpsSessionOverLap       /* 100ms on, 100ms off, 5 times, off for 500ms */
+    kLedStateUserWpsSessionOverLap       /* 100ms on, 100ms off, 5 times, off for 500ms */                     
 } BOARD_LED_STATE;
 
 typedef void (*HANDLE_LED_FUNC)(BOARD_LED_STATE ledState);
@@ -238,6 +315,15 @@ typedef struct cs_config_pars_tag
   int   hold_time;
 } cs_config_pars_t;
 
+typedef enum
+{
+    MAC_ADDRESS_OP_GET=0,
+    MAC_ADDRESS_OP_RELEASE,
+    MAC_ADDRESS_OP_MAX
+} MAC_ADDRESS_OPERATION;
+
+typedef void (* kerSysMacAddressNotifyHook_t)(unsigned char *pucaMacAddr, MAC_ADDRESS_OPERATION op);
+
 #define UBUS_BASE_FREQUENCY_IN_MHZ  160
 
 #define IF_NAME_ETH    "eth"
@@ -259,7 +345,9 @@ typedef struct cs_config_pars_tag
  *     bit 12-19: the connection id which starts from 1.
  *     bit 0-11:  not used. should be zero.
  */
- #define MAC_ADDRESS_EPON        0x40000000
+#define MAC_ADDRESS_PLC         0x10000000
+#define MAC_ADDRESS_EPONONU     0x20000000
+#define MAC_ADDRESS_EPON        0x40000000
 #define MAC_ADDRESS_GPON        0x80000000
 #define MAC_ADDRESS_ETH         0xA0000000
 #define MAC_ADDRESS_USB         0xB0000000
@@ -267,6 +355,12 @@ typedef struct cs_config_pars_tag
 #define MAC_ADDRESS_MOCA        0xD0000000
 #define MAC_ADDRESS_ATM         0xE0000000
 #define MAC_ADDRESS_PTM         0xF0000000
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+#define AEI_MAC_ADDRESS_TYPE_MASK 0xF0000000
+#define AEI_MAC_ADDRESS_NUM_MASK  0x0FF00000  /*It is used for atmX now*/
+#define AEI_MAC_ADDRESS_ID_MASK   0x000FF000  /*It is used for ewan0.X or ptm0.X now*/
+#endif
 
 /*****************************************************************************/
 /*          Function Prototypes                                              */
@@ -276,6 +370,7 @@ void dumpaddr( unsigned char *pAddr, int nLen );
 
 extern void kerSysEarlyFlashInit( void );
 extern int kerSysGetChipId( void );
+char * kerSysGetChipName( char *buf, int len);
 extern int kerSysGetDslPhyEnable( void );
 extern void kerSysFlashInit( void );
 extern void kerSysFlashAddrInfoGet(PFLASH_ADDR_INFO pflash_addr_info);
@@ -290,6 +385,7 @@ extern void kerSysNvRamGetBoardIdLocked(char *boardId);
 extern void kerSysNvRamGetBaseMacAddr(unsigned char *baseMacAddr);
 extern unsigned long kerSysNvRamGetVersion(void);
 
+extern int kerSysFsFileSet(const char *filename, char *buf, int len);
 extern int kerSysPersistentGet(char *string, int strLen, int offset);
 extern int kerSysPersistentSet(char *string, int strLen, int offset);
 extern int kerSysBackupPsiGet(char *string, int strLen, int offset);
@@ -305,11 +401,18 @@ extern int kerClearScratchPad(int blk_size);
 extern int kerSysScratchPadClearAll(void);
 extern int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
     int should_yield);
+extern int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
+    int should_yield );
 extern int kerSysSetBootImageState( int state );
 extern int kerSysGetBootImageState( void );
+extern int kerSysSetOpticalPowerValues(unsigned short rxReading, unsigned short rxOffset, 
+    unsigned short txReading);
+extern int kerSysGetOpticalPowerValues(unsigned short *prxReading, unsigned short *prxOffset, 
+    unsigned short *ptxReading);
 extern int kerSysBlParmsGetInt( char *name, int *pvalue );
 extern int kerSysBlParmsGetStr( char *name, char *pvalue, int size );
 extern unsigned long kerSysGetMacAddressType( unsigned char *ifName );
+extern int kerSysMacAddressNotifyBind(kerSysMacAddressNotifyHook_t hook);
 extern int kerSysGetMacAddress( unsigned char *pucaAddr, unsigned long ulId );
 extern int kerSysReleaseMacAddress( unsigned char *pucaAddr );
 extern void kerSysGetGponSerialNumber( unsigned char *pGponSerialNumber);
@@ -328,6 +431,10 @@ extern unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr, 
 extern void kerSysRegisterDyingGaspHandler(char *devname, void *cbfn, void *context);
 extern void kerSysDeregisterDyingGaspHandler(char *devname);    
 extern int kerConfigCs(BOARD_IOCTL_PARMS *parms);
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+extern int AEI_getCurrentUpWanType(void);
+#endif
 
 /* private functions used within board driver only */
 void stopOtherCpu(void);
@@ -348,20 +455,21 @@ extern void kerSysSetGpioState(unsigned short bpGpio, GPIO_STATE_t state);
 extern void kerSysSetGpioStateLocked(unsigned short bpGpio, GPIO_STATE_t state);
 extern void kerSysSetGpioDir(unsigned short bpGpio);
 extern void kerSysSetGpioDirLocked(unsigned short bpGpio);
+extern int kerSysSetGpioDirInput(unsigned bpGpio);
+extern int kerSysGetGpioValue(unsigned bpGpio);
+
+
 // for the voice code, which has too many kernSysSetGpio to change
 #define kerSysSetGpio kerSysSetGpioState
 
 
 extern unsigned long kerSysGetUbusFreq(unsigned long miscStrapBus);
-extern int kerSysBcmSpiSlaveRead(unsigned long addr, unsigned long * data, unsigned long len);
-extern int kerSysBcmSpiSlaveReadNoSched(unsigned long addr, unsigned long * data, unsigned long len);
-extern unsigned long kerSysBcmSpiSlaveReadReg32(unsigned long addr);
-extern int kerSysBcmSpiSlaveWrite(unsigned long addr, unsigned long data, unsigned long len);
-extern int kerSysBcmSpiSlaveWriteNoSched(unsigned long addr, unsigned long data, unsigned long len);
-extern void kerSysBcmSpiSlaveWriteReg32(unsigned long addr, unsigned long data);
-extern int kerSysBcmSpiSlaveWriteBuf(unsigned long addr, unsigned long *data, unsigned long len, unsigned int unitSize);
 extern int kerSysGetAfeId( unsigned long *afeId );
-#define __kerSysGetAfeId	kerSysGetAfeId
+#define __kerSysGetAfeId  kerSysGetAfeId
+
+typedef void (*MocaHostIntrCallback)(void);
+extern void kerSysRegisterMocaHostIntrCallback(MocaHostIntrCallback callback);
+
 
 #if defined(CONFIG_BCM_CPLD1)
 int BcmCpld1Initialize(void);
@@ -375,7 +483,7 @@ extern void kerSysBcmEnableAvs(int enable);
 extern int kerSysBcmAvsEnabled(void);
 #endif
 
-#if defined(CONFIG_BCM_HOSTMIPS_PWRSAVE)
+#if defined(CONFIG_BCM_DDR_SELF_REFRESH_PWRSAVE)
 #define CONFIG_BCM_PWRMNGT_DDR_SR_API
 // The structure below is to be declared in ADSL PHY MIPS LMEM, if ADSL is compiled in
 typedef struct _PWRMNGT_DDR_SR_CTRL_ {
@@ -415,6 +523,9 @@ extern int kerSysGetBoardID(unsigned char *boardid);
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
 extern int AEI_kerSysBcmImageSet( int partition, char *string, int img_size );
 #endif
-
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A_ONLY)
+extern int  CPURevId;
+extern char CPUSerialNumber[32];
+#endif
 #endif /* _BOARD_H */
 

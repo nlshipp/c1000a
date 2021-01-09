@@ -140,7 +140,7 @@ static int ipaddrlabel_modify(int cmd, int argc, char **argv)
 	inet_prefix prefix;
 	uint32_t label = 0xffffffffUL;
 	char *p = NULL;
-	char *l = NULL;        
+	char *l = NULL;
 
 	memset(&req, 0, sizeof(req));
 	memset(&prefix, 0, sizeof(prefix));
@@ -271,4 +271,3 @@ int do_ipaddrlabel(int argc, char **argv)
 	fprintf(stderr, "Command \"%s\" is unknown, try \"ip addrlabel help\".\n", *argv);
 	exit(-1);
 }
-

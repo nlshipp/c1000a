@@ -70,9 +70,9 @@ $as_expr X/"$0" : '.*/\([^/][^/]*\)/*$' \| \
 	 .     : '\(.\)' 2>/dev/null ||
 echo X/"$0" |
     sed '/^.*\/\([^/][^/]*\)\/*$/{ s//\1/; q; }
-  	  /^X\/\(\/\/\)$/{ s//\1/; q; }
-  	  /^X\/\(\/\).*/{ s//\1/; q; }
-  	  s/.*/./; q'`
+	  /^X\/\(\/\/\)$/{ s//\1/; q; }
+	  /^X\/\(\/\).*/{ s//\1/; q; }
+	  s/.*/./; q'`
 
 
 # PATH needs CR, and LINENO needs CR and PATH.
@@ -714,10 +714,10 @@ $as_expr X"$0" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
 	 .     : '\(.\)' 2>/dev/null ||
 echo X"$0" |
     sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{ s//\1/; q; }
-  	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
-  	  /^X\(\/\/\)$/{ s//\1/; q; }
-  	  /^X\(\/\).*/{ s//\1/; q; }
-  	  s/.*/./; q'`
+	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
+	  /^X\(\/\/\)$/{ s//\1/; q; }
+	  /^X\(\/\).*/{ s//\1/; q; }
+	  s/.*/./; q'`
   srcdir=$ac_confdir
   if test ! -r $srcdir/$ac_unique_file; then
     srcdir=..
@@ -5687,7 +5687,7 @@ echo "$as_me:$LINENO: result: $result" >&5
 echo "${ECHO_T}$result" >&6
 case $result in
 yes)	tailq_foreach=yes
- 	;;
+	;;
 *)	tailq_foreach=no
 	;;
 esac
@@ -6221,9 +6221,9 @@ $as_expr X/"$0" : '.*/\([^/][^/]*\)/*$' \| \
 	 .     : '\(.\)' 2>/dev/null ||
 echo X/"$0" |
     sed '/^.*\/\([^/][^/]*\)\/*$/{ s//\1/; q; }
-  	  /^X\/\(\/\/\)$/{ s//\1/; q; }
-  	  /^X\/\(\/\).*/{ s//\1/; q; }
-  	  s/.*/./; q'`
+	  /^X\/\(\/\/\)$/{ s//\1/; q; }
+	  /^X\/\(\/\).*/{ s//\1/; q; }
+	  s/.*/./; q'`
 
 
 # PATH needs CR, and LINENO needs CR and PATH.
@@ -6737,10 +6737,10 @@ $as_expr X"$ac_file" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
 	 .     : '\(.\)' 2>/dev/null ||
 echo X"$ac_file" |
     sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{ s//\1/; q; }
-  	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
-  	  /^X\(\/\/\)$/{ s//\1/; q; }
-  	  /^X\(\/\).*/{ s//\1/; q; }
-  	  s/.*/./; q'`
+	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
+	  /^X\(\/\/\)$/{ s//\1/; q; }
+	  /^X\(\/\).*/{ s//\1/; q; }
+	  s/.*/./; q'`
   { if $as_mkdir_p; then
     mkdir -p "$ac_dir"
   else
@@ -6756,10 +6756,10 @@ $as_expr X"$as_dir" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
 	 .     : '\(.\)' 2>/dev/null ||
 echo X"$as_dir" |
     sed '/^X\(.*[^/]\)\/\/*[^/][^/]*\/*$/{ s//\1/; q; }
-  	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
-  	  /^X\(\/\/\)$/{ s//\1/; q; }
-  	  /^X\(\/\).*/{ s//\1/; q; }
-  	  s/.*/./; q'`
+	  /^X\(\/\/\)[^/].*/{ s//\1/; q; }
+	  /^X\(\/\/\)$/{ s//\1/; q; }
+	  /^X\(\/\).*/{ s//\1/; q; }
+	  s/.*/./; q'`
     done
     test ! -n "$as_dirs" || mkdir $as_dirs
   fi || { { echo "$as_me:$LINENO: error: cannot create directory \"$ac_dir\"" >&5
@@ -6938,4 +6938,3 @@ if test "$no_create" != yes; then
   # would make configure fail if this is the last instruction.
   $ac_cs_success || { (exit 1); exit 1; }
 fi
-

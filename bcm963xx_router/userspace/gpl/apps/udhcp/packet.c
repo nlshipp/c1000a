@@ -163,10 +163,18 @@ int kernel_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_p
     struct sockaddr_in client;
 
     if ((fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-        return -1;
-
+	{
+#if !defined(AEI_COVERITY_FIX)
+            /*CID 11156:Argument cannot be negative*/
+		close(fd);
+#endif
+		return -1;
+	}
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&n, sizeof(n)) == -1)
+	{
+		close(fd);
         return -1;
+	}
 
     memset(&client, 0, sizeof(client));
     client.sin_family = AF_INET;
@@ -174,7 +182,10 @@ int kernel_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_p
     client.sin_addr.s_addr = source_ip;
 
     if (bind(fd, (struct sockaddr *)&client, sizeof(struct sockaddr)) == -1)
+	{
+		close(fd);
         return -1;
+	}
 
     memset(&client, 0, sizeof(client));
     client.sin_family = AF_INET;
@@ -182,7 +193,10 @@ int kernel_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_p
     client.sin_addr.s_addr = dest_ip;
 
     if (connect(fd, (struct sockaddr *)&client, sizeof(struct sockaddr)) == -1)
+	{
+		close(fd);
         return -1;
+	}
 
     result = write(fd, payload, payload_length);
     close(fd);

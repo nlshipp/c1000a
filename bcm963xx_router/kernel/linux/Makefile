@@ -503,7 +503,7 @@ endif # KBUILD_EXTMOD
 
 # CONFIG_MIPS_BRCM Begin Broadcom changed code.
 export HPATH 	:= $(TOPDIR)/include
-brcmdrivers-y	:= $(INC_BRCMBOARDPARMS_PATH)/$(BRCM_BOARD)/ $(BRCMDRIVERS_DIR)/ $(INC_SPI_PATH)/ $(INC_FLASH_PATH)/
+brcmdrivers-y	:= $(INC_BRCMBOARDPARMS_PATH)/$(BRCM_BOARD)/ $(BRCMDRIVERS_DIR)/ $(INC_SPI_PATH)/ $(INC_FLASH_PATH)/ $(INC_UTILS_PATH)/
 BRCMDRIVERS	:= $(brcmdrivers-y)
 # CONFIG_MIPS_BRCM End Broadcom changed code.
 
@@ -618,9 +618,24 @@ KBUILD_CFLAGS	+= $(call cc-option,-fwrapv)
 # revert to pre-gcc-4.4 behaviour of .eh_frame
 KBUILD_CFLAGS	+= $(call cc-option,-fno-dwarf2-cfi-asm)
 
+
+#BRCM begin
+
 # defining DCFG_LINUX_NET_PACKED flag builds the linux net structures 
 # with packed attribute to avoid unaligned access
 KBUILD_CFLAGS += -DCFG_LINUX_NET_PACKED
+
+# The way we pass down these flags to the kernel build will change in 
+# the 4.14 release series.  This is just a temporary method for 4.12
+# Uncomment if you want to use these features.
+
+# Low overhead and simple timestamp functions using MIPS c0 counter
+#KBUILD_CFLAGS += -DBCM_KF_TSTAMP
+
+# Broadcom customizations to tracing code
+#KBUILD_CFLAGS += -DBCM_KF_TRACE_CUSTOM
+
+#BRCM end
 
 
 # Add user supplied CPPFLAGS, AFLAGS and CFLAGS as the last assignments
@@ -1052,13 +1067,17 @@ include/config/kernel.release: include/config/auto.conf FORCE
 
 # Listed in dependency order
 # CONFIG_MIPS_BRCM Begin Broadcom changed code.
-PHONY += prepare archprepare prepare0 prepare1 prepare2 prepare3 preparebrcmdriver
+PHONY += prepare archprepare prepare0 prepare1 prepare2 prepare3 preparebrcmdriver version_info
 # CONFIG_MIPS_BRCM End Broadcom changed code.
 
 
 # CONFIG_MIPS_BRCM Begin Broadcom changed code.
 preparebrcmdriver:
 	$(Q)$(MAKE) -C $(BRCMDRIVERS_DIR) symlinks
+	
+version_info:
+	$(Q)$(MAKE) -C $(BRCMDRIVERS_DIR) version_info
+	
 # CONFIG_MIPS_BRCM End Broadcom changed code.
 
 

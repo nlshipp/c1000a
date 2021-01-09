@@ -138,12 +138,18 @@ struct ip_mreq_source {
 	__be32		imr_multiaddr;
 	__be32		imr_interface;
 	__be32		imr_sourceaddr;
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+        __u32           imr_ifindex;
+#endif
 };
 
 struct ip_msfilter {
 	__be32		imsf_multiaddr;
 	__be32		imsf_interface;
 	__u32		imsf_fmode;
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+        __u32           imsf_ifindex;
+#endif
 	__u32		imsf_numsrc;
 	__be32		imsf_slist[1];
 };

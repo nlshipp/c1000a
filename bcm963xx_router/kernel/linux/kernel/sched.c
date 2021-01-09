@@ -79,6 +79,10 @@
 
 #include "sched_cpupri.h"
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+#include <linux/bcm_tstamp.h>
+#endif
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -1800,6 +1804,9 @@ static void enqueue_task(struct rq *rq, struct task_struct *p, int wakeup)
 		p->se.start_runtime = p->se.sum_exec_runtime;
 
 	sched_info_queued(p);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+	BCM_SCHEDAUDIT_QUEUED(p);
+#endif
 	p->sched_class->enqueue_task(rq, p, wakeup);
 	p->se.on_rq = 1;
 }
@@ -2512,6 +2519,12 @@ static void __sched_fork(struct task_struct *p)
 	p->se.exec_max			= 0;
 	p->se.slice_max			= 0;
 	p->se.wait_max			= 0;
+#endif
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+	p->bcm_saudit.trig_latency = 0;
+	p->bcm_saudit.trig_runtime = 0;
+	p->bcm_saudit.trig_printk = 0;
 #endif
 
 	INIT_LIST_HEAD(&p->rt.run_list);
@@ -4934,7 +4947,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
 
 #if defined(AEI_VDSL_CUSTOMER_NCS) /* Actiontec: Always print the entire stack in case of kernel panic */
     dump_stack();
-#endif 
+#endif
     debug_show_held_locks(prev);
 	print_modules();
 	if (irqs_disabled())
@@ -5024,6 +5037,53 @@ pick_next_task(struct rq *rq)
 	}
 }
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+/** check the runtime of the thread which has finished running
+ */
+static inline void schedaudit_runtime(struct task_struct *prev)
+{
+	uint32_t delta_us = bcm_tstamp2us(
+	                      bcm_tstamp_elapsed(prev->bcm_saudit._start_tstamp));
+
+	if (delta_us > prev->bcm_saudit.max_runtime)
+		prev->bcm_saudit.max_runtime = delta_us;
+	if (delta_us > prev->bcm_saudit.trig_runtime) {
+		if (prev->bcm_saudit.trig_printk) {
+			printk(KERN_WARNING "Runtime Violation: %s(%d) %uus\n",
+					prev->comm, prev->pid, delta_us);
+		}
+		trace_printk("Runtime Violation: %s(%d) %uus\n",
+					prev->comm, prev->pid, delta_us);
+		prev->bcm_saudit.runtime_violations++;
+	} else {
+		prev->bcm_saudit.conforming_runtime++;
+	}
+}
+
+/** check the latency of the thread which is about to run
+ */
+static inline void schedaudit_latency(struct task_struct *next)
+{
+	uint32_t delta_us = bcm_tstamp2us(
+	                      bcm_tstamp_elapsed(next->bcm_saudit._start_tstamp));
+
+	if (delta_us > next->bcm_saudit.max_latency)
+		next->bcm_saudit.max_latency = delta_us;
+	if (delta_us > next->bcm_saudit.trig_latency) {
+		if (next->bcm_saudit.trig_printk) {
+			printk(KERN_WARNING "Latency violation: %s(%d) %uus\n",
+					next->comm, next->pid, delta_us);
+		}
+		trace_printk("Latency violation: %s(%d) %uus\n",
+					next->comm, next->pid, delta_us);
+		next->bcm_saudit.latency_violations++;
+	} else {
+		next->bcm_saudit.conforming_latency++;
+	}
+}
+#endif /* CONFIG_BCM_SCHEDAUDIT */
+
+
 /*
  * schedule() is the main scheduler function.
  */
@@ -5075,7 +5135,17 @@ need_resched_nonpreemptible:
 
 	if (likely(prev != next)) {
 		sched_info_switch(prev, next);
-
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+		if (prev->bcm_saudit.trig_runtime > 0) {
+			schedaudit_runtime(prev);
+		}
+		if (next->bcm_saudit.trig_latency > 0) {
+			schedaudit_latency(next);
+		}
+		if (next->bcm_saudit.trig_runtime > 0) {
+			next->bcm_saudit._start_tstamp = bcm_tstamp_read();
+		}
+#endif
 		rq->nr_switches++;
 		rq->curr = next;
 		++*switch_count;
@@ -10316,3 +10386,42 @@ struct cgroup_subsys cpuacct_subsys = {
 	.subsys_id = cpuacct_subsys_id,
 };
 #endif	/* CONFIG_CGROUP_CPUACCT */
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+
+void proc_schedaudit_show_task(struct task_struct *p, struct seq_file *m)
+{
+	seq_printf(m, "trig_latency=%u\n", p->bcm_saudit.trig_latency);
+	seq_printf(m, "trig_runtime=%u\n", p->bcm_saudit.trig_runtime);
+	seq_printf(m, "trig_printk=%u\n", p->bcm_saudit.trig_printk);
+	seq_printf(m, "conforming_latency=%u\n", p->bcm_saudit.conforming_latency);
+	seq_printf(m, "conforming_runtime=%u\n", p->bcm_saudit.conforming_runtime);
+	seq_printf(m, "latency_violations=%u\n", p->bcm_saudit.latency_violations);
+	seq_printf(m, "runtime_violations=%u\n", p->bcm_saudit.runtime_violations);
+	seq_printf(m, "max_latency=%u\n", p->bcm_saudit.max_latency);
+	seq_printf(m, "max_runtime=%u\n", p->bcm_saudit.max_runtime);
+}
+EXPORT_SYMBOL(proc_schedaudit_show_task);
+
+void proc_schedaudit_set_task(struct task_struct *p, uint32_t setindex,
+          uint32_t trig_latency, uint32_t trig_runtime, uint32_t trig_printk)
+{
+	if (setindex == 0) {
+		p->bcm_saudit.conforming_latency = 0;
+		p->bcm_saudit.conforming_runtime = 0;
+		p->bcm_saudit.latency_violations = 0;
+		p->bcm_saudit.runtime_violations = 0;
+		p->bcm_saudit.max_latency = 0;
+		p->bcm_saudit.max_runtime = 0;
+	} else if (setindex == 1) {
+		p->bcm_saudit.trig_latency = trig_latency;
+	} else if (setindex == 2) {
+		p->bcm_saudit.trig_runtime = trig_runtime;
+	} else if (setindex == 3) {
+		p->bcm_saudit.trig_printk = trig_printk;
+	}
+}
+EXPORT_SYMBOL(proc_schedaudit_set_task);
+
+#endif  /* CONFIG_BCM_SCHEDAUDIT */
+

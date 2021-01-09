@@ -4,41 +4,53 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <errno.h>
 #include "libbb.h"
 
-FILE *bb_wfopen(const char *path, const char *mode)
+FILE* FAST_FUNC fopen_or_warn(const char *path, const char *mode)
 {
-	FILE *fp;
-	if ((fp = fopen(path, mode)) == NULL) {
-		bb_perror_msg("%s", path);
-		errno = 0;
+	FILE *fp = fopen(path, mode);
+	if (!fp) {
+		bb_simple_perror_msg(path);
+		//errno = 0; /* why? */
 	}
 	return fp;
 }
 
+FILE* FAST_FUNC fopen_for_read(const char *path)
+{
+	return fopen(path, "r");
+}
 
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/
+FILE* FAST_FUNC xfopen_for_read(const char *path)
+{
+	return xfopen(path, "r");
+}
+
+FILE* FAST_FUNC fopen_for_write(const char *path)
+{
+	return fopen(path, "w");
+}
+
+FILE* FAST_FUNC xfopen_for_write(const char *path)
+{
+	return xfopen(path, "w");
+}
+
+static FILE* xfdopen_helper(unsigned fd_and_rw_bit)
+{
+	FILE* fp = fdopen(fd_and_rw_bit >> 1, fd_and_rw_bit & 1 ? "w" : "r");
+	if (!fp)
+		bb_error_msg_and_die(bb_msg_memory_exhausted);
+	return fp;
+}
+FILE* FAST_FUNC xfdopen_for_read(int fd)
+{
+	return xfdopen_helper(fd << 1);
+}
+FILE* FAST_FUNC xfdopen_for_write(int fd)
+{
+	return xfdopen_helper((fd << 1) + 1);
+}

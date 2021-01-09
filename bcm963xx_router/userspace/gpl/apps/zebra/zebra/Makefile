@@ -433,7 +433,7 @@ maintainer-clean-generic:
 
 distclean: distclean-am
 
-distclean-am: clean-am distclean-compile distclean-depend \
+distclean-am: distclean-compile distclean-depend \
 	distclean-generic distclean-tags
 
 dvi: dvi-am

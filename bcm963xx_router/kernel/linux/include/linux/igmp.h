@@ -19,6 +19,10 @@
 #include <linux/types.h>
 #include <asm/byteorder.h>
 
+#if defined(CONFIG_MIPS_BRCM)
+#define CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION
+#endif
+
 /*
  *	IGMP protocol structures
  */
@@ -192,6 +196,9 @@ struct ip_mc_list
 	struct ip_sf_list	*sources;
 	struct ip_sf_list	*tomb;
 	unsigned int		sfmode;
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+	unsigned int		osfmode;
+#endif
 	unsigned long		sfcount[2];
 	struct ip_mc_list	*next;
 	struct timer_list	timer;

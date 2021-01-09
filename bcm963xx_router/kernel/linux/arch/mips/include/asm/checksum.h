@@ -129,7 +129,7 @@ static inline __sum16 ip_fast_csum(const void *iph, unsigned int ihl)
 			carry = (csum < *word);
 			csum += carry;
 			word++;
-		} while (word != stop);
+		} while ((unsigned int) word < (unsigned int) stop);
 
 		return csum_fold(csum);
 	} else {

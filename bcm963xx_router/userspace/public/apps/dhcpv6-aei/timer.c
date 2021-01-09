@@ -135,7 +135,7 @@ dhcp6_check_timer()
 	tm_sentinel = tm_max;
 	for (tm = LIST_FIRST(&timer_head); tm; tm = tm_next) {
 		tm_next = LIST_NEXT(tm, link);
-		
+
 		if (TIMEVAL_LEQ(tm->tm, now)) {
 			if ((*tm->expire)(tm->expire_data) == NULL)
 				continue; /* timer has been freed */

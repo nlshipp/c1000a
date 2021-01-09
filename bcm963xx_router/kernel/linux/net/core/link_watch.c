@@ -25,6 +25,7 @@
 #include <asm/types.h>
 
 #ifdef CONFIG_MIPS_BRCM
+#include <linux/init.h>
 /*
  * Problem scenario: wlmngr does an ioctl, and the upper layers
  * of ioctl code grabs the rtnl lock before calling the wlan ioctl code.
@@ -37,6 +38,15 @@
  * event workqueue.
  */
 static struct workqueue_struct *lw_wq=NULL;
+
+int __init init_linkwatch(void)
+{
+	lw_wq = create_singlethread_workqueue("linkwatch");
+
+	return 0;
+}
+
+__initcall(init_linkwatch);
 #endif
 
 enum lw_bits {
@@ -236,17 +246,6 @@ static void linkwatch_event(struct work_struct *dummy)
 void linkwatch_fire_event(struct net_device *dev)
 {
 	bool urgent = linkwatch_urgent_event(dev);
-
-#ifdef CONFIG_MIPS_BRCM
-	int alloc_wq=0;
-	spin_lock_irq(&lweventlist_lock);  // borrowing this spinlock to protect
-	if (NULL == lw_wq)                 // checking for lw_wq is NULL
-		alloc_wq = 1;
-	spin_unlock_irq(&lweventlist_lock);
-
-	if (alloc_wq)
-		lw_wq = create_singlethread_workqueue("linkwatch");
-#endif
 
 	if (!test_and_set_bit(__LINK_STATE_LINKWATCH_PENDING, &dev->state)) {
 		dev_hold(dev);

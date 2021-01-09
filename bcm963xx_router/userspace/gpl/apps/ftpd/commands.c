@@ -630,6 +630,8 @@ void do_fwUpdate(void)
    {
       printf("Image validated, size=%u format=%d, waiting for quit before flashing.\n", uploadSize, imageFormat);
       displayMessage(UPLOAD_OK);  // flash image will be done when user types bye or OK
+      /* Do not close socket right away so that ftp client can exist gracefully */
+      sleep(2);
    }
 
    close(sock);   // this tells the ftp client that the transfer is complete
@@ -689,6 +691,11 @@ void command_quit(char *params __attribute__((unused)))
        * config file will result in reboot.  On desktop linux, we
        * simulate this effect by exiting.
        */
+       /*note: in order to fix some  bugs of gui, the function  that trigger a reboot in  "cmsImg_writeValidatedImage"  was disabled now,
+          so we send messages to smd to reboot the modem . */
+          #if  defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+          cmsUtil_sendRequestRebootMsg(msgHandle);
+           #endif
       exit(0);
     }
 }

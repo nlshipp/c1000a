@@ -158,6 +158,10 @@ struct pppd_stats link_stats;
 int link_connect_time;
 int link_stats_valid;
 
+#ifdef AEI_FRONTIER_V2200H
+FILE* g_file;
+#endif
+
 /*
  * We maintain a list of child process pids and
  * functions to call when they exit.
@@ -285,6 +289,15 @@ main(argc,argv)
     /* Initialize syslog facilities */
     reopen_log();
 
+	#ifdef AEI_FRONTIER_V2200H
+	g_file = fopen("/var/pppdebug", "w");
+	if(g_file == NULL)
+	{
+		return 0;
+	}
+
+	#endif
+
     if (gethostname(hostname, MAXNAMELEN) < 0 ) {
 	option_error("Couldn't get hostname: %m");
 	exit(1);
@@ -339,8 +352,14 @@ main(argc,argv)
 #endif
 
 
-
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    if( parse_args(argc, argv) == 0 )
+    {
+        return -1;
+    }
+#else
     parse_args(argc, argv);
+#endif
     devnam_fixed = 1;		/* can no longer change device name */
 
     if (!console)
@@ -664,6 +683,15 @@ main(argc,argv)
 	    lcp_lowerdown(0);
 	if (!demand)
 	    script_unsetenv("IFNAME");
+
+	#ifdef AEI_FRONTIER_V2200H
+	if(g_file)
+	{
+		fclose(g_file);
+		g_file = NULL;
+	}
+	#endif
+
 
 	/*
 	 * Run disconnector script, if requested.
@@ -2115,11 +2143,11 @@ void sendPppEventMessage(const SINT32 state,
    CmsMsgHeader *msg=(CmsMsgHeader *) buf;
    PppoeStateChangeMsgBody *pppoeBody = (PppoeStateChangeMsgBody *) (msg+1);
    CmsRet ret;
-
+   
    if (console)
       return;
 
-   cmsLog_debug("pppd sendPppEventMessage: state=%d, lastConnetionError=%s", state, lastconnectionerror);
+   cmsLog_debug("%s:  pppd sendPppEventMessage: state=%d, lastConnetionError=%s", req_name, state, lastconnectionerror);
 
    msg->type = CMS_MSG_PPPOE_STATE_CHANGED; 
    msg->src = MAKE_SPECIFIC_EID(getpid(), EID_PPP);
@@ -2343,6 +2371,7 @@ SINT32 isWanLinkUp(char *deviceName)
        * The intent of this block is NOT to send out a link status
        * request and get a link status response.
        */
+
       while ((ret = cmsMsg_receiveWithTimeout(msgHandle, &msgPtr, 0)) == CMSRET_SUCCESS)
       {
          if (msgPtr->type == CMS_MSG_WAN_LINK_UP)
@@ -2351,7 +2380,17 @@ SINT32 isWanLinkUp(char *deviceName)
          }
          else if (msgPtr->type == CMS_MSG_WAN_LINK_DOWN)
          {
-            wanLinkUp = 0;
+            /* data points to the base layer 2 interface name. eg. atm0, eth0, moca, etc. */
+            data = (char *) (msgPtr + 1);
+            cmsLog_debug("%s:  devnam %s got CMS_MSG_WAN_LINK_DOWN for layer 2 interface %s", req_name, devnam, data);
+
+            /* Need to make sure this wan link down msg is for this device.  Here devnam is the  layer 2 (with vlan ext. - atm0.1)
+            * and data points to the base layer 2 - atm0
+            */
+            if (cmsUtl_strstr(devnam, data))
+            {
+               wanLinkUp = 0;
+            }               
          }
          else if (msgPtr->type == CMS_MSG_SET_PPP_UP)
          {
@@ -2360,11 +2399,38 @@ SINT32 isWanLinkUp(char *deviceName)
          else if (msgPtr->type == CMS_MSG_SET_PPP_DOWN)
          {
             manualState = 0;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+            //if username or password was changed by tr69, get new username or password from temp file.
+            {
+                FILE *fs;
+
+                fs = fopen("/var/pppinfo", "r");
+                if (fs != NULL)
+                {
+                    char line[BUFLEN_1024]={0};
+                    char usern[MAXNAMELEN]={0};
+                    char pass[MAXSECRETLEN]={0};
+
+                    if (fgets(line, sizeof(line), fs))
+                    {
+                        sscanf(line, "%s %s", usern,pass);
+                    }
+                    if(strlen(usern)>0 && strlen(pass)>0)
+                    {
+                        cmsUtl_strncpy(user, usern, MAXNAMELEN);
+                        cmsUtl_strncpy(our_name, usern, MAXNAMELEN);
+                        cmsUtl_strncpy(passwd, pass, MAXSECRETLEN);
+                    }
+                    fclose(fs);
+                    unlink("/var/pppinfo");
+                }
+            }
+#endif
          }
  
          CMSMEM_FREE_BUF_AND_NULL_PTR(msgPtr);
 
-         cmsLog_debug("WAN Link status=%d", wanLinkUp);
+         cmsLog_debug("%s: WAN Link status=%d", req_name, wanLinkUp);
       }
    }
    
@@ -2451,14 +2517,14 @@ SINT32 isLanLinkUp()
  * @param char * (IN) mask  if state is BCM_PPPOE_CLIENT_STATE_UP, it contains pppsubnet mask
  * @param char * (IN) gateway   if state is BCM_PPPOE_CLIENT_STATE_UP, it contains ppp gateway info
  * @param char * (IN) nameserver   if state is BCM_PPPOE_CLIENT_STATE_UP, it contains dns info
- * @param char * (IN) lastconnectionerror    the last error defined by TR98.  
+ * @param char * (IN) lastconnectionerror    the last error defined by TR98.
  *                    For BCM_PPPOE_CLIENT_STATE_UP, it should contain MDMVS_ERROR_NONE.
  *
  */
-void sendCtlPppEventMessage(const SINT32 state, 
-                                    const char *ip, 
-                                    const char *mask, 
-                                    const char *gateway, 
+void sendCtlPppEventMessage(const SINT32 state,
+                                    const char *ip,
+                                    const char *mask,
+                                    const char *gateway,
                                     const char *nameserver,
                                     const char *lastconnectionerror)
 
@@ -2475,14 +2541,14 @@ void sendCtlPppEventMessage(const SINT32 state,
    cmsLog_debug("pppd sendPppEventMessage: state=%d, lastConnetionError=%s", state, lastconnectionerror);
 
    fprintf(stderr, "%s@%d===>>>pppd sendPppEventMessage: state=%d, lastConnetionError=%s", __FUNCTION__,__LINE__,state, lastconnectionerror);
-   
-   ctlMsgHandle = dbussend_init(); 
+
+   ctlMsgHandle = dbussend_init();
    if(NULL == ctlMsgHandle) {
       return;
    }
 
    pppoeBody->pppState = state;
-   
+
 
    if (state == CTL_PPPOE_CLIENT_STATE_UP)
    {
@@ -2498,7 +2564,7 @@ void sendCtlPppEventMessage(const SINT32 state,
          snprintf(pppoeBody->nameserver, BUFLEN_32, nameserver);
          snprintf(pppoeBody->servicename, sizeof(pppoeBody->servicename), servicename);
       }
-      else 
+      else
       {
          cmsLog_debug("Incomplete ppp info: ip=%s netmask=%s gateway=%s nameserver=%s servicename=%s",
                       pppoeBody->ip,
@@ -2510,9 +2576,9 @@ void sendCtlPppEventMessage(const SINT32 state,
    }
 
    /* lastConnectionError string is alway set now */
-   snprintf(pppoeBody->ppplastconnecterror, sizeof(pppoeBody->ppplastconnecterror), lastconnectionerror);         
+   snprintf(pppoeBody->ppplastconnecterror, sizeof(pppoeBody->ppplastconnecterror), lastconnectionerror);
 
-	msg->data_length=sizeof(int) + sizeof(CtlPppoeStateChangeMsgBody);      
+	msg->data_length=sizeof(int) + sizeof(CtlPppoeStateChangeMsgBody);
 	  if (dbussend_sendmsg(ctlMsgHandle, CTL_MSG_TYPE(CTL_MSG_PPPOE_STATE_CHANGED), NULL, msg, sizeof(CtlMsgHeader) + sizeof(CtlPppoeStateChangeMsgBody)) < 0)
 	  {
 		  tsl_printf("could not send out CMS_MSG_PPP_STATE_CHANGED\n");
@@ -2522,7 +2588,7 @@ void sendCtlPppEventMessage(const SINT32 state,
 	  {
 		   tsl_printf("sent out CMS_MSG_PPP_STATE_CHANGED\n");
 	  }
-	  dbussend_uninit(ctlMsgHandle);	  
+	  dbussend_uninit(ctlMsgHandle);
 	  return;
 
 }

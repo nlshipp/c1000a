@@ -36,6 +36,66 @@ int verify_packet( struct session *ses, struct pppoe_packet *p);
 
 #define TAG_DATA(type,tag_ptr) ((type *) ((struct pppoe_tag*)tag_ptr)->tag_data)
 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+static int reconn=0;
+static int backoff_state=0;
+
+void setbackoff()
+{
+    backoff_state = 1;
+    if(reconn<7)
+        reconn++;
+}
+
+void unsetbackoff()
+{
+    backoff_state = 0;
+    reconn = 0;
+}
+
+static int getRandomNumber(int from, int to)
+{
+   int num = 0;
+
+   srand((unsigned int)time((time_t *)NULL));
+   num = (rand() % (to - from)) + from;
+
+   return num;
+}
+
+static int getDelayTime(int reconn)
+{
+   int delayTime = 0;
+
+   //PM-PRD #177786: CenturyLink Requested: WAN DHCP / PPP Attempt Back-off Implementation
+   switch (reconn)
+   {
+      case 1:
+         delayTime = getRandomNumber(1, 10);
+         break;
+      case 2:
+         delayTime = getRandomNumber(10, 20);
+         break;
+      case 3:
+         delayTime = getRandomNumber(20, 30);
+         break;
+      case 4:
+         delayTime = getRandomNumber(30, 40);
+         break;
+      case 5:
+         delayTime = getRandomNumber(40, 50);
+         break;
+      case 6:
+         delayTime = getRandomNumber(50, 60);
+         break;
+      default:
+         delayTime = 60;
+         break;
+   }
+
+   return delayTime;
+}
+#endif
 
 /***************************************************************************
  *
@@ -636,6 +696,15 @@ int session_connect(struct session *ses)
 	}
 	usleep(100000);
     }
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    if(backoff_state)
+    {
+        if(reconn)
+            sleep(getDelayTime(reconn));
+    }
+    else
+        reconn = 0;
 #endif
 
     if(ses->init_disc){

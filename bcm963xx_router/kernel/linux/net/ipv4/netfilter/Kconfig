@@ -132,6 +132,14 @@ config IP_NF_TARGET_LOG
 
 	  To compile it as a module, choose M here.  If unsure, say N.
 
+config IP_NF_TARGET_IP
+        tristate "IP target support"
+        default m if NETFILTER_ADVANCED=n
+        help
+          This option can modify packet ip source address.
+
+          To compile it as a module, choose M here.  If unsure, say N.
+
 config IP_NF_TARGET_ULOG
 	tristate "ULOG target support"
 	default m if NETFILTER_ADVANCED=n

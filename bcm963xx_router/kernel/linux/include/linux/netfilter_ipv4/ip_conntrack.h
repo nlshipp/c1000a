@@ -137,7 +137,7 @@ struct ip_conntrack_expect
 
 	/* We expect this tuple, with the following mask */
 	struct ip_conntrack_tuple tuple, mask;
- 
+
 	/* Function to call after setup and insertion */
 	void (*expectfn)(struct ip_conntrack *new,
 			 struct ip_conntrack_expect *this);
@@ -216,7 +216,7 @@ extern void __ip_ct_refresh_acct(struct ip_conntrack *ct,
 				 int do_acct);
 
 /* Refresh conntrack for this many jiffies and do accounting */
-static inline void ip_ct_refresh_acct(struct ip_conntrack *ct, 
+static inline void ip_ct_refresh_acct(struct ip_conntrack *ct,
 				      enum ip_conntrack_info ctinfo,
 				      const struct sk_buff *skb,
 				      unsigned long extra_jiffies)
@@ -299,7 +299,7 @@ static inline int is_dying(struct ip_conntrack *ct)
 
 extern unsigned int ip_conntrack_htable_size;
 extern int ip_conntrack_checksum;
- 
+
 #define CONNTRACK_STAT_INC(count) (__get_cpu_var(ip_conntrack_stat).count++)
 #define CONNTRACK_STAT_INC_ATOMIC(count)		\
 do {							\
@@ -319,7 +319,7 @@ struct ip_conntrack_ecache {
 DECLARE_PER_CPU(struct ip_conntrack_ecache, ip_conntrack_ecache);
 
 #define CONNTRACK_ECACHE(x)	(__get_cpu_var(ip_conntrack_ecache).x)
- 
+
 extern struct atomic_notifier_head ip_conntrack_chain;
 extern struct atomic_notifier_head ip_conntrack_expect_chain;
 
@@ -333,7 +333,7 @@ static inline int ip_conntrack_unregister_notifier(struct notifier_block *nb)
 	return atomic_notifier_chain_unregister(&ip_conntrack_chain, nb);
 }
 
-static inline int 
+static inline int
 ip_conntrack_expect_register_notifier(struct notifier_block *nb)
 {
 	return atomic_notifier_chain_register(&ip_conntrack_expect_chain, nb);
@@ -349,13 +349,13 @@ ip_conntrack_expect_unregister_notifier(struct notifier_block *nb)
 extern void ip_ct_deliver_cached_events(const struct ip_conntrack *ct);
 extern void __ip_ct_event_cache_init(struct ip_conntrack *ct);
 
-static inline void 
+static inline void
 ip_conntrack_event_cache(enum ip_conntrack_events event,
 			 const struct sk_buff *skb)
 {
 	struct ip_conntrack *ct = (struct ip_conntrack *)skb->nfct;
 	struct ip_conntrack_ecache *ecache;
-	
+
 	local_bh_disable();
 	ecache = &__get_cpu_var(ip_conntrack_ecache);
 	if (ct != ecache->ct)
@@ -371,20 +371,20 @@ static inline void ip_conntrack_event(enum ip_conntrack_events event,
 		atomic_notifier_call_chain(&ip_conntrack_chain, event, ct);
 }
 
-static inline void 
+static inline void
 ip_conntrack_expect_event(enum ip_conntrack_expect_events event,
 			  struct ip_conntrack_expect *exp)
 {
 	atomic_notifier_call_chain(&ip_conntrack_expect_chain, event, exp);
 }
 #else /* CONFIG_IP_NF_CONNTRACK_EVENTS */
-static inline void ip_conntrack_event_cache(enum ip_conntrack_events event, 
+static inline void ip_conntrack_event_cache(enum ip_conntrack_events event,
 					    const struct sk_buff *skb) {}
-static inline void ip_conntrack_event(enum ip_conntrack_events event, 
+static inline void ip_conntrack_event(enum ip_conntrack_events event,
 				      struct ip_conntrack *ct) {}
 static inline void ip_ct_deliver_cached_events(const struct ip_conntrack *ct) {}
-static inline void 
-ip_conntrack_expect_event(enum ip_conntrack_expect_events event, 
+static inline void
+ip_conntrack_expect_event(enum ip_conntrack_expect_events event,
 			  struct ip_conntrack_expect *exp) {}
 #endif /* CONFIG_IP_NF_CONNTRACK_EVENTS */
 

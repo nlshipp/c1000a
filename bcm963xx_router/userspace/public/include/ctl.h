@@ -35,10 +35,10 @@
 #define IIDSTACK_BUF_LEN  40  //!< good length to use for mdm_dumpIidStack
 #define MAC_ADDR_LEN    6     //!< Mac address len in an array of 6 bytes
 #define MAC_STR_LEN     17    //!< Mac String len with ":". eg: xx:xx:xx:xx:xx:xx
-#define VPI_MIN         0     //!< VPI min 
-#define VPI_MAX         255   //!< VPI max 
-#define VCI_MIN         32    //!< VCI min 
-#define VCI_MAX         65535 //!< VCI max 
+#define VPI_MIN         0     //!< VPI min
+#define VPI_MAX         255   //!< VPI max
+#define VCI_MIN         32    //!< VCI min
+#define VCI_MAX         65535 //!< VCI max
 
 #define PPP_CONNECT_ERROR_REASON_LEN 48
 
@@ -65,4 +65,3 @@
 
 #endif // BUFLEN_4
 #endif //_CTL_H
-

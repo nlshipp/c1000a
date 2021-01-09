@@ -6,6 +6,7 @@
 #define DPROXY_H
 
 #define PORT 53
+#define PORT_STR "53"
 #define NAME_SIZE 255
 #define MAX_PACKET_SIZE 512
 #define BUF_SIZE NAME_SIZE
@@ -16,10 +17,10 @@ typedef u_int32_t uint32;
 #include "dns.h"
 
 #ifndef DNS_TIMEOUT 
-#if defined(DNS_PROBE) && defined(AEI_VDSL_DNS_PROBE)
+#if defined(AEI_VDSL_DNS_PROBE)
 #define DNS_TIMEOUT 2
 #else
-#define DNS_TIMEOUT 240
+#define DNS_TIMEOUT 30
 #endif
 #endif
 

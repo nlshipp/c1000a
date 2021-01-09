@@ -112,4 +112,3 @@ extern int rtnl_from_file(FILE *, rtnl_filter_t handler,
 #endif
 
 #endif /* __LIBNETLINK_H__ */
-

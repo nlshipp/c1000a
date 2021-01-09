@@ -81,12 +81,12 @@
 
 // brcm
 #include "cms_msg.h"
-Dhcp6cStateChangedMsgBody dhcp6cMsgBody;
+extern Dhcp6cStateChangedMsgBody dhcp6cMsgBody;
 void *msgHandle=NULL;
 
 static int debug = 0;
 static int exit_ok = 0;
-static u_long sig_flags = 0;
+static sig_atomic_t sig_flags = 0;
 #define SIGF_TERM 0x1
 #define SIGF_HUP 0x2
 
@@ -153,6 +153,7 @@ static void info_printf __P((const char *, ...));
 
 #if 1 //brcm
 int updateDhcp6sConfDnsList __P((struct dhcp6_optinfo *));
+int sendAftrEventMessage __P((struct dhcp6_optinfo *));
 static void copyoutNtpList __P((struct dhcp6_optinfo *));
 static void sendDnsEventMessage __P((const char *, const char *));
 char *ifname_info;
@@ -225,22 +226,22 @@ main(argc, argv)
 
 	setloglevel(debug);
 
-   //brcm
-   cmsMsg_init(EID_DHCP6C, &msgHandle);
-   memset(&dhcp6cMsgBody, 0, sizeof(Dhcp6cStateChangedMsgBody));
-   ifname_info = argv[0];
+	//brcm
+	cmsMsg_init(EID_DHCP6C, &msgHandle);
+	memset(&dhcp6cMsgBody, 0, sizeof(Dhcp6cStateChangedMsgBody));
+	ifname_info = argv[0];
 
-   cmsUtl_strncpy(brcm_ifname, ifname_info, sizeof(brcm_ifname));
-   if ( (brcm_ptr = strstr(ifname_info, "__")) == NULL)
-   {
-      cmsUtl_strncpy(l2_ifname, ifname_info, sizeof(l2_ifname));
-   }
-   else
-   {
-      brcm_ifname[brcm_ptr-ifname_info] = '\0';
-      brcm_ptr += 2;
-      cmsUtl_strncpy(l2_ifname, brcm_ptr, sizeof(l2_ifname));
-   }
+	cmsUtl_strncpy(brcm_ifname, ifname_info, sizeof(brcm_ifname));
+	if ( (brcm_ptr = strstr(ifname_info, "__")) == NULL)
+	{
+		cmsUtl_strncpy(l2_ifname, ifname_info, sizeof(l2_ifname));
+	}
+	else
+	{
+		brcm_ifname[brcm_ptr-ifname_info] = '\0';
+		brcm_ptr += 2;
+		cmsUtl_strncpy(l2_ifname, brcm_ptr, sizeof(l2_ifname));
+	}
 
 	client6_init();
 	while (argc-- > 0) { 
@@ -351,12 +352,14 @@ client6_init()
 		    strerror(errno));
 		exit(1);
 	}
+#ifdef IPV6_V6ONLY
 	if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY,
 	    &on, sizeof(on)) < 0) {
 		dprintf(LOG_ERR, FNAME, "setsockopt(IPV6_V6ONLY): %s",
 		    strerror(errno));
 		exit(1);
 	}
+#endif
 
 	/*
 	 * According RFC3315 2.2, only the incoming port should be bound to UDP
@@ -518,6 +521,7 @@ check_exit()
 
 	/* We have no existing event.  Do exit. */
 	dprintf(LOG_INFO, FNAME, "exiting");
+
 	exit(0);
 }
 
@@ -871,6 +875,7 @@ client6_timo(arg)
 				exit(1); /* XXX */
 			}
 		}
+		sleep(2);
 		dhcp6_set_timeoparam(ev); /* XXX */
 		/* fall through */
 	case DHCP6S_REQUEST:
@@ -1165,8 +1170,6 @@ client6_signal(sig)
 	int sig;
 {
 
-	dprintf(LOG_INFO, FNAME, "received a signal (%d)", sig);
-
 	switch (sig) {
 	case SIGTERM:
 		sig_flags |= SIGF_TERM;
@@ -1306,6 +1309,43 @@ client6_send(ev)
 		dprintf(LOG_ERR, FNAME, "failed to copy requested options");
 		goto end;
 	}
+
+// brcm - begin
+// some servers require the client to explicitly request DNS option
+	if (ev->state != DHCP6S_RELEASE) {
+		struct dhcp6_list lst;
+		struct dhcp6_listval ent1;
+		struct dhcp6_listval ent2;
+		struct dhcp6_listval ent3;
+
+
+		//fprintf(stderr, "***dhcp6c: adding custom requested options: dns & ntp & 17\n");
+		TAILQ_INIT(&lst);
+
+		memset(&ent1, 0, sizeof(ent1));
+		TAILQ_INIT(&ent1.sublist);
+		ent1.type = DHCP6_LISTVAL_NUM;
+		ent1.val_num = DH6OPT_DNS; //23
+		TAILQ_INSERT_HEAD(&lst, &ent1, link);
+
+		memset(&ent2, 0, sizeof(ent2));
+		TAILQ_INIT(&ent2.sublist);
+		ent2.type = DHCP6_LISTVAL_NUM;
+		ent2.val_num = DH6OPT_NTP; //31
+		TAILQ_INSERT_HEAD(&lst, &ent2, link);
+
+		memset(&ent3, 0, sizeof(ent3));
+		TAILQ_INIT(&ent3.sublist);
+		ent3.type = DHCP6_LISTVAL_NUM;
+		ent3.val_num = DH6OPT_VENDOR_OPTS; //17
+		TAILQ_INSERT_HEAD(&lst, &ent3, link);
+
+		if (dhcp6_copy_list(&optinfo.reqopt_list, &lst)) {
+			fprintf(stderr, "failed to copy custom requested options\n");
+			goto end;
+		}
+	}
+// brcm -end
 
 	/* configuration information specified as event data */
 	for (evd = TAILQ_FIRST(&ev->data_list); evd;
@@ -1467,12 +1507,12 @@ client6_recv()
 	if ((ifp = find_ifconfbyid((unsigned int)pi->ipi6_ifindex)) == NULL) {
 		dprintf(LOG_INFO, FNAME, "unexpected interface (%d) (rcv pid=%d)",
 		    (unsigned int)pi->ipi6_ifindex, getpid());
-#if 1 //brcm- for debug purpose
-      dh6 = (struct dhcp6 *)rbuf;
-      dprintf(LOG_DEBUG, FNAME, "receive %s from %s on ---",
-            dhcp6msgstr(dh6->dh6_msgtype),
-            addr2str((struct sockaddr *)&from));
-#endif
+		//brcm- for debug purpose
+		dh6 = (struct dhcp6 *)rbuf;
+		dprintf(LOG_DEBUG, FNAME, "receive %s from %s on ---",
+				dhcp6msgstr(dh6->dh6_msgtype),
+				addr2str((struct sockaddr *)&from));
+
 		return;
 	}
 
@@ -1589,7 +1629,14 @@ client6_recvadvert(ifp, dh6, len, optinfo)
 		    DHCP6_LISTVAL_STCODE, &stcode, 0)) {
 			dprintf(LOG_INFO, FNAME,
 			    "advertise contains %s status", stcodestr);
-			return (-1);
+
+			/* 
+			* brcm:
+			* RFC 6204: WPD-7: if request IA_NA and IA_PD, CPE should take
+			* IA_PD info even without address info.
+			*/
+			if ( stcode == DH6OPT_STCODE_NOPREFIXAVAIL )
+				return (-1);
 		}
 	}
 
@@ -1834,9 +1881,10 @@ client6_recvreply(ifp, dh6, len, optinfo)
 		}
 	}
 
-#if 1 //brcm
+	/* brcm start */
 	updateDhcp6sConfDnsList(optinfo);
-#endif
+	sendAftrEventMessage(optinfo);
+	/* brcm end */
 
 	if (!TAILQ_EMPTY(&optinfo->ntp_list)) {
 		struct dhcp6_listval *d;
@@ -1848,9 +1896,9 @@ client6_recvreply(ifp, dh6, len, optinfo)
 			    i, in6addr2str(&d->val_addr6, 0));
 		}
 
-#if 1 //brcm
+	/* brcm start */
 		copyoutNtpList(optinfo);
-#endif
+	/* brcm end */
 	}
 
 	if (!TAILQ_EMPTY(&optinfo->sip_list)) {
@@ -1936,7 +1984,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 		    &optinfo->serverID, ev->authparam);
 	}
 
-	//brcm
+	/* brcm start */
 	if (optinfo->acsURL[0] != '\0')
 	{
 		strcpy(dhcp6cMsgBody.acsURL, optinfo->acsURL);
@@ -1957,6 +2005,7 @@ client6_recvreply(ifp, dh6, len, optinfo)
 	//Now, we should finish updating prefix, addr, and dns info
 	//send the message to smd now.
 	sendDhcp6cEventMessage();
+	/* brcm end */
 
 	dhcp6_remove_event(ev);
 
@@ -2217,228 +2266,7 @@ info_printf(const char *fmt, ...)
 	return;
 }
 
-#if 1 //brcm
-#if 0
-const char *f_ip6Dns     = "/var/ip6dns";
-const char *f_dhcp6sConf = "/var/dhcp6s.conf";
-const char *f_dhcp6sPid  = "/var/run/dhcp6s.pid";
-
-extern int bcmSystemEx(char *command, int printFlag);
-static int isDhcp6sDnsListChanged __P((struct dhcp6_optinfo *));
-
-/***************************************************************************
- * Function:
- *    int isDhcp6sDnsListChanged(struct dhcp6_optinfo *opt)
- * Description:
- *    This function compares the dns list captured from the dhcp6s reply
- *    from the WAN interface with the dns list in the existing dhcp6s.conf
- *    and finds out if there is any change in the list.
- * Parameters:
- *    *opt  (IN) dhcp6 option info pointer.
- * Returns:
- *    1 if the dns list has changed. 0 otherwise
- ***************************************************************************/
-int isDhcp6sDnsListChanged(struct dhcp6_optinfo *opt)
-{
-   FILE  *fp;
-   int   dnsChange;
-   struct dhcp6_listval *d;
-   char  *dns, *token, *nextToken;
-   char  line[256];
-
-   /* open the existing dhcp6s.conf file for read */
-   if ((fp = fopen(f_dhcp6sConf, "r")) == NULL)
-   {
-      /* error */
-      dprintf(LOG_WARNING, FNAME, "failed to open %s", f_dhcp6sConf);
-      return 1;   /* dns has changed */
-   }
-
-   /* First, we want to verify if the new dns list is already in
-    * the existing dhcp6s.conf file.
-    */
-   dnsChange = 0;
-   for (d = TAILQ_FIRST(&opt->dns_list); (!dnsChange && d); d = TAILQ_NEXT(d, link))
-   {
-      dnsChange = 1;
-
-      /* start from the beginning of the file */
-      fseek(fp, 0L, SEEK_SET);
-      while (dnsChange && (fgets(line, sizeof(line), fp) != NULL))
-      {
-         /* look for domain-name-servers statement in the conf file */
-         if (token = strstr(line, "domain-name-servers"))
-         {
-            /* skip the domain-name-servers token */
-            strtok_r(token, " ;", &nextToken);
-
-            /* parse the dns address tokens in the statement */
-            while (dns = strtok_r(NULL, " ;", &nextToken))
-            {
-               if (strcmp(dns, in6addr2str(&d->val_addr6, 0)) == 0)
-               {
-                  /* this dns address is already in the conf file */
-                  dnsChange = 0;
-                  break;
-               }
-            }
-         }
-      }
-   }
-
-   /* return if the dns list has a new dns address */
-   if (dnsChange)
-   {
-      fclose(fp);
-      return dnsChange;
-   }
-
-   /* Now, we want to verify if there is any dns address in the
-    * existing conf file no longer in the new dns list.
-    */
-   dnsChange = 0;
-   fseek(fp, 0L, SEEK_SET);
-   while (!dnsChange && (fgets(line, sizeof(line), fp) != NULL))
-   {
-      /* look for domain-name-servers statement in the conf file */
-      if (token = strstr(line, "domain-name-servers"))
-      {
-         /* skip the domain-name-servers token */
-         strtok_r(token, " ;", &nextToken);
-
-         /* parse the dns address tokens in the statement */
-         while (!dnsChange && (dns = strtok_r(NULL, " ;", &nextToken)))
-         {
-            /* See if this dns address is in the new dns list */
-            dnsChange = 1;
-		      for (d = TAILQ_FIRST(&opt->dns_list); d; d = TAILQ_NEXT(d, link))
-		      {
-               if (strcmp(dns, in6addr2str(&d->val_addr6, 0)) == 0)
-               {
-                  /* this dns address is in the new list */
-                  dnsChange = 0;
-                  break;
-               }
-		      }
-         }
-      }
-   }
-
-   return dnsChange;
-
-}  /* End of isDhcp6sDnsListChanged() */
-
-/***************************************************************************
- * Function:
- *    int updateDhcp6sConfDnsList(struct dhcp6_optinfo *opt)
- * Description:
- *    This function creates or updates the dhcp6s.conf file with the dns
- *    info given in *opt, and starts the dhcp6s daemon.
- * Parameters:
- *    *opt  (IN) dhcp6 option info pointer.
- * Returns:
- *    0 if SUCCESS otherwise -1
- ***************************************************************************/
-int updateDhcp6sConfDnsList(struct dhcp6_optinfo *opt)
-{
-   FILE  *fp_ip6Dns, *fp_dhcp6sConf, *fp_dhcp6sPid;
-   struct dhcp6_listval *d;
-   char  line[84];
-
-   /* see if the f_ip6Dns file already exists */
-   if (access(f_ip6Dns, F_OK) == 0)
-   {
-      int   pid;
-
-      /* read the pid from the first line to see if it was created by this dhcp6c process */
-      if ((fp_ip6Dns = fopen(f_ip6Dns, "r")) == NULL)
-      {
-         /* error */
-         dprintf(LOG_ERR, FNAME, "failed to open %s", f_ip6Dns);
-         return -1;
-      }
-
-      if (fgets(line, sizeof(line), fp_ip6Dns) == NULL)
-      {
-         /* error */
-         dprintf(LOG_ERR, FNAME, "failed to read from %s", f_ip6Dns);
-         fclose(fp_ip6Dns);
-         return -1;
-      }
-
-      sscanf(line, "%*s%d", &pid);
-      if (getpid() != pid)
-      {
-         fclose(fp_ip6Dns);
-         return 0;         
-      }
-
-      fclose(fp_ip6Dns);
-
-      /* if there is no change in the list, do nothing */
-      if (isDhcp6sDnsListChanged(opt) == 0)
-      {
-         return 0;
-      }
-
-      /* delete ip6dns file */
-      remove(f_ip6Dns);
-
-      /* since the dns list has changed, we want to kill the existing dhcp6s daemon */
-      if ((fp_dhcp6sPid = fopen(f_dhcp6sPid, "r")) != NULL)
-      {
-         if (fgets(line, sizeof(line), fp_dhcp6sPid) != NULL)
-         {
-            pid = atoi(line);
-            printf("killing dhcp6s %d\n", pid);
-            sprintf(line, "kill -9 %d", pid);
-            bcmSystemEx(line, 1);
-         }
-         fclose(fp_dhcp6sPid);
-         remove(f_dhcp6sPid);
-      }
-   }
-
-   /* open a new dhcp6s.conf file or truncate the existing file */
-   if ((fp_dhcp6sConf = fopen(f_dhcp6sConf, "w")) == NULL)
-   {
-      /* error */
-      dprintf(LOG_WARNING, FNAME, "failed to open %s", f_dhcp6sConf);
-      return -1;
-   }
-
-   /* open a new ip6Dns file or truncate the existing file */
-   if ((fp_ip6Dns = fopen(f_ip6Dns, "w")) == NULL)
-   {
-      /* error */
-      dprintf(LOG_ERR, FNAME, "failed to open %s", f_ip6Dns);
-      fclose(fp_dhcp6sConf);
-      return -1;
-   }
-
-   /* write domain-name-servers statement to file */
-   fprintf(fp_dhcp6sConf, "option domain-name-servers");
-
-   for (d = TAILQ_FIRST(&opt->dns_list); d; d = TAILQ_NEXT(d, link))
-   {
-      fprintf(fp_dhcp6sConf, " %s", in6addr2str(&d->val_addr6, 0));
-   }
-   fprintf(fp_dhcp6sConf, ";");
-   fclose(fp_dhcp6sConf);
-
-   /* write the pid of this dhcp6c process */
-   fprintf(fp_ip6Dns, "dhcp6c_pid %d\n", getpid());
-   fclose(fp_ip6Dns);
-
-   /* start dhcp6s with the updated conf file */
-   sprintf(line, "dhcp6s -c %s -dDf br0 &", f_dhcp6sConf);
-   bcmSystemEx(line, 1);
-
-   return 0;
-
-}  /* End of updateDhcp6sConfDnsList() */
-#endif
-
+/* brcm start */
 int updateDhcp6sConfDnsList(struct dhcp6_optinfo *opt)
 {
    struct dhcp6_listval *d;
@@ -2478,7 +2306,7 @@ int updateDhcp6sConfDnsList(struct dhcp6_optinfo *opt)
 
 void sendDnsEventMessage(const char *nameserver, const char *domainName)
 {
-   if ( nameserver )
+   if ( nameserver && nameserver[0]!='\0' )
    {
 	   dhcp6cMsgBody.dnsAssigned = TRUE;
 	   strcpy(dhcp6cMsgBody.nameserver, nameserver);
@@ -2486,7 +2314,7 @@ void sendDnsEventMessage(const char *nameserver, const char *domainName)
 	   dprintf(LOG_NOTICE, FNAME, "DHCP6C_DNS_SERVER_CHANGED: %s", dhcp6cMsgBody.nameserver);
    }
 
-   if (domainName)
+   if ( domainName && domainName[0]!='\0' )
    {
 	   dhcp6cMsgBody.domainNameAssigned = TRUE;
 	   strcpy(dhcp6cMsgBody.domainName, domainName);
@@ -2498,6 +2326,33 @@ void sendDnsEventMessage(const char *nameserver, const char *domainName)
 
 }  /* End of sendDnsEventMessage() */
 
+int sendAftrEventMessage(struct dhcp6_optinfo *opt)
+{
+   struct dhcp6_listval *d;
+   char   aftr[CMS_AFTR_NAME_LENGTH]="";
+
+   d = TAILQ_FIRST(&opt->aftr_list);
+   if (d!=NULL)
+   {
+      sprintf(aftr, "%s", d->val_vbuf.dv_buf);
+
+      /* 
+       * FIXME: last character in aftr is always '.'
+       * Solution: always set to '\0', but better to figure out why!
+       */
+      if (strlen(aftr) > 0) 
+      {
+         aftr[strlen(aftr)-1]='\0';
+      }
+
+      dhcp6cMsgBody.aftrAssigned = TRUE;
+      strcpy(dhcp6cMsgBody.aftr, aftr);
+
+      dprintf(LOG_NOTICE, FNAME, "DHCP6C_AFTR_CHANGED: %s", dhcp6cMsgBody.aftr);
+   }
+
+   return 0;
+}  /* End of sendAftrEventMessage() */
 
 void copyoutNtpList(struct dhcp6_optinfo *opt)
 {
@@ -2554,4 +2409,4 @@ void sendDhcp6cEventMessage(void)
    return;
 
 }  /* End of sendDhcp6cEventMessage() */
-#endif
+/* brcm end */

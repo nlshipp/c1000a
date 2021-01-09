@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * ll_proto.c
  *
@@ -9,21 +10,28 @@
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  */
 
-#include <stdio.h>
-#include <arpa/inet.h>
-#include <string.h>
+#include "libbb.h"
+#include "rt_names.h"
 #include "utils.h"
 
-#if __GLIBC__ >=2 && __GLIBC_MINOR >= 1
+#if defined(__GLIBC__) && __GLIBC__ >=2 && __GLIBC_MINOR__ >= 1
 #include <net/ethernet.h>
 #else
 #include <linux/if_ether.h>
 #endif
 
+#if !ENABLE_WERROR
+#warning de-bloat
+#endif
+/* Before re-enabling this, please (1) conditionalize exotic protocols
+ * on CONFIG_something, and (2) decouple strings and numbers
+ * (use llproto_ids[] = n,n,n..; and llproto_names[] = "loop\0" "pup\0" ...;)
+ */
+
 #define __PF(f,n) { ETH_P_##f, #n },
 static struct {
 	int id;
-	char *name;
+	const char *name;
 } llproto_names[] = {
 __PF(LOOP,loop)
 __PF(PUP,pup)
@@ -90,31 +98,32 @@ __PF(ECONET,econet)
 #undef __PF
 
 
-char * ll_proto_n2a(unsigned short id, char *buf, int len)
+const char* FAST_FUNC ll_proto_n2a(unsigned short id, char *buf, int len)
 {
-        int i;
-
+	unsigned i;
 	id = ntohs(id);
-
-        for (i=0; i<sizeof(llproto_names)/sizeof(llproto_names[0]); i++) {
-                 if (llproto_names[i].id == id)
+	for (i = 0; i < ARRAY_SIZE(llproto_names); i++) {
+		 if (llproto_names[i].id == id)
 			return llproto_names[i].name;
 	}
-        snprintf(buf, len, "[%d]", id);
-        return buf;
+	snprintf(buf, len, "[%d]", id);
+	return buf;
 }
 
-int ll_proto_a2n(unsigned short *id, char *buf)
+int FAST_FUNC ll_proto_a2n(unsigned short *id, char *buf)
 {
-        int i;
-        for (i=0; i<sizeof(llproto_names)/sizeof(llproto_names[0]); i++) {
-                 if (strcasecmp(llproto_names[i].name, buf) == 0) {
-			 *id = htons(llproto_names[i].id);
-			 return 0;
+	unsigned i;
+	for (i = 0; i < ARRAY_SIZE(llproto_names); i++) {
+		 if (strcasecmp(llproto_names[i].name, buf) == 0) {
+			 i = llproto_names[i].id;
+			 goto good;
 		 }
 	}
-	if (get_u16(id, buf, 0))
+	i = bb_strtou(buf, NULL, 0);
+	if (errno || i > 0xffff)
 		return -1;
-	*id = htons(*id);
+ good:
+	*id = htons(i);
 	return 0;
 }
+

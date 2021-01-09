@@ -73,6 +73,33 @@ typedef struct flashaddrinfo
 } FLASH_ADDR_INFO, *PFLASH_ADDR_INFO;
 
 
+
+/*
+ * A partition may be filled from the tail end of the partition. If the total
+ * length of all blocks in the partition is not equal to the total length 
+ * needed, an offset into the first block may be used. In this case, the
+ * memptr will be at a blk_offset from the memptr associated with start_blk.
+ */
+typedef struct flash_partition_info {
+
+    char name[32];
+		/* Partition coordinates */
+    int start_blk;		/* start block id */
+    int number_blk;		/* total number of blocks in partition */
+    int total_len;		/* total length of all blocks in partition */
+    int sect_size;		/* size of each block in the sector */
+				/* =0 if all sectors are not of the same size*/
+    unsigned long blk_offset;	/* offset of start memory in start block */
+
+		/* Memory usage coordinates in partition */
+    unsigned long mem_base;	/* start memory pointer in partition */
+    int mem_length;		/* length of memory used in partition */
+} FLASH_PARTITION_INFO, *PFLASH_PARTITION_INFO;
+
+
+
+extern void kerSysFlashPartInfoGet(PFLASH_PARTITION_INFO pflash_partition_info);
+
 /** Fill in the fInfo structure with primary PSI, scratch pad, syslog, secondary PSI info.
  *
  * @param nvRam (IN) nvram info.
@@ -93,7 +120,7 @@ void flash_init_info(const NVRAM_DATA *nvRam, FLASH_ADDR_INFO *fInfo);
  * @return number of bytes reserved at the end.
  */
 unsigned int flash_get_reserved_bytes_at_end(const FLASH_ADDR_INFO *fInfo);
-
+unsigned int flash_get_reserved_bytes_auxfs(void);
 
 #ifdef __cplusplus
 }

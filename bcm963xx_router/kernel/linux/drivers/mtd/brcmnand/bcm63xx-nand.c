@@ -2,6 +2,8 @@
  *
  *  drivers/mtd/brcmnand/bcm7xxx-nand.c
  *
+<:copyright-BRCM:2002:GPL/GPL:standard
+ *
     Copyright (c) 2005-2006 Broadcom Corporation                 
     
  This program is free software; you can redistribute it and/or modify
@@ -24,6 +26,8 @@
 when    who what
 -----   --- ----
 051011  tht codings derived from OneNand generic.c implementation.
+
+:>
 
  * THIS DRIVER WAS PORTED FROM THE 2.6.18-7.2 KERNEL RELEASE
  */
@@ -58,7 +62,7 @@ static struct mtd_partition bcm63XX_nand_parts[] =
 #ifdef AEI_CONFIG_JFFS
     {name: "tag",         offset: 0, size: 0},
     {name: "tag_update",         offset: 0, size: 0},
-#endif        
+#endif
     {name: NULL,            offset: 0, size: 0}
 };
 
@@ -119,7 +123,13 @@ brcmnanddrv_setup_mtd_partitions(struct brcmnand_info* nandinfo)
     {
         boot_from_nand = 0;
     }
-#elif defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#elif defined(CONFIG_BCM96828)
+     if( ((MISC->miscStrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
+        MISC_STRAP_BUS_BOOT_SEL_SHIFT) == MISC_STRAP_BUS_BOOT_SERIAL )
+     {
+         boot_from_nand = 0;
+     }
+#elif defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) ||defined(CONFIG_BCM963268) 
     if( ((MISC->miscStrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
         MISC_STRAP_BUS_BOOT_SEL_SHIFT) != MISC_STRAP_BUS_BOOT_NAND )
     {
@@ -160,7 +170,7 @@ brcmnanddrv_setup_mtd_partitions(struct brcmnand_info* nandinfo)
         kerSysNvRamGet((char *)&nvram, sizeof(nvram), 0);
 #ifdef AEI_CONFIG_JFFS
         nandinfo->nr_parts = 6;
-#else         
+#else
         nandinfo->nr_parts = 4;
 #endif
         nandinfo->parts = bcm63XX_nand_parts;
@@ -207,8 +217,8 @@ brcmnanddrv_setup_mtd_partitions(struct brcmnand_info* nandinfo)
         bcm63XX_nand_parts[0].ecclayout = mtd->ecclayout;
         bcm63XX_nand_parts[1].offset =( nvram.ulNandPartOfsKb[rootfs_update]+nvram.ulNandPartSizeKb[NP_BOOT] )*1024;
         bcm63XX_nand_parts[1].size = (nvram.ulNandPartSizeKb[rootfs_update]-nvram.ulNandPartSizeKb[NP_BOOT])*1024;
-        bcm63XX_nand_parts[1].ecclayout = mtd->ecclayout;        
-       
+        bcm63XX_nand_parts[1].ecclayout = mtd->ecclayout;
+
 #else
         bcm63XX_nand_parts[0].offset = nvram.ulNandPartOfsKb[rootfs]*1024;
         bcm63XX_nand_parts[0].size = nvram.ulNandPartSizeKb[rootfs]*1024;
@@ -249,7 +259,7 @@ brcmnanddrv_setup_mtd_partitions(struct brcmnand_info* nandinfo)
             bcm63XX_nand_parts[4].size, bcm63XX_nand_parts[4].offset);
         PRINTK("Part[5] name=%s, size=%llx, ofs=%llx\n", bcm63XX_nand_parts[5].name,
             bcm63XX_nand_parts[5].size, bcm63XX_nand_parts[5].offset);
-#endif              
+#endif
     }
 }
 
@@ -368,7 +378,8 @@ static int __init brcmnanddrv_init(void)
     char cmd[32] = "\0";
     struct platform_device *pdev;
 
-    kerSysBlParmsGetStr("NANDCMD", cmd, sizeof(cmd));
+    kerSysBlParmsGetStr(NAND_COMMAND_NAME, cmd, sizeof(cmd));
+    PRINTK("%s: brcmnanddrv_init - NANDCMD='%s'\n", __FUNCTION__, cmd);
 
     if (cmd[0])
     {

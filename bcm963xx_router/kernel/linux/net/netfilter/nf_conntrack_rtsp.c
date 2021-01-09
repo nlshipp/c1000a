@@ -132,6 +132,18 @@ static int memstr(const char *haystack, int haystacklen,
 	return -1;
 }
 
+static int get_cseq(const char *str)
+{
+	unsigned long cseq = 0, i = 0;
+	char c = *str;
+	while(i++ < 10 && c && c != 0xd && c>='0' && c <= '9'){
+		cseq = (cseq * 10) + (c - '0');
+		c = *(str + i);
+	}
+	if(!cseq)
+		cseq = -1;
+	return (int) cseq;
+}
 
 /* Get next message in a packet */
 static int get_next_message(const char *tcpdata, int tcpdatalen,
@@ -288,8 +300,7 @@ static int expect_rtsp_channel(struct sk_buff *skb, struct nf_conn *ct,
 		return -1;
 
 	nf_ct_expect_init(rtp_exp, NF_CT_EXPECT_CLASS_DEFAULT, nf_ct_l3num(ct),
-			  &ct->tuplehash[!dir].tuple.src.u3,
-			  &ct->tuplehash[!dir].tuple.dst.u3,
+			  NULL, &ct->tuplehash[!dir].tuple.dst.u3,
 			  IPPROTO_UDP, NULL, &rtpport);
 
 	if ((nat_rtsp_channel = rcu_dereference(nat_rtsp_channel_hook)) &&
@@ -339,8 +350,7 @@ static int expect_rtsp_channel2(struct sk_buff *skb, struct nf_conn *ct,
 		return -1;
 	}
 	nf_ct_expect_init(rtcp_exp, NF_CT_EXPECT_CLASS_DEFAULT, nf_ct_l3num(ct),
-			  &ct->tuplehash[!dir].tuple.src.u3,
-			  &ct->tuplehash[!dir].tuple.dst.u3,
+			  NULL, &ct->tuplehash[!dir].tuple.dst.u3,
 			  IPPROTO_UDP, NULL, &rtcpport);
 
 	if ((nat_rtsp_channel2 = rcu_dereference(nat_rtsp_channel2_hook)) &&
@@ -388,6 +398,20 @@ static void set_long_timeout(struct nf_conn *ct, struct sk_buff *skb)
 
 	/* write_lock_bh(&nf_conntrack_lock); */
 	list_for_each_entry(child, &ct->derived_connections, derived_list) {
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		if ( (child->blog_key[IP_CT_DIR_ORIGINAL] != BLOG_KEY_NONE)
+			|| (child->blog_key[IP_CT_DIR_REPLY] != BLOG_KEY_NONE) )
+		{
+			/* remove flow from flow cache */
+                        blog_notify(DESTROY_FLOWTRACK, (void*)child,
+                                                (uint32_t)child->blog_key[IP_CT_DIR_ORIGINAL],
+                                                (uint32_t)child->blog_key[IP_CT_DIR_REPLY]);
+
+                        /* Safe: In case blog client does not set key to 0 explicilty */
+                        child->blog_key[IP_CT_DIR_ORIGINAL] = BLOG_KEY_NONE;
+                        child->blog_key[IP_CT_DIR_REPLY]    = BLOG_KEY_NONE;
+		}
+#endif
 		nf_ct_refresh(child, skb, 3600*HZ);
 	}
 	/*	write_unlock_bh(&nf_conntrack_lock); */
@@ -454,8 +478,21 @@ static int help(struct sk_buff *skb, unsigned int protoff,
 			   &ct->tuplehash[!dir].tuple.dst.u3,
 			   sizeof(ct->tuplehash[dir].tuple.src.u3)) != 0) {
 			if(memcmp(tcpdata+msgoff, "PAUSE ", 6) == 0) {
-				pr_debug("nf_ct_rtsp: PAUSE\n");
-				hlp->help.ct_rtsp_info.paused = 1;
+				int cseq = memmem(tcpdata+msgoff, msglen, "CSeq: ", 6);
+				if(cseq == -1) {
+				        /* Fix the IOP issue with DSS on Drawin system */
+				        cseq = memmem(tcpdata+msgoff, msglen, "Cseq: ", 6);
+				        if(cseq == -1) {
+					   pr_debug("nf_ct_rtsp: wrong PAUSE msg\n");
+				        } else {
+					   cseq = get_cseq(tcpdata+msgoff+cseq+6);
+				        }
+				} else {
+					cseq = get_cseq(tcpdata+msgoff+cseq+6);
+				}
+				
+				pr_debug("nf_ct_rtsp: PAUSE, CSeq=%d\n", cseq);
+				hlp->help.ct_rtsp_info.paused = cseq;
 				continue;
 			} else {
 				hlp->help.ct_rtsp_info.paused = 0;
@@ -480,10 +517,25 @@ static int help(struct sk_buff *skb, unsigned int protoff,
 
 		 	/* Response to a previous PAUSE message */
 			if (hlp->help.ct_rtsp_info.paused) {
-				pr_debug("nf_ct_rtsp: Reply to PAUSE\n");
-				set_long_timeout(ct, skb);
-				hlp->help.ct_rtsp_info.paused = 0;
-				goto end;
+				int cseq = memmem(tcpdata+msgoff, msglen, "CSeq: ", 6);
+				if(cseq == -1) {
+				        /* Fix the IOP issue with DSS on Drawin system */
+				        cseq = memmem(tcpdata+msgoff, msglen, "Cseq: ", 6);
+				        if(cseq == -1) {
+					   pr_debug("nf_ct_rtsp: wrong reply msg\n");
+				        } else {
+					   cseq = get_cseq(tcpdata+msgoff+cseq+6);
+				        }
+				} else {
+					cseq = get_cseq(tcpdata+msgoff+cseq+6);
+				}
+				if(cseq == hlp->help.ct_rtsp_info.paused) {
+					pr_debug("nf_ct_rtsp: Reply to PAUSE\n");
+					set_long_timeout(ct, skb);
+					hlp->help.ct_rtsp_info.paused = 0;
+					goto end;
+				}
+
 			}
 			
 			/* Now begin to process other reply message */
@@ -568,7 +620,7 @@ static int help(struct sk_buff *skb, unsigned int protoff,
 			}
 
             /* register the RTP ports with ingress QoS classifier */
-//            printk("\n RTP Port = %d, RTCP Port = %d\n", rtpport, rtcpport);
+            pr_debug("\n RTP Port = %d, RTCP Port = %d\n", rtpport, rtcpport);
             iqos_add_L4port(IPPROTO_UDP, rtpport, IQOS_ENT_DYN, IQOS_PRIO_HIGH);
             iqos_add_L4port(IPPROTO_UDP, rtcpport, IQOS_ENT_DYN, IQOS_PRIO_HIGH);
 
@@ -625,7 +677,7 @@ static int help(struct sk_buff *skb, unsigned int protoff,
 			}
             
             /* register the RTP ports with ingress QoS classifier */
-//            printk("\n RTP Port = %d\n", rtpport);
+            pr_debug("\n RTP Port = %d\n", rtpport);
             iqos_add_L4port(IPPROTO_UDP, rtpport, IQOS_ENT_DYN, IQOS_PRIO_HIGH);
 
 			if (ret < 0)

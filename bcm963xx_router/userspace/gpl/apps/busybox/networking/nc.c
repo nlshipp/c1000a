@@ -1,177 +1,279 @@
 /* vi: set sw=4 ts=4: */
 /*  nc: mini-netcat - built from the ground up for LRP
-    Copyright (C) 1998  Charles P. Wright
+ *
+ *  Copyright (C) 1998, 1999  Charles P. Wright
+ *  Copyright (C) 1998  Dave Cinege
+ *
+ *  Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ */
 
-    0.0.1   6K      It works.
-    0.0.2   5K      Smaller and you can also check the exit condition if you wish.
-    0.0.3	    Uses select()
+#include "libbb.h"
 
-    19980918 Busy Boxed! Dave Cinege
-    19990512 Uses Select. Charles P. Wright
-    19990513 Fixes stdin stupidity and uses buffers.  Charles P. Wright
+//config:config NC
+//config:	bool "nc"
+//config:	default y
+//config:	help
+//config:	  A simple Unix utility which reads and writes data across network
+//config:	  connections.
+//config:
+//config:config NC_SERVER
+//config:	bool "Netcat server options (-l)"
+//config:	default y
+//config:	depends on NC
+//config:	help
+//config:	  Allow netcat to act as a server.
+//config:
+//config:config NC_EXTRA
+//config:	bool "Netcat extensions (-eiw and filename)"
+//config:	default y
+//config:	depends on NC
+//config:	help
+//config:	  Add -e (support for executing the rest of the command line after
+//config:	  making or receiving a successful connection), -i (delay interval for
+//config:	  lines sent), -w (timeout for initial connection).
+//config:
+//config:config NC_110_COMPAT
+//config:	bool "Netcat 1.10 compatibility (+2.5k)"
+//config:	default n  # off specially for Rob
+//config:	depends on NC
+//config:	help
+//config:	  This option makes nc closely follow original nc-1.10.
+//config:	  The code is about 2.5k bigger. It enables
+//config:	  -s ADDR, -n, -u, -v, -o FILE, -z options, but loses
+//config:	  busybox-specific extensions: -f FILE and -ll.
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+#if ENABLE_NC_110_COMPAT
+# include "nc_bloaty.c"
+#else
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+//usage:#if !ENABLE_NC_110_COMPAT
+//usage:
+//usage:#if ENABLE_NC_SERVER || ENABLE_NC_EXTRA
+//usage:#define NC_OPTIONS_STR "\n\nOptions:"
+//usage:#else
+//usage:#define NC_OPTIONS_STR
+//usage:#endif
+//usage:
+//usage:#define nc_trivial_usage
+//usage:	IF_NC_EXTRA("[-iN] [-wN] ")IF_NC_SERVER("[-l] [-p PORT] ")
+//usage:       "["IF_NC_EXTRA("-f FILE|")"IPADDR PORT]"IF_NC_EXTRA(" [-e PROG]")
+//usage:#define nc_full_usage "\n\n"
+//usage:       "Open a pipe to IP:PORT" IF_NC_EXTRA(" or FILE")
+//usage:	NC_OPTIONS_STR
+//usage:	IF_NC_EXTRA(
+//usage:     "\n	-e PROG	Run PROG after connect"
+//usage:	IF_NC_SERVER(
+//usage:     "\n	-l	Listen mode, for inbound connects"
+//usage:	IF_NC_EXTRA(
+//usage:     "\n		(use -l twice with -e for persistent server)")
+//usage:     "\n	-p PORT	Local port"
+//usage:	)
+//usage:     "\n	-w SEC	Timeout for connect"
+//usage:     "\n	-i SEC	Delay interval for lines sent"
+//usage:     "\n	-f FILE	Use file (ala /dev/ttyS0) instead of network"
+//usage:	)
+//usage:
+//usage:#define nc_notes_usage ""
+//usage:	IF_NC_EXTRA(
+//usage:       "To use netcat as a terminal emulator on a serial port:\n\n"
+//usage:       "$ stty 115200 -F /dev/ttyS0\n"
+//usage:       "$ stty raw -echo -ctlecho && nc -f /dev/ttyS0\n"
+//usage:	)
+//usage:
+//usage:#define nc_example_usage
+//usage:       "$ nc foobar.somedomain.com 25\n"
+//usage:       "220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600\n"
+//usage:       "help\n"
+//usage:       "214-Commands supported:\n"
+//usage:       "214-    HELO EHLO MAIL RCPT DATA AUTH\n"
+//usage:       "214     NOOP QUIT RSET HELP\n"
+//usage:       "quit\n"
+//usage:       "221 foobar closing connection\n"
+//usage:
+//usage:#endif
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+/* Lots of small differences in features
+ * when compared to "standard" nc
+ */
 
-*/
+static void timeout(int signum UNUSED_PARAM)
+{
+	bb_error_msg_and_die("timed out");
+}
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/time.h>
-#include <sys/ioctl.h>
-#include "busybox.h"
-
-#define GAPING_SECURITY_HOLE
-
+int nc_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int nc_main(int argc, char **argv)
 {
-	int do_listen = 0, lport = 0, delay = 0, tmpfd, opt, sfd, x;
-	char buf[BUFSIZ];
-#ifdef GAPING_SECURITY_HOLE
-	char * pr00gie = NULL;
-#endif
-
-	struct sockaddr_in address;
-	struct hostent *hostinfo;
-
+	/* sfd sits _here_ only because of "repeat" option (-l -l). */
+	int sfd = sfd; /* for gcc */
+	int cfd = 0;
+	unsigned lport = 0;
+	IF_NOT_NC_SERVER(const) unsigned do_listen = 0;
+	IF_NOT_NC_EXTRA (const) unsigned wsecs = 0;
+	IF_NOT_NC_EXTRA (const) unsigned delay = 0;
+	IF_NOT_NC_EXTRA (const int execparam = 0;)
+	IF_NC_EXTRA     (char **execparam = NULL;)
 	fd_set readfds, testfds;
+	int opt; /* must be signed (getopt returns -1) */
 
-	while ((opt = getopt(argc, argv, "lp:i:e:")) > 0) {
-		switch (opt) {
-			case 'l':
-				do_listen++;
-				break;
-			case 'p':
-				lport = bb_lookup_port(optarg, "tcp", 0);
-				break;
-			case 'i':
-				delay = atoi(optarg);
-				break;
-#ifdef GAPING_SECURITY_HOLE
-			case 'e':
-				pr00gie = optarg;
-				break;
+	if (ENABLE_NC_SERVER || ENABLE_NC_EXTRA) {
+		/* getopt32 is _almost_ usable:
+		** it cannot handle "... -e PROG -prog-opt" */
+		while ((opt = getopt(argc, argv,
+		        "" IF_NC_SERVER("lp:") IF_NC_EXTRA("w:i:f:e:") )) > 0
+		) {
+			if (ENABLE_NC_SERVER && opt == 'l')
+				IF_NC_SERVER(do_listen++);
+			else if (ENABLE_NC_SERVER && opt == 'p')
+				IF_NC_SERVER(lport = bb_lookup_port(optarg, "tcp", 0));
+			else if (ENABLE_NC_EXTRA && opt == 'w')
+				IF_NC_EXTRA( wsecs = xatou(optarg));
+			else if (ENABLE_NC_EXTRA && opt == 'i')
+				IF_NC_EXTRA( delay = xatou(optarg));
+			else if (ENABLE_NC_EXTRA && opt == 'f')
+				IF_NC_EXTRA( cfd = xopen(optarg, O_RDWR));
+			else if (ENABLE_NC_EXTRA && opt == 'e' && optind <= argc) {
+				/* We cannot just 'break'. We should let getopt finish.
+				** Or else we won't be able to find where
+				** 'host' and 'port' params are
+				** (think "nc -w 60 host port -e PROG"). */
+				IF_NC_EXTRA(
+					char **p;
+					// +2: one for progname (optarg) and one for NULL
+					execparam = xzalloc(sizeof(char*) * (argc - optind + 2));
+					p = execparam;
+					*p++ = optarg;
+					while (optind < argc) {
+						*p++ = argv[optind++];
+					}
+				)
+				/* optind points to argv[arvc] (NULL) now.
+				** FIXME: we assume that getopt will not count options
+				** possibly present on "-e PROG ARGS" and will not
+				** include them into final value of optind
+				** which is to be used ...  */
+			} else bb_show_usage();
+		}
+		argv += optind; /* ... here! */
+		argc -= optind;
+		// -l and -f don't mix
+		if (do_listen && cfd) bb_show_usage();
+		// File mode needs need zero arguments, listen mode needs zero or one,
+		// client mode needs one or two
+		if (cfd) {
+			if (argc) bb_show_usage();
+		} else if (do_listen) {
+			if (argc > 1) bb_show_usage();
+		} else {
+			if (!argc || argc > 2) bb_show_usage();
+		}
+	} else {
+		if (argc != 3) bb_show_usage();
+		argc--;
+		argv++;
+	}
+
+	if (wsecs) {
+		signal(SIGALRM, timeout);
+		alarm(wsecs);
+	}
+
+	if (!cfd) {
+		if (do_listen) {
+			sfd = create_and_bind_stream_or_die(argv[0], lport);
+			xlisten(sfd, do_listen); /* can be > 1 */
+#if 0  /* nc-1.10 does not do this (without -v) */
+			/* If we didn't specify a port number,
+			 * query and print it after listen() */
+			if (!lport) {
+				len_and_sockaddr lsa;
+				lsa.len = LSA_SIZEOF_SA;
+				getsockname(sfd, &lsa.u.sa, &lsa.len);
+				lport = get_nport(&lsa.u.sa);
+				fdprintf(2, "%d\n", ntohs(lport));
+			}
 #endif
-			default:
-				bb_show_usage();
+			close_on_exec_on(sfd);
+ accept_again:
+			cfd = accept(sfd, NULL, 0);
+			if (cfd < 0)
+				bb_perror_msg_and_die("accept");
+			if (!execparam)
+				close(sfd);
+		} else {
+			cfd = create_and_connect_stream_or_die(argv[0],
+				argv[1] ? bb_lookup_port(argv[1], "tcp", 0) : 0);
 		}
 	}
 
-#ifdef GAPING_SECURITY_HOLE
-	if (pr00gie) {
-		/* won't need stdin */
-		close (STDIN_FILENO);      
-	}
-#endif /* GAPING_SECURITY_HOLE */
-
-
-	if ((do_listen && optind != argc) || (!do_listen && optind + 2 != argc))
-		bb_show_usage();
-
-	if ((sfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		bb_perror_msg_and_die("socket");
-	x = 1;
-	if (setsockopt (sfd, SOL_SOCKET, SO_REUSEADDR, &x, sizeof (x)) == -1)
-		bb_perror_msg_and_die ("reuseaddr failed");
-	address.sin_family = AF_INET;
-
-	if (lport != 0) {
-		memset(&address.sin_addr, 0, sizeof(address.sin_addr));
-		address.sin_port = lport;
-
-		if (bind(sfd, (struct sockaddr *) &address, sizeof(address)) < 0)
-			bb_perror_msg_and_die("bind");
+	if (wsecs) {
+		alarm(0);
+		/* Non-ignored signals revert to SIG_DFL on exec anyway */
+		/*signal(SIGALRM, SIG_DFL);*/
 	}
 
-	if (do_listen) {
-		socklen_t addrlen = sizeof(address);
-
-		if (listen(sfd, 1) < 0)
-			bb_perror_msg_and_die("listen");
-
-		if ((tmpfd = accept(sfd, (struct sockaddr *) &address, &addrlen)) < 0)
-			bb_perror_msg_and_die("accept");
-
-		close(sfd);
-		sfd = tmpfd;
-	} else {
-		hostinfo = xgethostbyname(argv[optind]);
-
-		address.sin_addr = *(struct in_addr *) *hostinfo->h_addr_list;
-		address.sin_port = bb_lookup_port(argv[optind+1], "tcp", 0);
-
-		if (connect(sfd, (struct sockaddr *) &address, sizeof(address)) < 0)
-			bb_perror_msg_and_die("connect");
-	}
-
-#ifdef GAPING_SECURITY_HOLE
 	/* -e given? */
-	if (pr00gie) {
-		dup2(sfd, 0);
-		close(sfd);
-		dup2 (0, 1);
-		dup2 (0, 2);
-		execl (pr00gie, pr00gie, NULL);
-		/* Don't print stuff or it will go over the wire.... */
-		_exit(-1);
+	if (execparam) {
+		pid_t pid;
+		/* With more than one -l, repeatedly act as server */
+		if (do_listen > 1 && (pid = xvfork()) != 0) {
+			/* parent */
+			/* prevent zombies */
+			signal(SIGCHLD, SIG_IGN);
+			close(cfd);
+			goto accept_again;
+		}
+		/* child, or main thread if only one -l */
+		xmove_fd(cfd, 0);
+		xdup2(0, 1);
+		xdup2(0, 2);
+		IF_NC_EXTRA(BB_EXECVP(execparam[0], execparam);)
+		/* Don't print stuff or it will go over the wire... */
+		_exit(127);
 	}
-#endif /* GAPING_SECURITY_HOLE */
 
+	/* Select loop copying stdin to cfd, and cfd to stdout */
 
 	FD_ZERO(&readfds);
-	FD_SET(sfd, &readfds);
+	FD_SET(cfd, &readfds);
 	FD_SET(STDIN_FILENO, &readfds);
 
-	while (1) {
+	for (;;) {
 		int fd;
 		int ofd;
 		int nread;
 
 		testfds = readfds;
 
-		if (select(FD_SETSIZE, &testfds, NULL, NULL, NULL) < 0)
+		if (select(cfd + 1, &testfds, NULL, NULL, NULL) < 0)
 			bb_perror_msg_and_die("select");
 
-		for (fd = 0; fd < FD_SETSIZE; fd++) {
+#define iobuf bb_common_bufsiz1
+		fd = STDIN_FILENO;
+		while (1) {
 			if (FD_ISSET(fd, &testfds)) {
-				if ((nread = safe_read(fd, buf, sizeof(buf))) < 0)
-					bb_perror_msg_and_die("read");
-
-				if (fd == sfd) {
-					if (nread == 0)
-						exit(0);
+				nread = safe_read(fd, iobuf, sizeof(iobuf));
+				if (fd == cfd) {
+					if (nread < 1)
+						exit(EXIT_SUCCESS);
 					ofd = STDOUT_FILENO;
 				} else {
-					if (nread == 0)
-						shutdown(sfd, 1);
-					ofd = sfd;
+					if (nread < 1) {
+						/* Close outgoing half-connection so they get EOF,
+						 * but leave incoming alone so we can see response */
+						shutdown(cfd, 1);
+						FD_CLR(STDIN_FILENO, &readfds);
+					}
+					ofd = cfd;
 				}
-
-				if (bb_full_write(ofd, buf, nread) < 0)
-					bb_perror_msg_and_die("write");
-				if (delay > 0) {
+				xwrite(ofd, iobuf, nread);
+				if (delay > 0)
 					sleep(delay);
-				}
 			}
+			if (fd == cfd)
+				break;
+			fd = cfd;
 		}
 	}
 }
+#endif

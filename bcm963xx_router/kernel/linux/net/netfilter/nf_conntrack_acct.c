@@ -16,10 +16,14 @@
 #include <net/netfilter/nf_conntrack_extend.h>
 #include <net/netfilter/nf_conntrack_acct.h>
 
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+#define NF_CT_ACCT_DEFAULT 1
+#else
 #ifdef CONFIG_NF_CT_ACCT
 #define NF_CT_ACCT_DEFAULT 1
 #else
 #define NF_CT_ACCT_DEFAULT 0
+#endif
 #endif
 
 static int nf_ct_acct __read_mostly = NF_CT_ACCT_DEFAULT;

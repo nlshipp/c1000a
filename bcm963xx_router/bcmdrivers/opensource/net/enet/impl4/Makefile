@@ -14,6 +14,10 @@ ifeq ($(strip $(BRCM_CHIP)),6816)
 bcm_enet-objs += eth6829.o
 endif
 
+ifneq ($(strip $(CONFIG_BCM_GMAC)),)
+bcm_enet-objs += bcmgmac.o
+endif
+
 ifneq ($(strip $(CONFIG_BCM_ENET)),)
 obj-$(CONFIG_BCM_ENET) = bcm_enet.o
 endif
@@ -22,7 +26,6 @@ endif
 #-DUSE_BH     -- use bottom half
 #-DUSE_PROC   -- display ethernet driver internal info
 #-DUSE_EMAC   -- need MDC/MDIO functions
-#-DDBL_DESC   -- Use Extended DMA Descriptor for Tx DMA
 #-DBCM_ENET_RX_LOG   -- Enable rx debug log
 #-DBCM_ENET_LOG      -- Enable debug log
 #-DBCM_ENET_TX_LOG   -- Enable tx debug log
@@ -43,21 +46,16 @@ ifneq ($(strip $(BUILD_SWMDK)),)
 EXTRA_CFLAGS += -DSUPPORT_SWMDK
 endif
 
-# Do not modify the following line.  Used for consumer builds.
-#EXTRA_CFLAGS += -DBCM_FULL_SRC
 
 EXTRA_CFLAGS += -DUSE_BH
 EXTRA_CFLAGS += -DUSE_VPORTS
 EXTRA_CFLAGS += -DEXPORT_SYMTAB
-ifneq ($(strip $(BRCM_DRIVER_GPON)),)
-EXTRA_CFLAGS += -DDBL_DESC
-endif
 EXTRA_CFLAGS += -Werror -Wfatal-errors
 EXTRA_CFLAGS += -g
 #EXTRA_CFLAGS +=  -DBCM_ENET_DEBUG_BUILD
 #EXTRA_CFLAGS +=  -DBCM_ENET_RX_LOG
 #EXTRA_CFLAGS +=  -DBCM_ENET_TX_LOG
-#EXTRA_CFLAGS +=  -DBCM_ENET_LOG
+EXTRA_CFLAGS +=  -DBCM_ENET_LOG
 #EXTRA_CFLAGS +=  -DRXCHANNEL_BYTE_RATE_LIMIT
 EXTRA_CFLAGS +=  -DRXCHANNEL_PKT_RATE_LIMIT
 EXTRA_CFLAGS +=  -DVLAN_TAG_FFF_STRIP
@@ -87,7 +85,6 @@ EXTRA_CFLAGS += -I$(INC_BRCMDRIVER_PUB_PATH)/$(BRCM_BOARD)
 EXTRA_CFLAGS += -I$(INC_BRCMDRIVER_PRIV_PATH)/$(BRCM_BOARD)
 EXTRA_CFLAGS += -I$(INC_BRCMBOARDPARMS_PATH)/$(BRCM_BOARD)
 EXTRA_CFLAGS += -I$(INC_BRCMSHARED_PUB_PATH)/$(BRCM_BOARD)
-EXTRA_CFLAGS += -I$(INC_BRCMSHARED_PRIV_PATH)/$(BRCM_BOARD)
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/opensource/include/$(BRCM_BOARD)
 ifeq ($(CONFIG_BCM_XTMRT_IMPL),1)
 EXTRA_CFLAGS += -I$(BRCMDRIVERS_DIR)/opensource/net/xtmrt/impl3

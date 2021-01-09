@@ -1,6 +1,6 @@
 /* script.c
 *
-* Functions to call the DHCP client notification scripts 
+* Functions to call the DHCP client notification scripts
 *
 * Russ Dill <Russ.Dill@asu.edu> July 2001
 *
@@ -63,10 +63,10 @@ static char s_ipv6rd_prefix[128] = "";
 
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
 static unsigned int lease_time = 0;
-extern void sendEventMessage(UBOOL8 assigned, const char *ip, const char *mask, const char *gateway,
+extern void sendEventMessage(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const char *mask, const char *gateway,
                              const char *nameserver, int ledControl, unsigned int lease_time);
 #else
-extern void sendEventMessage(UBOOL8 assigned, const char *ip, const char *mask, const char *gateway,
+extern void sendEventMessage(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const char *mask, const char *gateway,
                              const char *nameserver, int ledControl);
 #endif
 
@@ -74,9 +74,9 @@ extern void sendEventMessage(UBOOL8 assigned, const char *ip, const char *mask, 
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_OPTION121)
 
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME)
-extern void sendEventMessageWithRoute(UBOOL8 assigned, const char *ip, const char *mask, const char *gateway, const char *nameserver,UINT32 ledControl,route_info_t *routeList, int routeNum, unsigned int lease_time);
+extern void sendEventMessageWithRoute(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const char *mask, const char *gateway, const char *nameserver,UINT32 ledControl,route_info_t *routeList, int routeNum, unsigned int lease_time);
 #else
-extern void sendEventMessageWithRoute(UBOOL8 assigned, const char *ip, const char *mask, const char *gateway, const char *nameserver, UINT32 ledControl,route_info_t *routeList, int routeNum);
+extern void sendEventMessageWithRoute(UBOOL8 assigned,UBOOL8 isExpired, const char *ip, const char *mask, const char *gateway, const char *nameserver, UINT32 ledControl,route_info_t *routeList, int routeNum);
 #endif
 
 #endif
@@ -148,9 +148,23 @@ static void fill_options(char *dest, unsigned char *option, struct dhcp_option *
                 strcat(dns_ip, tmp);
             }
             if (!strcmp(type_p->name, "router"))
+#if defined(AEI_COVERITY_FIX)
+                /*CID 12259:Destination buffer too small*/
+                {
+                    strlcpy(router_ip, tmp, sizeof(router_ip));
+                }
+#else
                 strcpy(router_ip, tmp);
+#endif
             if (!strcmp(type_p->name, "subnet"))
+#if defined(AEI_COVERITY_FIX)
+                /*CID 12259:Destination buffer too small*/
+                {
+                    strlcpy(subnet_ip, tmp, sizeof(subnet_ip));
+                }
+#else
                 strcpy(subnet_ip, tmp);
+#endif
             break;
         case OPTION_IP_PAIR:
             dest += sprintf(dest, "%d.%d.%d.%d, %d.%d.%d.%d",
@@ -207,7 +221,7 @@ static int getClasslessRDDLength(unsigned maskNum)
 	{
 		return 1;
 	}
-	else if (maskNum<=8 && maskNum>=1)		
+	else if (maskNum<=8 && maskNum>=1)
 	{
 		return 2;
 	}
@@ -224,7 +238,7 @@ static int getClasslessRDDLength(unsigned maskNum)
 		return 5;
 	}
 	return 0;
-}	
+}
 
 static unsigned int changeNumtoNetMask(unsigned char netmask)
 {
@@ -235,7 +249,7 @@ static unsigned int changeNumtoNetMask(unsigned char netmask)
 		temp = temp>>1;
 		temp = temp|0x80000000;
 	}
-	
+
 	return temp;
 }
 
@@ -380,7 +394,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 				routeNum++;
 				netMaskNum = *temp;
 				tempLen = getClasslessRDDLength(netMaskNum);
-				netMask = changeNumtoNetMask(netMaskNum);	
+				netMask = changeNumtoNetMask(netMaskNum);
 				sprintf(routeTemp->netmask, "%s", inet_ntoa(*(struct in_addr*)(&netMask)));
 				memset(routeBuf, 0, sizeof(routeBuf));
 				memcpy(routeBuf, temp+1, tempLen-1);
@@ -402,16 +416,16 @@ static char **fill_envp(struct dhcpMessage *packet)
 					else
 					{
 						printf("Mem is poor\n");
-						break;	
+						break;
 					}
 				}
 			}
-		}		
+		}
 	}
-	
+
 #endif
 
-	
+
     if (packet->siaddr) {
         envp[j] = malloc(sizeof("siaddr=255.255.255.255"));
         addr = (unsigned char *)&packet->yiaddr;
@@ -436,9 +450,9 @@ static char **fill_envp(struct dhcpMessage *packet)
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_OPTION121)
 
   #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME)
-	sendEventMessageWithRoute(TRUE, local_ip, subnet_ip, router_ip, dns_ip,0, routeList, routeNum, lease_time);
+	sendEventMessageWithRoute(TRUE,FALSE,local_ip, subnet_ip, router_ip, dns_ip,0, routeList, routeNum, lease_time);
   #else
-	sendEventMessageWithRoute(TRUE, local_ip, subnet_ip, router_ip, dns_ip,0,routeList, routeNum);
+	sendEventMessageWithRoute(TRUE,FALSE,local_ip, subnet_ip, router_ip, dns_ip,0,routeList, routeNum);
   #endif
 
 	freeRouteList(routeList);
@@ -446,9 +460,9 @@ static char **fill_envp(struct dhcpMessage *packet)
 #else
 
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
-    sendEventMessage(TRUE, local_ip, subnet_ip, router_ip, dns_ip, 0, lease_time);
+    sendEventMessage(TRUE,FALSE, local_ip, subnet_ip, router_ip, dns_ip, 0, lease_time);
 #else
-    sendEventMessage(TRUE, local_ip, subnet_ip, router_ip, dns_ip, 0);
+    sendEventMessage(TRUE,FALSE, local_ip, subnet_ip, router_ip, dns_ip, 0);
 #endif
 
 #endif
@@ -469,12 +483,45 @@ void run_script(struct dhcpMessage *packet, const char *name)
     char **envp;
 #if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //add william 2011-12-5
    if (!strcmp(name, "bound")||!strcmp(name, "renew"))
-#else	
-    if (!strcmp(name, "bound") ) 
+#else
+    if (!strcmp(name, "bound") )
 #endif
 	{
         envp = fill_envp(packet);
+
+        /*Coverity Fix CID 11898 Resource Leak fix*/
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        int i = 0;
+        while ( envp[i] != NULL)
+        {
+		if ( i != 2 && i !=3 )
+		{
+			//skip 2, 3, it is not allocated by malloc
+			free(envp[i]);
+		}
+		envp[i] = NULL;
+		i++;
+        }
+        free(envp);
+#else
         free(*envp);
+#endif
     }
+	else if (!strcmp(name, "release")) /* brcm: Expired, set the connection down */
+	{
+#if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
+    sendEventMessage(FALSE,TRUE ,"0", "0", "0", "0", 0, 0);
+#else
+    sendEventMessage(FALSE,TRUE, "0", "0", "0", "0",0);
+#endif
+	}
+	else if (!strcmp(name, "deconfig")) /* brcm: Expired, set the connection down */
+	{
+#if defined(AEI_VDSL_CUSTOMER_DHCP_WAN_LEASETIME) //modify william 2011-11-29
+    sendEventMessage(FALSE,TRUE ,"1", "1", "1", "1", 0, 0);
+#else
+    sendEventMessage(FALSE,TRUE, "1", "1", "1", "1",0);
+#endif
+	}
 
 }

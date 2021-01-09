@@ -1,45 +1,49 @@
-#****************************************************************************
+#***********************************************************************
 #
-# Copyright (c) 2006-2008 Broadcom Corporation
+#  Copyright (c) 2006  Broadcom Corporation
+#  All Rights Reserved
 #
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
+#  <:label-BRCM:2006:DUAL/GPL:standard
 #  
-# 
+#  Unless you and Broadcom execute a separate written software license
+#  agreement governing use of this software, this software is licensed
+#  to you under the terms of the GNU General Public License version 2
+#  (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+#  with the following added to such license:
 #  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
+#     As a special exception, the copyright holders of this software give
+#     you permission to link this software with independent modules, and
+#     to copy and distribute the resulting executable under terms of your
+#     choice, provided that you also meet, for each linked independent
+#     module, the terms and conditions of the license of that module.
+#     An independent module is a module which is not derived from this
+#     software.  The special exception does not apply to any modifications
+#     of the software.
+#  
+#  Not withstanding the above, under no circumstances may you combine
+#  this software in any way with any other Broadcom software provided
+#  under a license other than the GPL, without Broadcom's express prior
+#  written consent.
+#  
+#  :>
 #
-#
-#****************************************************************************
+#***********************************************************************/
+
 
 #
-# Add new libraries to BASE_SUBDIRS or OTHER_SUBDIRS.
-# Do not set MODULAR_SUBDIRS here.  It is set dynamically based on
-# "hint" files in the filesystem.
+# You do not need to modify this Makefile to add an app.
+# Simply create a .autodetect in the subdir and this Makefile will enter
+# that directory during make and make clean.  (Auto detected directories
+# are listed in the AUTODETECT_SUBDIRS variable.  Type make show_subdirs)
 #
-#BASE_SUBDIRS := cms_boardctl cms_util cms_msg
-OTHER_SUBDIRS := openssl libpcap
+HARDCODED_SUBDIRS := openssl libpcap
 
-SUBDIRS = $(BASE_SUBDIRS) $(OTHER_SUBDIRS) $(MODULAR_SUBDIRS)
+SUBDIRS = $(HARDCODED_SUBDIRS) $(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS)
 
 
 # === this is the default target ===
-# Need to add a level of indirection here so that MODULAR_SUBDIRS can be
-# populated in make.common before we build.
+# Need to add a level of indirection here so that AUTODETECT_SUBDIRS and
+# MODSW_SUBDIRS can be populated in make.common/make.modsw before we build.
 #
 all : make_all_subdirs
 
@@ -48,16 +52,24 @@ all : make_all_subdirs
 # Set our CommEngine directory (by splitting the pwd into two words
 # at /userspace and taking the first word only).
 # Then include the common defines under CommEngine.
+# You do not need to modify this part.
 #
 CURR_DIR := $(shell pwd)
 BUILD_DIR:=$(subst /userspace, /userspace,$(CURR_DIR))
 BUILD_DIR:=$(word 1, $(BUILD_DIR))
+
+# automatically set BCM_BASE_BUILD_DIR so that the modsw dirs can compile
+BCM_BASE_BUILD_DIR := $(BUILD_DIR)
+export BCM_BASE_BUILD_DIR
+
 
 include $(BUILD_DIR)/make.common
 
 ifneq ($(strip $(BUILD_VODSL)),)
 include $(BUILD_DIR)/make.voice
 endif
+
+export BUILD_DIR
 
 
 #
@@ -72,6 +84,7 @@ make_all_subdirs : $(SUBDIRS)
 
 clean: generic_subdir_clean
 
+modsw_clean: generic_modsw_base_clean
 
 
 ##############################################################
@@ -83,7 +96,7 @@ clean: generic_subdir_clean
 ##############################################################
 
 
-$(BASE_SUBDIRS) $(MODULAR_SUBDIRS): 
+$(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS): 
 	$(MAKE) -C $@
 
 

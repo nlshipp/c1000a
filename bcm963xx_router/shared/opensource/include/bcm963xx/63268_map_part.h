@@ -1,33 +1,42 @@
 /*
-    Copyright 2000-2010 Broadcom Corporation
+ Copyright 2000-2010 Broadcom Corp. All Rights Reserved.
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
-
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module.
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
+ <:label-BRCM:2011:DUAL/GPL:standard    
+ 
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
+ 
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
+ 
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
+ 
+ :>
 */
 
-#ifndef __BCM63268_MAP_H
-#define __BCM63268_MAP_H
+#ifndef __BCM63268_MAP_PART_H
+#define __BCM63268_MAP_PART_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define CHIP_FAMILY_ID_HEX	0x63268
+
+#ifndef __BCM63268_MAP_H
+#define __BCM63268_MAP_H
 
 #include "bcmtypes.h"
 
@@ -47,12 +56,15 @@ extern "C" {
 #define USB_OHCI_BASE               0x10002600  /* USB host registers */
 #define USBH_CFG_BASE               0xb0002700
 #define IPSEC_BASE                  0xb0002800
+#define IPSEC_DMA_BASE              0xb000d000
 #define MEMC_BASE                   0xb0003000  /* DDR IO Buf Control */
 #define WLAN_CHIPC_BASE             0x10004000  /* WLAN ChipCommon registers, use 1xxx for ioremap */
 #define WLAN_MAC_BASE               0x10005000  /* WLAN d11mac registers */
 #define WLAN_SHIM_BASE              0xb0007000
 #define SAR_DMA_BASE                0xb000c000  /* ATM SAR DMA control */
 #define SWITCH_DMA_BASE             0xb000d800
+#define GMAC_BASE                   0xb000e000
+#define GMAC_DMA_BASE               0xb000e000
 #define PCIE_BASE                   0xb06e0000
 #define SWITCH_BASE                 0xb0700000
 #define SAR_BASE                    0xb0007800
@@ -67,6 +79,7 @@ extern "C" {
 #define FAP1_QSM_SMI_BASE           0xb0e04000
 #define FAP1_PSM_BASE               0xb0a20000
 
+#endif
 
 typedef struct DDRPhyControl {
     uint32 REVISION;               /* 0x00 */
@@ -240,10 +253,11 @@ typedef struct PerfControl {
 #define REV_ID_MASK     0xff
 
      uint32        blkEnables;        /* (04) word 1 */
-#define RS_PLL250_CLK_EN (1 << 31)
+#define ROBOSW250_CLK_EN (1 << 31)
 #define TBUS_CLK_EN      (1 << 27)
 #define NAND_CLK_EN      (1 << 20)
-#define SECMIPS_CLK_EN   (1 << 19)
+//#define SECMIPS_CLK_EN   (1 << 19)
+#define GMAC_CLK_EN      (1 << 19)
 #define PHYMIPS_CLK_EN   (1 << 18)
 #define PCIE_CLK_EN      (1 << 17)
 #define HS_SPI_CLK_EN    (1 << 16)
@@ -521,25 +535,28 @@ typedef struct GpioControl {
 #define EPHY_ATEST_25MHZ_EN         (1<<26)
 #define EPHY_PWR_DOWN_DLL           (1<<25)
 #define EPHY_PWR_DOWN_BIAS          (1<<24)
-#define EPHY_PWR_DOWN_TX_3          (1<<22)
+#define EPHY_PHYAD_BASE_ADDR_MASK   (3<<22)
 #define EPHY_PHYAD_BASE_ADDR_SHIFT  22
-#define EPHY_PWR_DOWN_TX_2          (1<<21)
-#define EPHY_PWR_DOWN_TX_1          (1<<20)
-#define EPHY_PWR_DOWN_RX_3          (1<<18)
-#define EPHY_PWR_DOWN_RX_2          (1<<17)
-#define EPHY_PWR_DOWN_RX_1          (1<<16)
-#define EPHY_PWR_DOWN_SD_3          (1<<14)
-#define EPHY_PWR_DOWN_SD_2          (1<<13)
-#define EPHY_PWR_DOWN_SD_1          (1<<12)
-#define EPHY_PWR_DOWN_RD_3          (1<<10)
-#define EPHY_PWR_DOWN_RD_2          (1<<9)
-#define EPHY_PWR_DOWN_RD_1          (1<<8)
-#define EPHY_PWR_DOWN_3             (1<<6)
-#define EPHY_PWR_DOWN_2             (1<<5)
+#define EPHY_PWR_DOWN_TX_3          (1<<18)
+#define EPHY_PWR_DOWN_RX_3          (1<<17)
+#define EPHY_PWR_DOWN_SD_3          (1<<16)
+#define EPHY_PWR_DOWN_RD_3          (1<<15)
+#define EPHY_PWR_DOWN_3             (1<<14)
+#define EPHY_PWR_DOWN_TX_2          (1<<13)
+#define EPHY_PWR_DOWN_RX_2          (1<<12)
+#define EPHY_PWR_DOWN_SD_2          (1<<11)
+#define EPHY_PWR_DOWN_RD_2          (1<<10)
+#define EPHY_PWR_DOWN_2             (1<<9)
+#define EPHY_PWR_DOWN_TX_1          (1<<8)
+#define EPHY_PWR_DOWN_RX_1          (1<<7)
+#define EPHY_PWR_DOWN_SD_1          (1<<6)
+#define EPHY_PWR_DOWN_RD_1          (1<<5)
 #define EPHY_PWR_DOWN_1             (1<<4)
 #define EPHY_RST_3                  (1<<2)
 #define EPHY_RST_2                  (1<<1)
 #define EPHY_RST_1                  (1<<0)
+#define EPHY_RST_SHIFT		    0x0
+#define EPHY_RST_MASK		    (0x7<<EPHY_RST_SHIFT)
     uint32      RoboswSwitchCtrl;           /* 40 */
 #define RSW_MII_4_AMP_EN            (1<<29)
 #define RSW_MII_4_SEL_SHIFT         27
@@ -553,6 +570,8 @@ typedef struct GpioControl {
 #define RSW_MII_SEL_3P3V            0
 #define RSW_MII_SEL_2P5V            1
 #define RSW_MII_SEL_1P5V            2
+#define RSW_IUDMA_CLK_FREQ_MASK     (7<<12)
+#define RSW_IUDMA_CLK_FREQ_SHIFT    12
 #define RSW_SPI_MODE                (1<<11)
 #define RSW_BC_SUPP_EN              (1<<10)
 #define RSW_CLK_FREQ_MASK           (3<<8)
@@ -587,9 +606,17 @@ typedef struct GpioControl {
 
     uint32      DisTpOut;                   /* 50 */
     uint32      RoboswGphyCtrl;             /* 54 */
-#define GPHY_LOW_PWR                (1<<3)
-#define GPHY_FORCE_DLL_EN           (1<<2)
-#define GPHY_IDDQ_BIAS              (1<<0)
+#define GPHY_PHYAD_BASE_ADDR_MASK    (3<<30)
+#define GPHY_PHYAD_BASE_ADDR_SHIFT   30
+#define GPHY_MUX_SEL_GMAC            (1<<18)    
+#define GPHY_LPI_FEATURE_EN_DEF_MASK (3<<16)
+#define GPHY_EEE_1000BASE_T_DEF      (1<<13)
+#define GPHY_EEE_100BASE_TX_DEF      (1<<12)
+#define GPHY_EEE_PCS_1000BASE_T_DEF  (1<<10)
+#define GPHY_EEE_PCS_100BASE_TX_DEF  (1<<9)
+#define GPHY_LOW_PWR                 (1<<3)
+#define GPHY_FORCE_DLL_EN            (1<<2)
+#define GPHY_IDDQ_BIAS               (1<<0)
     uint32      unused4[4];                 /* 58 - 64 */
     uint32      DieRevID;                   /* 68 */
     uint32      unused5;                    /* 6c */
@@ -638,6 +665,7 @@ typedef struct SpiControl {
 #define SPI_DEV_ID_1                    1
 #define SPI_DEV_ID_2                    2
 #define SPI_DEV_ID_3                    3
+#define ZSI_SPI_DEV_ID                  3
 
   byte          spiIntStatus;           /* (0x702): SPI interrupt status */
   byte          spiMaskIntStatus;       /* (0x703): SPI masked interrupt status */
@@ -762,7 +790,7 @@ typedef struct HsSpiControl {
 #define HS_SPI_INTR_CLEAR_ALL       (0xFF001F1F)
 
   uint32    hs_spiFlashCtrl;    // 0x0014
-#define HS_SPI_FCTRL_MB_ENABLE      (1 << 23)
+#define HS_SPI_FCTRL_MB_ENABLE      (23)
 #define HS_SPI_FCTRL_SS_NUM         (20)
 #define HS_SPI_FCTRL_SS_NUM_MASK    __mask(22, HS_SPI_FCTRL_SS_NUM)
 #define HS_SPI_FCTRL_PROFILE_NUM    (16)
@@ -861,7 +889,10 @@ typedef struct HsSpiProfile {
 */
 
 typedef struct Misc {
-    uint32  unused1;                            /* 0x00 */
+    uint32  miscVdslControl;                    /* 0x00 */
+#define MISC_VDSL_CONTROL_VDSL_MIPS_RESET	(1<<1)
+#define MISC_VDSL_CONTROL_VDSL_MIPS_POR_RESET	(1<<0)
+
     uint32  miscSerdesCtrl;                     /* 0x04 */
 #define SERDES_PCIE_ENABLE                      0x00000001
 #define SERDES_PCIE_EXD_ENABLE                  (1<<15)
@@ -909,11 +940,13 @@ typedef struct Misc {
 #define MISC_VREG_CONTROL0_POWER_DOWN_1         (1<<29)
 
     uint32  miscVregCtrl1;                      /* 0x20 */
-#define VREG_VSEL1P2_SHIFT        0
-#define VREG_VSEL1P2_MASK         0x1f
-#define VREG_VSEL1P2_MIDDLE       0x0f
+#define VREG_VSEL1P2_SHIFT                      0
+#define VREG_VSEL1P2_MASK                       0x1ff
+#define MISC_VREG_CONTROL1_VSEL1P2_DEFAULT      0x7d
 
     uint32  miscVregCtrl2;                      /* 0x24 */
+#define MISC_VREG_CONTROL2_SWITCH_CLKEN        (1<<7)
+
     uint32  miscFap2IrqMaskLo;                  /* 0x28 */
 #define FAP_IRQ_LO_GPHY_IRQ            (1<<31)
 #define FAP_IRQ_LO_WAKEUP_IRQ          (1<<30)
@@ -979,6 +1012,9 @@ typedef struct Misc {
 #define FAP_IRQ_HI_DECT_IRQ_1          (1<<1)
 #define FAP_IRQ_HI_DECT_IRQ_0          (1<<0)
     uint32  miscFap2ExtIrqMaskLo;               /* 0x30 */
+#define FAP_EXT_IRQ_LO_GMAC_IRQ        (1<<19)
+#define FAP_EXT_IRQ_LO_GMAC_TX_DMA_IRQ_1  (1<<18)
+#define FAP_EXT_IRQ_LO_GMAC_RX_DMA_IRQ_0  (1<<17)
 #define FAP_EXT_IRQ_LO_LS_SPIM_IRQ     (1<<16)
 #define FAP_EXT_IRQ_LO_SAR_DMA_IRQ_19  (1<<15)
 #define FAP_EXT_IRQ_LO_SAR_DMA_IRQ_18  (1<<14)
@@ -1003,6 +1039,7 @@ typedef struct Misc {
     uint32  miscFapExtIrqMaskHi;                /* 0x44 */
     uint32  miscAdsl_clock_sample;              /* 0x48 */
     uint32  miscIddqCtrl;                       /* 0x4c */
+#define MISC_IDDQ_CTRL_GMAC		    (1<<18)
 #define MISC_IDDQ_CTRL_WLAN_PADS    (1<<13)
 #define MISC_IDDQ_CTRL_PCIE         (1<<12)
 #define MISC_IDDQ_CTRL_FAP          (1<<11)
@@ -1028,7 +1065,9 @@ typedef struct Misc {
     uint32  miscSleep_CPU_Scratch;              /* 0x70 */
     uint32  miscLed_inv;                        /* 0x74 */
     uint32  miscReserve[10];                    /* 0x78 - 0x9c */
-    uint32  miscSecmips_ctrl;                   /* 0xa0 */
+    uint32  miscMisc_ctrl;                      /* 0xa0 */
+#define MISC_MISC_DSL_GPIO_9_OVERRIDE	(1<<3)
+#define MISC_MISC_DSL_GPIO_8_OVERRIDE	(1<<2)
     uint32  miscMbox0_data;                     /* 0xa4 */
     uint32  miscMbox1_data;                     /* 0xa8 */
     uint32  miscMbox2_data;                     /* 0xac */
@@ -1199,6 +1238,7 @@ typedef struct DmaRegs {
 } DmaRegs;
 
 #define SW_DMA ((volatile DmaRegs * const) SWITCH_DMA_BASE)
+#define GMAC_DMA ((volatile DmaRegs * const) GMAC_DMA_BASE)
 
 /*
 ** DMA Buffer
@@ -1292,10 +1332,56 @@ typedef struct USBControl {
     uint32 MDIO;
     uint32 MDIO32;
     uint32 USBSimControl;
-#define USBH_OHCI_MEM_REQ_DIS   (1<<1)
 } USBControl;
 
 #define USBH ((volatile USBControl * const) USBH_CFG_BASE)
+
+typedef struct EthSwAvTableRegs {
+    uint8  arlTableControl;
+#define ARL_CTRL_START_DONE 0x80
+#define ARL_CTRL_READ       0x01
+#define ARL_CTRL_WRITE      0x00
+    uint16 macAddrIndexLow;
+    uint32 macAddrIndexHigh;
+    uint16 vlanIdIndex;
+#define ARL_VID_INDEX_MASK 0x0FFF
+    uint32 reserved0;
+    uint32 arlMacVidEntryLow;
+    uint32 arlMacVidEntryHigh;
+#define ARL_MAC_VID_ENTRY_HIGH_VID_MASK 0x0FFF0000
+#define ARL_MAC_VID_ENTRY_HIGH_VID_SHFT 16
+#define ARL_MAC_VID_ENTRY_HIGH_MAC_MASK 0x0000FFFF
+    uint16 arlDataEntry;
+#define ARL_DATA_ENTRY_VALID     0x8000
+#define ARL_DATA_ENTRY_STATIC    0x4000
+#define ARL_DATA_ENTRY_AGE       0x2000
+#define ARL_DATA_ENTRY_PRIO_MASK 0x1C00
+#define ARL_DATA_ENTRY_PRIO_SHFT 10
+#define ARL_DATA_ENTRY_PORT_MASK 0x01FF
+    uint32 reserved1[5];
+    uint16 arlSearchControl;
+#define ARL_SEARCH_CTRL_START_DONE 0x0080
+#define ARL_SEARCH_CTRL_VALID      0x0001
+    uint16 arlSearchAddr;
+    uint32 arlSearchMacVidResultLow;
+    uint32 arlSearchMacVidResultHigh;
+#define ARL_SEARCH_MAC_VID_RESULT_VID_MASK 0x0FFF0000
+#define ARL_SEARCH_MAC_VID_RESULT_VID_SHFT 16
+#define ARL_SEARCH_MAC_VID_RESULT_MAC_MASK 0x0000FFFF
+    uint16 arlSearchDataResult;
+#define ARL_SEARCH_DATA_RESULT_STATIC    0x8000
+#define ARL_SEARCH_DATA_RESULT_AGE       0x4000
+#define ARL_SEARCH_DATA_RESULT_PRIO_MASK 0x3800
+#define ARL_SEARCH_DATA_RESULT_PRIO_SHFT 11
+#define ARL_SEARCH_DATA_RESULT_PORT_MASK 0x03FE
+#define ARL_SEARCH_DATA_RESULT_PORT_SHFT 1
+    uint32 reserved2[8];
+    uint8  vlanTableControl;
+    uint16 vlanTableAddrIndex;
+    uint32 vlanTableEntry;
+} EthSwAvTableRegs;
+
+#define ETHSW_AVTABLE_REG ((volatile EthSwAvTableRegs * const) (SWITCH_BASE + 0x500))
 
 typedef struct EthSwMIBRegs {
     unsigned int TxOctetsLo;
@@ -1356,6 +1442,25 @@ typedef struct EthSwQosIngressPortPriRegs{
 } EthSwQosIngressPortPriRegs;
 
 #define ETHSWQOSREG ((volatile EthSwQosIngressPortPriRegs * const) (SWITCH_BASE + 0x3050))
+
+/*
+** SAR Registers
+*/
+
+#define SAR_TX_CTL_REGS (SAR_BASE + 0x00000060) /* SAR Tx Control Registers */
+#define SAR_TX_CTL_REGS_SZ  0x00000020
+#define SAR_RX_CTL_REGS (SAR_BASE + 0x00000080) /* SAR Rx Control Registers */
+#define SAR_RX_CTL_REGS_SZ  0x00000030
+#define SAR_RX_VCAM_REGS (SAR_BASE + 0x00000140) /* SAR  Rx ATM VPI_VCI CAM Table Reg Registers */
+#define SAR_RX_VCAM_REGS_SZ  0x00000080
+#define SAR_RX_PBUF_REGS (SAR_BASE + 0x00000300) /* SAR Rx Packet Buffer Control Registers */
+#define SAR_RX_PBUF_REGS_SZ  0x00000060
+#define SAR_MIB_REGS (SAR_BASE + 0x00000600) /* SAR  Atm MIB Counters Registers */
+#define SAR_MIB_REGS_SZ  0x000000C0
+#define SAR_RX_PAF_REGS (SAR_BASE + 0x00000800) /* SAR RxPaf Top Registers */
+#define SAR_RX_PAF_REGS_SZ  0x00000100
+#define SAR_RX_BOND_REGS (SAR_BASE + 0x00000900) /* SAR RxPaf Bonding Registers */
+#define SAR_RX_BOND_REGS_SZ  0x000000C0
 
 /* SAR registers controlling rx iuDMA channel */
 typedef struct SarRxMuxRegs{
@@ -1519,8 +1624,10 @@ typedef struct NandCtrlRegs {
     uint32 NandBlockEraseAddr;      /* Block Erase Address */
     uint32 NandInvReadExtAddr;      /* Flash Invalid Data Extended Address */
     uint32 NandInvReadAddr;         /* Flash Invalid Data Address */
+    uint32 NandReserved5[2];
     uint32 NandBlkWrProtect;        /* Block Write Protect Enable and Size */
                                     /*   for EBI_CS0b */
+    uint32 NandReserved6[3];
     uint32 NandAccControlCs1;       /* Nand Flash Access Control */
     uint32 NandConfigCs1;           /* Nand Flash Config */
     uint32 NandTiming1Cs1;          /* Nand Flash Timing Parameters 1 */
@@ -1529,14 +1636,17 @@ typedef struct NandCtrlRegs {
     uint32 NandConfigCs2;           /* Nand Flash Config */
     uint32 NandTiming1Cs2;          /* Nand Flash Timing Parameters 1 */
     uint32 NandTiming2Cs2;          /* Nand Flash Timing Parameters 2 */
+    uint32 NandReserved7[16];
     uint32 NandSpareAreaReadOfs10;  /* Nand Flash Spare Area Read Bytes 16-19 */
     uint32 NandSpareAreaReadOfs14;  /* Nand Flash Spare Area Read Bytes 20-23 */
     uint32 NandSpareAreaReadOfs18;  /* Nand Flash Spare Area Read Bytes 24-27 */
     uint32 NandSpareAreaReadOfs1C;  /* Nand Flash Spare Area Read Bytes 28-31 */
+    uint32 NandReserved8[14];
     uint32 NandLlOpNand;            /* Flash Low Level Operation */
     uint32 NandLlRdData;            /* Nand Flash Low Level Read Data */
 } NandCtrlRegs;
 
+#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
 /*
 ** PCI-E
 */
@@ -1868,6 +1978,13 @@ typedef struct PcieBridgeRegs{
                                         (PCIE_BASE+0x1800))
 #define PCIEH_BRIDGE_REGS             ((volatile PcieBridgeRegs * const)  \
                                         (PCIE_BASE+0x2818))
+
+#define PCIEH_MEM1_BASE               0x11000000
+#define PCIEH_MEM1_SIZE               0x00f00000
+
+#define PCIEH_MEM2_BASE               0xa0000000
+#define PCIEH_MEM2_SIZE               0x01000000
+#define PCIEH_PCIE_IS_DEFAULT_TARGET            /* define this only if pcie is the default ubus target and size can be extended*/
 
 typedef struct WlanShimRegs {
     uint32 ShimMisc;                            /* SHIM control registers */
@@ -2399,7 +2516,425 @@ typedef struct DQMQMibRegs_S
 
 } DQMQMibRegs_S;
 
-#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
+
+#if defined(CONFIG_BCM_GMAC)
+#define GMAC_PORT_ID            3
+#define GMAC_PHY_CHAN           0
+
+#define MASK32(rightbitindex, length) ( (0xffffffff << rightbitindex) & (0xffffffff >> (32-(rightbitindex+length))) )
+
+
+typedef union MibCtrlReg_s {
+    uint32 word;
+    struct {
+        uint32    unused: 31;
+        uint32    clrMib:  1;
+    };
+} MibCtrlReg_t;
+
+typedef union MibMaxPktSizeReg_s {
+    uint32 word;
+    struct {
+        uint32    unused      : 18;
+        uint32    max_pkt_size: 14;
+    };
+} MibMaxPktSizeReg_t;
+
+typedef union RxBpThreshReg_s {
+    uint32 word;
+    struct {
+        uint32    unused    : 21;
+        uint32    rx_thresh : 11;
+    };
+} RxBpThreshReg_t;
+
+typedef union RxFlowCtrlReg_s {
+    uint32 word;
+    struct {
+        uint32    unused    : 20;
+        uint32    pause_en  :  1;
+        uint32    fc_en     :  1;
+    };
+} RxFlowCtrlReg_t;
+
+typedef union BpForceReg_s {
+    uint32 word;
+    struct {
+        uint32    unused: 31;
+        uint32    force :  1;
+    };
+} BpForceReg_t;
+
+typedef union IrqEnableReg_s {
+    uint32 word;
+    struct {
+        uint32    unused: 31;
+        uint32    ovfl  :  1;
+    };
+} IrqEnableReg_t;
+
+typedef union IrqStatusReg_s {
+    uint32 word;
+    struct {
+        uint32    unused: 31;
+        uint32    ovfl  :  1;
+    };
+} IrqStatusReg_t;
+
+typedef union GmacStatusReg_s {
+    uint32  word;
+    struct {
+        uint32  unused      :27;
+        uint32  link_up     : 1;
+        uint32  auto_cfg_en : 1;
+        uint32  hd          : 1;
+        uint32  eth_speed   : 2;
+#define GMAC_STATUS_SPEED_10        0
+#define GMAC_STATUS_SPEED_100       1
+#define GMAC_STATUS_SPEED_1000      2
+    };
+} GmacStatusReg_t;
+
+typedef union MacSwResetReg_s {
+    uint32  word;
+    struct {
+        uint32  unused       :29;
+        uint32  txfifo_flush : 1;
+        uint32  rxfifo_flush : 1;
+        uint32  mac_sw_reset : 1;
+    };
+} MacSwResetReg_t;
+
+typedef union DmaRxStatusSelReg_s {
+    uint32  word;
+    struct {
+        uint32  unused    :23;
+        uint32  runt_det  : 1;
+        uint32  frm_trunc : 1;
+        uint32  ucast_det : 1;
+        uint32  vlan      : 1;
+        uint32  ctrl_frm  : 1;
+        uint32  bcast_det : 1;
+        uint32  mcast_det : 1;
+        uint32  crc_err   : 1;
+        uint32  rx_err    : 1;
+    };
+} DmaRxStatusSelReg_t;
+
+typedef union DmaRxOkToSendCountReg_s {
+    uint32  word;
+    struct {
+        uint32  unused           :28;
+        uint32  ok_to_send_count : 4;
+    };
+} DmaRxOkToSendCountReg_t;
+
+
+
+
+typedef struct GmacIntf {
+/*0x00*/    uint32                  Control; 
+/*0x04*/    MibCtrlReg_t            MibCtrl;
+/*0x08*/    uint32                  unused; 
+/*0x0C*/    MibMaxPktSizeReg_t      MibMaxPktSize;
+/*0x10*/    RxBpThreshReg_t         RxBpThreshLo;
+/*0x14*/    RxBpThreshReg_t         RxBpThreshHi;
+/*0x18*/    RxFlowCtrlReg_t         RxFlowCtrl; 
+/*0x1C*/    uint32                  DiagOut; 
+/*0x20*/    BpForceReg_t            BpForce;
+/*0x24*/    IrqEnableReg_t          IrqEnable;
+/*0x28*/    GmacStatusReg_t         GmacStatus;
+/*0x2C*/    IrqStatusReg_t          IrqStatus; 
+/*0x30*/    uint32                  OverFlowCounter; 
+/*0x34*/    uint32                  BackPressCounter;
+/*0x38*/    MacSwResetReg_t         MacSwReset;  
+/*0x3C*/    DmaRxStatusSelReg_t     DmaRxStatusSel;
+/*0x40*/    DmaRxOkToSendCountReg_t DmaRxOkToSendCount;
+} GmacIntf;
+
+#define GMAC_INTF ((volatile GmacIntf * const) (GMAC_BASE+0x800))
+
+typedef struct GmacMIBRegs {
+/*0x00*/    unsigned int RxFCSErrs;
+/*0x04*/    unsigned int RxCtrlFrame;
+/*0x08*/    unsigned int RxPausePkts;
+/*0x0c*/    unsigned int RxUnknown;
+/*0x10*/    unsigned int RxAlignErrs;
+/*0x14*/    unsigned int RxExcessSizeDisc; /* TODO not sure about counter */
+/*0x18*/    unsigned int RxSymbolError;
+/*0x1c*/    unsigned int RxCarrierSenseErrs;
+/*0x20*/    unsigned int RxOversizePkts;
+/*0x24*/    unsigned int RxJabbers;
+/*0x28*/    unsigned int RxMtuErrs;
+/*0x2c*/    unsigned int RxRuntPkts; /* RxUnderSizePkts + RxFragments */
+/*0x30*/    unsigned int RxUndersizePkts;
+/*0x34*/    unsigned int RxFragments;
+/*0x38*/    unsigned int RxRuntOctets;
+/*0x3c*/    unsigned int RxMulticastPkts;
+/*0x40*/    unsigned int RxBroadcastPkts;
+/*0x44*/    unsigned int Pkts64Octets;
+/*0x48*/    unsigned int Pkts65to127Octets;
+/*0x4c*/    unsigned int Pkts128to255Octets;
+/*0x50*/    unsigned int Pkts256to511Octets;
+/*0x54*/    unsigned int Pkts512to1023Octets;
+
+/*TODO mapping to ROBO */
+/*0x58*/    unsigned int Pkts1024to1518Octets;
+/*0x5c*/    unsigned int Pkts1519to1522;
+/*0x60*/    unsigned int Pkts1523to2047;
+/*0x64*/    unsigned int Pkts2048to4095;
+/*0x68*/    unsigned int Pkts4096to8191; /* Actually it is upto 9216 */
+/*0x6c*/    unsigned int RxPkts;
+/*0x70*/    unsigned int RxOctetsLo;
+
+/*0x74*/    unsigned int RxUnicastPkts;
+/*0x78*/    unsigned int RxGoodPkts;
+/*0x7c*/    unsigned int RxPPPPkts;
+/*0x80*/    unsigned int RxCRCMatchPkts;
+
+/*0x84*/    unsigned int TxPausePkts;
+/*0x88*/    unsigned int TxJabber;
+/*0x8c*/    unsigned int TxFCSErrs;
+/*0x90*/    unsigned int TxCtrlFrame;
+/*0x94*/    unsigned int TxOversizePkts;
+/*0x98*/    unsigned int TxDeferredTx;
+/*0x9c*/    unsigned int TxExcessiveDef;
+/*0xa0*/    unsigned int TxSingleCol;
+/*0xa4*/    unsigned int TxMultipleCol;
+/*0xa8*/    unsigned int TxLateCol;
+/*0xac*/    unsigned int TxExcessiveCol;
+/*0xb0*/    unsigned int TxFragments;
+/*0xb4*/    unsigned int TxCol;
+/*0xb8*/    unsigned int TxMulticastPkts;
+/*0xbc*/    unsigned int TxBroadcastPkts;
+
+/* No mapping in ROBO for TX octet counters */
+/*0xc0*/    unsigned int TxPkts64Octets;
+/*0xc4*/    unsigned int TxPkts65to127Octets;
+/*0xc8*/    unsigned int TxPkts128to255Octets;
+/*0xcc*/    unsigned int TxPkts256to511Octets;
+/*0xd0*/    unsigned int TxPkts512to1023Octets;
+/*0xd4*/    unsigned int TxPkts1024to1518Octets;
+/*0xd8*/    unsigned int TxPkts1519to1522;
+/*0xdc*/    unsigned int TxPkts1523to2047;
+/*0xe0*/    unsigned int TxPkts2048to4095;
+/*0xe4*/    unsigned int TxPkts4096to8191; /* Actually it is upto 9216 */
+
+/*0xe8*/    unsigned int TxPkts;
+/*0xec*/    unsigned int TxOctetsLo;
+/*0xf0*/    unsigned int TxUnicastPkts;
+/*0xf4*/    unsigned int TxGoodPkts;
+
+/*
+ * Need to map GMAC counters to these ROBO counters
+    unsigned int TxDropPkts;
+    unsigned int TxQoSPkts;
+    unsigned int TxFrameInDisc;
+    unsigned int TxQoSOctetsLo;
+    unsigned int TxQoSOctetsHi;
+
+    unsigned int RxGoodOctetsLo;
+    unsigned int RxGoodOctetsHi;
+    unsigned int RxDropPkts;
+    unsigned int RxSAChanges;
+    unsigned int RxQoSOctetsLo;
+    unsigned int RxQoSOctetsHi;
+*/
+} GmacMIBRegs;
+
+#define GMAC_MIB ((volatile GmacMac * const) (GMAC_BASE + 0xA00))
+
+typedef union CmdReg_s {
+    uint32 word;
+    struct {
+        uint32 unused3       : 1;   /* bit 31 */
+        uint32 runt_filt_dis : 1;   /* bit 30 */
+        uint32 txrx_en_cfg   : 1;   /* bit 29 */
+        uint32 tx_pause_ign  : 1;   /* bit 28 */
+        uint32 prbl_ena      : 1;   /* bit 27 */
+        uint32 rx_err_disc   : 1;   /* bit 26 */
+        uint32 rmt_loop_ena  : 1;   /* bit 25 */
+        uint32 len_chk_dis   : 1;   /* bit 24 */
+        uint32 ctrl_frm_ena  : 1;   /* bit 23 */
+        uint32 ena_ext_cfg   : 1;   /* bit 22 */
+        uint32 unused2       : 6;   /* bit 21:16 */
+        uint32 lcl_loop_ena  : 1;   /* bit 15 */
+        uint32 unused1       : 1;   /* bit 14 */
+        uint32 sw_reset      : 1;   /* bit 13 */
+        uint32 unused0       : 2;   /* bit 12:11 */
+        uint32 hd_ena        : 1;   /* bit 10 */
+        uint32 tx_addr_ins   : 1;   /* bit  9 */
+        uint32 rx_pause_ign  : 1;   /* bit  8 */
+        uint32 pause_fwd     : 1;   /* bit  7 */
+        uint32 crc_fwd       : 1;   /* bit  6 */
+        uint32 pad_rem_en    : 1;   /* bit  5 */
+        uint32 promis_en     : 1;   /* bit  4 */
+        uint32 eth_speed     : 2;   /* bit 3:2 */
+#define CMD_ETH_SPEED_10            0
+#define CMD_ETH_SPEED_100           1
+#define CMD_ETH_SPEED_1000          2
+#define CMD_ETH_SPEED_2500          3
+
+        uint32 rx_ena        : 1;   /* bit  1 */
+        uint32 tx_ena        : 1;   /* bit  0 */
+    };
+} CmdReg_t;
+
+typedef union FrmLenReg_s {
+    uint32  word;
+    struct {
+        uint32 unused  : 18;   
+        uint32 frm_len : 14;   /* bit 13:0 */
+    };
+} FrmLenReg_t;
+
+typedef union PauseQuantaReg_s {
+    uint32  word;
+    struct {
+        uint32 unused       : 16;   
+        uint32 pause_quanta : 16;   /* bit 15:0 */
+    };
+} PauseQuantaReg_t;
+
+typedef union ModeReg_s {
+    uint32  word;
+    struct {
+        uint32 unused       : 26;   
+        uint32 mac_link_up  : 1;   /* bit  5 */
+        uint32 mac_tx_pause : 1;   /* bit  4 */
+        uint32 mac_rx_pause : 1;   /* bit  3 */
+        uint32 mac_dplx     : 1;   /* bit  2 */
+        uint32 mac_speed    : 2;   /* bit 1:0 */
+    };
+} ModeReg_t;
+
+typedef union FrmTagReg_s {
+    uint32  word;
+    struct {
+        uint32 unused  : 15;   
+        uint32 tpid_en :  1;    /* bit 16 */
+        uint32 tag     : 16;    /* bit 15:0 */
+    };
+} FrmTagReg_t;
+
+typedef union TxIpgLenReg_s {
+    uint32  word;
+    struct {
+        uint32 unused     :27;   
+        uint32 tx_ipg_len : 5;  /* bit 4:0 */
+    };
+} TxIpgLenReg_t;
+
+typedef union RxIpgInvReg_s {
+    uint32  word;
+    struct {
+        uint32 unused     :31;   
+        uint32 rx_ipg_inv : 1;  /* bit 0 */
+    };
+} RxIpgInvReg_t;
+
+typedef union RepPauseCtrlReg_s {
+    uint32  word;
+    struct {
+        uint32 unused      :14;   
+        uint32 pause_en    : 1; /* bit 17 */
+        uint32 pause_timer :17; /* bit 16:0 */
+    };
+} RepPauseCtrlReg_t;
+
+typedef union TxFifoFlushReg_s {
+    uint32  word;
+    struct {
+        uint32 unused   :31;   
+        uint32 tx_flush : 1; /* bit 0 */
+    };
+} TxFifoFlushReg_t;
+
+typedef struct RxFifoStatusReg_s {
+    uint32  word;
+    struct {
+        uint32 unused          :30;   
+        uint32 rxfifo_overrun  : 1; /* bit 1 */
+        uint32 rxfifo_underrun : 1; /* bit 0 */
+    };
+} RxFifoStatusReg_t;
+
+typedef union TxFifoStatusReg_s {
+    uint32 word;
+    struct {
+        uint32 unused          :30;   
+        uint32 txfifo_overrun  : 1; /* bit 1 */
+        uint32 txfifo_underrun : 1; /* bit 0 */
+    };
+} TxFifoStatusReg_t;
+
+
+typedef struct GmacMac {
+    uint32 UmacDummy;               /* 0x00 */
+    uint32 HdBkpCntl;               /* 0x04 */
+    CmdReg_t Cmd;                   /* 0x08 */
+    uint32 Mac0;                    /* 0x0c */
+    uint32 Mac1;                    /* 0x10 */
+    FrmLenReg_t FrmLen;             /* 0x14 */
+    PauseQuantaReg_t PauseQuanta;   /* 0x18 */
+    uint32 unused1[9];              /* 0x1c - 0x3c */
+    uint32 SfdOffset;               /* 0x40 */
+    ModeReg_t Mode;                 /* 0x44 */
+    FrmTagReg_t FrmTag0;            /* 0x48 */
+    FrmTagReg_t FrmTag1;            /* 0x4c */
+    uint32 unused2[3];              /* 0x50 - 0x58 */
+    TxIpgLenReg_t TxIpgLen;         /* 0x5c */
+    uint32 unused3[6];              /* 0x60 - 0x74 */
+    RxIpgInvReg_t RxIpgInv;         /* 0x78 */
+    uint32 unused4[165];            /* 0x7c - 0x30c */
+    uint32 MacsecProgTxCrc;         /* 0x310 */
+    uint32 MacsecCtrl;              /* 0x314 */
+    uint32 unused5[6];              /* 0x318 - 0x32c */
+    RepPauseCtrlReg_t PauseCtrl;    /* 0x330 */
+    TxFifoFlushReg_t TxFifoFlush;   /* 0x334 */
+    RxFifoStatusReg_t RxFifoStatus; /* 0x338 */
+    TxFifoStatusReg_t TxFifoStatus; /* 0x33c */
+} GmacMac;
+
+#define GMAC_MAC ((volatile GmacMac * const) (GMAC_BASE + 0xC00))
+
+typedef struct gmacEEECtrl {
+    uint32 unused1       :  16;
+    uint32 softReset     :  1;
+    uint32 unused2       :  10;
+    uint32 linkUp        :  1;
+    uint32 lpiCntrSnap   :  1;
+    uint32 lpiCntrClr    :  1;
+    uint32 halt          :  1;
+    uint32 enable        :  1;
+} gmacEEECtrl_t;
+typedef struct gmacEEEStat {
+    uint32 idle          :  1;
+    uint32 halt          :  1;
+    uint32 enable        :  1;
+    uint32 softReset     :  1;
+    uint32 pktFull       :  1;
+    uint32 pktEmpty      :  1;
+    uint32 fifoFull      :  1;
+    uint32 fifoEmpty     :  1;
+    uint32 fullDplx      :  1;
+    uint32 speed         :  2;
+    uint32 unused1       :  1;
+    uint32 currState     :  4;
+    uint32 lpiCntr       :  16;
+} gmacEEEStat_t;
+typedef struct GmacEEE {
+    gmacEEECtrl_t eeeCtrl;   /* @ 0x1000e850 */
+    gmacEEEStat_t eeeStat;
+    uint32  eeeT1000WakeTime;
+    uint32  eeeTx100WakeTime;
+    uint32  eeeLPIWaitTime;
+} GmacEEE_t;
+
+#define GMAC_EEE (volatile GmacEEE_t *const) ((unsigned char *)GMAC_INTF + 0x50)
+
+#endif
+
 
 #ifdef __cplusplus
 }

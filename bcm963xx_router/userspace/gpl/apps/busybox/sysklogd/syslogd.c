@@ -10,404 +10,458 @@
  *
  * Maintainer: Gennady Feldman <gfeldman@gena01.com> as of Mar 12, 2001
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <getopt.h>
-#include <netdb.h>
-#include <paths.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <time.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <sys/param.h>
-
-#include "busybox.h"
-
-/* SYSLOG_NAMES defined to pull some extra junk from syslog.h */
+/*
+ * Done in syslogd_and_logger.c:
+#include "libbb.h"
 #define SYSLOG_NAMES
-#include <sys/syslog.h>
+#define SYSLOG_NAMES_CONST
+#include <syslog.h>
+*/
+
+#include <sys/un.h>
 #include <sys/uio.h>
 
-/*BRCM begin*/
-int localLogLevel=-1;
-int remoteLogLevel=-1;
-/*BRCM end*/
-
-/* Path for the file where all log messages are written */
-#define __LOG_FILE "/var/log/messages"
-
-/* Path to the unix socket */
-static char lfile[MAXPATHLEN];
-
-static const char *logFilePath = __LOG_FILE;
-
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-/* max size of message file before being rotated */
-static int logFileSize = 200 * 1024;
-
-/* number of rotated message files */
-static int logFileRotate = 1;
-#endif
-
-/* interval between marks in seconds */
-/*BRCM begin*/
-/*static int MarkInterval = 20 * 60; */
-static int MarkInterval = 60 * 60;
-/*BRCM end*/
-
-/* localhost's name */
-static char LocalHostName[64];
-
-#ifdef CONFIG_FEATURE_REMOTE_LOG
+#if ENABLE_FEATURE_REMOTE_LOG
 #include <netinet/in.h>
-/* udp socket for logging to remote host */
-static int remotefd = -1;
-static struct sockaddr_in remoteaddr;
-
-/* where do we log? */
-static char *RemoteHost;
-
-/* what port to log to? */
-static int RemotePort = 514;
-
-/* To remote log or not to remote log, that is the question. */
-static int doRemoteLog = FALSE;
-static int local_logging = FALSE;
 #endif
 
-/* Make loging output smaller. */
-static bool small = false;
+#if ENABLE_FEATURE_IPC_SYSLOG
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#endif
 
-#define MAXLINE         1024	/* maximum line length */
+// brcm begin
+#include "cms_util.h"
+#include "cms_msg.h"
+// brcm end
+
+#define DEBUG 0
+
+/* MARK code is not very useful, is bloat, and broken:
+ * can deadlock if alarmed to make MARK while writing to IPC buffer
+ * (semaphores are down but do_mark routine tries to down them again) */
+#undef SYSLOGD_MARK
+
+/* Write locking does not seem to be useful either */
+#undef SYSLOGD_WRLOCK
+
+// brcm begin
+/* All the access to /dev/log will be redirected to /var/log/log
+ *  * which is TMPFS, memory file system.
+ **/
+#define BRCM_PATH_LOG "/var/log/log"
+// brcm end
+enum {
+	MAX_READ = CONFIG_FEATURE_SYSLOGD_READ_BUFFER_SIZE,
+	DNS_WAIT_SEC = 2 * 60,
+};
+
+/* Semaphore operation structures */
+struct shbuf_ds {
+	int32_t size;   /* size of data - 1 */
+	int32_t tail;   /* end of message list */
+	char data[1];   /* data/messages */
+};
+
+#if ENABLE_FEATURE_REMOTE_LOG
+typedef struct {
+	int remoteFD;
+	unsigned last_dns_resolve;
+	len_and_sockaddr *remoteAddr;
+	const char *remoteHostname;
+} remoteHost_t;
+#endif
+
+/* Allows us to have smaller initializer. Ugly. */
+#define GLOBALS \
+	const char *logFilePath;                \
+	int logFD;                              \
+	/* interval between marks in seconds */ \
+	/*int markInterval;*/                   \
+	/* level of messages to be logged */    \
+	int logLevel;                           \
+	int remotelogLevel;                     \
+IF_FEATURE_ROTATE_LOGFILE( \
+	/* max size of file before rotation */  \
+	unsigned logFileSize;                   \
+	/* number of rotated message files */   \
+	unsigned logFileRotate;                 \
+	unsigned curFileSize;                   \
+	smallint isRegular;                     \
+) \
+IF_FEATURE_IPC_SYSLOG( \
+	int shmid; /* ipc shared memory id */   \
+	int s_semid; /* ipc semaphore id */     \
+	int shm_size;                           \
+	struct sembuf SMwup[1];                 \
+	struct sembuf SMwdn[3];                 \
+)
+
+struct init_globals {
+	GLOBALS
+};
+
+struct globals {
+	GLOBALS
+
+#if ENABLE_FEATURE_REMOTE_LOG
+	llist_t *remoteHosts;
+#endif
+#if ENABLE_FEATURE_IPC_SYSLOG
+	struct shbuf_ds *shbuf;
+#endif
+	time_t last_log_time;
+	/* localhost's name. We print only first 64 chars */
+	char *hostname;
+
+	/* We recv into recvbuf... */
+	char recvbuf[MAX_READ * (1 + ENABLE_FEATURE_SYSLOGD_DUP)];
+	/* ...then copy to parsebuf, escaping control chars */
+	/* (can grow x2 max) */
+	char parsebuf[MAX_READ*2];
+	/* ...then sprintf into printbuf, adding timestamp (15 chars),
+	 * host (64), fac.prio (20) to the message */
+	/* (growth by: 15 + 64 + 20 + delims = ~110) */
+	char printbuf[MAX_READ*2 + 128];
+};
+
+static const struct init_globals init_data = {
+	.logFilePath = "/var/log/messages",
+	.logFD = -1,
+#ifdef SYSLOGD_MARK
+	.markInterval = 60 * 60, // brcm
+#endif
+	.logLevel = -1,
+	.remotelogLevel = -1, // brcm
+#if ENABLE_FEATURE_ROTATE_LOGFILE
+	.logFileSize = 200 * 1024,
+	.logFileRotate = 1,
+#endif
+#if ENABLE_FEATURE_IPC_SYSLOG
+	.shmid = -1,
+	.s_semid = -1,
+	.shm_size = ((CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE)*1024), // default shm size
+	.SMwup = { {1, -1, IPC_NOWAIT} },
+	.SMwdn = { {0, 0}, {1, 0}, {1, +1} },
+#endif
+};
+
+#define G (*ptr_to_globals)
+#define INIT_G() do { \
+	SET_PTR_TO_GLOBALS(memcpy(xzalloc(sizeof(G)), &init_data, sizeof(init_data))); \
+} while (0)
+
+
+/* Options */
+enum {
+	OPTBIT_mark = 0, // -m
+	OPTBIT_nofork, // -n
+	OPTBIT_outfile, // -O
+	OPTBIT_loglevel, // -l
+	OPTBIT_remoteloglevel, // -r  // brcm
+	OPTBIT_small, // -S
+	IF_FEATURE_ROTATE_LOGFILE(OPTBIT_filesize   ,)	// -s
+	IF_FEATURE_ROTATE_LOGFILE(OPTBIT_rotatecnt  ,)	// -b
+	IF_FEATURE_REMOTE_LOG(    OPTBIT_remotelog  ,)	// -R
+	IF_FEATURE_REMOTE_LOG(    OPTBIT_locallog   ,)	// -L
+	IF_FEATURE_IPC_SYSLOG(    OPTBIT_circularlog,)	// -C
+	IF_FEATURE_SYSLOGD_DUP(   OPTBIT_dup        ,)	// -D
+
+	OPT_mark        = 1 << OPTBIT_mark    ,
+	OPT_nofork      = 1 << OPTBIT_nofork  ,
+	OPT_outfile     = 1 << OPTBIT_outfile ,
+	OPT_loglevel    = 1 << OPTBIT_loglevel,
+	OPT_remoteloglevel    = 1 << OPTBIT_remoteloglevel, // brcm
+	OPT_small       = 1 << OPTBIT_small   ,
+	OPT_filesize    = IF_FEATURE_ROTATE_LOGFILE((1 << OPTBIT_filesize   )) + 0,
+	OPT_rotatecnt   = IF_FEATURE_ROTATE_LOGFILE((1 << OPTBIT_rotatecnt  )) + 0,
+	OPT_remotelog   = IF_FEATURE_REMOTE_LOG(    (1 << OPTBIT_remotelog  )) + 0,
+	OPT_locallog    = IF_FEATURE_REMOTE_LOG(    (1 << OPTBIT_locallog   )) + 0,
+	OPT_circularlog = IF_FEATURE_IPC_SYSLOG(    (1 << OPTBIT_circularlog)) + 0,
+	OPT_dup         = IF_FEATURE_SYSLOGD_DUP(   (1 << OPTBIT_dup        )) + 0,
+};
+#define OPTION_STR "m:nO:l:r:S" \
+	IF_FEATURE_ROTATE_LOGFILE("s:" ) \
+	IF_FEATURE_ROTATE_LOGFILE("b:" ) \
+	IF_FEATURE_REMOTE_LOG(    "R:" ) \
+	IF_FEATURE_REMOTE_LOG(    "L"  ) \
+	IF_FEATURE_IPC_SYSLOG(    "C::") \
+	IF_FEATURE_SYSLOGD_DUP(   "D"  )
+#define OPTION_DECL *opt_m, *opt_l, *opt_r \
+	IF_FEATURE_ROTATE_LOGFILE(,*opt_s) \
+	IF_FEATURE_ROTATE_LOGFILE(,*opt_b) \
+	IF_FEATURE_IPC_SYSLOG(    ,*opt_C = NULL)
+#define OPTION_PARAM &opt_m, &G.logFilePath, &opt_l , &opt_r\
+	IF_FEATURE_ROTATE_LOGFILE(,&opt_s) \
+	IF_FEATURE_ROTATE_LOGFILE(,&opt_b) \
+	IF_FEATURE_REMOTE_LOG(	  ,&remoteAddrList) \
+	IF_FEATURE_IPC_SYSLOG(    ,&opt_C)
 
 
 /* circular buffer variables/structures */
-#ifdef CONFIG_FEATURE_IPC_SYSLOG
+#if ENABLE_FEATURE_IPC_SYSLOG
 
 #if CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE < 4
 #error Sorry, you must set the syslogd buffer size to at least 4KB.
 #error Please check CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE
 #endif
 
-#include <sys/ipc.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
+/* our shared key (syslogd.c and logread.c must be in sync) */
+enum { KEY_ID = 0x414e4547 }; /* "GENA" */
 
-/* our shared key */
-static const long KEY_ID = 0x414e4547;	/*"GENA" */
-
-// Semaphore operation structures
-static struct shbuf_ds {
-	int size;			// size of data written
-	int head;			// start of message list
-	int tail;			// end of message list
-	char data[1];		// data/messages
-} *buf = NULL;			// shared memory pointer
-
-static struct sembuf SMwup[1] = { {1, -1, IPC_NOWAIT} };	// set SMwup
-static struct sembuf SMwdn[3] = { {0, 0}, {1, 0}, {1, +1} };	// set SMwdn
-
-static int shmid = -1;	// ipc shared memory id
-static int s_semid = -1;	// ipc semaphore id
-static int shm_size = ((CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE)*1024);	// default shm size
-static int circular_logging = FALSE;
-
-static void init_RemoteLog(void);
-
-/*
- * sem_up - up()'s a semaphore.
- */
-static inline void sem_up(int semid)
+static void ipcsyslog_cleanup(void)
 {
-	if (semop(semid, SMwup, 1) == -1) {
-		bb_perror_msg_and_die("semop[SMwup]");
+	if (G.shmid != -1) {
+		shmdt(G.shbuf);
+	}
+	if (G.shmid != -1) {
+		shmctl(G.shmid, IPC_RMID, NULL);
+	}
+	if (G.s_semid != -1) {
+		semctl(G.s_semid, 0, IPC_RMID, 0);
 	}
 }
 
-/*
- * sem_down - down()'s a semaphore
- */
-static inline void sem_down(int semid)
+static void ipcsyslog_init(void)
 {
-	if (semop(semid, SMwdn, 3) == -1) {
-		bb_perror_msg_and_die("semop[SMwdn]");
-	}
-}
+	if (DEBUG)
+		printf("shmget(%x, %d,...)\n", (int)KEY_ID, G.shm_size);
 
-
-void ipcsyslog_cleanup(void)
-{
-	printf("Exiting Syslogd!\n");
-	if (shmid != -1) {
-		shmdt(buf);
+	G.shmid = shmget(KEY_ID, G.shm_size, IPC_CREAT | 0644);
+	if (G.shmid == -1) {
+		bb_perror_msg_and_die("shmget");
 	}
 
-	if (shmid != -1) {
-		shmctl(shmid, IPC_RMID, NULL);
+	G.shbuf = shmat(G.shmid, NULL, 0);
+	if (G.shbuf == (void*) -1L) { /* shmat has bizarre error return */
+		bb_perror_msg_and_die("shmat");
 	}
-	if (s_semid != -1) {
-		semctl(s_semid, 0, IPC_RMID, 0);
-	}
-}
 
-void ipcsyslog_init(void)
-{
-	if (buf == NULL) {
-		if ((shmid = shmget(KEY_ID, shm_size, IPC_CREAT | 1023)) == -1) {
-			bb_perror_msg_and_die("shmget");
+	memset(G.shbuf, 0, G.shm_size);
+	G.shbuf->size = G.shm_size - offsetof(struct shbuf_ds, data) - 1;
+	/*G.shbuf->tail = 0;*/
+
+	// we'll trust the OS to set initial semval to 0 (let's hope)
+	G.s_semid = semget(KEY_ID, 2, IPC_CREAT | IPC_EXCL | 1023);
+	if (G.s_semid == -1) {
+		if (errno == EEXIST) {
+			G.s_semid = semget(KEY_ID, 2, 0);
+			if (G.s_semid != -1)
+				return;
 		}
-
-		if ((buf = shmat(shmid, NULL, 0)) == NULL) {
-			bb_perror_msg_and_die("shmat");
-		}
-
-		buf->size = shm_size - sizeof(*buf);
-		buf->head = buf->tail = 0;
-
-		// we'll trust the OS to set initial semval to 0 (let's hope)
-		if ((s_semid = semget(KEY_ID, 2, IPC_CREAT | IPC_EXCL | 1023)) == -1) {
-			if (errno == EEXIST) {
-				if ((s_semid = semget(KEY_ID, 2, 0)) == -1) {
-					bb_perror_msg_and_die("semget");
-				}
-			} else {
-				bb_perror_msg_and_die("semget");
-			}
-		}
-	} else {
-		printf("Buffer already allocated just grab the semaphore?");
+		bb_perror_msg_and_die("semget");
 	}
 }
 
-/* write message to buffer */
-void circ_message(const char *msg)
+/* Write message to shared mem buffer */
+static void log_to_shmem(const char *msg, int len)
 {
-	int l = strlen(msg) + 1;	/* count the whole message w/ '\0' included */
+	int old_tail, new_tail;
 
-	sem_down(s_semid);
+	if (semop(G.s_semid, G.SMwdn, 3) == -1) {
+		bb_perror_msg_and_die("SMwdn");
+	}
 
-	/*
-	 * Circular Buffer Algorithm:
+	/* Circular Buffer Algorithm:
 	 * --------------------------
-	 *
-	 * Start-off w/ empty buffer of specific size SHM_SIZ
-	 * Start filling it up w/ messages. I use '\0' as separator to break up messages.
-	 * This is also very handy since we can do printf on message.
-	 *
-	 * Once the buffer is full we need to get rid of the first message in buffer and
-	 * insert the new message. (Note: if the message being added is >1 message then
-	 * we will need to "remove" >1 old message from the buffer). The way this is done
-	 * is the following:
-	 *      When we reach the end of the buffer we set a mark and start from the beginning.
-	 *      Now what about the beginning and end of the buffer? Well we have the "head"
-	 *      index/pointer which is the starting point for the messages and we have "tail"
-	 *      index/pointer which is the ending point for the messages. When we "display" the
-	 *      messages we start from the beginning and continue until we reach "tail". If we
-	 *      reach end of buffer, then we just start from the beginning (offset 0). "head" and
-	 *      "tail" are actually offsets from the beginning of the buffer.
-	 *
-	 * Note: This algorithm uses Linux IPC mechanism w/ shared memory and semaphores to provide
-	 *       a threasafe way of handling shared memory operations.
+	 * tail == position where to store next syslog message.
+	 * tail's max value is (shbuf->size - 1)
+	 * Last byte of buffer is never used and remains NUL.
 	 */
-	if ((buf->tail + l) < buf->size) {
-		/* before we append the message we need to check the HEAD so that we won't
-		   overwrite any of the message that we still need and adjust HEAD to point
-		   to the next message! */
-		if (buf->tail < buf->head) {
-			if ((buf->tail + l) >= buf->head) {
-				/* we need to move the HEAD to point to the next message
-				 * Theoretically we have enough room to add the whole message to the
-				 * buffer, because of the first outer IF statement, so we don't have
-				 * to worry about overflows here!
-				 */
-				int k = buf->tail + l - buf->head;	/* we need to know how many bytes
-													   we are overwriting to make
-													   enough room */
-				char *c =
-					memchr(buf->data + buf->head + k, '\0',
-						   buf->size - (buf->head + k));
-				if (c != NULL) {	/* do a sanity check just in case! */
-					buf->head = c - buf->data + 1;	/* we need to convert pointer to
-													   offset + skip the '\0' since
-													   we need to point to the beginning
-													   of the next message */
-					/* Note: HEAD is only used to "retrieve" messages, it's not used
-					   when writing messages into our buffer */
-				} else {	/* show an error message to know we messed up? */
-					printf("Weird! Can't find the terminator token??? \n");
-					buf->head = 0;
-				}
-			}
-		}
-
-		/* in other cases no overflows have been done yet, so we don't care! */
-		/* we should be ok to append the message now */
-		strncpy(buf->data + buf->tail, msg, l);	/* append our message */
-		buf->tail += l;	/* count full message w/ '\0' terminating char */
+	len++; /* length with NUL included */
+ again:
+	old_tail = G.shbuf->tail;
+	new_tail = old_tail + len;
+	if (new_tail < G.shbuf->size) {
+		/* store message, set new tail */
+		memcpy(G.shbuf->data + old_tail, msg, len);
+		G.shbuf->tail = new_tail;
 	} else {
-		/* we need to break up the message and "circle" it around */
-		char *c;
-		int k = buf->tail + l - buf->size;	/* count # of bytes we don't fit */
-
-		/* We need to move HEAD! This is always the case since we are going
-		 * to "circle" the message.
-		 */
-		c = memchr(buf->data + k, '\0', buf->size - k);
-
-		if (c != NULL) {	/* if we don't have '\0'??? weird!!! */
-			/* move head pointer */
-			buf->head = c - buf->data + 1;
-
-			/* now write the first part of the message */
-			strncpy(buf->data + buf->tail, msg, l - k - 1);
-
-			/* ALWAYS terminate end of buffer w/ '\0' */
-			buf->data[buf->size - 1] = '\0';
-
-			/* now write out the rest of the string to the beginning of the buffer */
-			strcpy(buf->data, &msg[l - k - 1]);
-
-			/* we need to place the TAIL at the end of the message */
-			buf->tail = k + 1;
-		} else {
-			printf
-				("Weird! Can't find the terminator token from the beginning??? \n");
-			buf->head = buf->tail = 0;	/* reset buffer, since it's probably corrupted */
-		}
-
+		/* k == available buffer space ahead of old tail */
+		int k = G.shbuf->size - old_tail;
+		/* copy what fits to the end of buffer, and repeat */
+		memcpy(G.shbuf->data + old_tail, msg, k);
+		msg += k;
+		len -= k;
+		G.shbuf->tail = 0;
+		goto again;
 	}
-	sem_up(s_semid);
+	if (semop(G.s_semid, G.SMwup, 1) == -1) {
+		bb_perror_msg_and_die("SMwup");
+	}
+	if (DEBUG)
+		printf("tail:%d\n", G.shbuf->tail);
 }
-#endif							/* CONFIG_FEATURE_IPC_SYSLOG */
+#else
+void ipcsyslog_cleanup(void);
+void ipcsyslog_init(void);
+void log_to_shmem(const char *msg);
+#endif /* FEATURE_IPC_SYSLOG */
 
-/* Note: There is also a function called "message()" in init.c */
+
 /* Print a message to the log file. */
-static void message(char *fmt, ...) __attribute__ ((format(printf, 1, 2)));
-static void message(char *fmt, ...)
+static void log_locally(time_t now, char *msg)
 {
-	int fd;
+#ifdef SYSLOGD_WRLOCK
 	struct flock fl;
-	va_list arguments;
+#endif
+	int len = strlen(msg);
 
+#if ENABLE_FEATURE_IPC_SYSLOG
+	if ((option_mask32 & OPT_circularlog) && G.shbuf) {
+		log_to_shmem(msg, len);
+		return;
+	}
+#endif
+	if (G.logFD >= 0) {
+		/* Reopen log file every second. This allows admin
+		 * to delete the file and not worry about restarting us.
+		 * This costs almost nothing since it happens
+		 * _at most_ once a second.
+		 */
+		if (!now)
+			now = time(NULL);
+		if (G.last_log_time != now) {
+			G.last_log_time = now;
+			close(G.logFD);
+			goto reopen;
+		}
+	} else {
+ reopen:
+		G.logFD = open(G.logFilePath, O_WRONLY | O_CREAT
+					| O_NOCTTY | O_APPEND | O_NONBLOCK,
+					0666);
+		if (G.logFD < 0) {
+			/* cannot open logfile? - print to /dev/console then */
+			int fd = device_open(DEV_CONSOLE, O_WRONLY | O_NOCTTY | O_NONBLOCK);
+			if (fd < 0)
+				fd = 2; /* then stderr, dammit */
+			full_write(fd, msg, len);
+			if (fd != 2)
+				close(fd);
+			return;
+		}
+#if ENABLE_FEATURE_ROTATE_LOGFILE
+		{
+			struct stat statf;
+			G.isRegular = (fstat(G.logFD, &statf) == 0 && S_ISREG(statf.st_mode));
+			/* bug (mostly harmless): can wrap around if file > 4gb */
+			G.curFileSize = statf.st_size;
+		}
+#endif
+	}
+
+#ifdef SYSLOGD_WRLOCK
 	fl.l_whence = SEEK_SET;
 	fl.l_start = 0;
 	fl.l_len = 1;
-
-#ifdef CONFIG_FEATURE_IPC_SYSLOG
-	if ((circular_logging == TRUE) && (buf != NULL)) {
-		char b[1024];
-
-		va_start(arguments, fmt);
-		vsnprintf(b, sizeof(b) - 1, fmt, arguments);
-		va_end(arguments);
-		circ_message(b);
-
-	} else
+	fl.l_type = F_WRLCK;
+	fcntl(G.logFD, F_SETLKW, &fl);
 #endif
-	if ((fd =
-			 device_open(logFilePath,
-							 O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
-							 O_NONBLOCK)) >= 0) {
-		fl.l_type = F_WRLCK;
-		fcntl(fd, F_SETLKW, &fl);
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-		if ( logFileSize > 0 ) {
-			struct stat statf;
-			int r = fstat(fd, &statf);
-			if( !r && (statf.st_mode & S_IFREG)
-				&& (lseek(fd,0,SEEK_END) > logFileSize) ) {
-				if(logFileRotate > 0) {
-					int i;
-					char oldFile[(strlen(logFilePath)+3)], newFile[(strlen(logFilePath)+3)];
-					for(i=logFileRotate-1;i>0;i--) {
-						sprintf(oldFile, "%s.%d", logFilePath, i-1);
-						sprintf(newFile, "%s.%d", logFilePath, i);
-						rename(oldFile, newFile);
-					}
-					sprintf(newFile, "%s.%d", logFilePath, 0);
-					fl.l_type = F_UNLCK;
-					fcntl (fd, F_SETLKW, &fl);
-					close(fd);
-					rename(logFilePath, newFile);
-					fd = device_open (logFilePath,
-						   O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
-						   O_NONBLOCK);
-					fl.l_type = F_WRLCK;
-					fcntl (fd, F_SETLKW, &fl);
-				} else {
-					ftruncate( fd, 0 );
-				}
+
+#if ENABLE_FEATURE_ROTATE_LOGFILE
+	if (G.logFileSize && G.isRegular && G.curFileSize > G.logFileSize) {
+		if (G.logFileRotate) { /* always 0..99 */
+			int i = strlen(G.logFilePath) + 3 + 1;
+			char oldFile[i];
+			char newFile[i];
+			i = G.logFileRotate - 1;
+			/* rename: f.8 -> f.9; f.7 -> f.8; ... */
+			while (1) {
+				sprintf(newFile, "%s.%d", G.logFilePath, i);
+				if (i == 0) break;
+				sprintf(oldFile, "%s.%d", G.logFilePath, --i);
+				/* ignore errors - file might be missing */
+				rename(oldFile, newFile);
 			}
-		}
+			/* newFile == "f.0" now */
+			rename(G.logFilePath, newFile);
+#ifdef SYSLOGD_WRLOCK
+			fl.l_type = F_UNLCK;
+			fcntl(G.logFD, F_SETLKW, &fl);
 #endif
-		va_start(arguments, fmt);
-		vdprintf(fd, fmt, arguments);
-		va_end(arguments);
-		fl.l_type = F_UNLCK;
-		fcntl(fd, F_SETLKW, &fl);
-		close(fd);
-	} else {
-		/* Always send console messages to /dev/console so people will see them. */
-		if ((fd =
-			 device_open(_PATH_CONSOLE,
-						 O_WRONLY | O_NOCTTY | O_NONBLOCK)) >= 0) {
-			va_start(arguments, fmt);
-			vdprintf(fd, fmt, arguments);
-			va_end(arguments);
-			close(fd);
-		} else {
-			fprintf(stderr, "Bummer, can't print: ");
-			va_start(arguments, fmt);
-			vfprintf(stderr, fmt, arguments);
-			fflush(stderr);
-			va_end(arguments);
+			close(G.logFD);
+			goto reopen;
 		}
+		ftruncate(G.logFD, 0);
 	}
+	G.curFileSize +=
+#endif
+			full_write(G.logFD, msg, len);
+#ifdef SYSLOGD_WRLOCK
+	fl.l_type = F_UNLCK;
+	fcntl(G.logFD, F_SETLKW, &fl);
+#endif
 }
 
+static int parse_fac_prio_20(int pri, char *res20)
+{
+	const CODE *c_pri, *c_fac;
+// brcm begin
+	int localLog=1;
+	int remoteLog=1;
+// brcm end
+
+	if (pri != 0) {
+		c_fac = facilitynames;
+		while (c_fac->c_name) {
+			if (c_fac->c_val != (LOG_FAC(pri) << 3)) {
+				c_fac++;
+				continue;
+			}
+			/* facility is found, look for prio */
+			c_pri = prioritynames;
+// brcm begin
+			if (c_pri->c_val > G.logLevel)
+			    localLog = 0;
+			if (c_pri->c_val > G.remotelogLevel)
+			    remoteLog = 0;
+// brcm end
+			while (c_pri->c_name) {
+				if (c_pri->c_val != LOG_PRI(pri)) {
+					c_pri++;
+					continue;
+				}
+				snprintf(res20, 20, "%s.%s",
+						c_fac->c_name, c_pri->c_name);
+// brcm begin
+				if (!localLog && !remoteLog)
+				    return 1;
+				else
+				    return 0;
+// brcm end
+			}
+			/* prio not found, bail out */
+			break;
+		}
+		snprintf(res20, 20, "<%d>", pri);
+	}
+// brcm begin
+	if (!localLog && !remoteLog)
+	    return 1;
+	else
+	    return 0;
+// brcm end
+}
 #ifdef AEI_VDSL_CUSTOMER_NCS
 #define TZ2SYSLOG
 #ifdef TZ2SYSLOG
 char *weekday_abbr[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 #endif
 #endif
-static void logMessage(int pri, char *msg)
+
+/* len parameter is used only for "is there a timestamp?" check.
+ * NB: some callers cheat and supply len==0 when they know
+ * that there is no timestamp, short-circuiting the test. */
+static void timestamp_and_log(int pri, const char *msg, int len)
 {
-	time_t now;
 	char *timestamp;
-	static char res[20] = "";
-#ifdef CONFIG_FEATURE_REMOTE_LOG	
-	static char line[MAXLINE + 1];
-#endif
-	CODE *c_pri, *c_fac;
-/*BRCM begin*/
-	int localLog=1;
-	int remoteLog=1;
-	int len;
+	time_t now;
+
 #ifdef AEI_VDSL_CUSTOMER_NCS
 #ifdef TZ2SYSLOG
 	FILE *fp;
@@ -430,45 +484,22 @@ static void logMessage(int pri, char *msg)
         year[0] = '\0';
         wday[0] = '\0';
     }
-
 #endif
 #endif
-/*BRCM end*/
 
-	if (pri != 0) {
-		for (c_fac = facilitynames;
-			 c_fac->c_name && !(c_fac->c_val == LOG_FAC(pri) << 3); c_fac++);
-		for (c_pri = prioritynames;
-			 c_pri->c_name && !(c_pri->c_val == LOG_PRI(pri)); c_pri++);
-		if (c_fac->c_name == NULL || c_pri->c_name == NULL) {
-			snprintf(res, sizeof(res), "<%d>", pri);
-		} else {
-			snprintf(res, sizeof(res), "%s.%s", c_fac->c_name, c_pri->c_name);
-		}
-	}
-
-/*BRCM begin*/
-	if ((pri != 0) && (c_pri->c_name != NULL)) {
-		if (c_pri->c_val > localLogLevel) 
-			localLog = 0;
-		if (c_pri->c_val > remoteLogLevel)
-			remoteLog = 0;
-	}
-	if (!localLog && !remoteLog)
-		return;
-/*BRCM end*/
-
-	if (strlen(msg) < 16 || msg[3] != ' ' || msg[6] != ' ' ||
-		msg[9] != ':' || msg[12] != ':' || msg[15] != ' ') {
+	/* Jan 18 00:11:22 msg... */
+	/* 01234567890123456 */
+	if (len < 16 || msg[3] != ' ' || msg[6] != ' '
+	 || msg[9] != ':' || msg[12] != ':' || msg[15] != ' '
+	) {
 		time(&now);
-		timestamp = ctime(&now) + 4;
-		timestamp[15] = '\0';
+		timestamp = ctime(&now) + 4; /* skip day of week */
 	} else {
+		now = 0;
 		timestamp = msg;
-		timestamp[15] = '\0';
 		msg += 16;
 	}
-
+	timestamp[15] = '\0';
 #ifdef AEI_VDSL_CUSTOMER_NCS
 #ifdef TZ2SYSLOG
 	   fp = fopen("/var/timezone", "r");
@@ -488,418 +519,337 @@ static void logMessage(int pri, char *msg)
 	   timestamp = timezone;
 #endif
 #endif
-	/* todo: supress duplicates */
 
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-	if (doRemoteLog == TRUE) {
-		/* trying connect the socket */
-		if (-1 == remotefd) {
-			init_RemoteLog();
-		}
-
-		/* if we have a valid socket, send the message */
-		if (-1 != remotefd) {
-			now = 1;
-			snprintf(line, sizeof(line), "<%d> %s", pri, msg);
-
-		retry:
-			/* send message to remote logger */
-			if(( -1 == sendto(remotefd, line, strlen(line), 0,
-							(struct sockaddr *) &remoteaddr,
-							sizeof(remoteaddr))) && (errno == EINTR)) {
-				/* sleep now seconds and retry (with now * 2) */
-				sleep(now);
-				now *= 2;
-				goto retry;
-			}
-		}
+	if (option_mask32 & OPT_small)
+		sprintf(G.printbuf, "%s %s\n", timestamp, msg);
+	else {
+		char res[20];
+		int length; // brcm
+		if( parse_fac_prio_20(pri, res) )
+		    return;
+		length = (strlen(timestamp)+strlen(G.hostname)+strlen(res)+strlen(msg)+9);
+		sprintf(G.printbuf, "%s %.64s %s %s %3i\n", timestamp, G.hostname, res, msg, length); // brcm
 	}
 
-/*BRCM begin*/
-//	if (local_logging == TRUE)
-        /* bug fix ; circular_logging should do too; it only checked
-		 *            -L local logging.   */
-	if (((local_logging == TRUE) || (circular_logging)) && localLog) {
-#endif
-        //		/* now spew out the message to wherever it is supposed to go */
-        //		message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
-        /* brcm, add len of string to do log display with latestest event displayed first */
-        /* now spew out the message to wherever it is supposed to go; 4 spaces+ \0 + \n + len(3bytes) */
-#if defined(AEI_LOG_FIREWALL_DROP)
-		if(msg[0]=='k' && msg[1]=='e' && msg[2]=='r' && msg[3]=='n' && msg[4]=='e' && msg[5]=='l' && msg[6]==':' && msg[7]==' ' 
-		&& msg[8]=='f' && msg[9]=='i' && msg[10]=='r' && msg[11]=='e' && msg[12]=='w' && msg[13]=='a' && msg[14]=='l' && msg[15]=='l'
-		&& msg[16]==' ' && msg[17]=='d' && msg[18]=='r' && msg[19]=='o' && msg[20]=='p' && msg[21]==':')
-		{
-			sprintf(res, "%s", "daemon.crit");
-			msg[0]='s';
-			msg[1]='y';
-			msg[2]='s';
-			msg[3]='l';
-			msg[4]='o';
-			msg[5]='g';
-			msg[8]='F';
-		}
-#endif
-		len = (strlen(timestamp)+strlen(LocalHostName)+strlen(res)+strlen(msg)+9);
-		message("%s %s %s %s %3i\n", timestamp, LocalHostName, res, msg, len);
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-        }
-#endif
-/*BRCM end*/
+	/* Log message locally (to file or shared mem) */
+	log_locally(now, G.printbuf);
 }
 
-static void quit_signal(int sig)
+#ifdef SYSLOGD_MARK
+static void timestamp_and_log_internal(const char *msg)
 {
-/*BRCM begin */
-	char pidfilename[30];
-	/* change to priority emerg to be consistent with klogd */
-	logMessage(LOG_SYSLOG | LOG_EMERG, "System log daemon exiting.");
-        // logMessage(LOG_SYSLOG | LOG_INFO, "System log daemon exiting.");
-
-	unlink(lfile);
-	sprintf (pidfilename, "%s%s.pid", _PATH_VARRUN, "syslogd");
-	unlink (pidfilename);
-/*BRCM end*/
-
-	unlink(lfile);
-#ifdef CONFIG_FEATURE_IPC_SYSLOG
-	ipcsyslog_cleanup();
+	/* -L, or no -R */
+	if (ENABLE_FEATURE_REMOTE_LOG && !(option_mask32 & OPT_locallog))
+		return;
+	timestamp_and_log(LOG_SYSLOG | LOG_INFO, (char*)msg, 0);
+}
 #endif
 
-	exit(TRUE);
-}
-
-static void domark(int sig)
-{
-	if (MarkInterval > 0) {
-		logMessage(LOG_SYSLOG | LOG_INFO, "-- MARK --");
-		alarm(MarkInterval);
-	}
-}
-
-/* This must be a #define, since when CONFIG_DEBUG and BUFFERS_GO_IN_BSS are
- * enabled, we otherwise get a "storage size isn't constant error. */
-static int serveConnection(char *tmpbuf, int n_read)
+/* tmpbuf[len] is a NUL byte (set by caller), but there can be other,
+ * embedded NULs. Split messages on each of these NULs, parse prio,
+ * escape control chars and log each locally. */
+static void split_escape_and_log(char *tmpbuf, int len)
 {
 	char *p = tmpbuf;
 
-	while (p < tmpbuf + n_read) {
-
+	tmpbuf += len;
+	while (p < tmpbuf) {
+		char c;
+		char *q = G.parsebuf;
 		int pri = (LOG_USER | LOG_NOTICE);
-		int num_lt = 0;
-		char line[MAXLINE + 1];
-		unsigned char c;
-		char *q = line;
 
-		while ((c = *p) && q < &line[sizeof(line) - 1]) {
-			if (c == '<' && num_lt == 0) {
-				/* Parse the magic priority number. */
-				num_lt++;
-				pri = 0;
-				while (isdigit(*(++p))) {
-					pri = 10 * pri + (*p - '0');
-				}
-				if (pri & ~(LOG_FACMASK | LOG_PRIMASK)) {
-					pri = (LOG_USER | LOG_NOTICE);
-				}
-			} else if (c == '\n') {
-				*q++ = ' ';
-			} else if (iscntrl(c) && (c < 0177)) {
+		if (*p == '<') {
+			/* Parse the magic priority number */
+			pri = bb_strtou(p + 1, &p, 10);
+			if (*p == '>')
+				p++;
+			if (pri & ~(LOG_FACMASK | LOG_PRIMASK))
+				pri = (LOG_USER | LOG_NOTICE);
+		}
+
+		while ((c = *p++)) {
+			if (c == '\n')
+				c = ' ';
+			if (!(c & ~0x1f) && c != '\t') {
 				*q++ = '^';
-				*q++ = c ^ 0100;
-			} else {
-				*q++ = c;
+				c += '@'; /* ^@, ^A, ^B... */
 			}
-			p++;
+			*q++ = c;
 		}
 		*q = '\0';
-		p++;
+
 		/* Now log it */
-		logMessage(pri, line);
+		if (LOG_PRI(pri) < G.logLevel)
+			timestamp_and_log(pri, G.parsebuf, q - G.parsebuf);
 	}
-	return n_read;
 }
 
-
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-static void init_RemoteLog(void)
+#ifdef SYSLOGD_MARK
+static void do_mark(int sig)
 {
-	memset(&remoteaddr, 0, sizeof(remoteaddr));
-	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if (remotefd < 0) {
-          /* BRCM begin */
-          if ((local_logging == FALSE) && (circular_logging == FALSE))
-		bb_error_msg_and_die("cannot create socket");
-          else
-                bb_perror_msg("cannot create socket");
-          /* BRCM end */
+	if (G.markInterval) {
+		timestamp_and_log_internal("-- MARK --");
+		alarm(G.markInterval);
 	}
-
-	remoteaddr.sin_family = AF_INET;
-	remoteaddr.sin_addr = *(struct in_addr *) *(xgethostbyname(RemoteHost))->h_addr_list;
-	remoteaddr.sin_port = htons(RemotePort);
 }
 #endif
 
-static void doSyslogd(void) __attribute__ ((noreturn));
-static void doSyslogd(void)
+/* Don't inline: prevent struct sockaddr_un to take up space on stack
+ * permanently */
+static NOINLINE int create_socket(void)
 {
 	struct sockaddr_un sunx;
-	socklen_t addrLength;
-/*BRCM begin*/
-   /*
-    * In CMS, we don't need the pidfile.  Don't write it out to save some DRAM.
-	 * FILE *pidfile;
-	 * char pidfilename[30];
-    */
-
-/* All the access to /dev/log will be redirected to /var/log/log
- *  * which is TMPFS, memory file system.
- **/
-#define BRCM_PATH_LOG "/var/log/log"
-/*BRCM end*/
-
 	int sock_fd;
-	fd_set fds;
-
-	/* Set up signal handlers. */
-#ifdef BRCM_CMS_BUILD
-	/* In CMS, daemons should ignore SIGINT */
-	signal(SIGINT, SIG_IGN);
-#else
-	signal(SIGINT, quit_signal);
-#endif
-	signal(SIGTERM, quit_signal);
-	signal(SIGQUIT, quit_signal);
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGCHLD, SIG_IGN);
-#ifdef SIGCLD
-	signal(SIGCLD, SIG_IGN);
-#endif
-	signal(SIGALRM, domark);
-	alarm(MarkInterval);
-
-	/* Create the syslog file so realpath() can work. */
-/*BRCM begin*/
-	/*
-	if (realpath (_PATH_LOG, lfile) != NULL) {
-	*/
-	if (realpath (BRCM_PATH_LOG, lfile) != NULL) {
-/*BRCM end*/
-		unlink (lfile);
-        }
+	char *dev_log_name;
 
 	memset(&sunx, 0, sizeof(sunx));
 	sunx.sun_family = AF_UNIX;
-	strncpy(sunx.sun_path, lfile, sizeof(sunx.sun_path));
-	if ((sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-/*BRCM begin*/
-/*		bb_perror_msg_and_die("Couldn't get file descriptor for socket "
-						   _PATH_LOG);
-*/
-		bb_error_msg_and_die ("Couldn't get file descriptor for socket " BRCM_PATH_LOG);
-/*BRCM end*/
-	}
 
-	addrLength = sizeof(sunx.sun_family) + strlen(sunx.sun_path);
-	if (bind(sock_fd, (struct sockaddr *) &sunx, addrLength) < 0) {
-/*BRCM begin*/
-/*		bb_perror_msg_and_die("Could not connect to socket " _PATH_LOG);
- */
-		bb_error_msg_and_die ("Could not connect to socket " BRCM_PATH_LOG);
-/*BRCM end*/
+	/* Unlink old /dev/log or object it points to. */
+	/* (if it exists, bind will fail) */
+	strcpy(sunx.sun_path, BRCM_PATH_LOG); // brcm
+	dev_log_name = xmalloc_follow_symlinks(BRCM_PATH_LOG); // brcm
+	if (dev_log_name) {
+		safe_strncpy(sunx.sun_path, dev_log_name, sizeof(sunx.sun_path));
+		free(dev_log_name);
 	}
+	unlink(sunx.sun_path);
 
-	if (chmod(lfile, 0666) < 0) {
-/*BRCM begin*/
-/*		bb_perror_msg_and_die("Could not set permission on " _PATH_LOG);
- */
-		bb_error_msg_and_die ("Could not set permission on " BRCM_PATH_LOG);
-/*BRCM end*/
+	sock_fd = xsocket(AF_UNIX, SOCK_DGRAM, 0);
+	xbind(sock_fd, (struct sockaddr *) &sunx, sizeof(sunx));
+	chmod(BRCM_PATH_LOG, 0666); // brcm
+
+	return sock_fd;
+}
+
+#if ENABLE_FEATURE_REMOTE_LOG
+static int try_to_resolve_remote(remoteHost_t *rh)
+{
+	if (!rh->remoteAddr) {
+		unsigned now = monotonic_sec();
+
+		/* Don't resolve name too often - DNS timeouts can be big */
+		if ((now - rh->last_dns_resolve) < DNS_WAIT_SEC)
+			return -1;
+		rh->last_dns_resolve = now;
+		rh->remoteAddr = host2sockaddr(rh->remoteHostname, 514);
+		if (!rh->remoteAddr)
+			return -1;
 	}
-#ifdef CONFIG_FEATURE_IPC_SYSLOG
-	if (circular_logging == TRUE) {
+	return socket(rh->remoteAddr->u.sa.sa_family, SOCK_DGRAM, 0);
+}
+#endif
+
+static void do_syslogd(void) NORETURN;
+static void do_syslogd(void)
+{
+	int sock_fd;
+#if ENABLE_FEATURE_REMOTE_LOG
+	llist_t *item;
+#endif
+#if ENABLE_FEATURE_SYSLOGD_DUP
+	int last_sz = -1;
+	char *last_buf;
+	char *recvbuf = G.recvbuf;
+#else
+#define recvbuf (G.recvbuf)
+#endif
+
+	/* Set up signal handlers (so that they interrupt read()) */
+	signal_no_SA_RESTART_empty_mask(SIGTERM, record_signo);
+	signal_no_SA_RESTART_empty_mask(SIGINT, record_signo);
+	//signal_no_SA_RESTART_empty_mask(SIGQUIT, record_signo);
+	signal(SIGHUP, SIG_IGN);
+// brcm begin
+#ifdef BRCM_CMS_BUILD
+	/* In CMS, daemons should ignore SIGINT */
+	signal(SIGINT, SIG_IGN);
+#endif
+// brcm end
+#ifdef SYSLOGD_MARK
+	signal(SIGALRM, do_mark);
+	alarm(G.markInterval);
+#endif
+	sock_fd = create_socket();
+
+	if (ENABLE_FEATURE_IPC_SYSLOG && (option_mask32 & OPT_circularlog)) {
 		ipcsyslog_init();
 	}
+
+	// timestamp_and_log_internal("syslogd started: BusyBox v" BB_VER);
+	timestamp_and_log(LOG_SYSLOG | LOG_EMERG, "BCM96345 started: BusyBox v" BB_VER, 0);
+
+	while (!bb_got_signal) {
+		ssize_t sz;
+
+#if ENABLE_FEATURE_SYSLOGD_DUP
+		last_buf = recvbuf;
+		if (recvbuf == G.recvbuf)
+			recvbuf = G.recvbuf + MAX_READ;
+		else
+			recvbuf = G.recvbuf;
 #endif
-
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-	if (doRemoteLog == TRUE) {
-		init_RemoteLog();
-	}
-#endif
-
-/*BRCM begin*/
-	if (localLogLevel < LOG_EMERG)
-		localLogLevel = LOG_DEBUG;
-	if (remoteLogLevel < LOG_EMERG)
-		remoteLogLevel = LOG_ERR;
-
-	/* change to priority emerg to be consistent with klogd */
-        /* logMessage(LOG_SYSLOG | LOG_INFO, "syslogd started: " BB_BANNER); */
-	logMessage (LOG_SYSLOG | LOG_EMERG, "BCM96345  started: " BB_BANNER);
-
- /*
-  * In CMS, we don't need the pid file, so don't write one and save some DRAM.
-  *	sprintf (pidfilename, "%s%s.pid", _PATH_VARRUN, "syslogd");
-  *	if ((pidfile = fopen (pidfilename, "w")) != NULL) {
-  *		fprintf (pidfile, "%d\n", getpid ());
-  *		(void) fclose (pidfile);
-  *	}
-  *	else {
-  *	logMessage ((LOG_SYSLOG | LOG_ERR),("Failed to create pid file %s", pidfilename));
-  *	}
-  */
-/*BRCM end*/
-
-	for (;;) {
-
-		FD_ZERO(&fds);
-		FD_SET(sock_fd, &fds);
-
-		if (select(sock_fd + 1, &fds, NULL, NULL, NULL) < 0) {
-			if (errno == EINTR) {
-				/* alarm may have happened. */
-				continue;
-			}
-			bb_perror_msg_and_die("select error");
+ read_again:
+		sz = read(sock_fd, recvbuf, MAX_READ - 1);
+		if (sz < 0) {
+			if (!bb_got_signal)
+				bb_perror_msg("read from %s", BRCM_PATH_LOG); // brcm
+			break;
 		}
 
-		if (FD_ISSET(sock_fd, &fds)) {
-			int i;
+		/* Drop trailing '\n' and NULs (typically there is one NUL) */
+		while (1) {
+			if (sz == 0)
+				goto read_again;
+			/* man 3 syslog says: "A trailing newline is added when needed".
+			 * However, neither glibc nor uclibc do this:
+			 * syslog(prio, "test")   sends "test\0" to /dev/log,
+			 * syslog(prio, "test\n") sends "test\n\0".
+			 * IOW: newline is passed verbatim!
+			 * I take it to mean that it's syslogd's job
+			 * to make those look identical in the log files. */
+			if (recvbuf[sz-1] != '\0' && recvbuf[sz-1] != '\n')
+				break;
+			sz--;
+		}
+#if ENABLE_FEATURE_SYSLOGD_DUP
+		if ((option_mask32 & OPT_dup) && (sz == last_sz))
+			if (memcmp(last_buf, recvbuf, sz) == 0)
+				continue;
+		last_sz = sz;
+#endif
+#if ENABLE_FEATURE_REMOTE_LOG
+		/* Stock syslogd sends it '\n'-terminated
+		 * over network, mimic that */
+		recvbuf[sz] = '\n';
 
-			RESERVE_CONFIG_BUFFER(tmpbuf, MAXLINE + 1);
+		/* We are not modifying log messages in any way before send */
+		/* Remote site cannot trust _us_ anyway and need to do validation again */
+		for (item = G.remoteHosts; item != NULL; item = item->link) {
+			remoteHost_t *rh = (remoteHost_t *)item->data;
 
-			memset(tmpbuf, '\0', MAXLINE + 1);
-			if ((i = recv(sock_fd, tmpbuf, MAXLINE, 0)) > 0) {
-				serveConnection(tmpbuf, i);
-			} else {
-				bb_perror_msg_and_die("UNIX socket error");
+			if (rh->remoteFD == -1) {
+				rh->remoteFD = try_to_resolve_remote(rh);
+				if (rh->remoteFD == -1)
+					continue;
 			}
-			RELEASE_CONFIG_BUFFER(tmpbuf);
-		}				/* FD_ISSET() */
-	}					/* for main loop */
+			/* Send message to remote logger, ignore possible error */
+			/* TODO: on some errors, close and set G.remoteFD to -1
+			 * so that DNS resolution and connect is retried? */
+			sendto(rh->remoteFD, recvbuf, sz+1, MSG_DONTWAIT,
+				&(rh->remoteAddr->u.sa), rh->remoteAddr->len);
+		}
+#endif
+		if (/*!ENABLE_FEATURE_REMOTE_LOG ||*/ (option_mask32 & OPT_locallog)) {
+			recvbuf[sz] = '\0'; /* ensure it *is* NUL terminated */
+			split_escape_and_log(recvbuf, sz);
+		}
+	} /* while (!bb_got_signal) */
+
+	// timestamp_and_log_internal("syslogd exiting"); // brcm
+	timestamp_and_log(LOG_SYSLOG | LOG_EMERG, "syslogd exiting", 0);
+	puts("syslogd exiting");
+	if (ENABLE_FEATURE_IPC_SYSLOG)
+		ipcsyslog_cleanup();
+	kill_myself_with_sig(bb_got_signal);
+#undef recvbuf
 }
 
-extern int syslogd_main(int argc, char **argv)
+int syslogd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int syslogd_main(int argc UNUSED_PARAM, char **argv)
 {
-	int opt;
+	int opts;
+	char OPTION_DECL;
+#if ENABLE_FEATURE_REMOTE_LOG
+	llist_t *remoteAddrList = NULL;
+#endif
 
-	int doFork = TRUE;
+#ifdef BRCM_CMS_BUILD
+    cmsLog_init(EID_SYSLOGD);
+    cmsLog_setLevel(DEFAULT_LOG_LEVEL);
+#endif
 
-	char *p;
+	INIT_G();
 
-#ifdef AEI_VDSL_CUSTOMER_NCS
-	signed sessionPid;
-#endif
-	/* do normal option parsing */
-/*BRCM begin*/
-	/*
-	while ((opt = getopt(argc, argv, "m:nO:s:b:R:LC::")) > 0) {
-	*/
-	/* brcm, l - local log level, r - remote log level */
-	while ((opt = getopt(argc, argv, "m:nO:s:Sb:R:l:r:LC")) > 0) {
-/*BRCM end*/
-		switch (opt) {
-		case 'm':
-			MarkInterval = atoi(optarg) * 60;
-			break;
-		case 'n':
-			doFork = FALSE;
-			break;
-		case 'O':
-			logFilePath = optarg;
-			break;
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-		case 's':
-			logFileSize = atoi(optarg) * 1024;
-			break;
-		case 'b':
-			logFileRotate = atoi(optarg);
-			if( logFileRotate > 99 ) logFileRotate = 99;
-			break;
-#endif
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-		case 'R':
-			RemoteHost = bb_xstrdup(optarg);
-			if ((p = strchr(RemoteHost, ':'))) {
-				RemotePort = atoi(p + 1);
-				*p = '\0';
-			}
-			doRemoteLog = TRUE;
-			break;
-		case 'L':
-			local_logging = TRUE;
-			break;
-#endif
-#ifdef CONFIG_FEATURE_IPC_SYSLOG
-		case 'C':
-			if (optarg) {
-				int buf_size = atoi(optarg);
-				if (buf_size >= 4) {
-					shm_size = buf_size * 1024;
-				}
-			}
-			circular_logging = TRUE;
-			break;
-#endif
-		case 'S':
-		        small = true;
-			break;
-/*BRCM begin*/
-		case 'l':
-			localLogLevel = atoi(optarg);
-			break;
-		case 'r':
-			remoteLogLevel = atoi(optarg);
-			break; 
-/*BRCM end*/
-		default:
-			bb_show_usage();
-		}
+	/* No non-option params, -R can occur multiple times */
+	opt_complementary = "=0" IF_FEATURE_REMOTE_LOG(":R::");
+	opts = getopt32(argv, OPTION_STR, OPTION_PARAM);
+#if ENABLE_FEATURE_REMOTE_LOG
+	if (opts & OPT_remoteloglevel){ // -r  // brcm
+		G.remotelogLevel = xatou_range(opt_r, 0, 7);
+		if (G.remotelogLevel < LOG_EMERG)
+		     G.remotelogLevel = LOG_ERR;
 	}
-
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-	/* If they have not specified remote logging, then log locally */
-	if (doRemoteLog == FALSE)
-		local_logging = TRUE;
+	while (remoteAddrList) {
+		remoteHost_t *rh = xzalloc(sizeof(*rh));
+		rh->remoteHostname = llist_pop(&remoteAddrList);
+		rh->remoteFD = -1;
+		rh->last_dns_resolve = monotonic_sec() - DNS_WAIT_SEC - 1;
+		llist_add_to(&G.remoteHosts, rh);
+	}
 #endif
 
+#ifdef SYSLOGD_MARK
+	if (opts & OPT_mark) // -m
+		G.markInterval = xatou_range(opt_m, 0, INT_MAX/60) * 60;
+#endif
+	//if (opts & OPT_nofork) // -n
+	//if (opts & OPT_outfile) // -O
+	if (opts & OPT_loglevel) { // -l
+		G.logLevel = xatou_range(opt_l, 0, 7); // brcm
+		if (G.logLevel < LOG_EMERG)
+		    G.logLevel = LOG_DEBUG;
+	}
+	//if (opts & OPT_small) // -S
+#if ENABLE_FEATURE_ROTATE_LOGFILE
+	if (opts & OPT_filesize) // -s
+		G.logFileSize = xatou_range(opt_s, 0, INT_MAX/1024) * 1024;
+	if (opts & OPT_rotatecnt) // -b
+		G.logFileRotate = xatou_range(opt_b, 0, 99);
+#endif
+#if ENABLE_FEATURE_IPC_SYSLOG
+	if (opt_C) // -Cn
+		G.shm_size = xatoul_range(opt_C, 4, INT_MAX/1024) * 1024;
+#endif
+
+	/* If they have not specified remote logging, then log locally */
+	if (ENABLE_FEATURE_REMOTE_LOG && !(opts & OPT_remotelog)) // -R
+		option_mask32 |= OPT_locallog;
 
 	/* Store away localhost's name before the fork */
-	gethostname(LocalHostName, sizeof(LocalHostName));
-	if ((p = strchr(LocalHostName, '.'))) {
-		*p = '\0';
+	G.hostname = safe_gethostname();
+	*strchrnul(G.hostname, '.') = '\0';
+
+	if (!(opts & OPT_nofork)) {
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
 	}
 
-	umask(0);
-
-	if (doFork == TRUE) {
-#if defined(__uClinux__)
-		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else /* __uClinux__ */
-		if(daemon(0, 1) < 0)
-			bb_perror_msg_and_die("daemon");
-#endif /* __uClinux__ */
-	}
-
-#ifdef AEI_VDSL_CUSTOMER_NCS
-    /*
-    * detach from the terminal so we don't catch the user typing control-c
-    */
-    if ((sessionPid = setsid()) == -1)
-        printf("Could not detach from terminal\n");
+#ifdef BRCM_CMS_BUILD
+    if (setsid() == -1)
+    {
+       cmsLog_error("Could not detach from terminal");
+    }
+    else
+    {
+       cmsLog_debug("detached from terminal");
+    }
+    /* set signal masks */
+    signal(SIGPIPE, SIG_IGN); /* Ignore SIGPIPE signals */
 #endif
-	doSyslogd();
 
-	return EXIT_SUCCESS;
+	//umask(0); - why??
+	write_pidfile("/var/run/syslogd.pid");
+	do_syslogd();
+	/* return EXIT_SUCCESS; */
 }
 
-/*
-Local Variables
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/
+/* Clean up. Needed because we are included from syslogd_and_logger.c */
+#undef DEBUG
+#undef SYSLOGD_MARK
+#undef SYSLOGD_WRLOCK
+#undef G
+#undef GLOBALS
+#undef INIT_G
+#undef OPTION_STR
+#undef OPTION_DECL
+#undef OPTION_PARAM

@@ -1,25 +1,30 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the “GPL”), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
+   <:label-BRCM:2012:DUAL/GPL:standard
+   
+   Unless you and Broadcom execute a separate written software license
+   agreement governing use of this software, this software is licensed
+   to you under the terms of the GNU General Public License version 2
+   (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+   with the following added to such license:
+   
+      As a special exception, the copyright holders of this software give
+      you permission to link this software with independent modules, and
+      to copy and distribute the resulting executable under terms of your
+      choice, provided that you also meet, for each linked independent
+      module, the terms and conditions of the license of that module.
+      An independent module is a module which is not derived from this
+      software.  The special exception does not apply to any modifications
+      of the software.
+   
+   Not withstanding the above, under no circumstances may you combine
+   this software in any way with any other Broadcom software provided
+   under a license other than the GPL, without Broadcom's express prior
+   written consent.
+   
+:>
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
-
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
 */                       
 
 /*!\file flash_common.c
@@ -33,11 +38,12 @@
 #include "lib_types.h"
 #include "lib_printf.h"
 #include "lib_string.h"
-#include "bcm_map.h"  
+#include "bcm_map_part.h"  
 #define printk  printf
 #else // Linux
 #include <linux/kernel.h>
 #include "bcm_map_part.h"
+#include <linux/string.h>
 #endif
 
 #include "bcmtypes.h"
@@ -46,16 +52,22 @@
 #include "flash_common.h"
 
 // #define DEBUG_FLASH
+FLASH_PARTITION_INFO fAuxFsInfo;
 
 void flash_init_info(const NVRAM_DATA *nvRam, FLASH_ADDR_INFO *fInfo)
 {
     int i = 0;
     int totalBlks = 0;
     int totalSize = 0;
+    int auxFsSize = 0;
     int psiStartAddr = 0;
     int spStartAddr = 0;
     int usedBlkSize = 0;
     int needBytes = 0;
+    int sBlk, eBlk;
+    int blkSize, sectSize;	/* Size of all blocks in a partition or 0 */
+    int totalPartSize;			/* Size in bytes for a partition */
+    unsigned long  offset;   	/* Offset calulations */
 
     if (flash_get_flash_type() == FLASH_IFC_NAND)
     {
@@ -225,6 +237,76 @@ void flash_init_info(const NVRAM_DATA *nvRam, FLASH_ADDR_INFO *fInfo)
         fInfo->flash_syslog_number_blk = 0;
     }
 
+#if 1   //for AUXFS 
+
+   if ( (nvRam->ucAuxFSPercent != 0)
+    && (nvRam->ucAuxFSPercent <= MAX_AUXFS_PERCENT))
+    {
+        /* Estimate the Auxillary File System size */
+        auxFsSize = (totalSize * (int)nvRam->ucAuxFSPercent)/100;
+        
+        /* JFFS_AUXFS offset */
+        offset = totalSize - auxFsSize - flash_get_reserved_bytes_at_end(fInfo);
+		
+        sBlk = flash_get_blk(offset+FLASH_BASE);
+	  eBlk = fInfo->flash_meta_start_blk;
+
+	  /*
+         * Implementation Note:
+         * Ensure that we have even number of blocks for
+         * ROOTFS+KERNEL to support dual image booting
+        */
+        if ( ( (sBlk+1) < eBlk)
+          && ((((sBlk+1) - flash_get_blk(fInfo->flash_rootfs_start_offset + FLASH_BASE)) % 2) == 0))
+        {
+            sBlk += 1;	/* Round up */
+        }
+
+        blkSize = flash_get_sector_size(sBlk);
+        for ( i=sBlk+1, totalPartSize = blkSize; i<eBlk; i++)
+        {
+            sectSize = flash_get_sector_size(i);
+            //if ( blkSize != sectSize ) blkSize = 0;
+            if ( blkSize != sectSize ) break;
+            totalPartSize += sectSize;
+        }
+        fAuxFsInfo.sect_size = blkSize;
+        auxFsSize = totalPartSize;
+
+
+        printk("Flash split %d : AuxFS[%d]\n",
+               (int)nvRam->ucAuxFSPercent,auxFsSize );
+    }
+    else
+    {
+	/*
+	 * Implementation Note: When there is no AuxFS Partition.
+	 * Total number of rootfs/kernel blocks will always be ODD.
+	 * Option: Increase RESERVED section ??? but this would
+	 * decrease the space available for a single kernel image
+	 */
+        sBlk = eBlk = 0;
+        fAuxFsInfo.sect_size = 0;
+        auxFsSize = 0;
+        printk("Flash not used for Auxillary File System\n");
+     }
+
+
+	/*------------*/
+	/* JFFS_AUXFS */
+	/*------------*/
+
+    sprintf(fAuxFsInfo.name, "JFFS_AUXFS");
+    fAuxFsInfo.start_blk = sBlk;
+    fAuxFsInfo.number_blk = eBlk - sBlk;
+    fAuxFsInfo.blk_offset = 0;
+    fAuxFsInfo.total_len = auxFsSize;
+    fAuxFsInfo.mem_base = (unsigned long) flash_get_memptr( sBlk )
+                                   +  fAuxFsInfo.blk_offset;
+    fAuxFsInfo.mem_length = auxFsSize;
+    
+#endif
+
 #ifdef DEBUG_FLASH_TOO_MUCH
     /* dump sizes of all sectors in flash */
     for (i=0; i<totalBlks; i++)
@@ -256,7 +338,30 @@ void flash_init_info(const NVRAM_DATA *nvRam, FLASH_ADDR_INFO *fInfo)
     printk("fInfo->flash_persistent_number_blk = %d\n", fInfo->flash_persistent_number_blk);
     printk("fInfo->flash_persistent_length=0x%x\n", (unsigned int)fInfo->flash_persistent_length);
     printk("fInfo->flash_persistent_blk_offset = 0x%x\n\n", (unsigned int)fInfo->flash_persistent_blk_offset);
+    printk("AuxFs.start_blk = %d\n",fAuxFsInfo.start_blk );
+    printk("AuxFs,number_blk = %d\n", fAuxFsInfo.number_blk);
+    printk("AuxFs.total_len = 0x%x\n",fAuxFsInfo.total_len);
+    printk("AuxFs.sect_size = 0x%x\n",fAuxFsInfo.sect_size);
 #endif
+}
+
+
+void kerSysFlashPartInfoGet(PFLASH_PARTITION_INFO pflash_partition_info)
+{
+    memcpy((void*)pflash_partition_info,(const void*)(&fAuxFsInfo), sizeof(FLASH_PARTITION_INFO));
+}
+
+
+unsigned int flash_get_reserved_bytes_auxfs()
+{
+   if (flash_get_flash_type() == FLASH_IFC_NAND)
+   {
+        return 0;
+   }
+   else 
+   {
+       return fAuxFsInfo.total_len;
+   }
 }
 
 unsigned int flash_get_reserved_bytes_at_end(const FLASH_ADDR_INFO *fInfo)

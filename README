@@ -9,16 +9,18 @@ These Instructions Explain:
  * How to build the image file for the Actiontec C1000A 
  * How to upgrade the device using the new firmware image file. 
 
-NOTE: The following procedures are known to work with the following versions of Fedora 9.
+NOTE: The following procedures are known to work with the following versions of Ubuntu 12.04 and Fedora 19.
+if you compile the BCM963xx GPL source code on Ubuntu, Maybe you need to run the following command:
+# ln -sf /bin/bash /bin/sh
+# sudo apt-get install flex bison
 
 The Actiontec C1000A Source Code can be obtained from the Actiontec support website at http://opensource.actiontec.com.
 
 
-IMPORTANT: When entering the file name at the command prompt be sure to replace the question marks "??.??L.??" with the release number.
+IMPORTANT: When entering the file name at the command prompt be sure to replace the question marks "??.???.??" with the release number "31.30L.74".
 
 
-
-1. INSTALL THE BCM963XX 31.30L.8 CONSUMER RELEASE C1000A.
+1. INSTALL THE BCM963XX ??.???.?? CONSUMER RELEASE C1000A.
 
 $ su
                     (open a console window and login as "su")
@@ -26,14 +28,16 @@ $ su
 # mkdir /tmp/consumer
                     (create a temp directory to install the source to)
 
-# cp bcm963xx_CAC001-??.??L.??_consumer_release_C1000A.tar.gz /tmp/consumer  
+# cp bcm963xx_??.???.??_consumer_release_C1000A.tar.gz /tmp/consumer  
                     (copy source code to temp directory)
 
 # cd /tmp/consumer
                     (make /tmp/consumer the working directory)
 
-# tar xvfz bcm963xx_CAC001-??.??L.??_consumer_release_C1000A.tar.gz
+# tar xvfz bcm963xx_??.???.??_consumer_release_C1000A.tar.gz
                     (decompress and extract the files so they can be installed)
+
+# cd bcm963xx_??.???.??_consumer_release_C1000A
 
 # ./consumer_install
                     (install the source code and software tools)
@@ -69,8 +73,8 @@ STANDARD WEB INTERFACE UPGRADE METHOD
 
 5. The device will reboot using the new firmware image 
 
-6. To access the new firmware interface, use the (new) IP address, 192.168.1.1
-(You may need to renew the IP address of the workstation, to reach 192.168.1.1)
+6. To access the new firmware interface, use the (new) IP address, 192.168.0.1
+(You may need to renew the IP address of the workstation, to reach 192.168.0.1)
 
 
 
@@ -79,7 +83,7 @@ UPLOAD THE IMAGE TO THE ROUTER USING THE BOOTLOADER METHOD
 1. Enter Bootload mode, press enter at the console prompt...
    ( *** Press any key to stop auto run (1 seconds) *** )
 
-2. Give the PC a static IP address: 192.168.1.2 & Subnet-Mask: 255.255.255.0
+2. Give the PC a static IP address: 192.168.1.100 & Subnet-Mask: 255.255.255.0
 
 3. Use a Web browser to access the interface at the IP address, 192.168.1.1
 

@@ -4,67 +4,48 @@
  *
  * Chip Rosenthal Covad Communications <chip@laserlink.net>
  *
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
  */
+#include "libbb.h"
 
-#include <stdio.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <ctype.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <getopt.h>
-
-#include "busybox.h"
-
-#ifdef CONFIG_WGET_HTTPS 
-    #include <openssl/ssl.h>
-    #include <openssl/err.h>
+#ifdef CONFIG_FEATURE_WGET_HTTPS 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #endif
 
 struct host_info {
-	char *host;
-	int port;
-	char *path;
-	int is_ftp;
-	char *user;
-#ifdef CONFIG_WGET_HTTPS
-	int is_https;
-#endif
+	// May be used if we ever will want to free() all xstrdup()s...
+	/* char *allocated; */
+	const char *path;
+	const char *user;
+	char       *host;
+	int         port;
+	smallint    is_ftp;
+#ifdef CONFIG_FEATURE_WGET_HTTPS
+	smallint    is_https;
+#endif   
 };
 
-static void parse_url(char *url, struct host_info *h);
-static FILE *open_socket(struct sockaddr_in *s_in);
-static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
-static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf);
 
-/* Globals (can be accessed from signal handlers */
-static off_t filesize = 0;		/* content-length of the file */
-static int chunked = 0;			/* chunked transfer encoding */
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-static void progressmeter(int flag);
-static char *curfile;			/* Name of current file being transferred. */
-static struct timeval start;	/* Time a transfer started. */
-static volatile unsigned long statbytes = 0; /* Number of bytes transferred so far. */
-/* For progressmeter() -- number of seconds before xfer considered "stalled" */
-static const int STALLTIME = 5;
+/* Globals (can be accessed from signal handlers) */
+struct globals {
+	off_t content_len;        /* Content-length of the file */
+	off_t beg_range;          /* Range at which continue begins */
+#if ENABLE_FEATURE_WGET_STATUSBAR
+	off_t transferred;        /* Number of bytes transferred so far */
+	const char *curfile;      /* Name of current file being transferred */
+	bb_progress_t pmt;
 #endif
+	smallint chunked;         /* chunked transfer encoding */
+	smallint got_clen;        /* got content-length: from server  */
+} FIX_ALIASING;
+#define G (*(struct globals*)&bb_common_bufsiz1)
+struct BUG_G_too_big {
+	char BUG_G_too_big[sizeof(G) <= COMMON_BUFSIZE ? 1 : -1];
+};
+#define INIT_G() do { } while (0)
 
-#ifdef CONFIG_WGET_HTTPS
+#ifdef CONFIG_FEATURE_WGET_HTTPS
 /*--------------------*/
 typedef struct HttpHdrs{
   /* common */
@@ -94,10 +75,10 @@ typedef struct HttpHdrs{
 
 static HttpHdrs httphdrs;
 
-static void ssl_Init();
+static void ssl_Init(void);
 static int ssl_send_get_request(SSL *ssl, const char *host, const char *uri, char *authhdr);
 static int ssl_rev_header_resp(SSL *ssl, int fd, HttpHdrs *hdrs, char *errmsg);
-static int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, FILE *stream, char *errmsg);
+static int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, int stream, char *errmsg);
 
 static SSL_CTX *ssl_ctx = NULL;
 static char HostStr[]="Host:";
@@ -123,47 +104,99 @@ static char LocationStr[]="Location:";
 #else
 #define WGET_CIPHERS     "SSLv3"
 #endif
-#endif /*CONFIG_WGET_HTTPS*/
+#endif /*CONFIG_FEATURE_WGET_HTTPS*/
 
-static void close_and_delete_outfile(FILE* output, char *fname_out, int do_continue)
+#if ENABLE_FEATURE_WGET_STATUSBAR
+
+static void progress_meter(int flag)
 {
-	if (output != stdout && do_continue==0) {
-		fclose(output);
-		unlink(fname_out);
+	/* We can be called from signal handler */
+	int save_errno = errno;
+
+	if (flag == -1) { /* first call to progress_meter */
+		bb_progress_init(&G.pmt);
 	}
+
+	bb_progress_update(&G.pmt, G.curfile, G.beg_range, G.transferred,
+			   G.chunked ? 0 : G.beg_range + G.transferred + G.content_len);
+
+	if (flag == 0) {
+		/* last call to progress_meter */
+		alarm(0);
+		bb_putchar_stderr('\n');
+		G.transferred = 0;
+	} else {
+		if (flag == -1) { /* first call to progress_meter */
+			signal_SA_RESTART_empty_mask(SIGALRM, progress_meter);
+		}
+		alarm(1);
+	}
+
+	errno = save_errno;
 }
 
-/* Read NMEMB elements of SIZE bytes into PTR from STREAM.  Returns the
- * number of elements read, and a short count if an eof or non-interrupt
- * error is encountered.  */
-static size_t safe_fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+#else /* FEATURE_WGET_STATUSBAR */
+
+static ALWAYS_INLINE void progress_meter(int flag UNUSED_PARAM) { }
+
+#endif
+
+
+/* IPv6 knows scoped address types i.e. link and site local addresses. Link
+ * local addresses can have a scope identifier to specify the
+ * interface/link an address is valid on (e.g. fe80::1%eth0). This scope
+ * identifier is only valid on a single node.
+ *
+ * RFC 4007 says that the scope identifier MUST NOT be sent across the wire,
+ * unless all nodes agree on the semantic. Apache e.g. regards zone identifiers
+ * in the Host header as invalid requests, see
+ * https://issues.apache.org/bugzilla/show_bug.cgi?id=35122
+ */
+static void strip_ipv6_scope_id(char *host)
 {
-	size_t ret = 0;
+	char *scope, *cp;
+
+	/* bbox wget actually handles IPv6 addresses without [], like
+	 * wget "http://::1/xxx", but this is not standard.
+	 * To save code, _here_ we do not support it. */
+
+	if (host[0] != '[')
+		return; /* not IPv6 */
+
+	scope = strchr(host, '%');
+	if (!scope)
+		return;
+
+	/* Remove the IPv6 zone identifier from the host address */
+	cp = strchr(host, ']');
+	if (!cp || (cp[1] != ':' && cp[1] != '\0')) {
+		/* malformed address (not "[xx]:nn" or "[xx]") */
+		return;
+	}
+
+	/* cp points to "]...", scope points to "%eth0]..." */
+	overlapping_strcpy(scope, cp);
+}
+
+/* Read NMEMB bytes into PTR from STREAM.  Returns the number of bytes read,
+ * and a short count if an eof or non-interrupt error is encountered.  */
+static size_t safe_fread(void *ptr, size_t nmemb, FILE *stream)
+{
+	size_t ret;
+	char *p = (char*)ptr;
 
 	do {
 		clearerr(stream);
-		ret += fread((char *)ptr + (ret * size), size, nmemb - ret, stream);
-	} while (ret < nmemb && ferror(stream) && errno == EINTR);
+		errno = 0;
+		ret = fread(p, 1, nmemb, stream);
+		p += ret;
+		nmemb -= ret;
+	} while (nmemb && ferror(stream) && errno == EINTR);
 
-	return ret;
+	return p - (char*)ptr;
 }
 
-/* Write NMEMB elements of SIZE bytes from PTR to STREAM.  Returns the
- * number of elements written, and a short count if an eof or non-interrupt
- * error is encountered.  */
-static size_t safe_fwrite(void *ptr, size_t size, size_t nmemb, FILE *stream)
-{
-	size_t ret = 0;
-
-	do {
-		clearerr(stream);
-		ret += fwrite((char *)ptr + (ret * size), size, nmemb - ret, stream);
-	} while (ret < nmemb && ferror(stream) && errno == EINTR);
-
-	return ret;
-}
-
-/* Read a line or SIZE - 1 bytes into S, whichever is less, from STREAM.
+/* Read a line or SIZE-1 bytes into S, whichever is less, from STREAM.
  * Returns S, or NULL if an eof or non-interrupt error is encountered.  */
 static char *safe_fgets(char *s, int size, FILE *stream)
 {
@@ -171,460 +204,750 @@ static char *safe_fgets(char *s, int size, FILE *stream)
 
 	do {
 		clearerr(stream);
+		errno = 0;
 		ret = fgets(s, size, stream);
 	} while (ret == NULL && ferror(stream) && errno == EINTR);
 
 	return ret;
 }
 
-#define close_delete_and_die(s...) { \
-	close_and_delete_outfile(output, fname_out, do_continue); \
-	bb_error_msg_and_die(s); }
-
-
-#ifdef CONFIG_FEATURE_WGET_AUTHENTICATION
-/*
- *  Base64-encode character string
- *  oops... isn't something similar in uuencode.c?
- *  It would be better to use already existing code
- */
-char *base64enc(unsigned char *p, char *buf, int len) {
-
-        char al[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-                    "0123456789+/";
-		char *s = buf;
-
-        while(*p) {
-				if (s >= buf+len-4)
-					bb_error_msg_and_die("buffer overflow");
-                *(s++) = al[(*p >> 2) & 0x3F];
-                *(s++) = al[((*p << 4) & 0x30) | ((*(p+1) >> 4) & 0x0F)];
-                *s = *(s+1) = '=';
-                *(s+2) = 0;
-                if (! *(++p)) break;
-                *(s++) = al[((*p << 2) & 0x3C) | ((*(p+1) >> 6) & 0x03)];
-                if (! *(++p)) break;
-                *(s++) = al[*(p++) & 0x3F];
-        }
-
-		return buf;
+#if ENABLE_FEATURE_WGET_AUTHENTICATION
+/* Base64-encode character string. buf is assumed to be char buf[512]. */
+static char *base64enc_512(char buf[512], const char *str)
+{
+	unsigned len = strlen(str);
+	if (len > 512/4*3 - 10) /* paranoia */
+		len = 512/4*3 - 10;
+	bb_uuencode(buf, str, len, bb_uuenc_tbl_base64);
+	return buf;
 }
 #endif
 
-#define WGET_OPT_CONTINUE	1
-#define WGET_OPT_QUIET	2
-#define WGET_OPT_PASSIVE	4
-#define WGET_OPT_OUTNAME	8
-#define WGET_OPT_HEADER	16
-#define WGET_OPT_PREFIX	32
-#define WGET_OPT_PROXY	64
-
-static const struct option wget_long_options[] = {
-	{ "continue",        0, NULL, 'c' },
-	{ "quiet",           0, NULL, 'q' },
-	{ "passive-ftp",     0, NULL, 139 },
-	{ "output-document", 1, NULL, 'O' },
-	{ "header",	         1, NULL, 131 },
-	{ "directory-prefix",1, NULL, 'P' },
-	{ "proxy",           1, NULL, 'Y' },
-	{ 0,                 0, 0, 0 }
-};
-
-int wget_main(int argc, char **argv)
+static char* sanitize_string(char *s)
 {
-	int n, try=5, status;
-	unsigned long opt;
-	int port;
-	char *proxy = 0;
-	char *dir_prefix=NULL;
-	char *s, buf[512];
-	struct stat sbuf;
-	char extra_headers[1024];
-	char *extra_headers_ptr = extra_headers;
-	int extra_headers_left = sizeof(extra_headers);
-	struct host_info server, target;
-	struct sockaddr_in s_in;
-	llist_t *headers_llist = NULL;
+	unsigned char *p = (void *) s;
+	while (*p >= ' ')
+		p++;
+	*p = '\0';
+	return s;
+}
 
-	FILE *sfp = NULL;			/* socket to web/ftp server			*/
-	FILE *dfp = NULL;			/* socket to ftp server (data)		*/
-	char *fname_out = NULL;		/* where to direct output (-O)		*/
-	int do_continue = 0;		/* continue a prev transfer (-c)	*/
-	long beg_range = 0L;		/*   range at which continue begins	*/
-	int got_clen = 0;			/* got content-length: from server	*/
-	FILE *output;				/* socket to web server				*/
-	int quiet_flag = FALSE;		/* Be verry, verry quiet...			*/
-	int use_proxy = 1;          /* Use proxies if env vars are set  */
-	char *proxy_flag = "on";	/* Use proxies if env vars are set  */
+static FILE *open_socket(len_and_sockaddr *lsa)
+{
+	FILE *fp;
 
-	/*
-	 * Crack command line.
-	 */
-	bb_opt_complementaly = "\203*";
-	bb_applet_long_options = wget_long_options;
-	opt = bb_getopt_ulflags(argc, argv, "cq\213O:\203:P:Y:", &fname_out, &headers_llist, &dir_prefix, &proxy_flag);
-	if (opt & WGET_OPT_CONTINUE) {
-		++do_continue;
+	/* glibc 2.4 seems to try seeking on it - ??! */
+	/* hopefully it understands what ESPIPE means... */
+	fp = fdopen(xconnect_stream(lsa), "r+");
+	if (fp == NULL)
+		bb_perror_msg_and_die("fdopen");
+
+	return fp;
+}
+
+static int ftpcmd(const char *s1, const char *s2, FILE *fp, char *buf)
+{
+	int result;
+	if (s1) {
+		if (!s2) s2 = "";
+		fprintf(fp, "%s%s\r\n", s1, s2);
+		fflush(fp);
 	}
-	if (opt & WGET_OPT_QUIET) {
-		quiet_flag = TRUE;
+
+	do {
+		char *buf_ptr;
+
+		if (fgets(buf, 510, fp) == NULL) {
+			bb_perror_msg_and_die("error getting response");
+		}
+		buf_ptr = strstr(buf, "\r\n");
+		if (buf_ptr) {
+			*buf_ptr = '\0';
+		}
+	} while (!isdigit(buf[0]) || buf[3] != ' ');
+
+	buf[3] = '\0';
+	result = xatoi_u(buf);
+	buf[3] = ' ';
+	return result;
+}
+
+static void parse_url(char *src_url, struct host_info *h)
+{
+	char *url, *p, *sp;
+
+	/* h->allocated = */ url = xstrdup(src_url);
+
+	if (strncmp(url, "http://", 7) == 0) {
+		h->port = bb_lookup_port("http", "tcp", 80);
+		h->host = url + 7;
+		h->is_ftp = 0;
+      #ifdef CONFIG_FEATURE_WGET_HTTPS
+          h->is_https = 0;
+      #endif
+	} else if (strncmp(url, "ftp://", 6) == 0) {
+		h->port = bb_lookup_port("ftp", "tcp", 21);
+		h->host = url + 6;
+		h->is_ftp = 1;
+   #ifdef CONFIG_FEATURE_WGET_HTTPS
+          h->is_https = 0;
+	}else if (strncmp(url, "https://", 8) == 0){
+          h->port = bb_lookup_port("https", "tcp", 443);
+		h->host = url + 8;
+		h->is_ftp = 0;
+          h->is_https = 1;
+   #endif
+	} else
+		bb_error_msg_and_die("not an http or ftp url: %s", sanitize_string(url));
+
+	// FYI:
+	// "Real" wget 'http://busybox.net?var=a/b' sends this request:
+	//   'GET /?var=a/b HTTP 1.0'
+	//   and saves 'index.html?var=a%2Fb' (we save 'b')
+	// wget 'http://busybox.net?login=john@doe':
+	//   request: 'GET /?login=john@doe HTTP/1.0'
+	//   saves: 'index.html?login=john@doe' (we save '?login=john@doe')
+	// wget 'http://busybox.net#test/test':
+	//   request: 'GET / HTTP/1.0'
+	//   saves: 'index.html' (we save 'test')
+	//
+	// We also don't add unique .N suffix if file exists...
+	sp = strchr(h->host, '/');
+	p = strchr(h->host, '?'); if (!sp || (p && sp > p)) sp = p;
+	p = strchr(h->host, '#'); if (!sp || (p && sp > p)) sp = p;
+	if (!sp) {
+		h->path = "";
+	} else if (*sp == '/') {
+		*sp = '\0';
+		h->path = sp + 1;
+	} else { // '#' or '?'
+		// http://busybox.net?login=john@doe is a valid URL
+		// memmove converts to:
+		// http:/busybox.nett?login=john@doe...
+		memmove(h->host - 1, h->host, sp - h->host);
+		h->host--;
+		sp[-1] = '\0';
+		h->path = sp;
 	}
-	if (strcmp(proxy_flag, "off") == 0) {
-		/* Use the proxy if necessary. */
-		use_proxy = 0;
+
+	// We used to set h->user to NULL here, but this interferes
+	// with handling of code 302 ("object was moved")
+
+	sp = strrchr(h->host, '@');
+	if (sp != NULL) {
+		h->user = h->host;
+		*sp = '\0';
+		h->host = sp + 1;
 	}
-	if (opt & WGET_OPT_HEADER) {
-		while (headers_llist) {
-			int arglen = strlen(headers_llist->data);
-			if (extra_headers_left - arglen - 2 <= 0)
-				bb_error_msg_and_die("extra_headers buffer too small(need %i)", extra_headers_left - arglen);
-			strcpy(extra_headers_ptr, headers_llist->data);
-			extra_headers_ptr += arglen;
-			extra_headers_left -= ( arglen + 2 );
-			*extra_headers_ptr++ = '\r';
-			*extra_headers_ptr++ = '\n';
-			*(extra_headers_ptr + 1) = 0;
-			headers_llist = headers_llist->link;
+
+	sp = h->host;
+}
+
+static char *gethdr(char *buf, size_t bufsiz, FILE *fp /*, int *istrunc*/)
+{
+	char *s, *hdrval;
+	int c;
+
+	/* *istrunc = 0; */
+
+	/* retrieve header line */
+	if (fgets(buf, bufsiz, fp) == NULL)
+		return NULL;
+
+	/* see if we are at the end of the headers */
+	for (s = buf; *s == '\r'; ++s)
+		continue;
+	if (*s == '\n')
+		return NULL;
+
+	/* convert the header name to lower case */
+	for (s = buf; isalnum(*s) || *s == '-' || *s == '.'; ++s) {
+		/* tolower for "A-Z", no-op for "0-9a-z-." */
+		*s = (*s | 0x20);
+	}
+
+	/* verify we are at the end of the header name */
+	if (*s != ':')
+		bb_error_msg_and_die("bad header line: %s", sanitize_string(buf));
+
+	/* locate the start of the header value */
+	*s++ = '\0';
+	hdrval = skip_whitespace(s);
+
+	/* locate the end of header */
+	while (*s && *s != '\r' && *s != '\n')
+		++s;
+
+	/* end of header found */
+	if (*s) {
+		*s = '\0';
+		return hdrval;
+	}
+
+	/* Rats! The buffer isn't big enough to hold the entire header value */
+	while (c = getc(fp), c != EOF && c != '\n')
+		continue;
+	/* *istrunc = 1; */
+	return hdrval;
+}
+
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+static char *URL_escape(const char *str)
+{
+	/* URL encode, see RFC 2396 */
+	char *dst;
+	char *res = dst = xmalloc(strlen(str) * 3 + 1);
+	unsigned char c;
+
+	while (1) {
+		c = *str++;
+		if (c == '\0'
+		/* || strchr("!&'()*-.=_~", c) - more code */
+		 || c == '!'
+		 || c == '&'
+		 || c == '\''
+		 || c == '('
+		 || c == ')'
+		 || c == '*'
+		 || c == '-'
+		 || c == '.'
+		 || c == '='
+		 || c == '_'
+		 || c == '~'
+		 || (c >= '0' && c <= '9')
+		 || ((c|0x20) >= 'a' && (c|0x20) <= 'z')
+		) {
+			*dst++ = c;
+			if (c == '\0')
+				return res;
+		} else {
+			*dst++ = '%';
+			*dst++ = bb_hexdigits_upcase[c >> 4];
+			*dst++ = bb_hexdigits_upcase[c & 0xf];
 		}
 	}
-	if (argc - optind != 1)
-			bb_show_usage();
+}
+#endif
 
-	parse_url(argv[optind], &target);
-	server.host = target.host;
-	server.port = target.port;
+static FILE* prepare_ftp_session(FILE **dfpp, struct host_info *target, len_and_sockaddr *lsa)
+{
+	char buf[512];
+	FILE *sfp;
+	char *str;
+	int port;
+
+	if (!target->user)
+		target->user = xstrdup("anonymous:busybox@");
+
+	sfp = open_socket(lsa);
+	if (ftpcmd(NULL, NULL, sfp, buf) != 220)
+		bb_error_msg_and_die("%s", sanitize_string(buf+4));
 
 	/*
-	 * Use the proxy if necessary.
+	 * Splitting username:password pair,
+	 * trying to log in
 	 */
-#ifdef CONFIG_WGET_HTTPS
-     //don't support proxy/continue for https now
+	str = strchr(target->user, ':');
+	if (str)
+		*str++ = '\0';
+	switch (ftpcmd("USER ", target->user, sfp, buf)) {
+	case 230:
+		break;
+	case 331:
+		if (ftpcmd("PASS ", str, sfp, buf) == 230)
+			break;
+		/* fall through (failed login) */
+	default:
+		bb_error_msg_and_die("ftp login: %s", sanitize_string(buf+4));
+	}
+
+	ftpcmd("TYPE I", NULL, sfp, buf);
+
+	/*
+	 * Querying file size
+	 */
+	if (ftpcmd("SIZE ", target->path, sfp, buf) == 213) {
+		G.content_len = BB_STRTOOFF(buf+4, NULL, 10);
+		if (G.content_len < 0 || errno) {
+			bb_error_msg_and_die("SIZE value is garbage");
+		}
+		G.got_clen = 1;
+	}
+
+	/*
+	 * Entering passive mode
+	 */
+	if (ftpcmd("PASV", NULL, sfp, buf) != 227) {
+ pasv_error:
+		bb_error_msg_and_die("bad response to %s: %s", "PASV", sanitize_string(buf));
+	}
+	// Response is "227 garbageN1,N2,N3,N4,P1,P2[)garbage]
+	// Server's IP is N1.N2.N3.N4 (we ignore it)
+	// Server's port for data connection is P1*256+P2
+	str = strrchr(buf, ')');
+	if (str) str[0] = '\0';
+	str = strrchr(buf, ',');
+	if (!str) goto pasv_error;
+	port = xatou_range(str+1, 0, 255);
+	*str = '\0';
+	str = strrchr(buf, ',');
+	if (!str) goto pasv_error;
+	port += xatou_range(str+1, 0, 255) * 256;
+	set_nport(lsa, htons(port));
+
+	*dfpp = open_socket(lsa);
+
+	if (G.beg_range) {
+		sprintf(buf, "REST %"OFF_FMT"u", G.beg_range);
+		if (ftpcmd(buf, NULL, sfp, buf) == 350)
+			G.content_len -= G.beg_range;
+	}
+
+	if (ftpcmd("RETR ", target->path, sfp, buf) > 150)
+		bb_error_msg_and_die("bad response to %s: %s", "RETR", sanitize_string(buf));
+
+	return sfp;
+}
+
+/* Must match option string! */
+enum {
+	WGET_OPT_CONTINUE   = (1 << 0),
+	WGET_OPT_SPIDER	    = (1 << 1),
+	WGET_OPT_QUIET      = (1 << 2),
+	WGET_OPT_OUTNAME    = (1 << 3),
+	WGET_OPT_PREFIX     = (1 << 4),
+	WGET_OPT_PROXY      = (1 << 5),
+	WGET_OPT_USER_AGENT = (1 << 6),
+	WGET_OPT_RETRIES    = (1 << 7),
+	WGET_OPT_NETWORK_READ_TIMEOUT = (1 << 8),
+	WGET_OPT_PASSIVE    = (1 << 9),
+	WGET_OPT_HEADER     = (1 << 10) * ENABLE_FEATURE_WGET_LONG_OPTIONS,
+	WGET_OPT_POST_DATA  = (1 << 11) * ENABLE_FEATURE_WGET_LONG_OPTIONS,
+};
+
+static void NOINLINE retrieve_file_data(FILE *dfp, int output_fd)
+{
+	char buf[512];
+
+	if (!(option_mask32 & WGET_OPT_QUIET))
+		progress_meter(-1);
+
+	if (G.chunked)
+		goto get_clen;
+
+	/* Loops only if chunked */
+	while (1) {
+		while (1) {
+			int n;
+			unsigned rdsz;
+
+			rdsz = sizeof(buf);
+			if (G.got_clen) {
+				if (G.content_len < (off_t)sizeof(buf)) {
+					if ((int)G.content_len <= 0)
+						break;
+					rdsz = (unsigned)G.content_len;
+				}
+			}
+			n = safe_fread(buf, rdsz, dfp);
+			if (n <= 0) {
+				if (ferror(dfp)) {
+					/* perror will not work: ferror doesn't set errno */
+					bb_error_msg_and_die(bb_msg_read_error);
+				}
+				break;
+			}
+			xwrite(output_fd, buf, n);
+#if ENABLE_FEATURE_WGET_STATUSBAR
+			G.transferred += n;
+#endif
+			if (G.got_clen)
+				G.content_len -= n;
+		}
+
+		if (!G.chunked)
+			break;
+
+		safe_fgets(buf, sizeof(buf), dfp); /* This is a newline */
+ get_clen:
+		safe_fgets(buf, sizeof(buf), dfp);
+		G.content_len = STRTOOFF(buf, NULL, 16);
+		/* FIXME: error check? */
+		if (G.content_len == 0)
+			break; /* all done! */
+		G.got_clen = 1;
+	}
+
+	if (!(option_mask32 & WGET_OPT_QUIET))
+		progress_meter(0);
+}
+
+int wget_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int wget_main(int argc UNUSED_PARAM, char **argv)
+{
+	char buf[512];
+	struct host_info server, target;
+	len_and_sockaddr *lsa;
+	unsigned opt;
+	int redir_limit;
+	char *proxy = NULL;
+	char *dir_prefix = NULL;
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+	char *post_data;
+	char *extra_headers = NULL;
+	llist_t *headers_llist = NULL;
+#endif
+	FILE *sfp;                      /* socket to web/ftp server         */
+	FILE *dfp;                      /* socket to ftp server (data)      */
+	char *fname_out;                /* where to direct output (-O)      */
+	int output_fd = -1;
+	bool use_proxy;                 /* Use proxies if env vars are set  */
+	const char *proxy_flag = "on";  /* Use proxies if env vars are set  */
+	const char *user_agent = "Wget";/* "User-Agent" header field        */
+
+	static const char keywords[] ALIGN1 =
+		"content-length\0""transfer-encoding\0""chunked\0""location\0";
+	enum {
+		KEY_content_length = 1, KEY_transfer_encoding, KEY_chunked, KEY_location
+	};
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+	static const char wget_longopts[] ALIGN1 =
+		/* name, has_arg, val */
+		"continue\0"         No_argument       "c"
+		"spider\0"           No_argument       "s"
+		"quiet\0"            No_argument       "q"
+		"output-document\0"  Required_argument "O"
+		"directory-prefix\0" Required_argument "P"
+		"proxy\0"            Required_argument "Y"
+		"user-agent\0"       Required_argument "U"
+		/* Ignored: */
+		// "tries\0"            Required_argument "t"
+		// "timeout\0"          Required_argument "T"
+		/* Ignored (we always use PASV): */
+		"passive-ftp\0"      No_argument       "\xff"
+		"header\0"           Required_argument "\xfe"
+		"post-data\0"        Required_argument "\xfd"
+		/* Ignored (we don't do ssl) */
+		"no-check-certificate\0" No_argument   "\xfc"
+		;
+#endif
+
+	INIT_G();
+
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+	applet_long_options = wget_longopts;
+#endif
+	/* server.allocated = target.allocated = NULL; */
+	opt_complementary = "-1" IF_FEATURE_WGET_LONG_OPTIONS(":\xfe::");
+	opt = getopt32(argv, "csqO:P:Y:U:" /*ignored:*/ "t:T:",
+				&fname_out, &dir_prefix,
+				&proxy_flag, &user_agent,
+				NULL, /* -t RETRIES */
+				NULL /* -T NETWORK_READ_TIMEOUT */
+				IF_FEATURE_WGET_LONG_OPTIONS(, &headers_llist)
+				IF_FEATURE_WGET_LONG_OPTIONS(, &post_data)
+				);
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+	if (headers_llist) {
+		int size = 1;
+		char *cp;
+		llist_t *ll = headers_llist;
+		while (ll) {
+			size += strlen(ll->data) + 2;
+			ll = ll->link;
+		}
+		extra_headers = cp = xmalloc(size);
+		while (headers_llist) {
+			cp += sprintf(cp, "%s\r\n", (char*)llist_pop(&headers_llist));
+		}
+	}
+#endif
+
+	/* TODO: compat issue: should handle "wget URL1 URL2..." */
+
+	target.user = NULL;
+	parse_url(argv[optind], &target);
+
+	/* Use the proxy if necessary */
+	use_proxy = (strcmp(proxy_flag, "off") != 0);
+#ifdef CONFIG_FEATURE_WGET_HTTPS
+     //don't support proxy for https now
      if(target.is_https)
      {
           use_proxy = 0;
-          do_continue = 0;
      }
 #endif
 	if (use_proxy) {
 		proxy = getenv(target.is_ftp ? "ftp_proxy" : "http_proxy");
-		if (proxy && *proxy) {
-			parse_url(bb_xstrdup(proxy), &server);
+		if (proxy && proxy[0]) {
+			server.user = NULL;
+			parse_url(proxy, &server);
 		} else {
 			use_proxy = 0;
 		}
 	}
+	if (!use_proxy) {
+		server.port = target.port;
+		if (ENABLE_FEATURE_IPV6) {
+			server.host = xstrdup(target.host);
+		} else {
+			server.host = target.host;
+		}
+	}
 
-	/* Guess an output filename */
-	if (!fname_out) {
-		// Dirty hack. Needed because bb_get_last_path_component
-		// will destroy trailing / by storing '\0' in last byte!
-		if(target.path[strlen(target.path)-1]!='/') {
-			fname_out =
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-				curfile =
-#endif
-				bb_get_last_path_component(target.path);
-		}
-		if (fname_out==NULL || strlen(fname_out)<1) {
-			fname_out =
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-				curfile =
-#endif
-				"index.html";
-		}
-		if (dir_prefix != NULL)
+	if (ENABLE_FEATURE_IPV6)
+		strip_ipv6_scope_id(target.host);
+
+	/* Guess an output filename, if there was no -O FILE */
+	if (!(opt & WGET_OPT_OUTNAME)) {
+		fname_out = bb_get_last_path_component_nostrip(target.path);
+		/* handle "wget http://kernel.org//" */
+		if (fname_out[0] == '/' || !fname_out[0])
+			fname_out = (char*)"index.html";
+		/* -P DIR is considered only if there was no -O FILE */
+		if (dir_prefix)
 			fname_out = concat_path_file(dir_prefix, fname_out);
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
 	} else {
-		curfile = bb_get_last_path_component(fname_out);
+		if (LONE_DASH(fname_out)) {
+			/* -O - */
+			output_fd = 1;
+			opt &= ~WGET_OPT_CONTINUE;
+		}
+	}
+#if ENABLE_FEATURE_WGET_STATUSBAR
+	G.curfile = bb_get_last_path_component_nostrip(fname_out);
 #endif
-	}
-	if (do_continue && !fname_out)
-		bb_error_msg_and_die("cannot specify continue (-c) without a filename (-O)");
 
+	/* Impossible?
+	if ((opt & WGET_OPT_CONTINUE) && !fname_out)
+		bb_error_msg_and_die("can't specify continue (-c) without a filename (-O)");
+	*/
 
-	/*
-	 * Open the output file stream.
-	 */
-	if (strcmp(fname_out, "-") == 0) {
-		output = stdout;
-		quiet_flag = TRUE;
-	} else {
-		output = bb_xfopen(fname_out, (do_continue ? "a" : "w"));
-	}
-
-	/*
-	 * Determine where to start transfer.
-	 */
-	if (do_continue) {
-		if (fstat(fileno(output), &sbuf) < 0)
-			bb_perror_msg_and_die("fstat()");
-		if (sbuf.st_size > 0)
-			beg_range = sbuf.st_size;
-		else
-			do_continue = 0;
+	/* Determine where to start transfer */
+	if (opt & WGET_OPT_CONTINUE) {
+		output_fd = open(fname_out, O_WRONLY);
+		if (output_fd >= 0) {
+			G.beg_range = xlseek(output_fd, 0, SEEK_END);
+		}
+		/* File doesn't exist. We do not create file here yet.
+		 * We are not sure it exists on remove side */
 	}
 
-	/* We want to do exactly _one_ DNS lookup, since some
-	 * sites (i.e. ftp.us.debian.org) use round-robin DNS
-	 * and we want to connect to only one IP... */
-	bb_lookup_host(&s_in, server.host);
-	s_in.sin_port = server.port;
-	if (quiet_flag==FALSE) {
-		fprintf(stdout, "Connecting to %s[%s]:%d\n",
-				server.host, inet_ntoa(s_in.sin_addr), ntohs(server.port));
+	redir_limit = 5;
+ resolve_lsa:
+	lsa = xhost2sockaddr(server.host, server.port);
+	if (!(opt & WGET_OPT_QUIET)) {
+		char *s = xmalloc_sockaddr2dotted(&lsa->u.sa);
+		fprintf(stderr, "Connecting to %s (%s)\n", server.host, s);
+		free(s);
 	}
-   
-#ifdef CONFIG_WGET_HTTPS
+ establish_session:
+#ifdef CONFIG_FEATURE_WGET_HTTPS
    if(!target.is_https){
-#endif
+#endif   
 	if (use_proxy || !target.is_ftp) {
 		/*
 		 *  HTTP session
 		 */
-		do {
-			got_clen = chunked = 0;
+		char *str;
+		int status;
 
-			if (! --try)
-				close_delete_and_die("too many redirections");
+		/* Open socket to http server */
+		sfp = open_socket(lsa);
 
-			/*
-			 * Open socket to http server
-			 */
-			if (sfp) fclose(sfp);
-			sfp = open_socket(&s_in);
-
-			/*
-			 * Send HTTP request.
-			 */
-			if (use_proxy) {
-				const char *format = "GET %stp://%s:%d/%s HTTP/1.1\r\n";
-#ifdef CONFIG_FEATURE_WGET_IP6_LITERAL
-				if (strchr (target.host, ':'))
-					format = "GET %stp://[%s]:%d/%s HTTP/1.1\r\n";
-#endif
-				fprintf(sfp, format,
-					target.is_ftp ? "f" : "ht", target.host,
-					ntohs(target.port), target.path);
-			} else {
+		/* Send HTTP request */
+		if (use_proxy) {
+			fprintf(sfp, "GET %stp://%s/%s HTTP/1.1\r\n",
+				target.is_ftp ? "f" : "ht", target.host,
+				target.path);
+		} else {
+			if (opt & WGET_OPT_POST_DATA)
+				fprintf(sfp, "POST /%s HTTP/1.1\r\n", target.path);
+			else
 				fprintf(sfp, "GET /%s HTTP/1.1\r\n", target.path);
-			}
+		}
 
-			fprintf(sfp, "Host: %s\r\nUser-Agent: Wget\r\n", target.host);
+		fprintf(sfp, "Host: %s\r\nUser-Agent: %s\r\n",
+			target.host, user_agent);
 
-#ifdef CONFIG_FEATURE_WGET_AUTHENTICATION
-			if (target.user) {
-				fprintf(sfp, "Authorization: Basic %s\r\n",
-					base64enc(target.user, buf, sizeof(buf)));
-			}
-			if (use_proxy && server.user) {
-				fprintf(sfp, "Proxy-Authorization: Basic %s\r\n",
-					base64enc(server.user, buf, sizeof(buf)));
-			}
+#if ENABLE_FEATURE_WGET_AUTHENTICATION
+		if (target.user) {
+			fprintf(sfp, "Proxy-Authorization: Basic %s\r\n"+6,
+				base64enc_512(buf, target.user));
+		}
+		if (use_proxy && server.user) {
+			fprintf(sfp, "Proxy-Authorization: Basic %s\r\n",
+				base64enc_512(buf, server.user));
+		}
 #endif
 
-			if (do_continue)
-				fprintf(sfp, "Range: bytes=%ld-\r\n", beg_range);
-			if(extra_headers_left < sizeof(extra_headers))
-				fputs(extra_headers,sfp);
-			fprintf(sfp,"Connection: close\r\n\r\n");
+		if (G.beg_range)
+			fprintf(sfp, "Range: bytes=%"OFF_FMT"u-\r\n", G.beg_range);
+#if ENABLE_FEATURE_WGET_LONG_OPTIONS
+		if (extra_headers)
+			fputs(extra_headers, sfp);
 
-			/*
-		 	* Retrieve HTTP response line and check for "200" status code.
-		 	*/
-read_response:
-			if (fgets(buf, sizeof(buf), sfp) == NULL)
-				close_delete_and_die("no response from server");
+		if (opt & WGET_OPT_POST_DATA) {
+			char *estr = URL_escape(post_data);
+			fprintf(sfp, "Content-Type: application/x-www-form-urlencoded\r\n");
+			fprintf(sfp, "Content-Length: %u\r\n" "\r\n" "%s",
+					(int) strlen(estr), estr);
+			/*fprintf(sfp, "Connection: Keep-Alive\r\n\r\n");*/
+			/*fprintf(sfp, "%s\r\n", estr);*/
+			free(estr);
+		} else
+#endif
+		{ /* If "Connection:" is needed, document why */
+			fprintf(sfp, /* "Connection: close\r\n" */ "\r\n");
+		}
 
-			for (s = buf ; *s != '\0' && !isspace(*s) ; ++s)
-			;
-			for ( ; isspace(*s) ; ++s)
-			;
-			switch (status = atoi(s)) {
-				case 0:
-				case 100:
-					while (gethdr(buf, sizeof(buf), sfp, &n) != NULL);
-					goto read_response;
-				case 200:
-					if (do_continue && output != stdout)
-						output = freopen(fname_out, "w", output);
-					do_continue = 0;
-					break;
-				case 300:	/* redirection */
-				case 301:
-				case 302:
-				case 303:
-					break;
-				case 206:
-					if (do_continue)
-						break;
-					/*FALLTHRU*/
-				default:
-					chomp(buf);
-					close_delete_and_die("server returned error %d: %s", atoi(s), buf);
+		/*
+		 * Retrieve HTTP response line and check for "200" status code.
+		 */
+ read_response:
+		if (fgets(buf, sizeof(buf), sfp) == NULL)
+			bb_error_msg_and_die("no response from server");
+
+		str = buf;
+		str = skip_non_whitespace(str);
+		str = skip_whitespace(str);
+		// FIXME: no error check
+		// xatou wouldn't work: "200 OK"
+		status = atoi(str);
+		switch (status) {
+		case 0:
+		case 100:
+			while (gethdr(buf, sizeof(buf), sfp /*, &n*/) != NULL)
+				/* eat all remaining headers */;
+			goto read_response;
+		case 200:
+/*
+Response 204 doesn't say "null file", it says "metadata
+has changed but data didn't":
+
+"10.2.5 204 No Content
+The server has fulfilled the request but does not need to return
+an entity-body, and might want to return updated metainformation.
+The response MAY include new or updated metainformation in the form
+of entity-headers, which if present SHOULD be associated with
+the requested variant.
+
+If the client is a user agent, it SHOULD NOT change its document
+view from that which caused the request to be sent. This response
+is primarily intended to allow input for actions to take place
+without causing a change to the user agent's active document view,
+although any new or updated metainformation SHOULD be applied
+to the document currently in the user agent's active view.
+
+The 204 response MUST NOT include a message-body, and thus
+is always terminated by the first empty line after the header fields."
+
+However, in real world it was observed that some web servers
+(e.g. Boa/0.94.14rc21) simply use code 204 when file size is zero.
+*/
+		case 204:
+			break;
+		case 300:	/* redirection */
+		case 301:
+		case 302:
+		case 303:
+			break;
+		case 206:
+			if (G.beg_range)
+				break;
+			/* fall through */
+		default:
+			bb_error_msg_and_die("server returned error: %s", sanitize_string(buf));
+		}
+
+		/*
+		 * Retrieve HTTP headers.
+		 */
+		while ((str = gethdr(buf, sizeof(buf), sfp /*, &n*/)) != NULL) {
+			/* gethdr converted "FOO:" string to lowercase */
+			smalluint key;
+			/* strip trailing whitespace */
+			char *s = strchrnul(str, '\0') - 1;
+			while (s >= str && (*s == ' ' || *s == '\t')) {
+				*s = '\0';
+				s--;
 			}
-
-			/*
-			 * Retrieve HTTP headers.
-			 */
-			while ((s = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
-				if (strcasecmp(buf, "content-length") == 0) {
-					unsigned long value;
-					if (safe_strtoul(s, &value)) {
-						close_delete_and_die("content-length %s is garbage", s);
-					}
-					filesize = value;
-					got_clen = 1;
-					continue;
+			key = index_in_strings(keywords, buf) + 1;
+			if (key == KEY_content_length) {
+				G.content_len = BB_STRTOOFF(str, NULL, 10);
+				if (G.content_len < 0 || errno) {
+					bb_error_msg_and_die("content-length %s is garbage", sanitize_string(str));
 				}
-				if (strcasecmp(buf, "transfer-encoding") == 0) {
-					if (strcasecmp(s, "chunked") == 0) {
-						chunked = got_clen = 1;
-					} else {
-					close_delete_and_die("server wants to do %s transfer encoding", s);
-					}
-				}
-				if (strcasecmp(buf, "location") == 0) {
-					if (s[0] == '/')
-						target.path = bb_xstrdup(s+1);
-					else {
-						parse_url(bb_xstrdup(s), &target);
-						if (use_proxy == 0) {
-							server.host = target.host;
-							server.port = target.port;
-						}
-						bb_lookup_host(&s_in, server.host);
-						s_in.sin_port = server.port;
-						break;
-					}
-				}
+				G.got_clen = 1;
+				continue;
 			}
-		} while(status >= 300);
+			if (key == KEY_transfer_encoding) {
+				if (index_in_strings(keywords, str_tolower(str)) + 1 != KEY_chunked)
+					bb_error_msg_and_die("transfer encoding '%s' is not supported", sanitize_string(str));
+				G.chunked = G.got_clen = 1;
+			}
+			if (key == KEY_location && status >= 300) {
+				if (--redir_limit == 0)
+					bb_error_msg_and_die("too many redirections");
+				fclose(sfp);
+				G.got_clen = 0;
+				G.chunked = 0;
+				if (str[0] == '/')
+					/* free(target.allocated); */
+					target.path = /* target.allocated = */ xstrdup(str+1);
+					/* lsa stays the same: it's on the same server */
+				else {
+					parse_url(str, &target);
+					if (!use_proxy) {
+						server.host = target.host;
+						/* strip_ipv6_scope_id(target.host); - no! */
+						/* we assume remote never gives us IPv6 addr with scope id */
+						server.port = target.port;
+						free(lsa);
+						goto resolve_lsa;
+					} /* else: lsa stays the same: we use proxy */
+				}
+				goto establish_session;
+			}
+		}
+//		if (status >= 300)
+//			bb_error_msg_and_die("bad redirection (no Location: header from server)");
 
+		/* For HTTP, data is pumped over the same connection */
 		dfp = sfp;
-	}
-	else
-	{
+
+	} else {
 		/*
 		 *  FTP session
 		 */
-		if (! target.user)
-			target.user = bb_xstrdup("anonymous:busybox@");
-
-		sfp = open_socket(&s_in);
-		if (ftpcmd(NULL, NULL, sfp, buf) != 220)
-			close_delete_and_die("%s", buf+4);
-
-		/*
-		 * Splitting username:password pair,
-		 * trying to log in
-		 */
-		s = strchr(target.user, ':');
-		if (s)
-			*(s++) = '\0';
-		switch(ftpcmd("USER ", target.user, sfp, buf)) {
-			case 230:
-				break;
-			case 331:
-				if (ftpcmd("PASS ", s, sfp, buf) == 230)
-					break;
-				/* FALLTHRU (failed login) */
-			default:
-				close_delete_and_die("ftp login: %s", buf+4);
-		}
-
-		ftpcmd("CDUP", NULL, sfp, buf);
-		ftpcmd("TYPE I", NULL, sfp, buf);
-
-		/*
-		 * Querying file size
-		 */
-		if (ftpcmd("SIZE /", target.path, sfp, buf) == 213) {
-			unsigned long value;
-			if (safe_strtoul(buf+4, &value)) {
-				close_delete_and_die("SIZE value is garbage");
-			}
-			filesize = value;
-			got_clen = 1;
-		}
-
-		/*
-		 * Entering passive mode
-		 */
-		if (ftpcmd("PASV", NULL, sfp, buf) !=  227)
-			close_delete_and_die("PASV: %s", buf+4);
-		s = strrchr(buf, ',');
-		*s = 0;
-		port = atoi(s+1);
-		s = strrchr(buf, ',');
-		port += atoi(s+1) * 256;
-		s_in.sin_port = htons(port);
-		dfp = open_socket(&s_in);
-
-		if (do_continue) {
-			sprintf(buf, "REST %ld", beg_range);
-			if (ftpcmd(buf, NULL, sfp, buf) != 350) {
-				if (output != stdout)
-					output = freopen(fname_out, "w", output);
-				do_continue = 0;
-			} else
-				filesize -= beg_range;
-		}
-
-		if (ftpcmd("RETR /", target.path, sfp, buf) > 150)
-			close_delete_and_die("RETR: %s", buf+4);
-
+		sfp = prepare_ftp_session(&dfp, &target, lsa);
 	}
 
-
-	/*
-	 * Retrieve file
-	 */
-	if (chunked) {
-		fgets(buf, sizeof(buf), dfp);
-		filesize = strtol(buf, (char **) NULL, 16);
+	if (opt & WGET_OPT_SPIDER) {
+		if (ENABLE_FEATURE_CLEAN_UP)
+			fclose(sfp);
+		return EXIT_SUCCESS;
 	}
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-	if (quiet_flag==FALSE)
-		progressmeter(-1);
-#endif
-	do {
-		while ((filesize > 0 || !got_clen) && (n = safe_fread(buf, 1, ((chunked || got_clen) && (filesize < sizeof(buf)) ? filesize : sizeof(buf)), dfp)) > 0) {
-			if (safe_fwrite(buf, 1, n, output) != n) {
-				bb_perror_msg_and_die("write error");
-			}
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-			statbytes+=n;
-#endif
-			if (got_clen) {
-				filesize -= n;
-			}
-		}
 
-		if (chunked) {
-			safe_fgets(buf, sizeof(buf), dfp); /* This is a newline */
-			safe_fgets(buf, sizeof(buf), dfp);
-			filesize = strtol(buf, (char **) NULL, 16);
-			if (filesize==0) {
-				chunked = 0; /* all done! */
-			}
-		}
+	if (output_fd < 0) {
+		int o_flags = O_WRONLY | O_CREAT | O_TRUNC | O_EXCL;
+		/* compat with wget: -O FILE can overwrite */
+		if (opt & WGET_OPT_OUTNAME)
+			o_flags = O_WRONLY | O_CREAT | O_TRUNC;
+		output_fd = xopen(fname_out, o_flags);
+	}
 
-		if (n == 0 && ferror(dfp)) {
-			bb_perror_msg_and_die("network read error");
-		}
-	} while (chunked);
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-	if (quiet_flag==FALSE)
-		progressmeter(1);
-#endif
-	if ((use_proxy == 0) && target.is_ftp) {
+	retrieve_file_data(dfp, output_fd);
+	xclose(output_fd);
+
+	if (dfp != sfp) {
+		/* It's ftp. Close it properly */
 		fclose(dfp);
 		if (ftpcmd(NULL, NULL, sfp, buf) != 226)
-			bb_error_msg_and_die("ftp error: %s", buf+4);
-		ftpcmd("QUIT", NULL, sfp, buf);
+			bb_error_msg_and_die("ftp error: %s", sanitize_string(buf+4));
+		/* ftpcmd("QUIT", NULL, sfp, buf); - why bother? */
 	}
-#ifdef CONFIG_WGET_HTTPS
+#ifdef CONFIG_FEATURE_WGET_HTTPS
    }/*!target.is_https*/
    else //support WGET_HTTPS
    {
@@ -638,44 +961,44 @@ read_response:
 #endif
       
       ssl_Init();
-      if((ssl_fd = xconnect(&s_in)) <0)
-         close_delete_and_die("Create socket to remote host (%s) fail.",
-				inet_ntoa(s_in.sin_addr));
+      if((ssl_fd = xconnect_stream(lsa)) <0)
+         bb_error_msg_and_die("Create socket to remote host (%s) fail.",
+				inet_ntoa(((struct sockaddr_in *)(&lsa->u.sa))->sin_addr));
 
       ssl = SSL_new(ssl_ctx);
       if(ssl == NULL)
-         close_delete_and_die("SSL failed: SSL_new.");
+         bb_error_msg_and_die("SSL failed: SSL_new.");
 
       if(!SSL_set_fd (ssl, ssl_fd))
-         close_delete_and_die("SSL failed: SSL_set_fd.");
+         bb_error_msg_and_die("SSL failed: SSL_set_fd.");
 
       SSL_set_connect_state (ssl);
       if (SSL_connect (ssl) <= 0 || ssl->state != SSL_ST_OK)
-         close_delete_and_die("SSL failed: SSL_connect.");
+         bb_error_msg_and_die("SSL failed: SSL_connect.");
       
       memset(hdrs, 0, sizeof(struct HttpHdrs));
       //send request header
 #ifdef CONFIG_FEATURE_WGET_AUTHENTICATION
       if (target.user) {
-      	i = sprintf(authhdr, "Authorization: Basic %s\r\n", base64enc(target.user, buf, sizeof(buf)));
+      	i = sprintf(authhdr, "Authorization: Basic %s\r\n", base64enc_512(buf, target.user));
           authhdr[i] = '\0';
 
           if(ssl_send_get_request(ssl, target.host, target.path, authhdr) <0)
-            close_delete_and_die("SSL failed: Send Get Request Error.");
+            bb_error_msg_and_die("SSL failed: Send Get Request Error.");
       }
       else if(ssl_send_get_request(ssl, target.host, target.path, NULL) <0)
-               close_delete_and_die("SSL failed: Send Get Request Error.");
+               bb_error_msg_and_die("SSL failed: Send Get Request Error.");
 #else
       if(ssl_send_get_request(ssl, target.host, target.path, NULL) <0)
-         close_delete_and_die("SSL failed: Send Get Request Error.");
+         bb_error_msg_and_die("SSL failed: Send Get Request Error.");
 #endif
       
       //get header response and parse it
       if(ssl_rev_header_resp(ssl, ssl_fd, hdrs, errmsg) < 0)
-         close_delete_and_die(errmsg);
+         bb_error_msg_and_die(errmsg);
 
       if(hdrs->status_code < 100 || hdrs->status_code >= 600)
-         close_delete_and_die("SSL failed: status code %d from serve is error.", hdrs->status_code);
+         bb_error_msg_and_die("SSL failed: status code %d from serve is error.", hdrs->status_code);
 
       if (hdrs->status_code == 200 && 
          ((hdrs->content_length > 0) ||
@@ -685,313 +1008,42 @@ read_response:
          char *rambuf = NULL;
          
          DEBUGP("Starting download file");
-          
+         
+         if (output_fd < 0) {
+		   int o_flags = O_WRONLY | O_CREAT | O_TRUNC | O_EXCL;
+		   /* compat with wget: -O FILE can overwrite */
+		   if (opt & WGET_OPT_OUTNAME)
+			   o_flags = O_WRONLY | O_CREAT | O_TRUNC;
+		   output_fd = xopen(fname_out, o_flags);
+	    }  
+         
          //retrieve file data
-         if(ssl_rev_file_date(ssl, hdrs, output, errmsg) < 0)
-            close_delete_and_die(errmsg);               
+         if(ssl_rev_file_date(ssl, hdrs, output_fd, errmsg) < 0){
+            xclose(output_fd);
+		  unlink(fname_out);
+            bb_error_msg_and_die(errmsg);           
+         }
       }
       else if (hdrs->status_code == 401)
       {
-         close_delete_and_die("SSL failed: 401 Unauthorized.");
+         bb_error_msg_and_die("SSL failed: 401 Unauthorized.");
       }
       else if (hdrs->status_code == 404)
       {
-         close_delete_and_die("SSL failed: 404 NOT FOUND.");
+         bb_error_msg_and_die("SSL failed: 404 NOT FOUND.");
       }
       else
       {
-         close_delete_and_die("SSL failed: No support status code %d.", hdrs->status_code);
+         bb_error_msg_and_die("SSL failed: No support status code %d.", hdrs->status_code);
       }      
    }
 #endif
    fprintf(stdout, "200 OK, File Get Success\n");
-   exit(EXIT_SUCCESS);
+
+	return EXIT_SUCCESS;
 }
 
-
-void parse_url(char *url, struct host_info *h)
-{
-	char *cp, *sp, *up, *pp;
-
-	if (strncmp(url, "http://", 7) == 0) {
-		h->port = bb_lookup_port("http", "tcp", 80);
-		h->host = url + 7;
-		h->is_ftp = 0;
-   #ifdef CONFIG_WGET_HTTPS
-          h->is_https = 0;
-   #endif
-	} else if (strncmp(url, "ftp://", 6) == 0) {
-		h->port = bb_lookup_port("ftp", "tfp", 21);
-		h->host = url + 6;
-		h->is_ftp = 1;
-   #ifdef CONFIG_WGET_HTTPS
-          h->is_https = 0;
-	}else if (strncmp(url, "https://", 8) == 0){
-          h->port = bb_lookup_port("https", "tcp", 443);
-		h->host = url + 8;
-		h->is_ftp = 0;
-          h->is_https = 1;
-   #endif
-	} else
-		bb_error_msg_and_die("not an http or ftp url: %s", url);
-
-	sp = strchr(h->host, '/');
-	if (sp) {
-		*sp++ = '\0';
-		h->path = sp;
-	} else
-		h->path = bb_xstrdup("");
-
-	up = strrchr(h->host, '@');
-	if (up != NULL) {
-		h->user = h->host;
-		*up++ = '\0';
-		h->host = up;
-	} else
-		h->user = NULL;
-
-	pp = h->host;
-
-#ifdef CONFIG_FEATURE_WGET_IP6_LITERAL
-	if (h->host[0] == '[') {
-		char *ep;
-
-		ep = h->host + 1;
-		while (*ep == ':' || isxdigit (*ep))
-			ep++;
-		if (*ep == ']') {
-			h->host++;
-			*ep = '\0';
-			pp = ep + 1;
-		}
-	}
-#endif
-
-	cp = strchr(pp, ':');
-	if (cp != NULL) {
-		*cp++ = '\0';
-		h->port = htons(atoi(cp));
-	}
-}
-
-
-FILE *open_socket(struct sockaddr_in *s_in)
-{
-	FILE *fp;
-
-	fp = fdopen(xconnect(s_in), "r+");
-	if (fp == NULL)
-		bb_perror_msg_and_die("fdopen()");
-
-	return fp;
-}
-
-
-char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
-{
-	char *s, *hdrval;
-	int c;
-
-	*istrunc = 0;
-
-	/* retrieve header line */
-	if (fgets(buf, bufsiz, fp) == NULL)
-		return NULL;
-
-	/* see if we are at the end of the headers */
-	for (s = buf ; *s == '\r' ; ++s)
-		;
-	if (s[0] == '\n')
-		return NULL;
-
-	/* convert the header name to lower case */
-	for (s = buf ; isalnum(*s) || *s == '-' ; ++s)
-		*s = tolower(*s);
-
-	/* verify we are at the end of the header name */
-	if (*s != ':')
-		bb_error_msg_and_die("bad header line: %s", buf);
-
-	/* locate the start of the header value */
-	for (*s++ = '\0' ; *s == ' ' || *s == '\t' ; ++s)
-		;
-	hdrval = s;
-
-	/* locate the end of header */
-	while (*s != '\0' && *s != '\r' && *s != '\n')
-		++s;
-
-	/* end of header found */
-	if (*s != '\0') {
-		*s = '\0';
-		return hdrval;
-	}
-
-	/* Rats!  The buffer isn't big enough to hold the entire header value. */
-	while (c = getc(fp), c != EOF && c != '\n')
-		;
-	*istrunc = 1;
-	return hdrval;
-}
-
-static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf)
-{
-	if (s1) {
-		if (!s2) s2="";
-		fprintf(fp, "%s%s\r\n", s1, s2);
-		fflush(fp);
-	}
-
-	do {
-		char *buf_ptr;
-
-		if (fgets(buf, 510, fp) == NULL) {
-			bb_perror_msg_and_die("fgets()");
-		}
-		buf_ptr = strstr(buf, "\r\n");
-		if (buf_ptr) {
-			*buf_ptr = '\0';
-		}
-	} while (! isdigit(buf[0]) || buf[3] != ' ');
-
-	return atoi(buf);
-}
-
-#ifdef CONFIG_FEATURE_WGET_STATUSBAR
-/* Stuff below is from BSD rcp util.c, as added to openshh.
- * Original copyright notice is retained at the end of this file.
- *
- */
-
-
-static int
-getttywidth(void)
-{
-	int width=0;
-	get_terminal_width_height(0, &width, NULL);
-	return (width);
-}
-
-static void
-updateprogressmeter(int ignore)
-{
-	int save_errno = errno;
-
-	progressmeter(0);
-	errno = save_errno;
-}
-
-static void
-alarmtimer(int wait)
-{
-	struct itimerval itv;
-
-	itv.it_value.tv_sec = wait;
-	itv.it_value.tv_usec = 0;
-	itv.it_interval = itv.it_value;
-	setitimer(ITIMER_REAL, &itv, NULL);
-}
-
-
-static void
-progressmeter(int flag)
-{
-	static const char prefixes[] = " KMGTP";
-	static struct timeval lastupdate;
-	static off_t lastsize, totalsize;
-	struct timeval now, td, wait;
-	off_t cursize, abbrevsize;
-	double elapsed;
-	int ratio, barlength, i, remaining;
-	char buf[256];
-
-	if (flag == -1) {
-		(void) gettimeofday(&start, (struct timezone *) 0);
-		lastupdate = start;
-		lastsize = 0;
-		totalsize = filesize; /* as filesize changes.. */
-	}
-
-	(void) gettimeofday(&now, (struct timezone *) 0);
-	cursize = statbytes;
-	if (totalsize != 0 && !chunked) {
-		ratio = 100.0 * cursize / totalsize;
-		ratio = MAX(ratio, 0);
-		ratio = MIN(ratio, 100);
-	} else
-		ratio = 100;
-
-	snprintf(buf, sizeof(buf), "\r%-20.20s %3d%% ", curfile, ratio);
-
-	barlength = getttywidth() - 51;
-	if (barlength > 0) {
-		i = barlength * ratio / 100;
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-			 "|%.*s%*s|", i,
-			 "*****************************************************************************"
-			 "*****************************************************************************",
-			 barlength - i, "");
-	}
-	i = 0;
-	abbrevsize = cursize;
-	while (abbrevsize >= 100000 && i < sizeof(prefixes)) {
-		i++;
-		abbrevsize >>= 10;
-	}
-	snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), " %5d %c%c ",
-	     (int) abbrevsize, prefixes[i], prefixes[i] == ' ' ? ' ' :
-		 'B');
-
-	timersub(&now, &lastupdate, &wait);
-	if (cursize > lastsize) {
-		lastupdate = now;
-		lastsize = cursize;
-		if (wait.tv_sec >= STALLTIME) {
-			start.tv_sec += wait.tv_sec;
-			start.tv_usec += wait.tv_usec;
-		}
-		wait.tv_sec = 0;
-	}
-	timersub(&now, &start, &td);
-	elapsed = td.tv_sec + (td.tv_usec / 1000000.0);
-
-	if (wait.tv_sec >= STALLTIME) {
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-			 " - stalled -");
-	} else if (statbytes <= 0 || elapsed <= 0.0 || cursize > totalsize || chunked) {
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-			 "   --:-- ETA");
-	} else {
-		remaining = (int) (totalsize / (statbytes / elapsed) - elapsed);
-		i = remaining / 3600;
-		if (i)
-			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-				 "%2d:", i);
-		else
-			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-				 "   ");
-		i = remaining % 3600;
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-			 "%02d:%02d ETA", i / 60, i % 60);
-	}
-	write(STDERR_FILENO, buf, strlen(buf));
-
-	if (flag == -1) {
-		struct sigaction sa;
-		sa.sa_handler = updateprogressmeter;
-		sigemptyset(&sa.sa_mask);
-		sa.sa_flags = SA_RESTART;
-		sigaction(SIGALRM, &sa, NULL);
-		alarmtimer(1);
-	} else if (flag == 1) {
-		alarmtimer(0);
-		statbytes = 0;
-		putc('\n', stderr);
-	}
-}
-#endif
-
-#ifdef CONFIG_WGET_HTTPS
+#ifdef CONFIG_FEATURE_WGET_HTTPS
 /*======================================================================*
  * ssl_Init
  *======================================================================*/
@@ -1457,7 +1509,7 @@ int ssl_rev_header_resp(SSL *ssl, int fd, HttpHdrs *hdrs, char *errmsg)
     return n;
 }
 
-int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, FILE *stream, char *errmsg)
+int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, int stream, char *errmsg)
 {
    char *soapBuf = NULL;
    int mlth = 0;
@@ -1479,11 +1531,7 @@ int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, FILE *stream, char *errmsg)
 
    //MUST free soapBuf if it's not NULL.
    if(soapBuf){
-      if (safe_fwrite(soapBuf, 1, mlth, stream) != mlth) {
-         free(soapBuf);
-         strcpy(errmsg, "SSL failed: write file error\n");
-         return -1;
-      }
+      xwrite(stream, soapBuf, mlth);
       free(soapBuf);
       return 0; 
    } 
@@ -1491,50 +1539,3 @@ int ssl_rev_file_date(SSL *ssl, HttpHdrs *hdrs, FILE *stream, char *errmsg)
       return -1;
 }
 #endif
-/* Original copyright notice which applies to the CONFIG_FEATURE_WGET_STATUSBAR stuff,
- * much of which was blatantly stolen from openssh.  */
-
-/*-
- * Copyright (c) 1992, 1993
- *	The Regents of the University of California.  All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change
- *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change>
- *
- * 4. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- *	$Id: wget.c,v 1.73 2004/04/08 10:27:11 bug1 Exp $
- */
-
-
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

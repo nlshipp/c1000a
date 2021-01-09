@@ -1,10 +1,10 @@
 PROG = lzmadec
-CXX = gcc 
-LIB = 
+CXX = gcc
+LIB =
 RM = rm -f
-CFLAGS = -c -O2 -Wall -pedantic -D _LZMA_PROB32 
+CFLAGS = -c -O2 -Wall -pedantic -D _LZMA_PROB32
 
-OBJS = LzmaTest.o LzmaDecode.o 
+OBJS = LzmaTest.o LzmaDecode.o
 
 all: $(PROG)
 
@@ -20,4 +20,3 @@ LzmaDecode.o: LzmaDecode.c
 
 clean:
 	-$(RM) $(PROG) $(OBJS)
-

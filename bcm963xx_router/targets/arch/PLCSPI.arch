@@ -1,0 +1,21 @@
+--- 963268GW.old	2012-01-09 09:25:30.495697826 -0500
++++ 963268GW	2012-01-10 12:45:15.430555636 -0500
+@@ -153,7 +153,8 @@
+ #
+ # Auxillary flash file system selection
+ #
+-# BUILD_AUXFS_JFFS2 is not set
++BUILD_AUXFS_JFFS2=y
++BRCM_KERNEL_AUXFS_JFFS2=y
+ 
+ #
+ # WLAN Selection
+@@ -301,7 +302,7 @@
+ CMS_CONFIG_COMPAT=y
+ # BUILD_IPPD is not set
+ # BUILD_DLNA is not set
+-# BUILD_HOMEPLUG is not set
++BUILD_HOMEPLUG=y
+ # BUILD_CERT is not set
+ BRCM_DEFAULTCFG=""
+ 

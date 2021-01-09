@@ -18,7 +18,9 @@
 
 //For static IP lease
 #include "static_leases.h"
-
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#include "cms_msg.h"
+#endif
 /* clear every lease out that chaddr OR yiaddr matches and is nonzero */
 void clear_lease(u_int8_t *chaddr, u_int32_t yiaddr)
 {
@@ -160,7 +162,7 @@ struct dhcpOfferedAddr *oldest_expired_lease(void)
 			oldest = &(cur_iface->leases[i]);
 		}
 	return oldest;
-#endif	
+#endif
 }
 
 
@@ -196,7 +198,6 @@ u_int32_t find_address(int check_expired)
 {
 	u_int32_t addr, ret = 0;
 	struct dhcpOfferedAddr *lease = NULL;		
-
 	addr = cur_iface->start;
 	// brcm
 	for (;ntohl(addr) <= ntohl(cur_iface->end);
@@ -314,9 +315,9 @@ static int AEI_issue_ebtable(struct dhcpMessage *oldpacket)
                                     oldpacket->chaddr[3],
                                     oldpacket->chaddr[4],
                                     oldpacket->chaddr[5]);
-   
+
         ret = system(ebtable_cmd);
-        
+
 
         return 0;
 }
@@ -386,10 +387,10 @@ int AEI_is_vlan_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 	char *p;
     int ret=2;
     struct vlanOption60 * curr = cur_iface->vlanOption60list;
-	if (!buf) 
+	if (!buf)
 	{
 	    buf = malloc(VENDOR_CLASS_ID_STR_SIZE + 1);
-	    if (!buf) 
+	    if (!buf)
 		{
 	        LOG(LOG_ERR, "malloc() error");
 	        return 0;
@@ -398,11 +399,11 @@ int AEI_is_vlan_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 	    need_free = 1;
 	}
 	p = get_option(oldpacket, DHCP_VENDOR);
-	if (p) 
+	if (p)
 	{
 	    vendorid_len = (*(p - 1) & 0xff);
 
-	    while ((i < vendorid_len) && (i < VENDOR_CLASS_ID_STR_SIZE)) 
+	    while ((i < vendorid_len) && (i < VENDOR_CLASS_ID_STR_SIZE))
 		{
 	        buf[i] = p[i];
 	        i++;
@@ -412,18 +413,18 @@ int AEI_is_vlan_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 		LOG(LOG_ERR, "william->is_vlan_vendor_equipped() buf tt (%s)\n",buf);
 
             //if same stb vendor id is added into different vlan, then need to return multiple things???
-            //so just do the filtering here when look through all vlans 
-        while (curr) 
+            //so just do the filtering here when look through all vlans
+        while (curr)
 		{
-            for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) 
+            for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++)
 			{
-	            if (curr->vendorClassId[i]) 
+	            if (curr->vendorClassId[i])
 				{
 					LOG(LOG_ERR, "william->is_vlan_vendor_equipped() vendorClassId (%s)\n",curr->vendorClassId[i]);
-                    if (!AEI_wstrcmp(curr->vendorClassId[i], buf)) 
-					{ 
+                    if (!AEI_wstrcmp(curr->vendorClassId[i], buf))
+					{
                     //issue STBCHAIN COMMAND with curr->vlanID
-                        AEI_issue_ebtableVlan(oldpacket,curr->vlanID); 
+                        AEI_issue_ebtableVlan(oldpacket,curr->vlanID);
                         ret = 1;
 	                }
 	            }
@@ -433,7 +434,7 @@ int AEI_is_vlan_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 		}
 
         if (ret!=1)
-        ret=0;    
+        ret=0;
 	}
         if (need_free)
 	    free(buf);
@@ -465,7 +466,7 @@ int AEI_is_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 	if (!buf)
 	{
 	    buf = malloc(VENDOR_CLASS_ID_STR_SIZE + 1);
-	    if (!buf) 
+	    if (!buf)
 		{
 	        LOG(LOG_ERR, "malloc() error");
 	        return 0;
@@ -475,23 +476,23 @@ int AEI_is_vendor_equipped(struct dhcpMessage *oldpacket, char* buf)
 	}
 
 	p = get_option(oldpacket, DHCP_VENDOR);
-	if (p) 
+	if (p)
 	{
 	    vendorid_len = (*(p - 1) & 0xff);
 
-	    while ((i < vendorid_len) && (i < VENDOR_CLASS_ID_STR_SIZE)) 
+	    while ((i < vendorid_len) && (i < VENDOR_CLASS_ID_STR_SIZE))
 		{
 	        buf[i] = p[i];
 	        i++;
 	    }
 	    buf[i] = '\0';
 
-	    for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++) 
+	    for (i = 0; i < VENDOR_CLASS_ID_TAB_SIZE; i++)
 		{
-	        if (cur_iface->vendorClassId[i]) 
+	        if (cur_iface->vendorClassId[i])
 			{
-                if (!AEI_wstrcmp(cur_iface->vendorClassId[i], buf)) 
-				{ 
+                if (!AEI_wstrcmp(cur_iface->vendorClassId[i], buf))
+				{
 	                if (need_free)
 	                    free(buf);
                         AEI_issue_ebtable(oldpacket);
@@ -532,8 +533,9 @@ int check_ip(u_int32_t addr)
 {
 	char blank_chaddr[] = {[0 ... 15] = 0};
 	struct in_addr temp;
-	
-	if (!arpping(addr, cur_iface->server, (char *)(cur_iface->arp),
+
+//brcm
+	if (!arpping(addr, cur_iface->server, 
 		cur_iface->interface)) {
 		temp.s_addr = addr;
 	 	LOG(LOG_INFO, "%s belongs to someone, reserving it for %ld seconds", 
@@ -563,7 +565,7 @@ void adjust_lease_time(long delta)
 
 #ifdef AEI_VDSL_CUSTOMER_BELLALIANT
 /* get oldest lease ipaddress from lease tables */
-u_int32_t AEI_find_address() 
+u_int32_t AEI_find_address()
 {
 	struct dhcpOfferedAddr *oldest = NULL;
 	unsigned long minExpireValue = 0;
@@ -571,7 +573,7 @@ u_int32_t AEI_find_address()
 
 	for (i = 0; i < cur_iface->max_leases; i++)
         {
-		if( i == 0 ) 
+		if( i == 0 )
 		{
 			oldest = &(cur_iface->leases[i]);
 			minExpireValue = cur_iface->leases[i].expires;
@@ -584,7 +586,37 @@ u_int32_t AEI_find_address()
 	}
 
         if(oldest) return oldest->yiaddr;
-		
 	return 0;
+}
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+u_int32_t AEI_find_rs_staticaddress()
+{
+    CmsMsgHeader *msg;
+    void *msgBuf;
+    u_int32_t ret = 0;
+
+    msgBuf = cmsMem_alloc(sizeof(CmsMsgHeader), ALLOC_ZEROIZE);
+    if(msgBuf)
+    {
+        msg = (CmsMsgHeader *) msgBuf;
+        msg->type = CMS_MSG_SELECT_VALID_RESERVATION;
+        msg->src = EID_DHCPD;
+        msg->dst = EID_SSK;
+        msg->flags_request = 1;
+        msg->flags_response = 0;
+
+        ret = cmsMsg_sendAndGetReplyWithTimeout(msgHandle, msg , 5*MSECS_IN_SEC);
+        cmsMem_free(msgBuf);
+    }
+    else
+        cmsLog_error("alloc memory failed");
+
+    if(ret < 10000) /*It should not be a local error in CmsRet enum.*/
+    {
+    	cmsLog_error("----get error ip address(%d)!",ret);
+    	ret = 0;
+    }
+    return ret;
 }
 #endif

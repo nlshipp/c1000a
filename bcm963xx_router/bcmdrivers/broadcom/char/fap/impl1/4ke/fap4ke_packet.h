@@ -8,19 +8,25 @@
 
 <:label-BRCM:2011:DUAL/GPL:standard
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
 
 :>
 */
@@ -44,8 +50,51 @@ Boston, MA 02111-1307, USA.
 
 #define CC_FAP4KE_PKT_IPV6_GSO
 
+#if defined(CONFIG_BCM96828) 
+#define USE_IUDMA_2BD 
+#endif
+
+//#define FAP4KE_MCAST_DEBUG_ENABLE
+
+#if defined(FAP4KE_MCAST_DEBUG_ENABLE)
+#define FAP4KE_MCAST_DEBUG(fmt, arg...) fap4kePrt_Print(fmt "\n", ##arg)
+#define FAP4KE_MCAST_DUMP_PACKET(_packet_p) dumpHeader((uint8 *)(_packet_p))
+#else
+#define FAP4KE_MCAST_DEBUG(fmt, arg...)
+#define FAP4KE_MCAST_DUMP_PACKET(_packet_p)
+#endif
+
+
 #if defined(CONFIG_BLOG_IPV6)
 #define CC_FAP4KE_PKT_IPV6_SUPPORT
+#endif
+
+//#define CC_FAP4KE_PKT_IPV6_FRAGMENTATION
+
+#ifdef FAP_4KE
+                                            /* First encapsulation type */
+#define TYPE_ETH                    0x0000  /* LAN: ETH, WAN: EoA, MER, PPPoE */
+#define TYPE_PPP                    0x0001  /*           WAN: PPPoA */
+#define TYPE_IP                     0x0002  /*           WAN: IPoA */
+
+#define TYPE_PPP_IP                 0x0021  /* IP in PPP */
+#define TYPE_PPP_IPV6               0x0057  /* IPv6 in PPP */
+#define TYPE_ETH_P_IP               0x0800  /* IP in Ethernet */
+#define TYPE_ETH_P_8021Q            0x8100  /* VLAN in Ethernet */
+#define TYPE_ETH_P_8021Qad          0x88A8  /* VLAN in Ethernet */
+#define TYPE_ETH_P_PPP_SES          0x8864  /* PPPoE in Ethernet */
+#define TYPE_ETH_P_BCM              0x8874  /* BCM Switch Hdr */
+#define TYPE_ETH_P_BCM2             0x888A  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_IPV6             0x86DD  /* IPv6 in Ethernet */
+
+#define TYPE_ETH_P_BCM2_PRIO0       0x2000  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO1       0x2400  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO2       0x2800  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO3       0x2C00  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO4       0x3000  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO5       0x3400  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO6       0x3800  /* BCM Switch Hdr for ext switch */
+#define TYPE_ETH_P_BCM2_PRIO7       0x3C00  /* BCM Switch Hdr for ext switch */
 #endif
 
 /* IPv4 Dot Decimal Notation formating */
@@ -65,8 +114,12 @@ Boston, MA 02111-1307, USA.
 #define ETHERTYPE_LENGTH   2
 #define IPOA_HLEN          8
 
-#define MAX_FAP_MTU        1500
+#define MAX_FAP_MTU        2048 /* upto mini-jumbo frame size */
 #define MIN_FAP_MTU        60
+
+#define    FAP4KE_PKT_FT_IPV4 0
+#define    FAP4KE_PKT_FT_IPV6 1
+#define    FAP4KE_PKT_FT_L2   2
 
 /* IPv4 Multicast range: 224.0.0.0 to 239.255.255.255 (E0.*.*.* to EF.*.*.*) */
 #define FAP4KE_PKT_MCAST_IPV4_MASK  0xF0000000
@@ -74,11 +127,23 @@ Boston, MA 02111-1307, USA.
 #define FAP4KE_PKT_SSM_IPV4_MASK    0xFF000000
 #define FAP4KE_PKT_SSM_IPV4_VAL     0xE8000000 /* 232.*.*.* */
 
+#define FAP4KE_PKT_FLOW_L2_DONE     (fap4kePkt_flow_t *)(0xFFFFFFFF)
+#define FAP4KE_PKT_FLOW_DROP        (fap4kePkt_flow_t *)(0xFFFFFFFE)
+
 #define FAP4KE_PKT_IS_MCAST_IPV4(_addr)                                  \
     ( ((_addr) & FAP4KE_PKT_MCAST_IPV4_MASK) == FAP4KE_PKT_MCAST_IPV4_VAL)
 
 #define FAP4KE_PKT_IS_SSM_IPV4(_addr)                                    \
     ( ((_addr) & FAP4KE_PKT_SSM_IPV4_MASK) == FAP4KE_PKT_SSM_IPV4_VAL )
+
+#define FAP4KE_PKT_IS_L2_BCAST(_macDa16_p) ( ((_macDa16_p)[0] == 0xFFFF) && \
+                                             ((_macDa16_p)[1] == 0xFFFF) && \
+                                             ((_macDa16_p)[2] == 0xFFFF) )
+
+#define FAP4KE_PKT_IS_L2_MCAST(_macDa16_p) ( (_macDa16_p)[0] & 0x0100 )
+
+#define FAP4KE_PKT_IS_L2_MCAST_IPv4(_macDa16_p) ( ((_macDa16_p)[0] == 0x0100) && \
+                                                  (((_macDa16_p)[1] & 0xFF80) == 0x5E00) )
 
 
 /* IPv6 Multicast range:  FF00::/8  */
@@ -93,84 +158,8 @@ Boston, MA 02111-1307, USA.
 #define FAP4KE_PKT_IS_SSM_IPV6(_addr)                                    \
     ( ((_addr) & FAP4KE_PKT_SSM_IPV6_MASK) == FAP4KE_PKT_SSM_IPV6_VAL )
 
-/* TODO: fine tune the max flows for all configurations */
-#if defined(CONFIG_BCM963268)
-#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE) ||  defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
-#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
-/* 63268, IPV6, BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         61
-#define FAP4KE_PKT_MAX_PSM_FLOWS         75  
-#define FAP4KE_PKT_MAX_QSM_FLOWS         102
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       0
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       238
-#else /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-/* 63268, IPV4, BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         85
-#define FAP4KE_PKT_MAX_PSM_FLOWS         107
-#define FAP4KE_PKT_MAX_QSM_FLOWS         184
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       0
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       376
-#endif /* else CC_FAP4KE_PKT_IPV6_SUPPORT */
-#else /* BPM or IQ */
-#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
-/* 63268, IPV6, no BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         70
-#define FAP4KE_PKT_MAX_PSM_FLOWS         90
-#define FAP4KE_PKT_MAX_QSM_FLOWS         80
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       0
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       240
-#else /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-/* 63268, IPV4, no BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         103
-#define FAP4KE_PKT_MAX_PSM_FLOWS         208
-#define FAP4KE_PKT_MAX_QSM_FLOWS         135
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       0
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       446
-#endif /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-#endif /* else BPM or IQ */
-#elif defined(CONFIG_BCM96362)
-#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE) ||  defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
-#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
-/* 6362 IPV6, BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         61
-#define FAP4KE_PKT_MAX_PSM_FLOWS         20
-#define FAP4KE_PKT_MAX_QSM_FLOWS         0 
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       73
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       8
-#else /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-/* 6362 IPV4, BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         86
-#define FAP4KE_PKT_MAX_PSM_FLOWS         43
-#define FAP4KE_PKT_MAX_QSM_FLOWS         0
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       116
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       13
-#endif /* else CC_FAP4KE_PKT_IPV6_SUPPORT */
-#else /* BPM or IQ */
-#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
-/* 6362 IPV6, no BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         70
-#define FAP4KE_PKT_MAX_PSM_FLOWS         42
-#define FAP4KE_PKT_MAX_QSM_FLOWS         0
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       88
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       24
-#else /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-/* 6362 IPV4, no BPM */
-#define FAP4KE_PKT_MAX_DSP_FLOWS         111
-#define FAP4KE_PKT_MAX_PSM_FLOWS         76
-#define FAP4KE_PKT_MAX_QSM_FLOWS         0
-#define FAP4KE_PKT_CMDLISTS_IN_DSP       146
-#define FAP4KE_PKT_CMDLISTS_IN_PSM       41
-#define FAP4KE_PKT_CMDLISTS_IN_QSM       0
-#endif /* CC_FAP4KE_PKT_IPV6_SUPPORT */
-#endif /* else BPM or IQ */
-#else /* defined(CONFIG_BCM96362) */
-#error "CHIP NOT SUPPORTED"
-#endif
-#define FAP4KE_PKT_MAX_FLOWS             ( FAP4KE_PKT_MAX_DSP_FLOWS + FAP4KE_PKT_MAX_PSM_FLOWS + FAP4KE_PKT_MAX_QSM_FLOWS)
-
-#if ( FAP4KE_PKT_MAX_FLOWS != FAP4KE_PKT_MAX_DSP_FLOWS + FAP4KE_PKT_MAX_PSM_FLOWS + FAP4KE_PKT_MAX_QSM_FLOWS )
-#error "FLOWLIST/CMDLIST SIZE MISMATCH"
-#endif
+/* using dynamic memory -- no max command lists... */
+#define FAP4KE_PKT_MAX_FLOWS             512
 
 #define FAP4KE_PKT_HASH_TABLE_SIZE       128  /* 256 MAX! */
 #define FAP4KE_PKT_HASH_TABLE_ENTRY_MAX  FAP4KE_PKT_MAX_FLOWS
@@ -182,24 +171,24 @@ Boston, MA 02111-1307, USA.
  * 14 (ETH) + 6 (BRCM Tag) + 8 (2 VLANs) +
  * 8 (PPPoE) + 40 (IPv6) + 20 (IPv4) + 20 (TCP/UDP) = 126 bytes
  */
-#define FAP4KE_PKT_HEADER_SIZE_ENET      116
+#define FAP4KE_PKT_HEADER_SIZE_ENET      116 /* must be multiple of 4 */
 /* Maximum header size:
  * 10 (LLC/SNAP) + 14 (ETH) + 6 (BRCM Tag) + 8 (2 VLANs) +
  * 8 (PPPoE) + 40 (IPv6) + 20 (IPv4) + 20 (TCP/UDP) = 126 bytes
  */
-#define FAP4KE_PKT_HEADER_SIZE_XTM       126
+#define FAP4KE_PKT_HEADER_SIZE_XTM       128 /* must be multiple of 4 */ // 126
 #define FAP4KE_PKT_CMD_LIST_SIZE         168   /* max 156 expected */
 #else
 /* ENET Maximum header size:
  * 14 (ETH) + 6 (BRCM Tag) + 8 (2 VLANs) +
  * 8 (PPPoE) + 20 (IPv4) + 20 (TCP/UDP) = 76 bytes
  */
-#define FAP4KE_PKT_HEADER_SIZE_ENET      76
+#define FAP4KE_PKT_HEADER_SIZE_ENET      76 /* must be multiple of 4 */
 /* XTM Maximum header size:
  * 10 (LLC/SNAP) + 14 (ETH) + 6 (BRCM Tag) + 8 (2 VLANs) +
  * 8 (PPPoE) + 20 (IPv4) + 20 (TCP/UDP) = 86 bytes
  */
-#define FAP4KE_PKT_HEADER_SIZE_XTM       86
+#define FAP4KE_PKT_HEADER_SIZE_XTM       88 /* must be multiple of 4 */ //86
 #define FAP4KE_PKT_CMD_LIST_SIZE         96
 #endif
 #define FAP4KE_PKT_HEADER_SIZE_MAX       FAP4KE_PKT_HEADER_SIZE_XTM
@@ -211,6 +200,7 @@ Boston, MA 02111-1307, USA.
  * restricts the multicast destination port mask to 8 ports.
  */
 #define FAP4KE_PKT_MAX_DEST_PORTS        8
+#define FAP4KE_PKT_MAX_SRC_PORTS         FAP4KE_PKT_MAX_DEST_PORTS
 
 /*
  * Header access macros for 8-bit and 16-bit fields
@@ -231,6 +221,7 @@ typedef enum {
     FAP4KE_PKT_LOOKUP_MISS=0,
     FAP4KE_PKT_LOOKUP_HIT,
     FAP4KE_PKT_LOOKUP_DROP,
+    FAP4KE_PKT_LOOKUP_DONE,
     FAP4KE_PKT_LOOKUP_MAX
 } fap4kePkt_lookup_t;
 
@@ -238,8 +229,18 @@ typedef enum {
     FAP4KE_PKT_PHY_ENET=0,
     FAP4KE_PKT_PHY_XTM,
     FAP4KE_PKT_PHY_ENET_EXT,
+    FAP4KE_PKT_PHY_HOST, /* Layer2 flows only */
+    FAP4KE_PKT_PHY_GPON,
     FAP4KE_PKT_PHY_MAX
 } fap4kePkt_phy_t;
+
+typedef enum {
+    FAP4KE_TUNNEL_NONE,
+    FAP4KE_TUNNEL_4in6_UP,
+    FAP4KE_TUNNEL_6in4_UP,
+    FAP4KE_TUNNEL_4in6_DN,
+    FAP4KE_TUNNEL_6in4_DN
+} fap4ke_tunnel_type;
 
 typedef struct {
     uint32 key;
@@ -251,20 +252,32 @@ typedef struct {
     uint8 rxChannel;
     uint8 phy;
     uint8 bIpFrag; /* "1" means "TCP IP Fragmentation; "0" means "TCP GSO" */
+    uint8 tunnelType;
+    uint16 virtDestPortMask;
+    uint8 virtDestPort;
+    uint8 extSwTagLen;
+    uint8 destQueue;
+    int32 gponWord;
 } fap4kePkt_gso_arg;
-
 
 typedef struct {
     uint8 *packet_p;
     uint8 *payload_p;
+    uint16 headroomLen;
     uint16 len;
     uint8 encapType;
 } fap4kePkt_gso_pkt;
 
 
 typedef struct {
-    uint8  macDa[ETH_ALEN];
-    uint8  macSa[ETH_ALEN];
+    union {
+        uint8  macDa[ETH_ALEN];
+        uint16 macDa16[ETH_ALEN/2];
+    };
+    union {
+        uint8  macSa[ETH_ALEN];
+        uint16 macSa16[ETH_ALEN/2];
+    };
     uint16 etherType;
 } fap4kePkt_ethHeader_t;
 
@@ -277,6 +290,10 @@ typedef struct {
     uint16 brcmTag;
     uint16 etherType;
 } __attribute__((packed)) fap4kePkt_bcmHeader2_t;
+
+#define VLAN_TCI_PBITS_MASK   0xE000
+#define VLAN_TCI_DEI_MASK     0x1000
+#define VLAN_TCI_VID_MASK     0x0FFF
 
 typedef union {
     struct {
@@ -291,6 +308,11 @@ typedef struct {
     fap4kePkt_vlanHeaderTci_t tci;
     uint16 etherType;
 } fap4kePkt_vlanHeader_t;
+
+typedef struct {
+    uint16 tpid;
+    fap4kePkt_vlanHeaderTci_t tci;
+} __attribute__((packed))fap4kePkt_vlanHeader2_t;
 
 typedef uint16 fap4kePkt_pppType_t;
 
@@ -333,6 +355,41 @@ typedef union {
     uint32 u32[5];
 } fap4kePkt_ipv4Header_t;
 
+/* this packed verison of header is used to avoid unaligned exceptions
+ * when ipv4 header of packet is not word aligned
+ *
+ * NOTE: This packed header is required when accessing bit field members, 
+ * however accessing data via the u32[] union member may cause alignent 
+ * exceptions as the data is not guaranteed to be 32bit aligned.
+ */
+typedef union {
+    struct {
+        union {
+            struct {
+                uint8 version:4;
+                uint8 ihl:4;
+            };
+            uint8 version_ihl;
+        };
+        uint8  tos;
+        uint16 totalLength;
+        uint16 id;
+        uint16 fragOffset;
+#define FLAGS_CE     0x8000 /* Flag: "Congestion" */
+#define FLAGS_DF     0x4000 /* Flag: "Don't Fragment" */
+#define FLAGS_MF     0x2000 /* Flag: "More Fragments" */
+#define OFFSET_MASK  0x1FFF /* "Fragment Offset" part */
+#define FLAGS_SHIFT  13
+        uint8  ttl;
+        uint8  protocol;
+        uint16 csum;
+        uint32 ipSa;
+        uint32 ipDa;
+        /* options... */
+    };
+    uint32 u32[5];
+}__attribute__((packed)) fap4kePkt_packed_ipv4Hdr_t;
+
 #if defined(CC_FAP4KE_PKT_IPV6_SUPPORT) || defined(CC_FAP4KE_PKT_IPV6_GSO)
 typedef union {
     struct {
@@ -372,7 +429,11 @@ typedef union {
 
 /* this packed verison of header is used to avoid unaligned exceptions
  * when ipv6 header of packet is not word aligned
- */
+ *
+ * NOTE: This packed header is required when accessing bit field members, 
+ * however accessing data via the u32[] union member may cause alignent 
+ * exceptions as the data is not guaranteed to be 32bit aligned.
+*/
 typedef union {
     struct {
         union {
@@ -464,13 +525,17 @@ typedef union {
 } fap4kePkt_vlanIdFilter_t;
 
 typedef struct {
+    // note: making this field match the ipv6 version will allow for
+    // the compiler to make certain optimizations.
+    struct {
+        uint16 isRouted  : 1;
+        uint16 mangleTos : 1;
+        uint16           : 1;
+        uint16 drop      : 1;
+        uint16 learn     : 1;
+        uint16           : 11;
+    } flags;
     union {
-#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
-        struct {
-            fap4kePkt_ipv6Address_t ipSa6;
-            fap4kePkt_ipv6Address_t ipDa6;
-        };
-#endif
         struct {
             uint32 ipSa4;
             uint32 ipDa4;
@@ -488,60 +553,377 @@ typedef struct {
         /* Multicast */
         fap4kePkt_vlanIdFilter_t vlanId;
     };
-    struct {
-        uint16 isRouted  : 1;
-        uint16 isIPv6    : 1;
-        uint16 mangleTos : 1;
-        uint16 mangle_ip6Tos : 1;
-        uint16 drop      : 1;
-        uint16 learn     : 1;
-        uint16 reserved  : 10;
-    } flags;
     struct{
         uint8 tclass;
         uint8 resvd_byte;
     };	
     fap4kePkt_icsum_t icsum;
-} fap4kePkt_ipTuple_t;
+} fap4kePkt_ipv4Tuple_t;
+
+#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
+typedef struct {
+    struct {
+        uint16 isRouted  : 1;
+        /* TBD: mangleTos is only used by IPv4 -- we can consolidate it with mangle_ipc6Tos */
+        uint16 mangleTos : 1;
+        uint16 mangle_ip6Tos : 1;
+        uint16 drop      : 1;
+        uint16 learn     : 1;
+        uint16           : 11;
+    } flags;
+    union {
+        struct {
+            fap4kePkt_ipv6Address_t ipSa6;
+            fap4kePkt_ipv6Address_t ipDa6;
+        };
+        /* TBD: is this applicable at all to ipv6 addrs? */
+        //struct {
+         //   uint32 ipSa4;
+        //    uint32 ipDa4;
+        //};
+    };
+    union {
+        /* Unicast */
+        union {
+            struct {
+                uint16 sPort;  /* TCP/UDP source port */
+                uint16 dPort;  /* TCP/UDP dest port */
+            };
+            uint32 l4Ports;
+        };
+        /* Multicast */
+        fap4kePkt_vlanIdFilter_t vlanId;
+    };
+    struct{
+        uint8 tclass;
+        uint8 resvd_byte;
+    };	
+    fap4kePkt_icsum_t icsum;
+} fap4kePkt_ipv6Tuple_t;
+#endif
 
 typedef union {
     struct {
-        uint8 phy;
         union {
-            uint8 channel;
-            uint8 channelMask;
-        };
-        union {
-            struct{
-                uint8 reserved  : 4;
-                uint8 nbrOfTags : 4; /* use for src Multicast flows only */
+            struct {
+                uint8 phy;
+                union {
+                    uint8 channel;
+                    uint8 channelMask;
+                };
             };
-            uint8 queue;     /* use for dest only */
+
+            uint16 phyChannel;
+            uint16 phyChannelMask;
         };
         union {
-            uint8 protocol; /* use for src only */
+            /* Source key */
+            struct {
+                /* L2 Flows and L3 Mcast Flows */
+                struct {
+                    uint8 isLayer2  : 1;
+                    uint8 l2Type    : 2;/*PPPoE, PPPoA,IPoE*/
+                    uint8 unused    : 1;
+                    uint8 nbrOfTags : 4;
+                };
+
+                /* L3 Flows only */
+                uint8 protocol;
+            };
+
+            /* Destination key */
+            struct {
+                struct {
+                    /* L2 Flows only */
+                    uint8 drop      : 1;
+                    uint8 multiChan : 1;
+                    uint8 unused    : 6;
+                };
+
+                struct {
+                    /* L2/L3 Flows */
+                    uint8 queue;
+                };
+            };
         };
     };
+
     uint32 u32;
 } fap4kePkt_key_t;
 
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
 typedef struct {
     uint32 prio;        /* Ingress QoS packet priority */
-    uint32 dropped;     /* packets dropped by Ingress QoS */
 } fap4kePkt_iq_t;
 #endif
 
+
+/****************************************************************
+ * Layer 2 Flows / ARL
+ ****************************************************************/
+
+#if defined(CONFIG_BCM_FAP_LAYER2)
+
+#define FAP4KE_ARL_MAX_ENTRIES      64
+#define FAP4KE_ARL_HASH_TABLE_SIZE  64
+
+#define FAP4KE_ARL_AGING_SECONDS    300
+#define FAP4KE_ARL_AGING_JIFFIES    (FAPTMR_HZ_LORES * FAP4KE_ARL_AGING_SECONDS)
+
+typedef struct sll_node {
+    struct sll_node *next_p;
+} sll_node_t;
+
+typedef struct sll_list {
+    struct sll_node *head_p;
+} sll_list_t;
+
+#define sll_init(list_p)        ((list_p)->head_p = NULL)
+
+#define sll_head_p(list_p)      ((list_p)->head_p)
+
+#define sll_next_p(node_p)      ((node_p)->next_p)
+
+#define sll_empty(list_p)       ((list_p)->head_p == NULL)
+#define sll_end(node_p)         ((node_p)->next_p == NULL)
+
+#define sll_prepend(list_p, node_p)                     \
+    do {                                                \
+        if(sll_empty(list_p)) {                         \
+            (node_p)->next_p = NULL;                    \
+        } else {                                        \
+            (node_p)->next_p = (list_p)->head_p;        \
+        }                                               \
+        (list_p)->head_p = (node_p);                    \
+    } while(0)
+
+/* deletes a node from the head */
+#define sll_delete_head(list_p)  ((list_p)->head_p = (list_p)->head_p->next_p)
+
 typedef struct {
-    fap4kePkt_key_t source;
-    fap4kePkt_key_t dest;
-    fap4kePkt_ipTuple_t ipTuple;
-    int32 txAdjust;
+    union {
+        struct {
+            uint16 macAddrHigh0;
+            uint16 macAddrHigh1;
+        };
+        uint32 macAddrHigh;
+    };
+    union {
+        struct {
+            uint16 macAddrLow;
+            uint16 vlanId;
+        };
+        uint32 macAddrLowVlanId;
+    };
+} fap4keArl_tableEntryKey_t;
+
+typedef union {
+    struct {
+        union {
+            struct {
+                uint8 phy;
+                uint8 channelMask;
+            };
+            uint16 phyChannelMask;
+        };
+        union {
+            struct { /* revIvl = 1 -> Reverse-IVL ARL entry */
+                uint16 revIvl : 1;
+                uint16 queue  : 3;
+                uint16 vlanId : 12;
+            };
+            struct { /* revIvl = 0 -> Regular ARL entry */
+                uint16 revIvl    : 1;
+                uint16 multiChan : 1;
+                uint16 unused    : 14;
+            };
+            uint16 flags;
+        };
+    };
+    uint32 u32;
+} fap4keArl_tableEntryInfo_t;
+
+typedef struct {
+    uint32 timeStamp;
+} fap4keArl_tableEntryAging_t;
+
+typedef struct {
+    sll_node_t node;
+    fap4keArl_tableEntryKey_t key;
+    fap4keArl_tableEntryInfo_t info;
+    fap4keArl_tableEntryAging_t aging;
+    uint16 hits;
+    union {
+        struct {
+            uint16 isStatic  : 1;
+            uint16 canUpdate : 1;
+            uint16 unused    : 14;
+        };
+        uint16 u16;
+    } flags;
+} fap4keArl_tableEntry_t;
+
+typedef struct {
+    sll_list_t hashTable[FAP4KE_ARL_HASH_TABLE_SIZE];
+    sll_list_t freePool;
+    fap4keArl_tableEntry_t entryPool[FAP4KE_ARL_MAX_ENTRIES];
+    fap4keTmr_timer_t agingTimer;
+} fap4keArl_Ctrl_t;
+
+static inline void __arlKey(uint16 *macAddr_p, uint16 vlanId, fap4keArl_tableEntryKey_t *arlKey_p)
+{
+    arlKey_p->macAddrHigh0 = macAddr_p[0];
+    arlKey_p->macAddrHigh1 = macAddr_p[1];
+    arlKey_p->macAddrLow = macAddr_p[2];
+    arlKey_p->vlanId = vlanId;
+}
+
+#define FAP4KE_PKT_L2_MAX_VLAN_HEADERS  2
+
+typedef struct {
+    uint16 etherType;
+    uint8  ipProtocol;
+    uint8  tos;
+} fap4kePkt_l2TupleFiltersMisc_t;
+
+typedef union {
+    struct {
+        /* filters */
+        uint16 v0_pbits     : 1;
+        uint16 v0_dei       : 1;
+        uint16 v0_vid       : 1;
+        uint16 v0_etherType : 1;
+        uint16 v1_pbits     : 1;
+        uint16 v1_dei       : 1;
+        uint16 v1_vid       : 1;
+        uint16 v1_etherType : 1;
+        uint16 etherType    : 1;
+        uint16 ipProtocol   : 1;
+        uint16 tos          : 1;
+        uint16 reserved     : 5;
+    };
+    uint16 u16;
+} fap4kePkt_l2TupleFiltersCtrl_t;
+
+
+typedef struct {
+    fap4kePkt_l2TupleFiltersCtrl_t ctrl;
+    fap4kePkt_l2TupleFiltersMisc_t misc;
+    fap4kePkt_vlanHeader_t vlan[FAP4KE_PKT_L2_MAX_VLAN_HEADERS];
+} fap4kePkt_l2TupleFilters_t;
+
+typedef struct {
+    fap4kePkt_vlanHeader2_t tag;
+    fap4kePkt_vlanHeaderTci_t tciMask;
+} fap4kePkt_l2TupleVlanAction_t;
+
+typedef union {
+    struct {
+        /* actions */
+        uint8 v0_tag        : 1;
+        uint8 v0_tpid       : 1;
+        uint8 v0_tci        : 1;
+        uint8 v1_tag        : 1;
+        uint8 v1_tpid       : 1;
+        uint8 v1_tci        : 1;
+        uint8 tos           : 1;
+        uint8 revIvl        : 1;
+    };
+    uint8 u8;
+} fap4kePkt_l2TupleActionsCtrl_t;
+
+typedef struct {
+    fap4kePkt_l2TupleActionsCtrl_t ctrl;
+    uint8 tos;
+    struct{
+        uint16 unused          : 3;
+        uint16 ovrdLearningVid : 1;
+        uint16 learnVlanId     : 12;
+    };
+    fap4kePkt_l2TupleVlanAction_t vlan[FAP4KE_PKT_L2_MAX_VLAN_HEADERS];
+} fap4kePkt_l2TupleActions_t;
+
+typedef struct {
+    fap4kePkt_l2TupleFilters_t filters;
+    fap4kePkt_l2TupleActions_t actions;
+} fap4kePkt_l2Tuple_t;
+
+#endif /* CONFIG_BCM_FAP_LAYER2 */
+
+
+/****************************************************************
+ * FAP Flows (L2/L3/Multicast)
+ ****************************************************************/
+typedef struct mclog {
+    struct mclog * next;
+    void         * hdr;
+    uint16         portmask;
+    uint16         mcCfglogIdx;
+    union{
+        struct {
+            uint8 toLearn:1;
+            uint8 isextSWPortonIntSW:1;
+            uint8 reserved:2;
+            uint8 virtDestPort:4;
+        };
+        uint8 flags;
+    };
+    uint8 hdrLen;
+    uint16 refCount;
+} Mclog_t;
+
+typedef struct {
+    union {
+        uint8 *                     cmdList_4keAddr;
+        Mclog_t *                   mclogLst;
+    };
+    fap4kePkt_ipv4Tuple_t           tuple;
+} fap4kePkt_flowInfo_ipv4_t;
+
+typedef struct {
+#if defined(CC_FAP4KE_PKT_IPV6_SUPPORT)
+    union {
+        uint8 *                     cmdList_4keAddr;
+        Mclog_t *                   mclogLst;
+    };
+    fap4kePkt_ipv6Tuple_t           tuple;
+#endif
+} fap4kePkt_flowInfo_ipv6_t;
+
+typedef struct {
+#if defined(CONFIG_BCM_FAP_LAYER2)
+    fap4kePkt_l2Tuple_t             tuple;
+#endif
+} fap4kePkt_flowInfo_l2_t;
+
+
+typedef struct {
+    fap4kePkt_key_t     source;
+    fap4kePkt_key_t     dest;
+#if defined(CONFIG_BCM96818) && defined(DBL_DESC)
+    DmaDesc16Ctrl       destGpon;
+#endif
+    int32               txAdjust;
+    uint16              fapMtu;
+    struct {
+        uint16          type  : 2;
+        uint16      	      : 6;
+        uint16     tunnelType : 8;
+    };
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
     fap4kePkt_iq_t iq;
 #endif
-    uint16          fapMtu;
-} fap4kePkt_flowInfo_t;
+    uint8  virtDestPort;
+    uint16 virtDestPortMask;
+    uint8  extSwTagLen;
+    union {
+        fap4kePkt_flowInfo_ipv4_t   ipv4;
+        fap4kePkt_flowInfo_ipv6_t   ipv6;
+        fap4kePkt_flowInfo_l2_t     l2;
+    };
+} fap4kePkt_flowInfo_t; 
+// tbd: rename this
+
 
 typedef struct {
     uint32 hits;
@@ -555,18 +937,25 @@ typedef struct fap4kePkt_flow {
         union {
             struct {
                 uint8 isActive  : 1;
-                uint8 reserved  : 7;
+                uint8 isMcast   : 1;
+                uint8           : 6;
             };
             uint8 u8;
         } flags;
         uint8 hashIx;
         uint16 flowId;
     };
-
-    fap4kePkt_flowInfo_t info;
-
     fap4kePkt_flowStats_t stats;
+
+    fap4kePkt_flowInfo_t     info;      /* MUST BE LAST ENTRY IN STRUCTURE (variable size) */
 } fap4kePkt_flow_t;
+
+#define fap4kePkt_flowSizeIpv4      ((size_t)&(((fap4kePkt_flow_t *)0)->info.ipv4) + sizeof(fap4kePkt_flowInfo_ipv4_t))
+#define fap4kePkt_flowSizeIpv6      ((size_t)&(((fap4kePkt_flow_t *)0)->info.ipv6) + sizeof(fap4kePkt_flowInfo_ipv6_t))
+#define fap4kePkt_flowSizeL2        ((size_t)&(((fap4kePkt_flow_t *)0)->info.l2) + sizeof(fap4kePkt_flowInfo_l2_t))
+#define fap4kePkt_flowInfoSizeIpv4      ((size_t)&(((fap4kePkt_flowInfo_t *)0)->ipv4) + sizeof(fap4kePkt_flowInfo_ipv4_t))
+#define fap4kePkt_flowInfoSizeIpv6      ((size_t)&(((fap4kePkt_flowInfo_t *)0)->ipv6) + sizeof(fap4kePkt_flowInfo_ipv6_t))
+#define fap4kePkt_flowInfoSizeL2        ((size_t)&(((fap4kePkt_flowInfo_t *)0)->l2) + sizeof(fap4kePkt_flowInfo_l2_t))
 
 typedef uint16 fap4kePkt_flowId_t;
 
@@ -584,41 +973,42 @@ typedef struct {
     uint16 etherType;
     union {
         struct {
-            uint16 reserved  : 15;
-            uint16 insertEth : 1;
+            uint16 insertEth 	: 1;
+            uint16 reserved  	: 15;
         };
         uint16 flags;
     };
+    fap4kePkt_vlanHeader2_t vlanHdr[FAP4KE_PKT_LEARN_MAX_VLAN_HEADERS];
 } fap4kePkt_cmdArg_t;
 
-typedef struct {
-    fap4kePkt_flow_t *flow_p;
-    fap4kePkt_cmdArg_t *cmdArg_p;
-    uint8 *cmdList;
-    int cmdListIx;
-    int cmdOffset;
-    uint32 vlanHdrCount;
-} fap4kePkt_cmdHandlerArg_t;
-
-typedef void (* fap4kePkt_cmdHandler_t)(fap4kePkt_cmdHandlerArg_t *cmdHandlerArg_p);
-
 typedef enum {
-    FAP4KE_PKT_CMD_DROP=0,
-    FAP4KE_PKT_CMD_SET_MAC_DA,
+    FAP4KE_PKT_CMD_SET_MAC_DA=0,
     FAP4KE_PKT_CMD_INSERT_MAC_DA,
     FAP4KE_PKT_CMD_SET_MAC_SA,
     FAP4KE_PKT_CMD_INSERT_MAC_SA,
     FAP4KE_PKT_CMD_INSERT_ETHERTYPE,
     FAP4KE_PKT_CMD_POP_BRCM_TAG,
+    FAP4KE_PKT_CMD_POP_BRCM2_TAG,
     FAP4KE_PKT_CMD_PUSH_BRCM2_TAG,
-    FAP4KE_PKT_CMD_POP_VLAN_HDR_0,
-    FAP4KE_PKT_CMD_POP_VLAN_HDR_1,
+    FAP4KE_PKT_CMD_POP_VLAN_HDR,
+    FAP4KE_PKT_CMD_PUSH_VLAN_HDR,
+    FAP4KE_PKT_CMD_COPY_VLAN_HDR,
+    FAP4KE_PKT_CMD_SET_VLAN_PROTO,
+    FAP4KE_PKT_CMD_SET_VID,
+    FAP4KE_PKT_CMD_SET_DEI,
+    FAP4KE_PKT_CMD_SET_PBITS,
     FAP4KE_PKT_CMD_POP_PPPOE_HDR,
     FAP4KE_PKT_CMD_POP_PPPOA_HDR,
     FAP4KE_PKT_CMD_DECR_TTL,
     FAP4KE_PKT_CMD_MAX
 } fap4kePkt_learnCmd_t;
 
+enum {
+    FAP4KE_L2TYPE_IPOE=0,
+    FAP4KE_L2TYPE_PPPOE,
+    FAP4KE_L2TYPE_IPOA,
+    FAP4KE_L2TYPE_PPPOA
+};
 typedef struct {
     uint8 cmdCount;
     uint8 cmd[FAP4KE_PKT_CMD_MAX]; /* fap4kePkt_learnCmd_t */
@@ -632,23 +1022,52 @@ typedef struct {
     fap4kePkt_learnAction_t action[FAP4KE_PKT_MAX_FLOWS];
 } fap4kePkt_learn_t;
 
-/*
- * Mapped to PSM
- */
-typedef struct {
-    uint8 cmdList[FAP4KE_PKT_CMD_LIST_SIZE];
-#if defined(CC_FAP4KE_PKT_HW_ICSUM)
-    uint8 checksum1[FAP4KE_PKT_CSUM_CMD_LIST_SIZE];
-    uint8 checksum2[FAP4KE_PKT_CSUM_CMD_LIST_SIZE];
-#endif
-    fap4kePkt_flowStats_t stats;
-} fap4kePkt_shared_t;
+#define FAP_MAX_MCLOGS 100
+#define FAP_MAX_MCCFGLOGS FAP_MAX_MCLOGS
+#define FAP_MAX_REFCOUNT_TBL_SIZE 1024
+#define FAP_MAX_HDRBUF_SIZE 64
+#define FAP_MAX_MCHDRS 512
+#define FAP_MCCFGLOG_MAX_TXDEVS 6
 
-#define p4keFlowInfoPool  p4keSdram->alloc.packet.flowInfoPool
+typedef struct mccfglog {
+    struct mccfglog *next;
+    uint16 mccfgIdx;
+    uint16  portmask;
+    union{
+        struct {
+            uint16 isAlloc:1;
+            uint16 isextSWPortonIntSW:1;
+            uint16 isextSWPort:1;
+            uint16 nTxDevs:3;
+            uint16 reserved:6;
+            uint16 virtDestPort:4;
+        };
+        uint16 flags;
+    };
+    uint8 rsvd_byte;
+    uint8 hdrLen;
+	uint8 *hdrptr_noncached;
+    uint8 hdrBuf[FAP_MAX_HDRBUF_SIZE];/*try to keep this 8 or 16 byte aligned*/
+    void *txDev_pp[FAP_MCCFGLOG_MAX_TXDEVS];
+    fap4kePkt_learnAction_t learnAction;
+} McCfglog_t;
+
+typedef struct mchdr {
+    struct mchdr *next;
+    uint32 reserved[3];
+    uint8 hdrBuf[FAP_MAX_HDRBUF_SIZE];
+}__attribute__((aligned(16))) Mchdr_t;
+
+
+#define p4keFlowInfoPool  p4keSdram->packet.flowInfoPool
 #define p4keHeaderPool    p4kePsmGbl->packet.headerPool
 #if defined(CONFIG_BCM96362)
 #define p4keHeaderPoolIop p4keHeaderPool
-#elif defined(CONFIG_BCM963268)
+#define GPON_PORT_ID     7
+#elif defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
+#define GPON_PORT_ID     7
+#define RX_GEM_ID_MASK    0x7F
+#define gemid_from_dmaflag(dmaFlag) (dmaFlag & RX_GEM_ID_MASK)
 #define p4keHeaderPoolIop p4kePsmIopGbl->packet.headerPool
 #else
 #error "Unknown FAP-based Chip"
@@ -657,11 +1076,39 @@ typedef struct {
 /*
  * Mapped to DSPRAM
  */
+
+#if defined(CONFIG_BCM_FAP_LAYER2)
+typedef struct {
+    uint8 mask;
+    struct {
+        uint8 drop      : 1;
+        uint8 multiChan : 1;
+        uint8 reserved  : 6;
+    };
+} fap4kePkt_l2Flood_t;
+
+typedef struct {
+    uint16 l2FlowCount;
+    union {
+        struct {
+            uint8 l2Enable : 1;
+            uint8 ivlMode  : 1;
+            uint8 reserved : 6;
+        };
+        uint8 flags;
+    };
+    fap4kePkt_l2Flood_t bcastFloodMask;
+    fap4kePkt_l2Flood_t floodMask[FAP4KE_PKT_MAX_SRC_PORTS];
+} fap4kePkt_l2Ctrl_t;
+#endif
+
 typedef struct {
     uint32 flowCount;
-    fap4kePkt_flow_t flowPool[FAP4KE_PKT_MAX_DSP_FLOWS];
+#if defined(CONFIG_BCM_FAP_LAYER2)
+    fap4kePkt_l2Ctrl_t l2Ctrl;
+#endif
     fap4kePkt_flow_t *hashTable[FAP4KE_PKT_HASH_TABLE_SIZE];
-    fap4kePkt_cmdHandler_t cmdHandler[FAP4KE_PKT_CMD_MAX];
+    int dropMcastMiss;
 } fap4kePkt_runtime_t;
 
 #define pktRuntime4ke p4keDspramGbl->packet.runtime
@@ -679,35 +1126,85 @@ typedef union {
 #endif
 
 typedef struct {
-    uint32 length;
     uint8 *pBuf;
-    union {
-        struct {
-            uint32 portId;
-            uint32 dmaFlag;
-        } rx;
-        struct {
-            fap4kePkt_lookup_t lookup;
-            fap4kePkt_flow_t *flow_p;
-            uint8 *packetTx_p;
-        } tx;
-    };
+    uint16 length;
+    uint16 portId;
+    uint32 dmaFlag;
+    fap4kePkt_flow_t *flow_p;
+    uint8 *packetTx_p;
     uint16 ipLength;
     uint16 rxHdrLen;
-    uint8 bNeedFragmentation;
     uint16 mssAdj;
+    uint16 lookup;
+    uint8 bNeedFragmentation;
 #if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE))
     fap4kePkt_iqInfo_t iqInfo;
 #endif
 } fap4kePkt_packetInfo_t;
 
+static inline uint32 __countSetBits(uint32 bitmap)
+{
+    uint32 count = bitmap;
+    count = ((count & 0x55555555) + ((count >> 1) & 0x55555555));
+    count = ((count & 0x33333333) + ((count >> 2) & 0x33333333));
+    count = ((count & 0x0f0f0f0f) + ((count >> 4) & 0x0f0f0f0f));
+    count %= 255U;
+    return count;
+}
+
+static inline int __countSetBitsLoop(uint32 bitMask)
+{
+    int count;
+
+    for(count = 0; bitMask; bitMask >>= 1)
+    {
+        count += bitMask & 1;
+    }
+
+    return count;
+}
+
+static inline uint32 tupleHashL2(fap4kePkt_key_t sourceKey, fap4kePkt_key_t destKey)
+{
+    uint32 hashIx;
+
+    hashIx = sourceKey.nbrOfTags + (sourceKey.channel << 4) + destKey.channelMask;
+
+    return (hashIx % FAP4KE_PKT_HASH_TABLE_SIZE);
+}
+
 void fap4kePktTest_runTests(void);
 
 void fap4kePkt_init(void);
-fapRet fap4kePkt_activate(fap4kePkt_flowId_t flowId);
+fapRet fap4kePkt_activate(fap4kePkt_flowId_t flowId, uint16 mcCfglogIdx);
 fapRet fap4kePkt_deactivate(fap4kePkt_flowId_t flowId);
 fapRet fap4kePkt_updateFlowInfo(fap4kePkt_flowId_t flowId);
+fapRet fap4kePkt_resetStats(fap4kePkt_flowId_t flowId);
+fapRet fap4kePkt_mcastAddClient(fap4kePkt_flowId_t flowId, uint16 mcCfglogIdx);
+fapRet fap4kePkt_mcastUpdateClient(fap4kePkt_flowId_t flowId, uint16 mcCfglogIdx);
+fapRet fap4kePkt_mcastDelClient(fap4kePkt_flowId_t flowId, uint16 mcCfglogIdx);
+void fap4kePkt_mcastSetMissBehavior(int dropMcastMiss);
 fapRet fap4kePkt_printFlow(fap4kePkt_flowId_t flowId);
-void fap4kePkt_learn(fap4kePkt_flow_t *flow_p, fap4kePkt_learnHeaders_t *headers_p);
+void fap4kePkt_learnMcast(fap4kePkt_flow_t *flow_p, int stripLen, uint8 *localL2Hdr_p, uint8 *localIpHdr_p);
+void fap4kePkt_free2BD(uint32 hdrKey, int hdrSource, uint32 dataKey, int dataSource, int dataParam1);
+int fap4kePkt_sendMcast(fap4kePkt_packetInfo_t *packetInfo_p,
+                        fap4kePkt_flow_t *flow_p,
+                        fap4kePkt_ipHeader_t *ipHeader_p,
+                        char *localPacket_p,
+                        int rxChannel,
+                        int txSource);
+inline uint8 *fap4ke2BD_hdrAlloc(void);
+inline void fap4ke2BD_hdrRecycle(Mchdr_t *mchdr);
+inline void  fap4ke2BD_hdrFree(uint8 *hdr);
+inline void  fap4ke_mclogFree(Mclog_t *mclog);
+inline int fap4ke2BD_allocrefCountIndex(void);
+inline void u32Ddr2DdrCpy(void  *dst_p, const void *src_p, uint32 nbytes);
+#if defined(CONFIG_BCM_FAP_LAYER2)
+void fap4kePkt_setFloodingMask(uint8 channel, uint8 mask, int drop);
+void fap4keArl_addEntry(uint16 *macAddr_p, uint16 vlanId, fap4keArl_tableEntryInfo_t *arlInfo_p);
+void fap4keArl_removeEntry(fap4keArl_tableEntryKey_t *arlKey_p);
+void fap4keArl_flush(uint8 channelMask);
+void fap4keArl_dump(void);
+#endif
 
 #endif /* __FAP4KE_PACKET_H_INCLUDED__ */

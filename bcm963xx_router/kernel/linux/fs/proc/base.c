@@ -1251,6 +1251,92 @@ static const struct file_operations proc_pid_sched_operations = {
 
 #endif
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+/*
+ * Print out various scheduling related per-task fields:
+ */
+static int schedaudit_show(struct seq_file *m, void *v)
+{
+	struct inode *inode = m->private;
+	struct task_struct *p;
+
+	p = get_proc_task(inode);
+	if (!p)
+		return -ESRCH;
+	proc_schedaudit_show_task(p, m);
+
+	put_task_struct(p);
+
+	return 0;
+}
+
+static ssize_t
+schedaudit_write(struct file *file, const char __user *buf,
+                 size_t count, loff_t *offset)
+{
+	struct inode *inode = file->f_path.dentry->d_inode;
+	struct task_struct *p;
+	uint32_t setindex=0;
+	uint32_t trig_latency=0;
+	uint32_t trig_runtime=0;
+	uint32_t trig_printk=0;
+	char kbuf[100]={0};
+
+	if (copy_from_user(kbuf, buf, sizeof(kbuf)-1))
+		return -EFAULT;
+
+	p = get_proc_task(inode);
+	if (!p)
+		return -ESRCH;
+
+	if (!strncmp(kbuf, "reset", 5)) {
+		setindex=0;
+	} else if (!strncmp(kbuf, "trig_latency=", 13)) {
+		setindex=1;
+		trig_latency=simple_strtol(&kbuf[13], NULL, 0);
+	} else if (!strncmp(kbuf, "trig_runtime=", 13)) {
+		setindex=2;
+		trig_runtime=simple_strtol(&kbuf[13], NULL, 0);
+	} else if (!strncmp(kbuf, "trig_printk=", 12)) {
+		setindex=3;
+		trig_printk=simple_strtol(&kbuf[12], NULL, 0);
+	} else {
+		printk(KERN_WARNING "invalid input, ignored\n");
+		setindex = 999;
+	}
+
+	if (setindex < 999)
+		proc_schedaudit_set_task(p, setindex,
+                                 trig_latency, trig_runtime, trig_printk);
+
+	put_task_struct(p);
+
+	return count;
+}
+
+static int schedaudit_open(struct inode *inode, struct file *filp)
+{
+	int ret;
+
+	ret = single_open(filp, schedaudit_show, NULL);
+	if (!ret) {
+		struct seq_file *m = filp->private_data;
+
+		m->private = inode;
+	}
+	return ret;
+}
+
+static const struct file_operations proc_pid_schedaudit_operations = {
+	.open		= schedaudit_open,
+	.read		= seq_read,
+	.write		= schedaudit_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+#endif  /* CONFIG_BCM_SCHEDAUDIT */
+
 /*
  * We added or removed a vma mapping the executable. The vmas are only mapped
  * during exec and are not mapped with the mmap system call.
@@ -2484,6 +2570,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_SCHED_DEBUG
 	REG("sched",      S_IRUGO|S_IWUSR, proc_pid_sched_operations),
 #endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+	REG("bcm_schedaudit",  S_IRUGO|S_IWUSR, proc_pid_schedaudit_operations),
+#endif
 #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
 	INF("syscall",    S_IRUSR, proc_pid_syscall),
 #endif
@@ -2822,6 +2911,9 @@ static const struct pid_entry tid_base_stuff[] = {
 	INF("limits",	 S_IRUSR, proc_pid_limits),
 #ifdef CONFIG_SCHED_DEBUG
 	REG("sched",     S_IRUGO|S_IWUSR, proc_pid_sched_operations),
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+	REG("bcm_schedaudit",  S_IRUGO|S_IWUSR, proc_pid_schedaudit_operations),
 #endif
 #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
 	INF("syscall",   S_IRUSR, proc_pid_syscall),

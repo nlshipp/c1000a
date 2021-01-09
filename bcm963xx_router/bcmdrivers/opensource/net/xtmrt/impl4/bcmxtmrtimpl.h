@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl 
- Copyright 2007 Broadcom Corp. All Rights Reserved. 
- 
- This program is free software; you can distribute it and/or modify it 
- under the terms of the GNU General Public License (Version 2) as 
- published by the Free Software Foundation. 
- 
- This program is distributed in the hope it will be useful, but WITHOUT 
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License 
- for more details. 
- 
- You should have received a copy of the GNU General Public License along 
- with this program; if not, write to the Free Software Foundation, Inc., 
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA. 
+<:copyright-BRCM:2011:DUAL/GPL:standard
+
+   Copyright (c) 2011 Broadcom Corporation
+   All Rights Reserved
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 /**************************************************************************
@@ -26,6 +36,9 @@
 #if !defined(_BCMXTMRTIMPL_H)
 #define _BCMXTMRTIMPL_H
 
+#include <bcmtypes.h>
+#include "bcmnet.h"
+#include "bcmxtmrt.h"
 #include "bcmPktDma_structs.h"
 
 #define XTM_CACHE_SMARTFLUSH
@@ -36,6 +49,9 @@
 #define MAX_MATCH_IDS               128
 #define MAX_DEFAULT_MATCH_IDS       16
 #define ENET_8021Q_SIZE             4
+#define PTM_MAX_TX_FRAME_LEN        1980  /* Per chip limitation, 6318/63268 SAR can only
+                                           * transmit max PTM frame size of
+                                           */
 #define MAX_MTU_SIZE                (1500 + 14 + 4 + ENET_8021Q_SIZE)
 #ifdef XTM_CACHE_SMARTFLUSH
 #define MAX_RFC2684_HDR_SIZE        10
@@ -44,7 +60,7 @@
 #endif
 #define SAR_DMA_MAX_BURST_LENGTH    8
 #define RXBUF_FKB_INPLACE           ((sizeof(FkBuff_t) + 0x0f) & ~0x0f)
-#define RXBUF_HEAD_RESERVE          ((176 + 0x3f) & ~0x3f)
+#define RXBUF_HEAD_RESERVE          ((208 + 0x3f) & ~0x3f)
 #define RXBUF_SIZE                  ((MAX_MTU_SIZE +                    \
                                         MAX_RFC2684_HDR_SIZE +          \
                                       (SAR_DMA_MAX_BURST_LENGTH * 8)    \
@@ -251,15 +267,26 @@ typedef struct dev_params
     UINT8  ucTxVcid;
 } DEV_PARAMS, *PDEV_PARAMS;
 
-#define PTM_FLOW_PRI_LOW     0
-#define PTM_FLOW_PRI_HIGH    1
+
+#define PACKET_BLOG        0
+#define PACKET_NORMAL      1
+
+#include "bcmxtmrtbond.h"
 
 #ifndef FAP_4KE
 
 #if defined(AEI_VDSL_STATS_DIAG)
-struct xtm_multicast_stats {
-    unsigned long rx_multicast_bytes;
-    unsigned long tx_multicast_bytes;
+struct xtm_dev_stats {
+    unsigned long rx_packets;
+    unsigned long long rx_bytes;
+    unsigned long tx_packets;
+    unsigned long long tx_bytes;
+    unsigned long rx_multicast_packets;
+    unsigned long long rx_multicast_bytes;
+    unsigned long tx_multicast_packets;
+    unsigned long long tx_multicast_bytes;
+    unsigned long unicast_discarded_packets;
+    unsigned long multicast_discarded_packets;
 };
 #endif
 
@@ -303,6 +330,9 @@ typedef struct bcmxtmrt_dev_context
 #if defined(AEI_VDSL_TOOLBOX)
     UINT16 usMirrorInFlags;
     UINT16 usMirrorOutFlags;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    int matchVlanId;
+#endif
 #else
     /*Port Mirroring fields*/
     char szMirrorIntfIn[MIRROR_INTF_SIZE];
@@ -318,58 +348,21 @@ typedef struct bcmxtmrt_dev_context
     struct napi_struct napi;
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
-    struct xtm_multicast_stats multi_stats;
+    struct xtm_dev_stats dev_stats;
 #endif
 } BCMXTMRT_DEV_CONTEXT, *PBCMXTMRT_DEV_CONTEXT;
-#endif /* FAP_4KE */
-
-#define ETH_FCS_LEN                          4
-#define XTMRT_PTM_BOND_FRAG_HDR_SIZE         2
-#define XTMRT_PTM_BOND_FRAG_HDR_EOP          1
-#define XTMRT_PTM_BOND_HDR_NON_EOP           0
-#define XTMRT_PTM_CRC_SIZE                   2
-
-/* ATM Bonding Definitions */
-
-#define XTMRT_ATM_BOND_ASM_VPI             0x0
-#define XTMRT_ATM_BOND_ASM_VCI             0x14
-
-/* PTM Tx Bonding Definitions */
-
-#define XTMRT_PTM_BOND_MAX_FRAG_PER_PKT      8
-#define XTMRT_PTM_BOND_TX_MAX_FRAGMENT_SIZE  508
-#define XTMRT_PTM_BOND_TX_MIN_FRAGMENT_SIZE  68
-#define MAX_WT_PORT_DIST                     100
-
-typedef union _XtmRtPtmTxBondHeader {
-   struct _sVal {
-      UINT16 portSel    : 1 ;
-   UINT16 Reserved   : 2 ;
-   UINT16 PktEop     : 1 ;
-      UINT16 FragSize   : 12 ;  /* Includes size of the fragment + 2bytes of frag hdr + 2bytes of CRC-16 */
-   } sVal ;
-   UINT16  usVal ;
-} XtmRtPtmTxBondHeader ;
-
-#define PACKET_BLOG           0
-#define PACKET_NORMAL         1
-
-#ifndef FAP_4KE
-
-typedef struct _XtmRtPtmBondInfo {
-
-   UINT32               totalWtPortDist ;
-   UINT32               ulCurrWtPortDistStartIndex ;
-   UINT32               ulCurrWtPortDistRunIndex ;
-   UINT32               ulCurrWtTotalIterationsBeforeReset ;
-   UINT8                u8ConfWtPortDist [MAX_WT_PORT_DIST] ;
-   UINT32               ulLinkUsWt [MAX_BOND_PORTS] ;
-   UINT32               ulConfLinkUsWt [MAX_BOND_PORTS] ;
-} XtmRtPtmBondInfo ;
 
 /* Information that is global to all network device instances. */
 #define TXDMACTRL(pDevCtx)       g_GlobalInfo.dmaCtrl
 #define TXDMATYPE(pDevCtx)       XTM_HW_DMA
+
+/* ATM Cell header definitions - Ref G.998.1 */
+#define ATM_CELL_HDR_VPI_MASK                  0x0FF00000
+#define ATM_CELL_HDR_VPI_SHIFT                 20
+
+#define ATM_NON_BONDED_CELL_HDR_VCI_MASK       0x000FFFF0
+#define ATM_BONDED_CELL_HDR_VCI_MASK           0x00000FF0
+#define ATM_CELL_HDR_VCI_SHIFT                 4
 
 typedef struct bcmxtmrt_global_info
 {
@@ -412,15 +405,16 @@ typedef struct bcmxtmrt_global_info
     void *pAsmContext;
 
     /* MIB counter registers. */
-    UINT32 *pulMibTxOctetCountBase;
     UINT32 ulMibRxClrOnRead;
-    UINT32 *pulMibRxCtrl;
-    UINT32 *pulMibRxMatch;
-    UINT32 *pulMibRxOctetCount;
-    UINT32 *pulMibRxPacketCount;
-    UINT32 *pulRxCamBase;
+    volatile UINT32 *pulMibTxOctetCountBase;
+    volatile UINT32 *pulMibRxCtrl;
+    volatile UINT32 *pulMibRxMatch;
+    volatile UINT32 *pulMibRxOctetCount;
+    volatile UINT32 *pulMibRxPacketCount;
+    volatile UINT32 *pulRxCamBase;
 
     /* Bonding information */
+    UINT32                 atmBondSidMode ;
     XtmBondConfig          bondConfig ;
     XtmRtPtmTxBondHeader   ptmBondHdr [XTMRT_PTM_BOND_MAX_FRAG_PER_PKT] ;
     XtmRtPtmBondInfo       ptmBondInfo ;
@@ -428,18 +422,19 @@ typedef struct bcmxtmrt_global_info
     /* Everything else. */
     UINT32 ulChipRev ;
     UINT32 ulDrvState ;
+	/* Temporary storage for stats collection */
+	struct net_device_stats dummy_stats;
 } BCMXTMRT_GLOBAL_INFO, *PBCMXTMRT_GLOBAL_INFO;
 
 extern BCMXTMRT_GLOBAL_INFO g_GlobalInfo;
 
 /* Function Prototypes */
-int bcmxtmrt_ptmbond_calculate_link_weights (PBCMXTMRT_DEV_CONTEXT pDevCtx) ;
 UINT32 bcmxtmrt_process_rx_pkt( PBCMXTMRT_DEV_CONTEXT pDevCtx, BcmXtm_RxDma *rxdma,
                               FkBuff_t *pFkb, UINT16 bufStatus, int delLen, int trailerDelLen);
-int bcmxtmrt_ptmbond_add_hdr (PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx, pNBuff_t *ppNBuff,
-                               struct sk_buff **ppNBuffSkb, UINT8 **ppData, 
-                               int *pLen) ;
+int bcmxtmrt_ptmbond_add_hdr( PBCMXTMRT_DEV_CONTEXT pDevCtx, UINT32 ulPtmPrioIdx, pNBuff_t *ppNBuff, struct sk_buff **ppNBuffSkb,
+                             UINT8 **ppData, int *pLen) ;
 int ProcTxBondInfo(char *page, char **start, off_t off, int cnt, int *eof, void *data);
+
 #endif /* FAP_4KE */
 
 #endif /* _BCMXTMRTIMPL_H */

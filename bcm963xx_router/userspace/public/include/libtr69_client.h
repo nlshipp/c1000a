@@ -3,7 +3,7 @@
 
 /**************************************************************************
  *
- *      Following Function only used for an third application like tr69 
+ *      Following Function only used for an third application like tr69
  *
  **************************************************************************/
 
@@ -101,8 +101,8 @@ int tr69_set_unfresh_leaf_data(char *p_name, void *p_value, int type);
  *	        tf69_acl_set_leaf_data
  *
  *	[DESCRIPTION]:
- *	        set leaf parameter value with acl control, if a leaf's 
- *              attribute is read only, this function will return failed. 
+ *	        set leaf parameter value with acl control, if a leaf's
+ *              attribute is read only, this function will return failed.
  *
  *	[ARGUMENT]:
  *	        char *p_name
@@ -159,9 +159,9 @@ int tr69_get_node(char *p_name, tr69_node_t **pp_node);
  *	        tf69_get_next_node
  *
  *	[DESCRIPTION]:
- *	        get next leaf parameter's attribute, usually used in traveling 
+ *	        get next leaf parameter's attribute, usually used in traveling
  *              whole node tree loops.
- *              for samples, please see tr69.c:GetParameterValue()  
+ *              for samples, please see tr69.c:GetParameterValue()
  *
  *	[ARGUMENT]:
  *	        char *p_root_name
@@ -197,9 +197,9 @@ int tr69_set_node(char *p_name, tr69_node_t *p_node);
  *	        tf69_add_instance
  *
  *	[DESCRIPTION]:
- *	        add an instance. Be notice the correspoding XXNumberofEntries 
- *              is automatically increased, a user does not need to care about 
- *              XXXNumberofEntries. 
+ *	        add an instance. Be notice the correspoding XXNumberofEntries
+ *              is automatically increased, a user does not need to care about
+ *              XXXNumberofEntries.
  *
  *	[ARGUMENT]:
  *	        char *p_name
@@ -217,9 +217,9 @@ int tr69_add_instance(char *p_name, int *p_inst_numb);
  *
  *	[DESCRIPTION]:
  *	        del an instance with an instance number.
- *              Be notice the correspoding XXNumberofEntries 
- *              is automatically decreased, a user does not need to care about 
- *              XXXNumberofEntries. 
+ *              Be notice the correspoding XXNumberofEntries
+ *              is automatically decreased, a user does not need to care about
+ *              XXXNumberofEntries.
  *
  *	[ARGUMENT]:
  *	        char *p_name
@@ -238,13 +238,13 @@ int tr69_del_instance(char *p_name, int inst);
  *
  *	[DESCRIPTION]:
  *	        del instance with full path name
- *              Be notice the correspoding XXNumberofEntries 
- *              is automatically decreased, a user does not need to care about 
- *              XXXNumberofEntries. 
+ *              Be notice the correspoding XXNumberofEntries
+ *              is automatically decreased, a user does not need to care about
+ *              XXXNumberofEntries.
  *
  *	[ARGUMENT]:
  *	        char *p_name
- *	        
+ *
  *
  *	[RETURN]
  *              >= 0          SUCCESS
@@ -259,7 +259,7 @@ int tr69_del2_instance(char *p_name);
  *
  *	[DESCRIPTION]:
  *	        get notificationed parameters, only used for tr69 application
- *              who cared about noactive or active notification leaf parameter 
+ *              who cared about noactive or active notification leaf parameter
  *
  *	[ARGUMENT]:
  *	        tr69_notification_t **pp_notf_tb
@@ -280,7 +280,7 @@ int tr69_get_notification(tr69_notification_t **pp_notf_tb, int *p_tb_count);
  *	        save the cfg into flash immediately
  *
  *	[ARGUMENT]:
- *	        
+ *
  *	[RETURN]
  *              >= 0          SUCCESS
  *              <  0          ERROR
@@ -288,4 +288,3 @@ int tr69_get_notification(tr69_notification_t **pp_notf_tb, int *p_tb_count);
 int tr69_save_now(void);
 
 #endif
-

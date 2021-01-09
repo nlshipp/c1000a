@@ -272,8 +272,8 @@ main(int argc, char *argv[])
 	/* drop root privileges if requested. */
 	if (username) {
 		if (!singleprocess) {
-		 	dlog(LOG_DEBUG, 3, "Initializing privsep");
-		 	if (privsep_init() < 0)
+			dlog(LOG_DEBUG, 3, "Initializing privsep");
+			if (privsep_init() < 0)
 				flog(LOG_WARNING, "Failed to initialize privsep.");
 		}
 
@@ -338,7 +338,11 @@ main(int argc, char *argv[])
 	 */
 	signal(SIGHUP, sighup_handler);
 	signal(SIGTERM, sigterm_handler);
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    signal(SIGINT, SIG_IGN);
+#else
 	signal(SIGINT, sigint_handler);
+#endif
 	signal(SIGUSR1, sigusr1_handler);
 
 	snprintf(pidstr, sizeof(pidstr), "%ld\n", (long)getpid());
@@ -687,11 +691,11 @@ void reset_prefix_lifetimes(void)
 
 
 	flog(LOG_INFO, "Resetting prefix lifetimes");
-	
-	for (iface = IfaceList; iface; iface = iface->next) 
+
+	for (iface = IfaceList; iface; iface = iface->next)
 	{
 		for (prefix = iface->AdvPrefixList; prefix;
-							prefix = prefix->next) 
+							prefix = prefix->next)
 		{
 			if (prefix->DecrementLifetimesFlag)
 			{
@@ -704,7 +708,7 @@ void reset_prefix_lifetimes(void)
 						prefix->AdvPreferredLifetime;
 			}
 		}
-		
+
 	}
 
 }
@@ -858,4 +862,3 @@ usage(void)
 	fprintf(stderr, "usage: %s %s\n", pname, usage_str);
 	exit(1);
 }
-

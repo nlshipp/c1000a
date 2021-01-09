@@ -1,5 +1,5 @@
 /*
-<:copyright-gpl
+<:label-BRCM::DUAL/GPL:standard 
  Copyright 2002 Broadcom Corp. All Rights Reserved.
 
  This program is free software; you can distribute it and/or modify it
@@ -64,10 +64,8 @@
 #endif
 //#define DEBUG_FLASH
 
-/* Only NAND flash build configures and uses CONFIG_CRC32. */
-#if !defined(CONFIG_CRC32)
-#undef crc32
-#define crc32(a,b,c) 0
+#ifdef AEI_NAND_IMG_CHECK
+extern int gSetWrongCRC; //1=set wrong crc
 #endif
 
 #ifdef AEI_VDSL_CUSTOMER_NCS
@@ -146,6 +144,7 @@ static UINT32 getCrc32(byte *pdata, UINT32 size, UINT32 crc)
     return crc;
 }
 #endif
+
 extern int kerSysGetSequenceNumber(int);
 extern PFILE_TAG kerSysUpdateTagSequenceNumber(int);
 
@@ -171,11 +170,18 @@ static struct semaphore rd_semflash;
 // spMutex protects scratch pad writes
 static DEFINE_MUTEX(spMutex);
 extern struct mutex flashImageMutex;
-static char bootCfeVersion[CFE_VERSION_MARK_SIZE+CFE_VERSION_SIZE];
 static int bootFromNand = 0;
 
 static int setScratchPad(char *buf, int len);
 static char *getScratchPad(int len);
+static int nandNvramSet(const char *nvramString );
+
+// Variables not used in the simplified API used for the IKOS target
+#if !defined(CONFIG_BRCM_IKOS)
+static char bootCfeVersion[CFE_VERSION_MARK_SIZE+CFE_VERSION_SIZE];
+#endif
+
+
 #ifdef AEI_CONFIG_JFFS
 static int nandEraseBlkNotSpare( struct mtd_info *mtd, int blk );
 #endif
@@ -320,7 +326,7 @@ void kerSysEarlyFlashInit( void )
     if (sizeof(NVRAM_DATA) != NVRAM_LENGTH)
         printk("kerSysEarlyFlashInit: nvram size mismatch! "
                "NVRAM_LENGTH=%d sizeof(NVRAM_DATA)=%d\n",
-               NVRAM_LENGTH, sizeof(NVRAM_LENGTH));
+               NVRAM_LENGTH, sizeof(NVRAM_DATA));
 #endif
     inMemNvramData_buf = (unsigned char *) &inMemNvramData;
     memset(inMemNvramData_buf, UNINITIALIZED_FLASH_DATA_CHAR, NVRAM_LENGTH);
@@ -332,13 +338,17 @@ void kerSysEarlyFlashInit( void )
     if( ((GPIO->StrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
         MISC_STRAP_BUS_BOOT_SEL_SHIFT) == MISC_STRAP_BUS_BOOT_NAND)
         bootFromNand = 1;
-#elif defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#elif defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) || defined(CONFIG_BCM963268)
     if( ((MISC->miscStrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
         MISC_STRAP_BUS_BOOT_SEL_SHIFT) == MISC_STRAP_BUS_BOOT_NAND )
         bootFromNand = 1;
+#elif defined(CONFIG_BCM96828)
+    if( ((MISC->miscStrapBus & MISC_STRAP_BUS_BOOT_SEL_MASK) >>
+        MISC_STRAP_BUS_BOOT_SEL_SHIFT) != MISC_STRAP_BUS_BOOT_SERIAL )
+        bootFromNand = 1;
 #endif
 
-#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96368) || defined(CONFIG_BCM96362) || defined(CONFIG_BCM96328) || defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828)
     if( bootFromNand == 1 )
     {
         unsigned long bootCfgSave =  NAND->NandNandBootConfig;
@@ -397,7 +407,13 @@ void kerSysEarlyFlashInit( void )
 #if defined (CONFIG_BCM_ENDPOINT_MODULE)
     if ((BpSetVoiceBoardId(inMemNvramData.szVoiceBoardId) != BP_SUCCESS))
         printk("\n*** Voice Board id is not initialized properly ***\n\n");
+	
+    if(BpGetVoiceDectType(inMemNvramData.szBoardId) != BP_VOICE_NO_DECT) 
+	 {
+       BpSetDectPopulatedData((int)(inMemNvramData.ulBoardStuffOption & VOICE_OPTION_DECT_MASK));		
+	 }
 #endif
+
 }
 
 /***********************************************************************
@@ -444,13 +460,7 @@ int kerSysNvRamSet(const char *string, int strLen, int offset)
 
         sts = setSharedBlks(NVRAM_SECTOR, 1, pBuf);
     
-        retriedKfree(pBuf);
-
-        if (0 == sts)
-        {
-            // write to flash was OK, now update in-memory copy
-            updateInMemNvramData((unsigned char *) string, strLen, offset);
-        }
+        retriedKfree(pBuf);       
     }
     else
     {
@@ -467,7 +477,7 @@ int kerSysNvRamSet(const char *string, int strLen, int offset)
             down(&semflash);
             memset(tempStorage, UNINITIALIZED_FLASH_DATA_CHAR, mtd1->erasesize );
             for(j=0;j<5;j++)
-            {    
+            {
                 mtd1->read(mtd1, 0, mtd1->erasesize, &retlen, tempStorage);
                 pnd = (PNVRAM_DATA) (tempStorage + NVRAM_DATA_OFFSET);
                 printk("before change szboard(%s) psk(%s) datapump(%ld),offset(%d),len(%d)\n",pnd->szBoardId,pnd->wpaKey,pnd->dslDatapump,offset,strLen);
@@ -494,8 +504,8 @@ int kerSysNvRamSet(const char *string, int strLen, int offset)
             nandEraseBlkNotSpare( mtd1, 0 );
             mtd1->write(mtd1, 0, mtd1->erasesize, &retlen, tempStorage);
 
-            do 
-            {    
+            do
+            {
                 if (NULL !=(block_buf = kmalloc(mtd1->erasesize, GFP_KERNEL)) )
                 {
                     memset(block_buf,0,mtd1->erasesize);
@@ -521,7 +531,7 @@ int kerSysNvRamSet(const char *string, int strLen, int offset)
                 }
             }
             while(1);
-            
+
 
             up(&semflash);
             spin_lock_irqsave(&inMemNvramData_spinlock, flags);
@@ -531,13 +541,19 @@ int kerSysNvRamSet(const char *string, int strLen, int offset)
             kfree(tempStorage);
             if( mtd1 )
                 put_mtd_device(mtd1);
-				
+
             sts = 0;
-		
+
         }
 #else
-        printk("kerSysNvRamSet: not supported when bootFromNand is 1\n");
+        sts = nandNvramSet(string);
 #endif
+    }
+    
+    if (0 == sts)
+    {
+        // write to flash was OK, now update in-memory copy
+        updateInMemNvramData((unsigned char *) string, strLen, offset);
     }
 
     return sts;
@@ -600,6 +616,7 @@ int kerSysEraseNvRam(void)
     return sts;
 }
 
+#if 0   
 unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr,
     unsigned long len )
 {
@@ -620,6 +637,7 @@ unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr,
 
     return( len );
 }
+#endif
 
 #else // CONFIG_BRCM_IKOS
 static NVRAM_DATA ikos_nvram_data =
@@ -652,14 +670,16 @@ int kerSysCfeVersionGet(char *string, int stringLength)
     return(0);
 }
 
-int kerSysNvRamGet(char *string, int strLen, int offset)
+
+void kerSysNvRamGet(char *string, int strLen, int offset)
 {
     memcpy(string, (unsigned char *) &ikos_nvram_data, sizeof(NVRAM_DATA));
-    return(0);
 }
 
-int kerSysNvRamSet(char *string, int strLen, int offset)
+int kerSysNvRamSet(const char *string, int strLen, int offset)
 {
+    if( bootFromNand )
+        nandNvramSet(string);
     return(0);
 }
 
@@ -671,10 +691,9 @@ int kerSysEraseNvRam(void)
 unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr,
     unsigned long len )
 {
-    return(memcpy((unsigned char *) toaddr, (unsigned char *) fromaddr, len));
+    return((unsigned long) memcpy((unsigned char *) toaddr, (unsigned char *) fromaddr, len));
 }
 #endif  // CONFIG_BRCM_IKOS
-
 
 /** Update the in-Memory copy of the nvram with the given data.
  *
@@ -789,6 +808,7 @@ void kerSysFlashInit( void )
 #ifdef AEI_VDSL_CUSTOMER_NCS
     sema_init(&rd_semflash, 1);
 #endif
+
     // too early in bootup sequence to acquire spinlock, not needed anyways
     // only the kernel is running at this point
     flash_init_info(&inMemNvramData, &fInfo);
@@ -922,6 +942,43 @@ int kerSysBackupPsiGet(char *string, int strLen, int offset)
     return 0;
 }
 
+int kerSysFsFileSet(const char *filename, char *buf, int len)
+{
+    int ret = -1;
+    struct file *fp;
+    mm_segment_t fs;
+
+    fs = get_fs();
+    set_fs(get_ds());
+
+    fp = filp_open(filename, O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
+
+    if (!IS_ERR(fp))
+    {
+        if (fp->f_op && fp->f_op->write)
+        {
+            fp->f_pos = 0;
+
+            if((int) fp->f_op->write(fp, (void *) buf, len, &fp->f_pos) == len)
+            {
+                vfs_fsync(fp, fp->f_path.dentry, 0);
+                ret = 0;
+            }
+        }
+
+        filp_close(fp, NULL);
+    }
+
+    set_fs(fs);
+
+    if (ret != 0)
+    {
+        printk("Failed to write to '%s'.\n", filename);
+    }
+
+    return( ret );
+}
+
 // set psi 
 // return:
 //  0 - ok
@@ -936,30 +993,7 @@ int kerSysPersistentSet(char *string, int strLen, int offset)
         /* Root file system is on a writable NAND flash.  Write PSI to
          * a file on the NAND flash.
          */
-        struct file *fp;
-        mm_segment_t fs;
-
-        fp = filp_open(PSI_FILE_NAME, O_RDWR | O_TRUNC | O_CREAT,
-            S_IRUSR | S_IWUSR);
-
-        if (!IS_ERR(fp) && fp->f_op && fp->f_op->write)
-        {
-            fs = get_fs();
-            set_fs(get_ds());
-
-            fp->f_pos = 0;
-
-            if((int) fp->f_op->write(fp, (void *) string, strLen,
-               &fp->f_pos) != strLen)
-                printk("Failed to write psi to '%s'.\n", PSI_FILE_NAME);
-
-            filp_close(fp, NULL);
-            set_fs(fs);
-        }
-        else
-            printk("Unable to open '%s'.\n", PSI_FILE_NAME);
-
-        return 0;
+        return kerSysFsFileSet(PSI_FILE_NAME, string, strLen);
     }
 
     if ((pBuf = getSharedBlks(fInfo.flash_persistent_start_blk,
@@ -990,31 +1024,7 @@ int kerSysBackupPsiSet(char *string, int strLen, int offset)
         /* Root file system is on a writable NAND flash.  Write backup PSI to
          * a file on the NAND flash.
          */
-        struct file *fp;
-        mm_segment_t fs;
-
-        fp = filp_open(PSI_BACKUP_FILE_NAME, O_RDWR | O_TRUNC | O_CREAT,
-            S_IRUSR | S_IWUSR);
-
-        if (!IS_ERR(fp) && fp->f_op && fp->f_op->write)
-        {
-            fs = get_fs();
-            set_fs(get_ds());
-
-            fp->f_pos = 0;
-
-            if((int) fp->f_op->write(fp, (void *) string, strLen,
-               &fp->f_pos) != strLen)
-                printk("Failed to write psi to '%s'.\n", PSI_BACKUP_FILE_NAME);
-
-            filp_close(fp, NULL);
-            set_fs(fs);
-        }
-        else
-            printk("Unable to open '%s'.\n", PSI_BACKUP_FILE_NAME);
-
-
-        return 0;
+        return kerSysFsFileSet(PSI_BACKUP_FILE_NAME, string, strLen);
     }
 
     if (fInfo.flash_backup_psi_number_blk <= 0)
@@ -1144,39 +1154,13 @@ int kerSysSyslogSet(char *string, int strLen, int offset)
         /* Root file system is on a writable NAND flash.  Write syslog to
          * a file on the NAND flash.
          */
-        struct file *fp;
-        mm_segment_t fs;
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-        fp = filp_open(SYSLOG_FILE_NAME, O_RDWR | O_TRUNC | O_CREAT,
-            S_IRUSR | S_IWUSR);
-#else
-        fp = filp_open(PSI_FILE_NAME, O_RDWR | O_TRUNC | O_CREAT,
-            S_IRUSR | S_IWUSR);
-#endif
-        if (!IS_ERR(fp) && fp->f_op && fp->f_op->write)
-        {
-            fs = get_fs();
-            set_fs(get_ds());
 
-            fp->f_pos = 0;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        return kerSysFsFileSet(SYSLOG_FILE_NAME, string, strLen);
+#else
+        return kerSysFsFileSet(PSI_FILE_NAME, string, strLen);
+#endif
 
-            if((int) fp->f_op->write(fp, (void *) string, strLen,
-               &fp->f_pos) != strLen)
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-                printk("Failed to write syslog to '%s'.\n", SYSLOG_FILE_NAME);
-#else
-                printk("Failed to write psi to '%s'.\n", PSI_FILE_NAME);
-#endif
-            filp_close(fp, NULL);
-            set_fs(fs);
-        }
-        else
-#if defined(AEI_VDSL_CUSTOMER_NCS)
-            printk("Unable to open '%s'.\n", SYSLOG_FILE_NAME);
-#else
-            printk("Unable to open '%s'.\n", PSI_FILE_NAME);
-#endif
-        return 0;
     }
 
     if (fInfo.flash_syslog_number_blk <= 0)
@@ -1241,61 +1225,31 @@ static int nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkLen)
     char fname[] = NAND_CFE_RAM_NAME;
     int fname_actual_len = strlen(fname);
     int fname_cmp_len = strlen(fname) - 3; /* last three are digits */
-    char cferam_base[32], cferam_buf[32], cferam_fmt[32]; 
-    int i;
-    struct file *fp;
     int seq = -1;
+    int seq2 = -1;
     int ret = 1;
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    int seqnum1=-1;
+    int seqnum2=-1;
+#endif
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_DUAL_IMAGE)
 	PFILE_TAG pTag=(PFILE_TAG)(imagePtr);
 #endif
 
-
-    strcpy(cferam_base, fname);
-    cferam_base[fname_cmp_len] = '\0';
-    strcpy(cferam_fmt, cferam_base);
-    strcat(cferam_fmt, "%3.3d");
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_DUAL_IMAGE)
     seq = simple_strtoul(pTag->imageSequence, NULL, 10);
 #else
-    /* Find the sequence number of the partion that is booted from. */
-    for( i = 0; i < 999; i++ )
-    {
-        sprintf(cferam_buf, cferam_fmt, i);
-        fp = filp_open(cferam_buf, O_RDONLY, 0);
-        if (!IS_ERR(fp) )
-        {
-            filp_close(fp, NULL);
-
-            /* Seqence number found. */
-            seq = i;
-            break;
-        }
-    }
-
-    /* Find the sequence number of the partion that is not booted from. */
-    if( do_mount("mtd:rootfs_update", "/mnt", "jffs2", MS_RDONLY, NULL) == 0 )
-    {
-        strcpy(cferam_fmt, "/mnt/");
-        strcat(cferam_fmt, cferam_base);
-        strcat(cferam_fmt, "%3.3d");
-
-        for( i = 0; i < 999; i++ )
-        {
-            sprintf(cferam_buf, cferam_fmt, i);
-            fp = filp_open(cferam_buf, O_RDONLY, 0);
-            if (!IS_ERR(fp) )
-            {
-                filp_close(fp, NULL);
-                /*Seq number found. Take the greater of the two seq numbers.*/
-                if( seq < i )
-                    seq = i;
-                break;
-            }
-        }
-    }
+    seq = kerSysGetSequenceNumber(1);
+    seq2 = kerSysGetSequenceNumber(2);
+#ifdef AEI_VDSL_CUSTOMER_NCS
+    seqnum1=seq;
+    seqnum2=seq2;
 #endif
+    seq = (seq >= seq2) ? seq : seq2;
+#endif
+#ifndef AEI_VDSL_CUSTOMER_NCS
     if( seq != -1 )
+#endif
     {
         unsigned char *buf, *p;
         int len = blkLen;
@@ -1315,7 +1269,28 @@ static int nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkLen)
          * file name.
          */
         seq++;
+
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+	//If the  seqnum is more than 999, the sequence number need be set to the small squence +1. 
+        if(seq<=0)
+          seq=0;
+
+	//If the  seqnum is more than 999, the sequence number need be set to the small squence +1. 
+        if(seq>=999)
+        {
+            if(seqnum1>seqnum2 && seqnum1!=(seqnum2+1))
+                seq=seqnum2+1;
+            else if (seqnum2>seqnum1 && seqnum2!=(seqnum1+1))
+                seq=seqnum1+1;
+	    else
+                seq=0;
+
+        }
 #endif
+
+
+#endif
+
 
         /* Search the image and replace the last three characters of file
          * cferam.000 with the new sequence number.
@@ -1423,6 +1398,11 @@ static int nandEraseBlkNotSpare( struct mtd_info *mtd, int blk )
 
             if( sts == 0 )
             {
+#ifdef AEI_NAND_IMG_CHECK
+		/* clear crc field */
+		if (!strncmp(mtd->name, "rootfs", 6))
+			oobbuf[ops.ooblen-4] = oobbuf[ops.ooblen-3] = oobbuf[ops.ooblen-2] = oobbuf[ops.ooblen-1] = 0xff;
+#endif
                 memset(&ops, 0x00, sizeof(ops));
                 ops.ooblen = mtd->oobsize;
                 ops.ooboffs = 0;
@@ -1477,7 +1457,8 @@ static void reportUpgradePercent(int percent)
 // return: 
 // 0 - ok
 // !0 - the sector number fail to be flashed (should not be 0)
-static int nandImageSet( int flash_start_addr, char *string, int img_size )
+int kerSysBcmNandImageSet( char *rootfs_part, char *string, int img_size,
+    int should_yield )
 {
     /* Allow room to flash cferam sequence number at start of file system. */
     const int fs_start_blk_num = 8;
@@ -1486,7 +1467,6 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
     int blk = 0;
     int cferam_blk;
     int fs_start_blk;
-    int ofs;
     int old_img = 0;
     char *cferam_string;
     char *end_string = string + img_size;
@@ -1496,7 +1476,7 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #ifdef AEI_CONFIG_JFFS
     //char blockbuf[16*1024];
     char * block_buf=NULL;
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_CONFIG_JFFS)
 	char * cferombuf=NULL;
     char * tagbuf=NULL;
 #endif
@@ -1509,10 +1489,21 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #endif
     if( mtd1 )
     {
+        unsigned long chip_id = kerSysGetChipId();
         int blksize = mtd1->erasesize / 1024;
 
         memcpy(&wt, end_string, sizeof(wt));
         if( (wt.wfiVersion & WFI_ANY_VERS_MASK) == WFI_ANY_VERS &&
+            wt.wfiChipId != chip_id )
+        {
+            printk("Chip Id error.  Image Chip Id = %04lx, Board Chip Id = "
+                "%04lx.\n", wt.wfiChipId, chip_id);
+        }
+        else if( wt.wfiFlashType == WFI_NOR_FLASH )
+        {
+            printk("\nERROR: Image does not support a NAND flash device.\n\n");
+        }
+        else if( (wt.wfiVersion & WFI_ANY_VERS_MASK) == WFI_ANY_VERS &&
             ((blksize == 16 && wt.wfiFlashType != WFI_NAND16_FLASH) ||
              (blksize < 128 && wt.wfiFlashType == WFI_NAND128_FLASH)) )
         {
@@ -1522,7 +1513,7 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
         }
         else
         {
-            mtd0 = get_mtd_device_nm("rootfs_update");
+            mtd0 = get_mtd_device_nm(rootfs_part);
 
             /* If the image version indicates that is uses a 1MB data partition
              * size and the image is intended to be flashed to the second file
@@ -1607,14 +1598,15 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 
     if( mtd0 && mtd1 )
     {
-        unsigned long flags;
+        int ofs;
+        unsigned long flags=0;
         int retlen = 0;
 
         #ifdef AEI_CONFIG_JFFS
         if( *(unsigned short *) string == JFFS2_MAGIC_BITMASK || *(unsigned short *) string == AEI_MAGIC_BITMASK )
         #else
         if( *(unsigned short *) string == JFFS2_MAGIC_BITMASK )
-        #endif    
+        #endif
             /* Image only contains file system. */
             ofs = 0; /* use entire string image to find sequence number */
         else
@@ -1625,18 +1617,19 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
             /* skip block 0 to find sequence number */
             switch(wt.wfiFlashType)
             {
-            case WFI_NAND16_FLASH:
-                ofs = 16 * 1024;
-                break;
-
             case WFI_NAND128_FLASH:
                 ofs = 128 * 1024;
+                break;
+
+            /* case WFI_NAND16_FLASH: */
+            default:
+                ofs = 16 * 1024;
                 break;
             }
 
             /* Copy NVRAM data to block to be flashed so it is preserved. */
             spin_lock_irqsave(&inMemNvramData_spinlock, flags);
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_63168_CHIP)  && defined(AEI_CONFIG_JFFS)
                 if (NULL !=(cferombuf = kmalloc(mtd1->erasesize, GFP_KERNEL)) )
                 {
                     memset(cferombuf,0,mtd1->erasesize);
@@ -1668,14 +1661,28 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 
         fs_start_blk = fs_start_blk_num * mtd0->erasesize;
 
-        // Disable other tasks from this point on
-#ifdef AEI_VDSL_CUSTOMER_NCS
-    //If stop other CPU before beginning writing flash, 
-	//it'll cause client Browser has no upgrade's status! 
-#else
-        stopOtherCpu();
+        /*
+         * write image to flash memory.
+         * In theory, all calls to flash_write_buf() must be done with
+         * semflash held, so I added it here.  However, in reality, all
+         * flash image writes are protected by flashImageMutex at a higher
+         * level.
+         */
+        down(&semflash);
+
+        // Once we have acquired the flash semaphore, we can
+        // disable activity on other processor and also on local processor.
+        // Need to disable interrupts so that RCU stall checker will not complain.
+        if (!should_yield)
+        {
+#if !defined(AEI_VDSL_CUSTOMER_NCS)
+            //If stop other CPU before beginning writing flash,
+            //it'll cause client Browser has no upgrade's status!
+            stopOtherCpu();
 #endif
-        local_irq_save(flags);
+            local_irq_save(flags);
+        }
+
 #if defined(AEI_VDSL_CUSTOMER_NCS)
 	// do nothing here
 #else
@@ -1689,7 +1696,7 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
         {
             /* Flash the CFE ROM boot loader. */
             nandEraseBlkNotSpare( mtd1, 0 );
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_63168_CHIP)  && defined(AEI_CONFIG_JFFS)
 			if(cferombuf != NULL)
 			{
 				mtd1->write(mtd1, 0, mtd1->erasesize, &retlen, cferombuf);
@@ -1700,21 +1707,21 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #ifdef AEI_CONFIG_JFFS
             // Because we don't disable the interrupt, NAND flash write is unreliable. We add to check the correctness of NAND flash writing by the software.
 
-            do 
-            {    
+            do
+            {
                 if (NULL !=(block_buf = kmalloc(mtd1->erasesize, GFP_KERNEL)) )
                 {
                     memset(block_buf,0,mtd1->erasesize);
                     mtd1->read(mtd1,0,mtd1->erasesize,&retlen,block_buf);
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_63168_CHIP)  && defined(AEI_CONFIG_JFFS)
                     if((cferombuf != NULL && memcmp(block_buf,cferombuf,mtd1->erasesize)!=0) || (cferombuf == NULL && memcmp(block_buf,string,mtd1->erasesize)!=0))
-#else					
+#else
                     if(memcmp(block_buf,string,mtd1->erasesize)!=0)
 #endif
                     {
                         printk("##write cfe error\n");
                         nandEraseBlkNotSpare( mtd1, 0 );
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_63168_CHIP)  && defined(AEI_CONFIG_JFFS)
 						if(cferombuf != NULL)
 						mtd1->write(mtd1, 0, mtd1->erasesize, &retlen, cferombuf);
 						else
@@ -1736,10 +1743,10 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
                 }
             }
             while(1);
-#if defined(AEI_VDSL_CAPTIVE_PAGES)  && defined(AEI_CONFIG_JFFS)
+#if defined(AEI_63168_CHIP)  && defined(AEI_CONFIG_JFFS)
 			kfree(cferombuf);
 #endif
-#endif       
+#endif
             string += ofs;
         }
 
@@ -1759,8 +1766,8 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
                 /* Flash the image header. */
                 mtd2->write(mtd2, 0, mtd2->erasesize, &retlen, string);
                 // Because we don't disable the interrupt, NAND flash write is unreliable. We add to check the correctness of NAND flash writing by the software.
-                do 
-                {	 
+                do
+                {
 					if (NULL !=(block_buf = kmalloc(mtd2->erasesize, GFP_KERNEL)) )
 					{
 						memset(block_buf,0,mtd2->erasesize);
@@ -1801,11 +1808,17 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #else
         nandEraseBlkNotSpare( mtd0, cferam_blk );
 #endif
+#ifdef AEI_NAND_IMG_CHECK
+		if(gSetWrongCRC == 1) //1=set wrong crc
+		{
+			mtd0->oobavail = 9;
+		}
+#endif
         /* Flash the image except for the part with the sequence number. */
         for( blk = fs_start_blk; blk < mtd0->size; blk += mtd0->erasesize )
         {
-#ifdef AEI_CONFIG_JFFS   
-           do 
+#ifdef AEI_CONFIG_JFFS
+           do
            {
 #endif
             if( (sts = nandEraseBlkNotSpare( mtd0, blk )) == 0 )
@@ -1817,9 +1830,9 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
                         ? mtd0->erasesize : (int) (end_string - string);
 
                     mtd0->write(mtd0, blk, writelen, &retlen, string);
-#ifdef AEI_CONFIG_JFFS   
+#ifdef AEI_CONFIG_JFFS
             // Because we don't disable the interrupt, NAND flash write is unreliable. We add to check the correctness of NAND flash writing by the software.
-                 
+
                 if (NULL !=(block_buf = kmalloc(writelen, GFP_KERNEL)) )
                 {
                     memset(block_buf,0,writelen);
@@ -1848,13 +1861,21 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
                         printk(".");
                         string += writelen;
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-                        reportUpgradePercent(100-(int) (end_string - string)*100/img_size);
-#endif	
+                        reportUpgradePercent(100-(unsigned int) (end_string - string)*100/img_size);
+#endif
 #ifdef AEI_CONFIG_JFFS
                         //writing flash is sucessful,writing the next block
                         break;
 #endif
                     }
+
+                    if (should_yield)
+                    {
+                        local_bh_enable();
+                        yield();
+                        local_bh_disable();
+                    }
+
                 }
                 else
 #ifdef AEI_CONFIG_JFFS
@@ -1880,7 +1901,7 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
         /* Flash the image part with the sequence number. */
         for( blk = 0; blk < fs_start_blk; blk += mtd0->erasesize )
         {
-#ifdef AEI_CONFIG_JFFS 
+#ifdef AEI_CONFIG_JFFS
             do
             {
 #endif
@@ -1891,9 +1912,9 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
                 {
                     mtd0->write(mtd0, blk, mtd0->erasesize,
                         &retlen, cferam_string);
-#ifdef AEI_CONFIG_JFFS 
+#ifdef AEI_CONFIG_JFFS
             // Because we don't disable the interrupt, NAND flash write is unreliable. We add to check the correctness of NAND flash writing by the software.
-                   
+
                 if (NULL !=(block_buf = kmalloc(mtd0->erasesize, GFP_KERNEL)) )
                 {
                     memset(block_buf,0,mtd0->erasesize);
@@ -1928,6 +1949,13 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #endif
 
                     }
+
+                    if (should_yield)
+                    {
+                        local_bh_enable();
+                        yield();
+                        local_bh_disable();
+                    }
                 }
 #ifdef AEI_CONFIG_JFFS
                 else
@@ -1955,19 +1983,34 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
         }
 #endif
 
-        if (sts)
-        {
-            // re-enable bh and irq only if there was an error and router
-            // will not reboot
-            local_irq_restore(flags);
-#if !defined(AEI_VDSL_CUSTOMER_NCS)
-            local_bh_enable();
-#endif
-            sts = (blk > mtd0->erasesize) ? blk / mtd0->erasesize : 1;
-        }
+        up(&semflash);
 
         printk("\n\n");
+
+        if (should_yield)
+        {
+            local_bh_enable();
+        }
+
+        if( sts )
+        {
+            /*
+             * Even though we try to recover here, this is really bad because
+             * we have stopped the other CPU and we cannot restart it.  So we
+             * really should try hard to make sure flash writes will never fail.
+             */
+            printk(KERN_ERR "kerSysBcmImageSet: write failed at blk=%d\n", blk);
+            sts = (blk > mtd0->erasesize) ? blk / mtd0->erasesize : 1;
+            if (!should_yield)
+            {
+                local_irq_restore(flags);
+#if !defined(AEI_VDSL_CUSTOMER_NCS)
+                local_bh_enable();
+#endif
+            }
+        }
     }
+
     if( mtd0 )
         put_mtd_device(mtd0);
 
@@ -1977,7 +2020,7 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
 #ifdef AEI_CONFIG_JFFS
     if( mtd2 )
         put_mtd_device(mtd2);
-#endif      
+#endif
 
 
     if( sts == 0 && old_img == 1 )
@@ -1992,16 +2035,48 @@ static int nandImageSet( int flash_start_addr, char *string, int img_size )
     }
 #ifdef AEI_VDSL_CUSTOMER_NCS
     //
-    // Why stop other CPU here? Because the kernel will happen "call stack overflow" 
+    // Why stop other CPU here? Because the kernel will happen "call stack overflow"
     // after finishing writing flash, so stop other CPU before restart kernel. If do
     // this before beginning writing flash, it'll cause client Browser has no upgrade's
-    // status! 
+    // status!
     //
     //stopOtherCpu();
 #endif
 
     return sts;
 }
+
+    // NAND flash overwrite nvram block.    
+    // return: 
+    // 0 - ok
+    // !0 - the sector number fail to be flashed (should not be 0)
+static int nandNvramSet(const char *nvramString )
+{
+    /* Image contains CFE ROM boot loader. */
+    struct mtd_info *mtd = get_mtd_device_nm("nvram"); 
+    char *cferom = NULL;
+    int retlen = 0;
+        
+    if ( (cferom = (char *)retriedKmalloc(mtd->erasesize)) == NULL )
+    {
+        printk("\n Failed to allocated memory in nandNvramSet();");
+        return -1;
+    }
+
+    /* Read the whole cfe rom nand block 0 */
+    mtd->read(mtd, 0, mtd->erasesize, &retlen, cferom);
+
+    /* Copy the nvram string into place */
+    memcpy(cferom+NVRAM_DATA_OFFSET, nvramString, sizeof(NVRAM_DATA));
+    
+    /* Flash the CFE ROM boot loader. */
+    nandEraseBlkNotSpare( mtd, 0 );
+    mtd->write(mtd, 0, mtd->erasesize, &retlen, cferom);
+    
+    retriedKfree(cferom);
+    return 0;
+}
+           
 
 // flash bcm image 
 // return: 
@@ -2033,19 +2108,18 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
         if( (wt.wfiVersion & WFI_ANY_VERS_MASK) == WFI_ANY_VERS &&
             wt.wfiChipId != chip_id )
         {
-            printk("Chip Id error.  Image Chip Id = %04lx, Board Chip Id = "
-                "%04lx.\n", wt.wfiChipId, chip_id);
-            return -1;
+            int id_ok = 0;
+#if defined(CHIP_FAMILY_ID_HEX)
+            if (wt.wfiChipId == CHIP_FAMILY_ID_HEX) {
+		id_ok = 1;
+            }
+#endif
+            if (id_ok == 0) {
+                printk("Chip Id error.  Image Chip Id = %04lx, Board Chip Id = "
+                    "%04lx.\n", wt.wfiChipId, chip_id);
+                return -1;
+            }
         }
-    }
-
-    if( bootFromNand )
-    {
-        if( whole_image == 1 && size > FLASH_LENGTH_BOOT_ROM )
-            return( nandImageSet( flash_start_addr, string, size ) );
-
-        printk("\n**** Illegal NAND flash image ****\n\n");
-        return -1;
     }
 
     if( whole_image && (wt.wfiVersion & WFI_ANY_VERS_MASK) == WFI_ANY_VERS &&
@@ -2066,7 +2140,7 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
         return( -1 );
 
     is_cfe_write = ((NVRAM_SECTOR == blk_start) &&
-                    (size <= flash_get_sector_size(blk_start)));
+                    (size <= FLASH_LENGTH_BOOT_ROM));
 
     /*
      * write image to flash memory.
@@ -2083,8 +2157,8 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
     if (!is_cfe_write && !should_yield)
     {
 #ifdef AEI_VDSL_CUSTOMER_NCS
-    //If stop other CPU before beginning writing flash, 
-	//it'll cause client Browser has no upgrade's status! 
+    //If stop other CPU before beginning writing flash,
+	//it'll cause client Browser has no upgrade's status!
 #else
         stopOtherCpu();
 #endif
@@ -2210,12 +2284,13 @@ int kerSysBcmImageSet( int flash_start_addr, char *string, int size,
     }
 #if defined(AEI_VDSL_CUSTOMER_NCS)
     //
-    // Why stop other CPU here? Because the kernel will happen "call stack overflow" 
+    // Why stop other CPU here? Because the kernel will happen "call stack overflow"
     // after finishing writing flash, so stop other CPU before restart kernel. If do
     // this before beginning writing flash, it'll cause client Browser has no upgrade's
-    // status! 
+    // status!
     //
-    stopOtherCpu();
+    if (!is_cfe_write)
+        stopOtherCpu();
 #endif
 
     return sts;
@@ -2280,36 +2355,7 @@ static char *getScratchPad(int len)
 // -1 -- fail
 static int setScratchPad(char *buf, int len)
 {
-    /* Root file system is on a writable NAND flash.  Write PSI to
-     * a file on the NAND flash.
-     */
-    int ret = -1;
-    struct file *fp;
-    mm_segment_t fs;
-
-    fp = filp_open(SCRATCH_PAD_FILE_NAME, O_RDWR | O_TRUNC | O_CREAT,
-        S_IRUSR | S_IWUSR);
-
-    if (!IS_ERR(fp) && fp->f_op && fp->f_op->write)
-    {
-        fs = get_fs();
-        set_fs(get_ds());
-
-        fp->f_pos = 0;
-
-        if((int) fp->f_op->write(fp, (void *) buf, len, &fp->f_pos) == len)
-            ret = 0;
-        else
-            printk("Failed to write scratch pad to '%s'.\n", 
-                SCRATCH_PAD_FILE_NAME);
-
-        filp_close(fp, NULL);
-        set_fs(fs);
-    }
-    else
-        printk("Unable to open '%s'.\n", SCRATCH_PAD_FILE_NAME);
-
-    return( ret );
+    return kerSysFsFileSet(SCRATCH_PAD_FILE_NAME, buf, len);
 }
 
 /*
@@ -2692,12 +2738,12 @@ int kerClearScratchPad(int blk_size)
            restoreDatapump(2);
 
 #else  // AEI_CONFIG_JFFS
-#if defined(AEI_VDSL_CUSTOMER_Q2000H)      
-        restoreDatapump(2);       
+#if defined(AEI_VDSL_CUSTOMER_Q2000H)
+        restoreDatapump(2);
 #else
         restoreDatapump(0);
 #endif
-#endif 
+#endif
     }
 }
 #endif
@@ -2724,7 +2770,18 @@ int kerSysScratchPadClearAll(void)
     {
         kerSysScratchPadGet("upgradeHistory", uph, 1024);
     }
-#endif      
+#endif
+
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+	typedef struct {
+	    char date[128];
+	    char time[128];
+	}CfgSaveTime;
+	CfgSaveTime savedTime;
+	int ret = 0;
+	ret=kerSysScratchPadGet("CfgSaveState", &savedTime, sizeof(CfgSaveTime) );
+#endif
+
    // printk ("kerSysScratchPadClearAll.... \n") ;
    mutex_lock(&spMutex);
 
@@ -2780,10 +2837,17 @@ int kerSysScratchPadClearAll(void)
 #endif
 	{
         kerSysScratchPadSet("upgradeHistory", uph, 1024);
-    }	
-#endif		
+    }
+#endif
 
-   printk ("kerSysScratchPadClearAll Done.... \n") ;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+	if ( ret )
+	{
+	  kerSysScratchPadSet("CfgSaveState", &savedTime, sizeof(CfgSaveTime) );
+	}
+#endif
+
+   //printk ("kerSysScratchPadClearAll Done.... \n") ;
    return sts;
 }
 
@@ -2808,16 +2872,409 @@ int kerSysFlashSizeGet(void)
 }
 
 /***********************************************************************
+ * Function Name: writeBootImageState
+ * Description  : Persistently sets the state of an image update.
+ * Returns      : 0 - success, -1 - failure
+ ***********************************************************************/
+static int writeBootImageState( int currState, int newState )
+{
+    int ret = -1;
+
+    if(bootFromNand == 0)
+    {
+        /* NOR flash */
+        char *pShareBuf = NULL;
+
+        if( (pShareBuf = getSharedBlks( fInfo.flash_scratch_pad_start_blk,
+            fInfo.flash_scratch_pad_number_blk)) != NULL )
+        {
+            PSP_HEADER pHdr = (PSP_HEADER) pShareBuf;
+            unsigned long *pBootImgState=(unsigned long *)&pHdr->NvramData2[0];
+
+            /* The boot image state is stored as a word in flash memory where
+             * the most significant three bytes are a "magic number" and the
+             * least significant byte is the state constant.
+             */
+            if( (*pBootImgState & 0xffffff00) == (BLPARMS_MAGIC & 0xffffff00) )
+            {
+                *pBootImgState &= ~0x000000ff;
+                *pBootImgState |= newState;
+
+                ret = setSharedBlks(fInfo.flash_scratch_pad_start_blk,    
+                    fInfo.flash_scratch_pad_number_blk,  pShareBuf);
+            }
+
+            retriedKfree(pShareBuf);
+        }
+    }
+    else
+    {
+        mm_segment_t fs;
+
+        /* NAND flash */
+        char state_name_old[] = "/data/" NAND_BOOT_STATE_FILE_NAME;
+        char state_name_new[] = "/data/" NAND_BOOT_STATE_FILE_NAME;
+
+        fs = get_fs();
+        set_fs(get_ds());
+
+        if( currState == -1 )
+        {
+#ifndef AEI_VDSL_CUSTOMER_NCS
+            /* Create new state file name. */
+            struct file *fp;
+
+            state_name_new[strlen(state_name_new) - 1] = newState;
+            fp = filp_open(state_name_new, O_RDWR | O_TRUNC | O_CREAT,
+                S_IRUSR | S_IWUSR);
+
+            if (!IS_ERR(fp))
+            {
+                fp->f_pos = 0;
+                fp->f_op->write(fp, (void *) "boot state\n",
+                    strlen("boot state\n"), &fp->f_pos);
+                vfs_fsync(fp, fp->f_path.dentry, 0);
+                filp_close(fp, NULL);
+            }
+            else
+                printk("Unable to open '%s'.\n", PSI_FILE_NAME);
+#endif
+        }
+        else
+        {
+            if( currState != newState )
+            {
+                /* Rename old state file name to new state file name. */
+                state_name_old[strlen(state_name_old) - 1] = currState;
+                state_name_new[strlen(state_name_new) - 1] = newState;
+                sys_rename(state_name_old, state_name_new);
+            }
+        }
+
+        set_fs(fs);
+        ret = 0;
+    }
+
+    return( ret );
+}
+
+/***********************************************************************
+ * Function Name: readBootImageState
+ * Description  : Reads the current boot image state from flash memory.
+ * Returns      : state constant or -1 for failure
+ ***********************************************************************/
+static int readBootImageState( void )
+{
+    int ret = -1;
+
+    if(bootFromNand == 0)
+    {
+        /* NOR flash */
+        char *pShareBuf = NULL;
+
+        if( (pShareBuf = getSharedBlks( fInfo.flash_scratch_pad_start_blk,
+            fInfo.flash_scratch_pad_number_blk)) != NULL )
+        {
+            PSP_HEADER pHdr = (PSP_HEADER) pShareBuf;
+            unsigned long *pBootImgState=(unsigned long *)&pHdr->NvramData2[0];
+
+            /* The boot image state is stored as a word in flash memory where
+             * the most significant three bytes are a "magic number" and the
+             * least significant byte is the state constant.
+             */
+            if( (*pBootImgState & 0xffffff00) == (BLPARMS_MAGIC & 0xffffff00) )
+            {
+                ret = *pBootImgState & 0x000000ff;
+            }
+
+            retriedKfree(pShareBuf);
+        }
+    }
+    else
+    {
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+        NVRAM_DATA NvramData;
+        char *p;
+        UINT32 crc = CRC32_INIT_VALUE, savedCrc;
+
+        kerSysNvRamGet((char *)&NvramData, sizeof(NVRAM_DATA), 0);
+        savedCrc = NvramData.ulCheckSum;
+        NvramData.ulCheckSum = 0;
+        crc = getCrc32((char *)&NvramData, sizeof(NVRAM_DATA), crc);
+        if (savedCrc == crc)
+        {
+            for( p = NvramData.szBootline; p[2] != '\0'; p++ )
+            {
+                if( p[0] == 'p' && p[1] == '=' )
+                {
+                    ret = p[2];
+                    break;
+                }
+            }
+        }
+#else
+        /* NAND flash */
+        int i;
+        char states[] = {BOOT_SET_NEW_IMAGE, BOOT_SET_OLD_IMAGE,
+            BOOT_SET_NEW_IMAGE_ONCE};
+        char boot_state_name[] = "/data/" NAND_BOOT_STATE_FILE_NAME;
+
+        /* The boot state is stored as the last character of a file name on
+         * the data partition, /data/boot_state_X, where X is
+         * BOOT_SET_NEW_IMAGE, BOOT_SET_OLD_IMAGE or BOOT_SET_NEW_IMAGE_ONCE.
+         */
+        for( i = 0; i < sizeof(states); i++ )
+        {
+            struct file *fp;
+            boot_state_name[strlen(boot_state_name) - 1] = states[i];
+            fp = filp_open(boot_state_name, O_RDONLY, 0);
+            if (!IS_ERR(fp) )
+            {
+                filp_close(fp, NULL);
+
+                ret = (int) states[i];
+                break;
+            }
+        }
+
+        if( ret == -1 && writeBootImageState( -1, BOOT_SET_NEW_IMAGE ) == 0 )
+            ret = BOOT_SET_NEW_IMAGE;
+#endif
+    }
+
+    return( ret );
+}
+
+/***********************************************************************
+ * Function Name: dirent_rename
+ * Description  : Renames file oldname to newname by parsing NAND flash
+ *                blocks with JFFS2 file system entries.  When the JFFS2
+ *                directory entry inode for oldname is found, it is modified
+ *                for newname.  This differs from a file system rename
+ *                operation that creates a new directory entry with the same
+ *                inode value and greater version number.  The benefit of
+ *                this method is that by having only one directory entry
+ *                inode, the CFE ROM can stop at the first occurance which
+ *                speeds up the boot by not having to search the entire file
+ *                system partition.
+ * Returns      : 0 - success, -1 - failure
+ ***********************************************************************/
+static int dirent_rename(char *oldname, char *newname)
+{
+    int ret = -1;
+    struct mtd_info *mtd = get_mtd_device_nm("rootfs_update"); 
+    unsigned char *buf = (mtd) ? retriedKmalloc(mtd->erasesize) : NULL;
+
+    if( mtd && buf && strlen(oldname) == strlen(newname) )
+    {
+        int namelen = strlen(oldname);
+        int blk, done, retlen;
+
+        /* Read NAND flash blocks in the rootfs_update JFFS2 file system
+         * partition to search for a JFFS2 directory entry for the oldname
+         * file.
+         */
+        for(blk = 0, done = 0; blk < mtd->size && !done; blk += mtd->erasesize)
+        {
+            if(mtd->read(mtd, blk, mtd->erasesize, &retlen, buf) == 0)
+            {
+                struct jffs2_raw_dirent *pdir;
+                unsigned char *p = buf;
+
+                while( p < buf + mtd->erasesize )
+                {
+                    pdir = (struct jffs2_raw_dirent *) p;
+                    if( je16_to_cpu(pdir->magic) == JFFS2_MAGIC_BITMASK )
+                    {
+                        if( je16_to_cpu(pdir->nodetype) ==
+                                JFFS2_NODETYPE_DIRENT &&
+                            !memcmp(oldname, pdir->name, namelen) &&
+                            je32_to_cpu(pdir->ino) != 0 )
+                        {
+                            /* Found the oldname directory entry.  Change the
+                             * name to newname.
+                             */
+                            memcpy(pdir->name, newname, namelen);
+                            je32_to_cpu(pdir->name_crc) = crc32(0, pdir->name,
+                                (unsigned int) namelen);
+
+                            /* Write the modified block back to NAND flash. */
+                            if(nandEraseBlkNotSpare( mtd, blk ) == 0)
+                            {
+                                if( mtd->write(mtd, blk, mtd->erasesize,
+                                    &retlen, buf) == 0 )
+                                {
+                                    ret = 0;
+                                }
+                            }
+
+                            done = 1;
+                            break;
+                        }
+
+                        p += (je32_to_cpu(pdir->totlen) + 0x03) & ~0x03;
+                    }
+                    else
+                        break;
+                }
+            }
+        }
+    }
+    else
+        printk("%s: Error renaming file\n", __FUNCTION__);
+
+    if( mtd )
+        put_mtd_device(mtd);
+
+    if( buf )
+        retriedKfree(buf);
+
+    return( ret );
+}
+
+/***********************************************************************
+ * Function Name: updateSequenceNumber
+ * Description  : updates the sequence number on the specified partition
+ *                to be the highest.
+ * Returns      : 0 - success, -1 - failure
+ ***********************************************************************/
+static int updateSequenceNumber(int incSeqNumPart, int seqPart1, int seqPart2)
+{
+    int ret = -1;
+
+    mutex_lock(&flashImageMutex);
+    if(bootFromNand == 0)
+    {
+        /* NOR flash */
+        char *pShareBuf = NULL;
+        PFILE_TAG pTag;
+        int blk;
+
+        pTag = kerSysUpdateTagSequenceNumber(incSeqNumPart);
+        blk = *(int *) (pTag + 1);
+
+        if ((pShareBuf = getSharedBlks(blk, 1)) != NULL)
+        {
+            memcpy(pShareBuf, pTag, sizeof(FILE_TAG));
+            setSharedBlks(blk, 1, pShareBuf);
+            retriedKfree(pShareBuf);
+        }
+    }
+    else
+    {
+        /* NAND flash */
+
+        /* The sequence number on NAND flash is updated by renaming file
+         * cferam.XXX where XXX is the sequence number. The rootfs partition
+         * is usually read-only. Therefore, only the cferam.XXX file on the
+         * rootfs_update partiton is modified. Increase or decrase the
+         * sequence number on the rootfs_update partition so the desired
+         * partition boots.
+         */
+        int seq = -1;
+        unsigned long rootfs_ofs = 0xff;
+
+        kerSysBlParmsGetInt(NAND_RFS_OFS_NAME, (int *) &rootfs_ofs);
+
+        if(rootfs_ofs == inMemNvramData.ulNandPartOfsKb[NP_ROOTFS_1] )
+        {
+            /* Partition 1 is the booted partition. */
+            if( incSeqNumPart == 2 )
+            {
+                /* Increase sequence number in rootfs_update partition. */
+                if( seqPart1 >= seqPart2 )
+                    seq = seqPart1 + 1;
+            }
+            else
+            {
+                /* Decrease sequence number in rootfs_update partition. */
+                if( seqPart2 >= seqPart1 && seqPart1 != 0 )
+                    seq = seqPart1 - 1;
+            }
+        }
+        else
+        {
+            /* Partition 2 is the booted partition. */
+            if( incSeqNumPart == 1 )
+            {
+                /* Increase sequence number in rootfs_update partition. */
+                if( seqPart2 >= seqPart1 )
+                    seq = seqPart2 + 1;
+            }
+            else
+            {
+                /* Decrease sequence number in rootfs_update partition. */
+                if( seqPart1 >= seqPart2 && seqPart2 != 0 )
+                    seq = seqPart2 - 1;
+            }
+        }
+
+        if( seq != -1 )
+        {
+            /* Find the sequence number of the non-booted partition. */
+            mm_segment_t fs;
+
+            fs = get_fs();
+            set_fs(get_ds());
+            if( sys_mount("mtd:rootfs_update", "/mnt", "jffs2", 0, NULL) == 0 )
+            {
+                char fname[] = NAND_CFE_RAM_NAME;
+                char cferam_old[32], cferam_new[32], cferam_fmt[32]; 
+                int i;
+
+                fname[strlen(fname) - 3] = '\0'; /* remove last three chars */
+                strcpy(cferam_fmt, "/mnt/");
+                strcat(cferam_fmt, fname);
+                strcat(cferam_fmt, "%3.3d");
+
+                for( i = 0; i < 999; i++ )
+                {
+                    struct file *fp;
+                    sprintf(cferam_old, cferam_fmt, i);
+                    fp = filp_open(cferam_old, O_RDONLY, 0);
+                    if (!IS_ERR(fp) )
+                    {
+                        filp_close(fp, NULL);
+
+                        /* Change the boot sequence number in the rootfs_update
+                         * partition by renaming file cferam.XXX where XXX is
+                         * a sequence number.
+                         */
+                        sprintf(cferam_new, cferam_fmt, seq);
+                        if( NAND_FULL_PARTITION_SEARCH )
+                        {
+                            sys_rename(cferam_old, cferam_new);
+                            sys_umount("/mnt", 0);
+                        }
+                        else
+                        {
+                            sys_umount("/mnt", 0);
+                            dirent_rename(cferam_old + strlen("/mnt/"),
+                                cferam_new + strlen("/mnt/"));
+                        }
+                        break;
+                    }
+                }
+            }
+            set_fs(fs);
+        }
+    }
+    mutex_unlock(&flashImageMutex);
+
+    return( ret );
+}
+
+/***********************************************************************
  * Function Name: kerSysSetBootImageState
  * Description  : Persistently sets the state of an image update.
  * Returns      : 0 - success, -1 - failure
  ***********************************************************************/
-int kerSysSetBootImageState( int state )
+int kerSysSetBootImageState( int newState )
 {
     int ret = -1;
-    char *pShareBuf = NULL;
-    int seqNumUpdatePart = -1;
+    int incSeqNumPart = -1;
     int writeImageState = 0;
+    int currState = readBootImageState();
     int seq1 = kerSysGetSequenceNumber(1);
     int seq2 = kerSysGetSequenceNumber(2);
 
@@ -2826,128 +3283,90 @@ int kerSysSetBootImageState( int state )
      * compatibility with the non-OMCI image update.
      */
     mutex_lock(&spMutex);
-    if( (pShareBuf = getSharedBlks( fInfo.flash_scratch_pad_start_blk,
-        fInfo.flash_scratch_pad_number_blk)) != NULL )
+    switch(newState)
     {
-        PSP_HEADER pHdr = (PSP_HEADER) pShareBuf;
-        unsigned long *pBootImgState=(unsigned long *)&pHdr->NvramData2[0];
-
-        switch(state)
+    case BOOT_SET_PART1_IMAGE:
+        if( seq1 != -1 )
         {
-        case BOOT_SET_PART1_IMAGE:
-            if( seq1 != -1 )
-            {
-                if( seq1 < seq2 )
-                    seqNumUpdatePart = 1;
-                state = BOOT_SET_NEW_IMAGE;
-                writeImageState = 1;
-            }
-            break;
+            if( seq1 < seq2 )
+                incSeqNumPart = 1;
+            newState = BOOT_SET_NEW_IMAGE;
+            writeImageState = 1;
+        }
+        break;
 
-        case BOOT_SET_PART2_IMAGE:
-            if( seq2 != -1 )
-            {
-                if( seq2 < seq1 )
-                    seqNumUpdatePart = 2;
-                state = BOOT_SET_NEW_IMAGE;
-                writeImageState = 1;
-            }
-            break;
+    case BOOT_SET_PART2_IMAGE:
+        if( seq2 != -1 )
+        {
+            if( seq2 < seq1 )
+                incSeqNumPart = 2;
+            newState = BOOT_SET_NEW_IMAGE;
+            writeImageState = 1;
+        }
+        break;
 
-        case BOOT_SET_PART1_IMAGE_ONCE:
-            if( seq1 != -1 )
-            {
-                if( seq1 < seq2 )
-                    seqNumUpdatePart = 1;
-                state = BOOT_SET_NEW_IMAGE_ONCE;
-                writeImageState = 1;
-            }
-            break;
+    case BOOT_SET_PART1_IMAGE_ONCE:
+        if( seq1 != -1 )
+        {
+            if( seq1 < seq2 )
+                incSeqNumPart = 1;
+            newState = BOOT_SET_NEW_IMAGE_ONCE;
+            writeImageState = 1;
+        }
+        break;
 
-        case BOOT_SET_PART2_IMAGE_ONCE:
-            if( seq2 != -1 )
-            {
-                if( seq2 < seq1 )
-                    seqNumUpdatePart = 2;
-                state = BOOT_SET_NEW_IMAGE_ONCE;
-                writeImageState = 1;
-            }
-            break;
+    case BOOT_SET_PART2_IMAGE_ONCE:
+        if( seq2 != -1 )
+        {
+            if( seq2 < seq1 )
+                incSeqNumPart = 2;
+            newState = BOOT_SET_NEW_IMAGE_ONCE;
+            writeImageState = 1;
+        }
+        break;
 
-        case BOOT_SET_OLD_IMAGE:
-        case BOOT_SET_NEW_IMAGE:
-        case BOOT_SET_NEW_IMAGE_ONCE:
-            /* The boot image state is stored as a word in flash memory where
-             * the most significant three bytes are a "magic number" and the
-             * least significant byte is the state constant.
-             */
-            if((*pBootImgState & 0xffffff00) == (BLPARMS_MAGIC & 0xffffff00) &&
-                (*pBootImgState & 0x000000ff) == (state & 0x000000ff))
-            {
-                ret = 0;
-            }
-            else
-            {
-                *pBootImgState = (BLPARMS_MAGIC & 0xffffff00);
-                *pBootImgState |= (state & 0x000000ff);
-                writeImageState = 1;
+    case BOOT_SET_OLD_IMAGE:
+    case BOOT_SET_NEW_IMAGE:
+    case BOOT_SET_NEW_IMAGE_ONCE:
+        /* The boot image state is stored as a word in flash memory where
+         * the most significant three bytes are a "magic number" and the
+         * least significant byte is the state constant.
+         */
+        if( currState == newState )
+        {
+            ret = 0;
+        }
+        else
+        {
+            writeImageState = 1;
 
-                if( state == BOOT_SET_NEW_IMAGE &&
-                    (*pBootImgState & 0x000000ff) == BOOT_SET_OLD_IMAGE )
-                {
-                    /* The old (previous) image is being set as the new
-                     * (current) image. Make sequence number of the old
-                     * image the highest sequence number in order for it
-                     * to become the new image.
-                     */
+            if(newState==BOOT_SET_NEW_IMAGE && currState==BOOT_SET_OLD_IMAGE)
+            {
+                /* The old (previous) image is being set as the new
+                 * (current) image. Make sequence number of the old
+                 * image the highest sequence number in order for it
+                 * to become the new image.
+                 */
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-                    seqNumUpdatePart = -1;
+                incSeqNumPart = -1;
 #else
-                    seqNumUpdatePart = 0;
+                incSeqNumPart = 0;
 #endif
-                }
             }
-            break;
-
-        default:
-            break;
         }
+        break;
 
-        if( writeImageState )
-        {
-            *pBootImgState = (BLPARMS_MAGIC & 0xffffff00);
-            *pBootImgState |= (state & 0x000000ff);
-
-            ret = setSharedBlks(fInfo.flash_scratch_pad_start_blk,    
-                fInfo.flash_scratch_pad_number_blk,  pShareBuf);
-        }
-
-        mutex_unlock(&spMutex);
-        retriedKfree(pShareBuf);
-
-        if( seqNumUpdatePart != -1 )
-        {
-            PFILE_TAG pTag;
-            int blk;
-
-            mutex_lock(&flashImageMutex);
-            pTag = kerSysUpdateTagSequenceNumber(seqNumUpdatePart);
-            blk = *(int *) (pTag + 1);
-
-            if ((pShareBuf = getSharedBlks(blk, 1)) != NULL)
-            {
-                memcpy(pShareBuf, pTag, sizeof(FILE_TAG));
-                setSharedBlks(blk, 1, pShareBuf);
-                retriedKfree(pShareBuf);
-            }
-            mutex_unlock(&flashImageMutex);
-        }
+    default:
+        break;
     }
-    else
-    {
-        // getSharedBlks failed, release mutex
-        mutex_unlock(&spMutex);
-    }
+
+    if( writeImageState )
+        ret = writeBootImageState(currState, newState);
+
+    mutex_unlock(&spMutex);
+
+    if( incSeqNumPart != -1 )
+        updateSequenceNumber(incSeqNumPart, seq1, seq2);
 
     return( ret );
 }
@@ -2959,60 +3378,442 @@ int kerSysSetBootImageState( int state )
  ***********************************************************************/
 int kerSysGetBootImageState( void )
 {
-    int ret = -1;
-    char *pShareBuf = NULL;
+    int ret = readBootImageState();
 
-    if( (pShareBuf = getSharedBlks( fInfo.flash_scratch_pad_start_blk,
-        fInfo.flash_scratch_pad_number_blk)) != NULL )
+    if( ret != -1 )
     {
-        PSP_HEADER pHdr = (PSP_HEADER) pShareBuf;
-        unsigned long *pBootImgState=(unsigned long *)&pHdr->NvramData2[0];
+        int seq1 = kerSysGetSequenceNumber(1);
+        int seq2 = kerSysGetSequenceNumber(2);
 
-        /* The boot image state is stored as a word in flash memory where
-         * the most significant three bytes are a "magic number" and the
-         * least significant byte is the state constant.
-         */
-        if( (*pBootImgState & 0xffffff00) == (BLPARMS_MAGIC & 0xffffff00) )
+        switch(ret)
         {
-            int seq1 = kerSysGetSequenceNumber(1);
-            int seq2 = kerSysGetSequenceNumber(2);
+        case BOOT_SET_NEW_IMAGE:
+            if( seq1 == -1 || seq1 < seq2 )
+                ret = BOOT_SET_PART2_IMAGE;
+            else
+                ret = BOOT_SET_PART1_IMAGE;
+            break;
 
-            switch(ret = (*pBootImgState & 0x000000ff))
-            {
-            case BOOT_SET_NEW_IMAGE:
-                if( seq1 == -1 || seq1< seq2 )
-                    ret = BOOT_SET_PART2_IMAGE;
-                else
-                    ret = BOOT_SET_PART1_IMAGE;
-                break;
+        case BOOT_SET_NEW_IMAGE_ONCE:
+            if( seq1 == -1 || seq1 < seq2 )
+                ret = BOOT_SET_PART2_IMAGE_ONCE;
+            else
+                ret = BOOT_SET_PART1_IMAGE_ONCE;
+            break;
 
-            case BOOT_SET_NEW_IMAGE_ONCE:
-                if( seq1 == -1 || seq1< seq2 )
-                    ret = BOOT_SET_PART2_IMAGE_ONCE;
-                else
-                    ret = BOOT_SET_PART1_IMAGE_ONCE;
-                break;
+        case BOOT_SET_OLD_IMAGE:
+            if( seq1 == -1 || seq1 > seq2 )
+                ret = BOOT_SET_PART2_IMAGE;
+            else
+                ret = BOOT_SET_PART1_IMAGE;
+            break;
 
-            case BOOT_SET_OLD_IMAGE:
-                if( seq1 == -1 || seq1> seq2 )
-                    ret = BOOT_SET_PART2_IMAGE;
-                else
-                    ret = BOOT_SET_PART1_IMAGE;
-                break;
-                break;
-
-            default:
-                ret = -1;
-                break;
-            }
+        default:
+            ret = -1;
+            break;
         }
-
-        retriedKfree(pShareBuf);
     }
 
     return( ret );
 }
 
+/***********************************************************************
+ * Function Name: kerSysSetOpticalPowerValues
+ * Description  : Saves optical power values to flash that are obtained
+ *                during the  manufacturing process. These values are
+ *                stored in NVRAM_DATA which should not be erased.
+ * Returns      : 0 - success, -1 - failure
+ ***********************************************************************/
+int kerSysSetOpticalPowerValues(UINT16 rxReading, UINT16 rxOffset, 
+    UINT16 txReading)
+{
+    NVRAM_DATA nd;
+
+    kerSysNvRamGet((char *) &nd, sizeof(nd), 0);
+
+    nd.opticRxPwrReading = rxReading;
+    nd.opticRxPwrOffset  = rxOffset;
+    nd.opticTxPwrReading = txReading;
+    
+    nd.ulCheckSum = 0;
+    nd.ulCheckSum = crc32(CRC32_INIT_VALUE, &nd, sizeof(NVRAM_DATA));
+
+    return(kerSysNvRamSet((char *) &nd, sizeof(nd), 0));
+}
+
+/***********************************************************************
+ * Function Name: kerSysGetOpticalPowerValues
+ * Description  : Retrieves optical power values from flash that were
+ *                saved during the manufacturing process.
+ * Returns      : 0 - success, -1 - failure
+ ***********************************************************************/
+int kerSysGetOpticalPowerValues(UINT16 *prxReading, UINT16 *prxOffset, 
+    UINT16 *ptxReading)
+{
+    NVRAM_DATA nd;
+
+    kerSysNvRamGet((char *) &nd, sizeof(nd), 0);
+
+    *prxReading = nd.opticRxPwrReading;
+    *prxOffset  = nd.opticRxPwrOffset;
+    *ptxReading = nd.opticTxPwrReading;
+
+    return(0);
+}
+
+
+#if !defined(CONFIG_BRCM_IKOS)
+
+int kerSysEraseFlash(unsigned long eraseaddr, unsigned long len)
+{
+    int blk;
+    int bgnBlk = flash_get_blk(eraseaddr);
+    int endBlk = flash_get_blk(eraseaddr + len);
+    unsigned long bgnAddr = (unsigned long) flash_get_memptr(bgnBlk);
+    unsigned long endAddr = (unsigned long) flash_get_memptr(endBlk);
+
+#ifdef DEBUG_FLASH
+    printk("kerSysEraseFlash blk[%d] eraseaddr[0x%08x] len[%lu]\n",
+    bgnBlk, (int)eraseaddr, len);
+#endif
+
+    if ( bgnAddr != eraseaddr)
+    {
+       printk("ERROR: kerSysEraseFlash eraseaddr[0x%08x]"
+              " != first block start[0x%08x]\n",
+              (int)eraseaddr, (int)bgnAddr);
+        return (len);
+    }
+
+    if ( (endAddr - bgnAddr) != len)
+    {
+        printk("ERROR: kerSysEraseFlash eraseaddr[0x%08x] + len[%lu]"
+               " != last+1 block start[0x%08x]\n",
+               (int)eraseaddr, len, (int) endAddr);
+        return (len);
+    }
+
+    for (blk=bgnBlk; blk<endBlk; blk++)
+        flash_sector_erase_int(blk);
+
+    return 0;
+}
+
+unsigned long kerSysReadFromFlash( void *toaddr, unsigned long fromaddr,
+    unsigned long len )
+{
+    int blk, offset, bytesRead;
+    unsigned long blk_start;
+    char * trailbyte = (char*) NULL;
+    char val[2];
+
+    blk = flash_get_blk((int)fromaddr);	/* sector in which fromaddr falls */
+    blk_start = (unsigned long)flash_get_memptr(blk); /* sector start address */
+    offset = (int)(fromaddr - blk_start); /* offset into sector */
+
+#ifdef DEBUG_FLASH
+    printk("kerSysReadFromFlash blk[%d] fromaddr[0x%08x]\n",
+           blk, (int)fromaddr);
+#endif
+
+    bytesRead = 0;
+
+        /* cfiflash : hardcoded for bankwidths of 2 bytes. */
+    if ( offset & 1 )   /* toaddr is not 2 byte aligned */
+    {
+        flash_read_buf(blk, offset-1, val, 2);
+        *((char*)toaddr) = val[1];
+
+        toaddr = (void*)((char*)toaddr+1);
+        fromaddr += 1;
+        len -= 1;
+        bytesRead = 1;
+
+        /* if len is 0 we could return here, avoid this if */
+
+        /* recompute blk and offset, using new fromaddr */
+        blk = flash_get_blk(fromaddr);
+        blk_start = (unsigned long)flash_get_memptr(blk);
+        offset = (int)(fromaddr - blk_start);
+    }
+
+        /* cfiflash : hardcoded for len of bankwidths multiples. */
+    if ( len & 1 )
+    {
+        len -= 1;
+        trailbyte = (char *)toaddr + len;
+    }
+
+        /* Both len and toaddr will be 2byte aligned */
+    if ( len )
+    {
+       flash_read_buf(blk, offset, toaddr, len);
+       bytesRead += len;
+    }
+
+        /* write trailing byte */
+    if ( trailbyte != (char*) NULL )
+    {
+        fromaddr += len;
+        blk = flash_get_blk(fromaddr);
+        blk_start = (unsigned long)flash_get_memptr(blk);
+        offset = (int)(fromaddr - blk_start);
+        flash_read_buf(blk, offset, val, 2 );
+        *trailbyte = val[0];
+        bytesRead += 1;
+    }
+
+    return( bytesRead );
+}
+
+/*
+ * Function: kerSysWriteToFlash
+ *
+ * Description:
+ * This function assumes that the area of flash to be written was
+ * previously erased. An explicit erase is therfore NOT needed 
+ * prior to a write. This function ensures that the offset and len are
+ * two byte multiple. [cfiflash hardcoded for bankwidth of 2 byte].
+ *
+ * Parameters:
+ *      toaddr : destination flash memory address
+ *      fromaddr: RAM memory address containing data to be written
+ *      len : non zero bytes to be written
+ * Return:
+ *      FAILURE: number of bytes remaining to be written
+ *      SUCCESS: 0 (all requested bytes were written)
+ */
+int kerSysWriteToFlash( unsigned long toaddr,
+                        void * fromaddr, unsigned long len)
+{
+    int blk, offset, size, blk_size, bytesWritten;
+    unsigned long blk_start;
+    char * trailbyte = (char*) NULL;
+    unsigned char val[2];
+
+#ifdef DEBUG_FLASH
+    printk("kerSysWriteToFlash flashAddr[0x%08x] fromaddr[0x%08x] len[%lu]\n",
+    (int)toaddr, (int)fromaddr, len);
+#endif
+
+    blk = flash_get_blk(toaddr);	/* sector in which toaddr falls */
+    blk_start = (unsigned long)flash_get_memptr(blk); /* sector start address */
+    offset = (int)(toaddr - blk_start);	/* offset into sector */
+
+	/* cfiflash : hardcoded for bankwidths of 2 bytes. */
+    if ( offset & 1 )	/* toaddr is not 2 byte aligned */
+    {
+        val[0] = 0xFF; // ignored
+        val[1] = *((char *)fromaddr); /* write the first byte */
+        bytesWritten = flash_write_buf(blk, offset-1, val, 2);
+        if ( bytesWritten != 2 )
+        {
+#ifdef DEBUG_FLASH
+           printk("ERROR kerSysWriteToFlash ... remaining<%d>\n", len); 
+#endif
+           return len;
+        }
+
+	toaddr += 1;
+        fromaddr = (void*)((char*)fromaddr+1);
+        len -= 1;
+
+	/* if len is 0 we could return bytesWritten, avoid this if */
+
+	/* recompute blk and offset, using new toaddr */
+        blk = flash_get_blk(toaddr);
+        blk_start = (unsigned long)flash_get_memptr(blk);
+        offset = (int)(toaddr - blk_start);
+    }
+
+	/* cfiflash : hardcoded for len of bankwidths multiples. */
+    if ( len & 1 )
+    {
+	/* need to handle trailing byte seperately */
+        len -= 1;
+        trailbyte = (char *)fromaddr + len;
+        toaddr += len;
+    }
+
+	/* Both len and toaddr will be 2byte aligned */
+    while ( len > 0 )
+    {
+        blk_size = flash_get_sector_size(blk);
+        size = blk_size - offset; /* space available in sector from offset */
+        if ( size > len )
+            size = len;
+
+        bytesWritten = flash_write_buf(blk, offset, fromaddr, size); 
+        if ( bytesWritten !=  size )
+        {
+#ifdef DEBUG_FLASH
+           printk("ERROR kerSysWriteToFlash ... remaining<%d>\n", 
+               (len - bytesWritten + ((trailbyte == (char*)NULL)? 0 : 1)));
+#endif
+           return (len - bytesWritten + ((trailbyte == (char*)NULL)? 0 : 1));
+        }
+
+        fromaddr += size;
+        len -= size;
+
+        blk++;	/* Move to the next block */
+        offset = 0; /* All further blocks will be written at offset 0 */
+    }
+
+	/* write trailing byte */
+    if ( trailbyte != (char*) NULL )
+    {
+        blk = flash_get_blk(toaddr);
+        blk_start = (unsigned long)flash_get_memptr(blk);
+        offset = (int)(toaddr - blk_start);
+        val[0] = *trailbyte; /* trailing byte */
+        val[1] = 0xFF; // ignored
+        bytesWritten = flash_write_buf(blk, offset, val, 2 );
+        if ( bytesWritten != 2 )
+        {
+#ifdef DEBUG_FLASH
+           printk("ERROR kerSysWriteToFlash ... remaining<%d>\n",1);
+#endif
+           return 1;
+        }
+    } 
+
+    return len;
+}
+/*
+ * Function: kerSysWriteToFlashREW
+ * 
+ * Description:
+ * This function does not assume that the area of flash to be written was erased.
+ * An explicit erase is therfore needed prior to a write.  
+ * kerSysWriteToFlashREW uses a sector copy  algorithm. The first and last sectors
+ * may need to be first read if they are not fully written. This is needed to
+ * avoid the situation that there may be some valid data in the sector that does
+ * not get overwritten, and would be erased.
+ *
+ * Due to run time costs for flash read, optimizations to read only that data
+ * that will not be overwritten is introduced.
+ *
+ * Parameters:
+ *	toaddr : destination flash memory address
+ *	fromaddr: RAM memory address containing data to be written
+ *	len : non zero bytes to be written
+ * Return:
+ *	FAILURE: number of bytes remaining to be written 
+ *	SUCCESS: 0 (all requested bytes were written)
+ *
+ */
+int kerSysWriteToFlashREW( unsigned long toaddr,
+                        void * fromaddr, unsigned long len)
+{
+    int blk, offset, size, blk_size, bytesWritten;
+    unsigned long sect_start;
+    int mem_sz = 0;
+    char * mem_p = (char*)NULL;
+
+#ifdef DEBUG_FLASH
+    printk("kerSysWriteToFlashREW flashAddr[0x%08x] fromaddr[0x%08x] len[%lu]\n",
+    (int)toaddr, (int)fromaddr, len);
+#endif
+
+    blk = flash_get_blk( toaddr );
+    sect_start = (unsigned long) flash_get_memptr(blk);
+    offset = toaddr - sect_start;
+
+    while ( len > 0 )
+    {
+        blk_size = flash_get_sector_size(blk);
+        size = blk_size - offset; /* space available in sector from offset */
+
+		/* bound size to remaining len in final block */
+        if ( size > len )
+            size = len;
+
+		/* Entire blk written, no dirty data to read */
+        if ( size == blk_size )
+        {
+            flash_sector_erase_int(blk);
+
+            bytesWritten = flash_write_buf(blk, 0, fromaddr, blk_size);
+
+            if ( bytesWritten != blk_size )
+            {
+                if ( mem_p != NULL )
+                    retriedKfree(mem_p);
+                return (len - bytesWritten);	/* FAILURE */
+            }
+        }
+        else
+        {
+                /* Support for variable sized blocks, paranoia */
+            if ( (mem_p != NULL) && (mem_sz < blk_size) )
+            {
+                retriedKfree(mem_p);	/* free previous temp buffer */
+                mem_p = (char*)NULL;
+            }
+
+            if ( (mem_p == (char*)NULL)
+              && ((mem_p = (char*)retriedKmalloc(blk_size)) == (char*)NULL) )
+            {
+                printk("\tERROR kerSysWriteToFlashREW fail to allocate memory\n");
+                return len;
+            }
+            else
+                mem_sz = blk_size;
+
+            if ( offset ) /* First block */
+            {
+                if ( (offset + size) == blk_size)
+                {
+                   flash_read_buf(blk, 0, mem_p, offset);
+                }
+                else
+                {  /*
+		    *	 Potential for future optimization:
+		    * Should have read the begining and trailing portions
+		    * of the block. If the len written is smaller than some
+		    * break even point.
+		    * For now read the entire block ... move on ...
+		    */
+                   flash_read_buf(blk, 0, mem_p, blk_size);
+                }
+            }
+            else
+            {
+                /* Read the tail of the block which may contain dirty data*/
+                flash_read_buf(blk, len, mem_p+len, blk_size-len );
+            }
+
+            flash_sector_erase_int(blk);
+
+            memcpy(mem_p+offset, fromaddr, size); /* Rebuild block contents */
+
+            bytesWritten = flash_write_buf(blk, 0, mem_p, blk_size);
+
+            if ( bytesWritten != blk_size )
+            {
+                if ( mem_p != (char*)NULL )
+                    retriedKfree(mem_p);
+                return (len + (blk_size - size) - bytesWritten );
+            }
+        }
+
+		/* take into consideration that size bytes were copied */
+        fromaddr += size;
+        toaddr += size;
+        len -= size;
+
+        blk++;		/* Move to the next block */
+        offset = 0;     /* All further blocks will be written at offset 0 */
+
+    }
+
+    if ( mem_p != (char*)NULL )
+        retriedKfree(mem_p);
+
+    return ( len );
+}
+#endif
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
 static void AEI_reportTftpUpgradeStat(int partition)
 {
@@ -3041,7 +3842,7 @@ static void AEI_reportTftpUpgradeStat(int partition)
 }
 /*
  * nandUpdateSeqNum
- * 
+ *
  * Read the sequence number from each rootfs partition.  The sequence number is
  * the extension on the cferam file.  Add one to the highest sequence number
  * and change the extenstion of the cferam in the image to be flashed to that
@@ -3052,7 +3853,7 @@ static int AEI_nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkL
     char fname[] = NAND_CFE_RAM_NAME;
     int fname_actual_len = strlen(fname);
     int fname_cmp_len = strlen(fname) - 3; /* last three are digits */
-    char cferam_base[32], cferam_buf[32], cferam_fmt[32]; 
+    char cferam_base[32], cferam_buf[32], cferam_fmt[32];
     int i;
     struct file *fp;
     int seq = -1;
@@ -3119,7 +3920,7 @@ static int AEI_nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkL
         /* Increment the new highest sequence number. Add it to the CFE RAM
          * file name.
          */
-        seq += Partition;
+        seq += (3 - Partition);
 
 
         /* Search the image and replace the last three characters of file
@@ -3177,8 +3978,8 @@ static int AEI_nandUpdateSeqNum(unsigned char *imagePtr, int imageSize, int blkL
 }
 
 
-// NAND flash bcm image 
-// return: 
+// NAND flash bcm image
+// return:
 // 0 - ok
 // !0 - the sector number fail to be flashed (should not be 0)
 int AEI_nandImageSet( int partition, char *string, int img_size )
@@ -3316,6 +4117,8 @@ int AEI_nandImageSet( int partition, char *string, int img_size )
 
         fs_start_blk = fs_start_blk_num * mtd0->erasesize;
 
+        local_irq_save(flags);
+        local_bh_disable();
 
         if( *(unsigned short *) string != JFFS2_MAGIC_BITMASK &&  *(unsigned short *) string != AEI_MAGIC_BITMASK)
         {
@@ -3334,7 +4137,7 @@ int AEI_nandImageSet( int partition, char *string, int img_size )
 
         if((*(unsigned short *) string == JFFS2_MAGIC_BITMASK && *(unsigned short *) (string+2) == AEI_MAGIC_BITMASK) && mtd2!=NULL)
         {
-        
+
             nandEraseBlkNotSpare( mtd2, 0 );
             if (NULL !=(tagbuf = kmalloc(mtd2->erasesize, GFP_KERNEL)) )
             {
@@ -3399,7 +4202,7 @@ int AEI_nandImageSet( int partition, char *string, int img_size )
                     {
                         printk(".");
                         cferam_string = NULL;
-
+                        break;
                     }
                 }
             }
@@ -3418,6 +4221,8 @@ int AEI_nandImageSet( int partition, char *string, int img_size )
         {
             sts = (blk > mtd0->erasesize) ? blk / mtd0->erasesize : 1;
         }
+        local_irq_restore(flags);
+        local_bh_enable();
 
         printk("\n\n");
     }
@@ -3429,37 +4234,34 @@ int AEI_nandImageSet( int partition, char *string, int img_size )
 
     if( mtd2 )
         put_mtd_device(mtd2);
-   
+
     return sts;
 }
 
 int AEI_kerSysBcmImageSet( int partition, char *string, int img_size )
 {
-	int ret = 0;
-	unsigned long flags;
-	
-	// Disable other tasks from this point on
-	//stopOtherCpu();
-	local_irq_save(flags);
-	local_bh_disable();
+    int ret = 0;
+    int iPartition = 0;
 
-
-	if(partition & 1)
-	ret |= AEI_nandImageSet(NP_ROOTFS_1, string, img_size);
-	if((partition & 2) && (ret==0))
-	ret |= AEI_nandImageSet(NP_ROOTFS_2, string, img_size);
-
-	//if(ret)
-	{
-        // re-enable bh and irq only if there was an error and router
-        // will not reboot
-        local_irq_restore(flags);
-		local_bh_enable();
+    if(partition & 2)
+    {
+        ret |= AEI_nandImageSet(NP_ROOTFS_2, string, img_size);
+        if(ret==0)
+        {
+            iPartition |= 2;
+        }
     }
-	AEI_reportTftpUpgradeStat(partition);
+    if((partition & 1) && (ret==0))
+    {
+        ret |= AEI_nandImageSet(NP_ROOTFS_1, string, img_size);
+        if(ret==0)
+        {
+            iPartition |= 1;
+        }
+    }
 
-	return ret;
+    AEI_reportTftpUpgradeStat(iPartition);
+
+    return ret;
 }
-
 #endif
-

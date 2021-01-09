@@ -81,42 +81,20 @@ static const char *const tcp_conntrack_names[] = {
 static unsigned int nf_ct_tcp_timeout_max_retrans __read_mostly    =   5 MINS;
 static unsigned int nf_ct_tcp_timeout_unacknowledged __read_mostly =   5 MINS;
 
-#ifdef CONFIG_BRCM
-# define nf_ct_tcp_timeout_established  blog_nat_tcp_def_idle_timeout
-static unsigned int nf_ct_tcp_timeout_syn_sent __read_mostly =      2 MINS;
-static unsigned int nf_ct_tcp_timeout_syn_recv __read_mostly =     60 SECS;
-static unsigned int nf_ct_tcp_timeout_fin_wait __read_mostly =      2 MINS;
-static unsigned int nf_ct_tcp_timeout_close_wait __read_mostly =   60 SECS;
-static unsigned int nf_ct_tcp_timeout_last_ack __read_mostly =     30 SECS;
-static unsigned int nf_ct_tcp_timeout_time_wait __read_mostly =     2 MINS;
-static unsigned int nf_ct_tcp_timeout_close __read_mostly =        10 SECS;
-
-#define tcp_timeouts *tcp_timeouts_p
 static unsigned int tcp_timeouts[TCP_CONNTRACK_MAX] __read_mostly = {
-	NULL,								/* TCP_CONNTRACK_NONE */
-	&nf_ct_tcp_timeout_syn_sent,		/* TCP_CONNTRACK_SYN_SENT, */
-	&nf_ct_tcp_timeout_syn_recv,		/* TCP_CONNTRACK_SYN_RECV, */
-	&nf_ct_tcp_timeout_established,		/* TCP_CONNTRACK_ESTABLISHED, */
-	&nf_ct_tcp_timeout_fin_wait,		/* TCP_CONNTRACK_FIN_WAIT, */
-	&nf_ct_tcp_timeout_close_wait,		/* TCP_CONNTRACK_CLOSE_WAIT, */
-	&nf_ct_tcp_timeout_last_ack,		/* TCP_CONNTRACK_LAST_ACK, */
-	&nf_ct_tcp_timeout_time_wait,		/* TCP_CONNTRACK_TIME_WAIT, */
-	&nf_ct_tcp_timeout_close,			/* TCP_CONNTRACK_CLOSE, */
-	NULL,								/* TCP_CONNTRACK_LISTEN */
-};
-
+	[TCP_CONNTRACK_SYN_SENT]    = 2 MINS,
+	[TCP_CONNTRACK_SYN_RECV]    = 60 SECS,
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	[TCP_CONNTRACK_ESTABLISHED] = BLOG_NAT_TCP_DEFAULT_IDLE_TIMEOUT,
 #else
-static unsigned int tcp_timeouts[TCP_CONNTRACK_MAX] __read_mostly = {
-    [TCP_CONNTRACK_SYN_SENT]    = 2 MINS,
-    [TCP_CONNTRACK_SYN_RECV]    = 60 SECS,
-    [TCP_CONNTRACK_ESTABLISHED] = 5 DAYS,
-    [TCP_CONNTRACK_FIN_WAIT]    = 2 MINS,
-    [TCP_CONNTRACK_CLOSE_WAIT]  = 60 SECS,
-    [TCP_CONNTRACK_LAST_ACK]    = 30 SECS,
-    [TCP_CONNTRACK_TIME_WAIT]   = 2 MINS,
-    [TCP_CONNTRACK_CLOSE]       = 10 SECS,
-};
+	[TCP_CONNTRACK_ESTABLISHED] = 5 DAYS,
 #endif
+	[TCP_CONNTRACK_FIN_WAIT]    = 2 MINS,
+	[TCP_CONNTRACK_CLOSE_WAIT]  = 60 SECS,
+	[TCP_CONNTRACK_LAST_ACK]    = 30 SECS,
+	[TCP_CONNTRACK_TIME_WAIT]   = 2 MINS,
+	[TCP_CONNTRACK_CLOSE]       = 10 SECS,
+};
 
 #define sNO TCP_CONNTRACK_NONE
 #define sSS TCP_CONNTRACK_SYN_SENT
@@ -1077,13 +1055,13 @@ static int tcp_packet(struct nf_conn *ct,
 		nf_conntrack_event_cache(IPCT_STATUS, ct);
 	}
 #ifdef CONFIG_MIPS_BRCM
-        if (new_state == TCP_CONNTRACK_ESTABLISHED) {
-                if (ct->derived_timeout == 0xFFFFFFFF){
-                        timeout = 0xFFFFFFFF - jiffies;
-                } else if(ct->derived_timeout > 0) {
-                        timeout = ct->derived_timeout;
-                }
-        }
+	if (new_state == TCP_CONNTRACK_ESTABLISHED) {
+		if (ct->derived_timeout == 0xFFFFFFFF){
+			timeout = 0xFFFFFFFF - jiffies;
+		} else if(ct->derived_timeout > 0) {
+			timeout = ct->derived_timeout;
+		}
+	}
 #endif
 	nf_ct_refresh_acct(ct, ctinfo, skb, timeout);
 
@@ -1285,6 +1263,19 @@ static int tcp_nlattr_tuple_size(void)
 }
 #endif
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+int tcp_timeout_estd_proc_hndlr(struct ctl_table *table, int write, struct file *filp,
+		void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+	ret = proc_dointvec_jiffies(table, write, filp, buffer, lenp, ppos);
+	/* on success update the blog time out to be same as tcp_timeout_established */
+	if(!ret )
+		blog_nat_tcp_def_idle_timeout = tcp_timeouts[TCP_CONNTRACK_ESTABLISHED];
+	return ret;
+}
+#endif
+
 #ifdef CONFIG_SYSCTL
 static unsigned int tcp_sysctl_table_users;
 static struct ctl_table_header *tcp_sysctl_header;
@@ -1308,7 +1299,11 @@ static struct ctl_table tcp_sysctl_table[] = {
 		.data		= &tcp_timeouts[TCP_CONNTRACK_ESTABLISHED],
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		.proc_handler	= tcp_timeout_estd_proc_hndlr,
+#else
 		.proc_handler	= proc_dointvec_jiffies,
+#endif
 	},
 	{
 		.procname	= "nf_conntrack_tcp_timeout_fin_wait",
@@ -1409,7 +1404,11 @@ static struct ctl_table tcp_compat_sysctl_table[] = {
 		.data		= &tcp_timeouts[TCP_CONNTRACK_ESTABLISHED],
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+		.proc_handler	= tcp_timeout_estd_proc_hndlr,
+#else
 		.proc_handler	= proc_dointvec_jiffies,
+#endif
 	},
 	{
 		.procname	= "ip_conntrack_tcp_timeout_fin_wait",

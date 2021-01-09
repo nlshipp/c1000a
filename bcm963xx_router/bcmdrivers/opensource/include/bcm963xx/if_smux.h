@@ -15,7 +15,7 @@ extern void smux_ioctl_set(int (*hook)(void __user *));
 struct smux_dev_info {
   struct smux_group *smux_grp;
   struct net_device *vdev;
-  struct net_device_stats stats; 
+  struct net_device_stats stats;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
 #ifdef CONFIG_BLOG
 	BlogStats_t bstats; /* stats when the blog promiscuous layer has consumed packets */
@@ -29,7 +29,7 @@ struct smux_dev_info {
 /* represents a group of smux devices */
 struct smux_group {
   struct net_device	*real_dev;
-  struct list_head	smux_grp_devs;	
+  struct list_head	smux_grp_devs;
   struct list_head	virtual_devs;
 };
 

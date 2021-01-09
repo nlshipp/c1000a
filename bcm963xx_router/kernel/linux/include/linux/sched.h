@@ -168,6 +168,22 @@ print_cfs_rq(struct seq_file *m, int cpu, struct cfs_rq *cfs_rq)
 }
 #endif
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+extern void proc_schedaudit_show_task(struct task_struct *p, struct seq_file *m);
+extern void proc_schedaudit_set_task(struct task_struct *p, uint32_t setindex,
+         uint32_t trig_latency, uint32_t trig_runtime, uint32_t trig_printk);
+#else
+static inline void
+proc_schedaudit_show_task(struct task_struct *p, struct seq_file *m)
+{
+}
+static inline void proc_schedaudit_set_task(struct task_struct *p,
+         uint32_t setindex, uint32_t trig_latency, uint32_t trig_runtime,
+         uint32_t trig_printk)
+{
+}
+#endif
+
 extern unsigned long long time_sync_thresh;
 
 /*
@@ -753,6 +769,23 @@ static inline int sched_info_on(void)
 #endif
 }
 
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+struct bcm_schedaudit {
+	uint32_t trig_latency; /* rw, in us, if 0 schedaudit is totally disabled */
+	uint32_t _start_tstamp; /* internal bookkeeping: start point for timing */
+	uint32_t trig_runtime; /* rw, in us */
+	uint32_t trig_printk;  /* rw, if 1 violations will be noted with printk */
+	uint32_t conforming_latency; /* ro */
+	uint32_t conforming_runtime; /* ro */
+	uint32_t latency_violations; /* ro */
+	uint32_t runtime_violations; /* ro */
+	uint32_t max_latency;        /* ro, in us */
+	uint32_t max_runtime;        /* ro, in us */
+};
+#define BCM_SCHEDAUDIT_QUEUED(p)  if (p->bcm_saudit.trig_latency > 0) { \
+                           p->bcm_saudit._start_tstamp = bcm_tstamp_read();}
+#endif  /* CONFIG_BCM_SCHEDAUDIT */
+
 enum cpu_idle_type {
 	CPU_IDLE,
 	CPU_NOT_IDLE,
@@ -1170,6 +1203,9 @@ struct task_struct {
 
 #if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
 	struct sched_info sched_info;
+#endif
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BCM_SCHEDAUDIT)
+	struct bcm_schedaudit bcm_saudit;
 #endif
 
 	struct list_head tasks;

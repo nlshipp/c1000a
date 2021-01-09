@@ -1233,8 +1233,8 @@ ipv6cp_up(f)
     np_up(f->unit, PPP_IPV6);
     ipv6cp_is_up = 1;
 	fprintf(stderr, "%s@%d ===>>> BCM_PPPOE_CLIENT_IPV6_STATE_UP <<<=== \n", __FUNCTION__, __LINE__);
-    
-#ifdef AEI_CONTROL_LAYER    
+
+#ifdef AEI_CONTROL_LAYER
 	sendCtlPppEventMessage(BCM_PPPOE_CLIENT_IPV6_STATE_UP, NULL, NULL, NULL, NULL, MDMVS_ERROR_NONE);
 #else
 	create_msg(BCM_PPPOE_CLIENT_IPV6_STATE_UP, MDMVS_ERROR_NONE);
@@ -1264,8 +1264,8 @@ ipv6cp_down(f)
     IPV6CPDEBUG(("ipv6cp: down"));
 
 	fprintf(stderr, "%s@%d ===>>> BCM_PPPOE_CLIENT_IPV6_STATE_DOWN <<<=== \n", __FUNCTION__, __LINE__);
-    
-#ifdef AEI_CONTROL_LAYER 
+
+#ifdef AEI_CONTROL_LAYER
 	sendCtlPppEventMessage(BCM_PPPOE_CLIENT_IPV6_STATE_DOWN, NULL, NULL, NULL, NULL, MDMVS_ERROR_NONE);
 #else
 	create_msg(BCM_PPPOE_CLIENT_IPV6_STATE_DOWN, MDMVS_ERROR_UNKNOWN);

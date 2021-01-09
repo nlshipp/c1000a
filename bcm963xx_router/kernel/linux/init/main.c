@@ -111,6 +111,11 @@ EXPORT_SYMBOL(system_state);
 
 #ifdef CONFIG_MIPS_BRCM
 extern void __init allocDspModBuffers(void);
+
+#ifdef CONFIG_BCM_GPON_DDRO
+extern void __init allocGponDDROBuffers(void);
+#endif /* CONFIG_BCM_GPON_DDRO */
+
 #endif /* CONFIG_MIPS_BRCM */
 
 extern void time_init(void);
@@ -661,6 +666,10 @@ asmlinkage void __init start_kernel(void)
 	** before mem_init().
 	*/
 	allocDspModBuffers();
+
+#ifdef CONFIG_BCM_GPON_DDRO
+    allocGponDDROBuffers();
+#endif /* CONFIG_BCM_GPON_DDRO */
 #endif /* CONFIG_MIPS_BRCM */
 	page_cgroup_init();
 	mem_init();

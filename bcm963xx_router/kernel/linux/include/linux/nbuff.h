@@ -2,7 +2,7 @@
 #define __NBUFF_H_INCLUDED__
 
 /*
-<:copyright-gpl
+<:label-BRCM::DUAL/GPL:standard
 
  Copyright 2009 Broadcom Corp. All Rights Reserved.
 
@@ -75,10 +75,10 @@
 
 /*
  * Network device drivers ported to NBUFF must ensure that the headroom is at
- * least 176 bytes in size. Remove this dependancy (TBD).
+ * least 186 bytes in size. Remove this dependancy (TBD).
  */
 // #define CC_FKB_HEADROOM_AUDIT
-#define FKB_HEADROOM                ((176 + 0x0F) & ~0x0F)
+#define FKB_HEADROOM                ((208 + 0x0F) & ~0x0F)
 #define FKB_XLATE_SKB_HEADROOM      FKB_HEADROOM
 #define FKB_XLATE_SKB_TAILROOM      32
 
@@ -141,6 +141,10 @@ extern int nbuff_dbg;
 #endif
 
 #define CC_NBUFF_FLUSH_OPTIMIZATION
+
+/* CACHE OPERATIONS */
+#define FKB_CACHE_FLUSH         0
+#define FKB_CACHE_INV           1
 
 /* OS Specific Section Begin */
 #if defined(__KERNEL__)     /* Linux MIPS Cache Specific */
@@ -209,6 +213,47 @@ static inline void cache_flush_len(void *addr, int len)
     while ( a < e )
     {
         flush_dcache_line(a);   /* Hit_Writeback_Inv_D */
+        a += L1_CACHE_BYTES;    /* next cache line base */
+    }
+}
+
+/*
+ *------------------------------------------------------------------------------
+ * Function   : cache_invalidate_region
+ * Description: 
+ * invalidate a region demarcated by addr to end.
+ * Cache line following rounded up end is not invalidateed.
+ *------------------------------------------------------------------------------
+ */
+static inline void cache_invalidate_region(void *addr, void *end)
+{
+    unsigned long a = ADDR_ALIGN_DN( (unsigned long)addr, L1_CACHE_BYTES );
+    unsigned long e = ADDR_ALIGN_UP( (unsigned long)end, L1_CACHE_BYTES );
+    while ( a < e )
+    {
+        invalidate_dcache_line(a);   /* Hit_Invalidate_D */
+        a += L1_CACHE_BYTES;    /* next cache line base */
+    }
+}
+
+/*
+ *------------------------------------------------------------------------------
+ * Function   : cache_invalidate_len
+ * Description: 
+ * invalidate a region given an address and a length.
+ * The demarcation end is computed by applying length to address before
+ * rounding down address. End is rounded up.
+ * Cache line following rounded up end is not invalidateed.
+ *------------------------------------------------------------------------------
+ */
+static inline void cache_invalidate_len(void *addr, int len)
+{
+    unsigned long a = ADDR_ALIGN_DN( (unsigned long)addr, L1_CACHE_BYTES );
+    unsigned long e = ADDR_ALIGN_UP( ((unsigned long)addr + len),
+                                     L1_CACHE_BYTES );
+    while ( a < e )
+    {
+        invalidate_dcache_line(a);   /* Hit_Invalidate_D */
         a += L1_CACHE_BYTES;    /* next cache line base */
     }
 }
@@ -966,7 +1011,8 @@ FKB_FN( fkb_clone,
  * Description: Flush a FKB from current data or received packet data upto
  * the dirty_p. When Flush Optimization is disabled, the entire length.
  */
-static inline void _fkb_flush(FkBuff_t * fkb_p, uint8_t * data_p, int len)
+static inline void _fkb_flush(FkBuff_t * fkb_p, uint8_t * data_p, int len, 
+    int cache_op)
 {
     uint8_t * fkb_data_p;
 
@@ -987,7 +1033,10 @@ static inline void _fkb_flush(FkBuff_t * fkb_p, uint8_t * data_p, int len)
     fkb_dbg(1, "fkb_p<0x%08x> fkb_data<0x%08x> dirty_p<0x%08x> len<%d>",
             (int)fkb_p, (int)fkb_data_p, (int)dirty_p, len);
 
-    cache_flush_region(fkb_data_p, dirty_p);
+    if (cache_op == FKB_CACHE_FLUSH)
+        cache_flush_region(fkb_data_p, dirty_p);
+    else
+        cache_invalidate_region(fkb_data_p, dirty_p);
 #else
     uint32_t data_offset;
     data_offset = (uint32_t)data_p - (uint32_t)fkb_data_p;
@@ -995,15 +1044,18 @@ static inline void _fkb_flush(FkBuff_t * fkb_p, uint8_t * data_p, int len)
     fkb_dbg(1, "fkb_p<0x%08x> fkb_data<0x%08x> data_offset<%d> len<%d>",
             (int)fkb_p, (int)fkb_data_p, data_offset, len);
 
-    cache_flush_len(fkb_data_p, data_offset + len);
+    if (cache_op == FKB_FLUSH)
+        cache_flush_len(fkb_data_p, data_offset + len);
+    else
+        cache_invalidate_len(fkb_data_p, data_offset + len);
 #endif
     }
 
     fkb_p->dirty_p = (uint8_t*)NULL;
 }
 FKB_FN( fkb_flush,
-        void fkb_flush(FkBuff_t * fkb_p, uint8_t * data, int len),
-        _fkb_flush(fkb_p, data, len) )
+        void fkb_flush(FkBuff_t * fkb_p, uint8_t * data, int len, int cache_op),
+        _fkb_flush(fkb_p, data, len, cache_op) )
 
 /*
  *------------------------------------------------------------------------------
@@ -1272,7 +1324,7 @@ static inline void nbuff_flush(pNBuff_t pNBuff, uint8_t * data, int len)
     else
     {
         FkBuff_t * fkb_p = (FkBuff_t *)PNBUFF_2_PBUF(pNBuff);
-        fkb_flush(fkb_p, data, len); 
+        fkb_flush(fkb_p, data, len, FKB_CACHE_FLUSH); 
     }
     fkb_dbg(2, "<<");
 }
@@ -1297,7 +1349,7 @@ static inline void nbuff_flushfree(pNBuff_t pNBuff)
     else
     {
         FkBuff_t * fkb_p = (FkBuff_t *)pBuf;
-        fkb_flush(fkb_p, fkb_p->data, fkb_p->len);
+        fkb_flush(fkb_p, fkb_p->data, fkb_p->len, FKB_CACHE_FLUSH);
         fkb_free(fkb_p);
     }
     fkb_dbg(2, "<<");

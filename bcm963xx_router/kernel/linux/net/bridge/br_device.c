@@ -72,6 +72,64 @@ static struct net_device_stats * br_dev_collect_stats(struct net_device *dev_p)
 				(uint32_t)&bStats, BLOG_PARAM2_NO_CLEAR);
 
 	memcpy( cStats_p, dStats_p, sizeof(struct net_device_stats) );
+
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)    
+   
+    /* Handle packet count statistics */
+    cStats_p->rx_packets += ( bStats.rx_packets + bStats_p->rx_packets );
+    cStats_p->tx_packets += ( bStats.tx_packets + bStats_p->tx_packets );
+    cStats_p->multicast  += ( bStats.multicast  + bStats_p->multicast );
+    cStats_p->tx_multicast_packets += ( bStats.tx_multicast_packets + bStats_p->tx_multicast_packets );
+    /* NOTE: There are no broadcast packets in BlogStats_t since the
+       flowcache doesn't accelerate broadcast.  Thus, they aren't added here */
+
+	/* set byte counts to 0 if the bstat packet counts are non 0 and the
+		octet counts are 0 */
+    /* Handle RX byte counts */
+	if ( ((bStats.rx_bytes + bStats_p->rx_bytes) == 0) &&
+		  ((bStats.rx_packets + bStats_p->rx_packets) > 0) )
+	{
+		cStats_p->rx_bytes = 0;
+	}
+	else
+	{
+		cStats_p->rx_bytes   += ( bStats.rx_bytes   + bStats_p->rx_bytes );
+	}
+    
+    /* Handle TX byte counts */
+	if ( ((bStats.tx_bytes + bStats_p->tx_bytes) == 0) &&
+		  ((bStats.tx_packets + bStats_p->tx_packets) > 0) )
+	{
+		cStats_p->tx_bytes = 0;
+	}
+	else
+	{
+		cStats_p->tx_bytes   += ( bStats.tx_bytes   + bStats_p->tx_bytes );
+	}
+
+    /* Handle RX multicast byte counts */
+    if ( ((bStats.rx_multicast_bytes + bStats_p->rx_multicast_bytes) == 0) &&
+         ((bStats.multicast + bStats_p->multicast) > 0) )
+    {
+        cStats_p->rx_multicast_bytes = 0;
+    }
+    else
+    {
+       cStats_p->rx_multicast_bytes   += ( bStats.rx_multicast_bytes   + bStats_p->rx_multicast_bytes );
+    }
+
+    /* Handle TX multicast byte counts */
+    if ( ((bStats.tx_multicast_bytes + bStats_p->tx_multicast_bytes) == 0) &&
+         ((bStats.tx_multicast_packets + bStats_p->tx_multicast_packets) > 0) )
+    {
+        cStats_p->tx_multicast_bytes = 0;
+    }
+    else
+    {
+       cStats_p->tx_multicast_bytes   += ( bStats.tx_multicast_bytes   + bStats_p->tx_multicast_bytes );
+    }  
+    
+#else
 	cStats_p->rx_packets += ( bStats.rx_packets + bStats_p->rx_packets );
 	cStats_p->tx_packets += ( bStats.tx_packets + bStats_p->tx_packets );
 
@@ -98,6 +156,9 @@ static struct net_device_stats * br_dev_collect_stats(struct net_device *dev_p)
 	}
 	cStats_p->multicast  += ( bStats.multicast  + bStats_p->multicast );
 
+#endif    
+    
+    
 	return cStats_p;
 }
 
@@ -153,10 +214,22 @@ int br_dev_xmit(struct sk_buff *skb, struct net_device *dev)
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
     blog_link(IF_DEVICE, blog_ptr(skb), (void*)dev, DIR_TX, skb->len);
 #endif
-
+    /* Gather general TX statistics */
 	dev->stats.tx_packets++;
 	dev->stats.tx_bytes += skb->len;
+    
+    /* Gather packet specific packet data using pkt_type calculations from the ethernet driver */
+    switch (skb->pkt_type) {
+	case PACKET_BROADCAST:
+            dev->stats.tx_broadcast_packets ++;
+            break;
 
+	case PACKET_MULTICAST:
+            dev->stats.tx_multicast_packets++;
+            dev->stats.tx_multicast_bytes += skb->len;
+            break;
+    }
+    
 	skb_reset_mac_header(skb);
 	skb_pull(skb, ETH_HLEN);
 

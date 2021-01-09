@@ -1,11 +1,11 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-sysdeps.h Wrappers around system/libc features (internal to D-Bus implementation)
- * 
+ *
  * Copyright (C) 2002, 2003  Red Hat, Inc.
  * Copyright (C) 2003 CodeFactory AB
  *
  * Licensed under the Academic Free License version 2.1
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -15,7 +15,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
@@ -44,7 +44,7 @@
 /* AIX sys/poll.h does #define events reqevents, and other
  * wonderousness, so must include sys/poll before declaring
  * DBusPollFD
- */ 
+ */
 #ifdef HAVE_POLL
 #include <sys/poll.h>
 #endif
@@ -116,9 +116,9 @@ typedef unsigned long dbus_gid_t;
  *
  *  @todo Use for the file descriptors a struct
  *           - struct DBusSocket{ int d; }; -
- *        instead of int to get type-safety which 
+ *        instead of int to get type-safety which
  *        will be checked by the compiler.
- * 
+ *
  */
 
 dbus_bool_t _dbus_open_tcp_socket  (int              *fd,
@@ -288,7 +288,7 @@ dbus_int32_t _dbus_atomic_dec (DBusAtomic *atomic);
 #endif
 
 /**
- * A portable struct pollfd wrapper. 
+ * A portable struct pollfd wrapper.
  */
 typedef struct
 {
@@ -344,7 +344,7 @@ void _dbus_fd_set_close_on_exec (intptr_t fd);
 const char* _dbus_get_tmpdir      (void);
 
 /**
- * Random numbers 
+ * Random numbers
  */
 void        _dbus_generate_pseudorandom_bytes_buffer (char *buffer,
                                                       int   n_bytes);
@@ -474,7 +474,7 @@ void _dbus_system_logv (DBusSystemLogSeverity severity, const char *msg, va_list
       _DBUS_BYTE_OF_PRIMITIVE (a, 6) == _DBUS_BYTE_OF_PRIMITIVE (b, 6) &&       \
       _DBUS_BYTE_OF_PRIMITIVE (a, 7) == _DBUS_BYTE_OF_PRIMITIVE (b, 7))
 
-dbus_bool_t _dbus_get_autolaunch_address (DBusString *address, 
+dbus_bool_t _dbus_get_autolaunch_address (DBusString *address,
 					  DBusError *error);
 
 dbus_bool_t _dbus_lookup_session_address (dbus_bool_t *supported,
@@ -497,8 +497,8 @@ dbus_bool_t _dbus_read_local_machine_uuid   (DBusGUID         *machine_id,
  */
 dbus_bool_t _dbus_threads_init_platform_specific (void);
 
-dbus_bool_t _dbus_split_paths_and_append (DBusString *dirs, 
-                                          const char *suffix, 
+dbus_bool_t _dbus_split_paths_and_append (DBusString *dirs,
+                                          const char *suffix,
                                           DBusList **dir_list);
 
 unsigned long _dbus_pid_for_log (void);

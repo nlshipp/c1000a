@@ -15,12 +15,12 @@ EOF
 }
 
 # strip /bin/fakeroot to find install prefix
-PREFIX=/opt/bcm963xx_router/hostTools/fakeroot
-BINDIR=/opt/bcm963xx_router/hostTools/fakeroot
+PREFIX=`dirname $0`
+BINDIR=`dirname $0`
     
 USEABSLIBPATH=0
 LIB=libfakeroot.so
-PATHS=/opt/bcm963xx_router/hostTools/fakeroot/.libs:/lib:/usr/lib
+PATHS=`dirname $0`/.libs:/lib:/usr/lib
 FAKED=${BINDIR}/faked
 
 FAKED_MODE="unknown-is-root"

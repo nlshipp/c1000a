@@ -20,29 +20,29 @@ EGDEV="dev eth1"
 # tag all incoming packets from host 10.2.0.3 to value 2
 # tag the rest of incoming packets from subnet 10.2.0.0/24 to value 3
 #These values are used in the egress
-############################################################ 
+############################################################
 $IPCHAINS -A input -s 10.2.0.0/24 -m 3
 $IPCHAINS -A input -i $INDEV -s 10.2.0.24 -m 1
 $IPCHAINS -A input -i $INDEV -s 10.2.0.3 -m 2
-############################################################ 
+############################################################
 #
 # install the ingress qdisc on the ingress interface
-############################################################ 
+############################################################
 $TC qdisc add dev $INDEV handle ffff: ingress
-############################################################ 
+############################################################
 
 #
 # attach a fw classifier to the ingress which polices anything marked
 # by ipchains to tag value 3 (The rest of the subnet packets -- not
 # tag 1 or 2) to not go beyond 1.5Mbps
-# Allow up to at least 60 packets to burst (assuming maximum packet 
+# Allow up to at least 60 packets to burst (assuming maximum packet
 # size of # 1.5 KB) in the long run and upto about 6 packets in the
 # shot run
 
-############################################################ 
+############################################################
 $TC filter add dev $INDEV parent ffff: protocol ip prio 50 handle 3 fw \
 police rate 1500kbit burst 90k mtu 9k drop flowid :1
-############################################################ 
+############################################################
 
 ######################## Egress side ########################
 

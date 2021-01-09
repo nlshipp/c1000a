@@ -283,10 +283,27 @@ void dns_probe_switchback(void)
 /* Activate primary server */
 int dns_probe_activate(uint32_t name_server)
 {
-	debug("name_server=0x%x probe_addr=0x%x\n", name_server, probe_addr.sin_addr.s_addr);
+       debug("name_server=0x%x probe_addr=0x%x\n", name_server, probe_addr.sin_addr.s_addr);
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)
+        char i=0;
+        u_int8_t *u6_addr8 ;
+        u6_addr8 = (u_int8_t *) name_server;
+        u_int32_t  tmp=probe_addr.sin_addr.s_addr;
 
+        if(u6_addr8[10]==0xff && u6_addr8[11]==0xff)
+        for(i=0;i< 4;i++)
+        {
+            if(u6_addr8[15-i] != ((tmp>>(i*8))&0xff))
+                return 0;
+        }
+        else
+            return 0;
+
+
+#else
 	if (name_server != probe_addr.sin_addr.s_addr)
 		return 0;
+#endif
 
 #ifdef DNS_PROBE
 	probe_tried = 0;
@@ -305,7 +322,14 @@ int dns_probe_response(dns_request_t *m)
 	if (m->message.header.flags.flags & 0x8000 &&
 	    m->message.header.id != probe_id)
 		return 0;
-	return dns_probe_activate(m->src_addr.s_addr);
+
+
+#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER)
+          /* mwang: this is clearly wrong, need ipv6-review here */
+		  return dns_probe_activate((uint32) m->src_addr.s6_addr);
+#else
+		  return dns_probe_activate(m->src_addr.s_addr);
+#endif
 #else
 	return 0;
 #endif

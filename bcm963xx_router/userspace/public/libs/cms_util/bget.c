@@ -480,6 +480,24 @@ extern char *sprintf();               /* Sun includes don't define sprintf */
  * Locking is provided at upper layers of the MDM before we get to
  * this layer of code, so the locking here would be redundant.
  */
+
+#ifdef AEI_VDSL_CUSTOMER_NCS
+/*
+ * As stated at above comments, upper layers MUST held the lock.
+ * But unfortunately, below debug patch found that some of the
+ * upper layers do not held the lock before we get to here.
+ * http://192.168.20.105/attachments/download/12667/checklock.patch
+ *
+ * This causes very-hard-to-debug share memory bug, when in rare case,
+ * 2 process concurrently call to share memory allocator and the share
+ * memory is screw up, see
+ * http://192.168.20.105/issues/123655
+ *
+ * So let's enable the redundant semaphore here.
+ */
+#define bcm_use_semaphore
+#endif
+
 #ifdef bcm_use_semaphore
 #include <sys/ipc.h>
 #include <sys/sem.h>
@@ -1077,6 +1095,15 @@ void bcm_secondary_bpool(void *buf)
     * pointer to the right address.
     */
    g_bg = buf;
+
+#ifdef AEI_VDSL_CUSTOMER_NCS
+#ifdef bcm_use_semaphore
+   if( (bg_semid = semget(0x2222, 0, IPC_CREAT|0666)) == -1) {
+       perror("bget: semget\n");
+       return;
+   }
+#endif
+#endif
 }
 
 
@@ -1088,7 +1115,7 @@ void bpool(buf, len)
     struct bhead *bn;
 
     if( g_bg == NULL ) {
-#ifdef bcm_use_semaphores
+#ifdef bcm_use_semaphore
        /* BCM: see comments near bg_semid declaration. */
         if( (bg_semid = semget(0x2222, 1, IPC_CREAT|0666)) == -1) {
 	        perror("bget: semget\n");

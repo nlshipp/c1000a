@@ -446,4 +446,3 @@ int rtnl_dsfield_a2n(__u32 *id, char *arg)
 	*id = res;
 	return 0;
 }
-

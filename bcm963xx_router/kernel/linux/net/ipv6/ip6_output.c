@@ -177,6 +177,13 @@ static inline int ip6_skb_dst_mtu(struct sk_buff *skb)
 int ip6_output(struct sk_buff *skb)
 {
 	struct inet6_dev *idev = ip6_dst_idev(skb->dst);
+#if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BLOG)
+	uint32_t mtu = dst_mtu(skb->dst);
+	Blog_t * blog_p = blog_ptr(skb);
+	if (blog_p && blog_p->minMtu > mtu)
+		blog_p->minMtu = mtu;
+#endif
+
 	if (unlikely(idev->cnf.disable_ipv6)) {
 		IP6_INC_STATS(dev_net(skb->dst->dev), idev,
 			      IPSTATS_MIB_OUTDISCARDS);
@@ -426,6 +433,22 @@ static inline int isULA(const struct in6_addr *addr)
 		return	0;
 }
 
+#if defined(CONFIG_MIPS_BRCM)
+static inline int isSpecialAddr(const struct in6_addr *addr)
+{
+	__be32 st;
+
+	st = addr->s6_addr32[0];
+
+	/* RFC 5156 */
+	if (((st & htonl(0xFFFFFFFF)) == htonl(0x20010db8)) ||
+		((st & htonl(0xFFFFFFF0)) == htonl(0x20010010)))
+		return	1;
+	else
+		return	0;
+}
+#endif
+
 int ip6_forward(struct sk_buff *skb)
 {
 	struct dst_entry *dst = skb->dst;
@@ -530,23 +553,25 @@ int ip6_forward(struct sk_buff *skb)
 		   and by source (inside ndisc_send_redirect)
 		 */
 		if (xrlim_allow(dst, 1*HZ))
-		    {
-                //printk(KERN_ERR "KERNEL:File: %s\t line = %d\t function: %s:ndisc_send_redirect \n", __FILE__, __LINE__, __func__);	
-/*for CD-ROUTER and static route BUG 27793*/
-//#ifdef ACTION_TEC_IPV6_CODE_FOR_IOT
-//			icmpv6_send(skb, ICMPV6_DEST_UNREACH,
-//				5, 0, skb->dev); 
-//            goto error;
-//#else
 			ndisc_send_redirect(skb, n, target);
-//#endif
-		    }
 	} else {
 		int addrtype = ipv6_addr_type(&hdr->saddr);
 
 		/* This check is security critical. */
 		if (addrtype == IPV6_ADDR_ANY ||
+#if defined(CONFIG_MIPS_BRCM)
+			/* 
+			 * RFC 5156: IPv4 mapped addr and IPv4-compatible addr
+			 * should not appear on the Internet. In addition,
+			 * 2001:db8::/32 and 2001:10::/28 should not appear either.
+			 */
+			(addrtype & (IPV6_ADDR_MULTICAST | IPV6_ADDR_LOOPBACK | 
+				IPV6_ADDR_COMPATv4 | IPV6_ADDR_MAPPED | 
+				IPV6_ADDR_SITELOCAL)) ||
+			isSpecialAddr(&hdr->saddr))
+#else
 		    addrtype & (IPV6_ADDR_MULTICAST | IPV6_ADDR_LOOPBACK))
+#endif
 			goto error;
 		if (addrtype & IPV6_ADDR_LINKLOCAL) {
 			icmpv6_send(skb, ICMPV6_DEST_UNREACH,

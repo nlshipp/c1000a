@@ -68,7 +68,7 @@ struct ip_conntrack_tuple
 				__be16 port;
 			} sctp;
 			struct {
-				__be16 key;	/* key is 32bit, 
+				__be16 key;	/* key is 32bit,
 						 * pptp only uses 16 */
 			} gre;
 		} u;

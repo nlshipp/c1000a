@@ -5,4 +5,3 @@ DECLARE_LOCK_EXTERN(ip_wm_lock);
 #define WMMAX         7007
 #define WMMAXEXPECTED (WMMAX - WMMIN +1)
 #define MAXWM_PORTS	1
-

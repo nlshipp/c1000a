@@ -737,7 +737,11 @@ static int do_ip_setsockopt(struct sock *sk, int level,
 
 			mreq.imr_multiaddr.s_addr = mreqs.imr_multiaddr;
 			mreq.imr_address.s_addr = mreqs.imr_interface;
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+                        mreq.imr_ifindex = mreqs.imr_ifindex;
+#else
 			mreq.imr_ifindex = 0;
+#endif
 			err = ip_mc_join_group(sk, &mreq);
 			if (err && err != -EADDRINUSE)
 				break;
@@ -1181,7 +1185,7 @@ static int do_ip_getsockopt(struct sock *sk, int level, int optname,
 	case IP_TRANSPARENT:
 		val = inet->transparent;
 		break;
-#if defined(AEI_VDSL_CUSTOMER_NCS)            
+#if defined(AEI_VDSL_CUSTOMER_NCS)
 	case IP_DESTIP:
 		val = inet->saddr;
 		break;

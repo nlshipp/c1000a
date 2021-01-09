@@ -1,45 +1,127 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Utility routine.
+ * Utility routines.
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <string.h>
-#include <crypt.h>
 #include "libbb.h"
 
+/* static const uint8_t ascii64[] =
+ * "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+ */
 
-extern char *pw_encrypt(const char *clear, const char *salt)
+static int i64c(int i)
 {
-	static char cipher[128];
-	char *cp;
-
-#ifdef CONFIG_FEATURE_SHA1_PASSWORDS
-	if (strncmp(salt, "$2$", 3) == 0) {
-		return sha1_crypt(clear);
-	}
-#endif
-	cp = (char *) crypt(clear, salt);
-	/* if crypt (a nonstandard crypt) returns a string too large,
-	   truncate it so we don't overrun buffers and hope there is
-	   enough security in what's left */
-	safe_strncpy(cipher, cp, sizeof(cipher));
-	return cipher;
+	i &= 0x3f;
+	if (i == 0)
+		return '.';
+	if (i == 1)
+		return '/';
+	if (i < 12)
+		return ('0' - 2 + i);
+	if (i < 38)
+		return ('A' - 12 + i);
+	return ('a' - 38 + i);
 }
 
+int FAST_FUNC crypt_make_salt(char *p, int cnt, int x)
+{
+	x += getpid() + time(NULL);
+	do {
+		/* x = (x*1664525 + 1013904223) % 2^32 generator is lame
+		 * (low-order bit is not "random", etc...),
+		 * but for our purposes it is good enough */
+		x = x*1664525 + 1013904223;
+		/* BTW, Park and Miller's "minimal standard generator" is
+		 * x = x*16807 % ((2^31)-1)
+		 * It has no problem with visibly alternating lowest bit
+		 * but is also weak in cryptographic sense + needs div,
+		 * which needs more code (and slower) on many CPUs */
+		*p++ = i64c(x >> 16);
+		*p++ = i64c(x >> 22);
+	} while (--cnt);
+	*p = '\0';
+	return x;
+}
+
+#if ENABLE_USE_BB_CRYPT
+
+static char*
+to64(char *s, unsigned v, int n)
+{
+	while (--n >= 0) {
+		/* *s++ = ascii64[v & 0x3f]; */
+		*s++ = i64c(v);
+		v >>= 6;
+	}
+	return s;
+}
+
+/*
+ * DES and MD5 crypt implementations are taken from uclibc.
+ * They were modified to not use static buffers.
+ */
+
+#include "pw_encrypt_des.c"
+#include "pw_encrypt_md5.c"
+#if ENABLE_USE_BB_CRYPT_SHA
+#include "pw_encrypt_sha.c"
+#endif
+
+/* Other advanced crypt ids (TODO?): */
+/* $2$ or $2a$: Blowfish */
+
+static struct const_des_ctx *des_cctx;
+static struct des_ctx *des_ctx;
+
+/* my_crypt returns malloc'ed data */
+static char *my_crypt(const char *key, const char *salt)
+{
+	/* MD5 or SHA? */
+	if (salt[0] == '$' && salt[1] && salt[2] == '$') {
+		if (salt[1] == '1')
+			return md5_crypt(xzalloc(MD5_OUT_BUFSIZE), (unsigned char*)key, (unsigned char*)salt);
+#if ENABLE_USE_BB_CRYPT_SHA
+		if (salt[1] == '5' || salt[1] == '6')
+			return sha_crypt((char*)key, (char*)salt);
+#endif
+	}
+
+	if (!des_cctx)
+		des_cctx = const_des_init();
+	des_ctx = des_init(des_ctx, des_cctx);
+	return des_crypt(des_ctx, xzalloc(DES_OUT_BUFSIZE), (unsigned char*)key, (unsigned char*)salt);
+}
+
+/* So far nobody wants to have it public */
+static void my_crypt_cleanup(void)
+{
+	free(des_cctx);
+	free(des_ctx);
+	des_cctx = NULL;
+	des_ctx = NULL;
+}
+
+char* FAST_FUNC pw_encrypt(const char *clear, const char *salt, int cleanup)
+{
+	char *encrypted;
+
+	encrypted = my_crypt(clear, salt);
+
+	if (cleanup)
+		my_crypt_cleanup();
+
+	return encrypted;
+}
+
+#else /* if !ENABLE_USE_BB_CRYPT */
+
+char* FAST_FUNC pw_encrypt(const char *clear, const char *salt, int cleanup)
+{
+	return xstrdup(crypt(clear, salt));
+}
+
+#endif

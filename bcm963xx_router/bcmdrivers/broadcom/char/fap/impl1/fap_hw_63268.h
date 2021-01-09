@@ -7,19 +7,25 @@
     Copyright (c) 2007 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license 
+ agreement governing use of this software, this software is licensed 
+ to you under the terms of the GNU General Public License version 2 
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give 
+    you permission to link this software with independent modules, and 
+    to copy and distribute the resulting executable under terms of your 
+    choice, provided that you also meet, for each linked independent 
+    module, the terms and conditions of the license of that module. 
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications 
+    of the software.  
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine 
+ this software in any way with any other Broadcom software provided 
+ under a license other than the GPL, without Broadcom's express prior 
+ written consent. 
  
 :>
 */
@@ -312,7 +318,7 @@ extern Fap_FapSharedInfo gFaps;
 #define pHostTrace(fapIdx)                     ( &pHostPsmGbl(fapIdx)->trace )
 #define pHostQsm(fapIdx)                       ( (fap4keQsm_alloc_t *)(FAP_HOST_QSM_BASES[fapIdx]) )
 #define pHostQsmGbl(fapIdx)                    ( &pHostQsm(fapIdx)->global )
-#define pHostFlowInfoPool(fapIdx)              ( pHostFapSdram(fapIdx)->alloc.packet.flowInfoPool )
+#define pHostFlowInfoPool(fapIdx)              ( pHostFapSdram(fapIdx)->packet.flowInfoPool )
 
 static __inline uint32 getFapIdxFromFapIrq(int irq)
 {
@@ -342,19 +348,7 @@ __extension__                                                           \
 
 static inline uint32 getFapIdx(void)
 {
-    switch (fap4ke_readCp0StatusReg_priv() & 0x3FF)
-    {
-        case 0x002:
-            return 0;
-            break;
-        case 0x003:
-            return 1;
-            break;
-        default:
-            //fap4kePrt_Error("ERROR: invalid fap Id:  %03x", fap4ke_readCp0StatusReg() & 0x3FF);
-            return 0;
-            break;
-    }
+    return ((fap4ke_readCp0StatusReg_priv() & 0x3FF)==0x003?1:0);
 }
 
 #endif /* FAP_4KE */

@@ -1,19 +1,29 @@
 /*
-<:copyright-gpl
- Copyright 2007 Broadcom Corp. All Rights Reserved.
+<:copyright-BRCM:2007:DUAL/GPL:standard
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
+   Copyright (c) 2007 Broadcom Corporation
+   All Rights Reserved
 
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
 :>
 */
 
@@ -32,6 +42,14 @@
 extern "C" {
 #endif
 
+/***************************************************************************
+ * API Version Definitions
+ ***************************************************************************/
+
+#define  BCM_XTM_API_VERSION(a,b) (((a) << 16) + (b))
+
+#define  BCM_XTM_API_MAJ_VERSION        2
+#define  BCM_XTM_API_MIN_VERSION        3
 
 /***************************************************************************
  * Constant Definitions
@@ -47,7 +65,14 @@ extern "C" {
 #define MAX_TRANSMIT_QUEUES             16
 #define NETWORK_DEVICE_NAME_SIZE        16
 
+#if !defined(MAX_ATM_TRANSMIT_QUEUES)
+#if defined(CHIP_6368) || defined(CHIP_63268) || defined(CHIP_6828)
 #define MAX_ATM_TRANSMIT_QUEUES         16
+#else
+#define MAX_ATM_TRANSMIT_QUEUES         8
+#endif
+#endif
+
 #define MAX_PTM_TRANSMIT_QUEUES         8
 
 /* Values for ulPortId and ulPortMask fields. */
@@ -98,6 +123,9 @@ extern "C" {
 #define BC_DUAL_LATENCY_ENABLE          0x01
 #define BC_DUAL_LATENCY_DISABLE         0x00
 
+#define BC_ATM_AUTO_SENSE_ENABLE        0x01
+#define BC_ATM_AUTO_SENSE_DISABLE       0x00
+
 #define BC_BOND_PROTO_NONE              0x00
 #define BC_BOND_PROTO_G994_AGGR         0x01
 #define BC_BOND_PROTO_ASM               0x02
@@ -108,6 +136,11 @@ extern "C" {
 #define DATA_STATUS_DISABLED    0x0
 #define DATA_STATUS_ENABLED     0x1
 #define DATA_STATUS_RESET       0x2
+
+/* G.998.1 message types */
+#define ATMBOND_ASM_MESSAGE_TYPE_12BITSID    0
+#define ATMBOND_ASM_MESSAGE_TYPE_8BITSID     1
+#define ATMBOND_ASM_MESSAGE_TYPE_NOSID       2
 
 /* Values for XTM_TRAFFIC_DESCR_PARM_ENTRY ulTrafficDescrType. */
 #define TDT_ATM_NO_TRAFFIC_DESCRIPTOR   1
@@ -140,6 +173,7 @@ extern "C" {
 #define LINK_DOWN                       2
 #define LINK_START_TEQ_DATA             3
 #define LINK_STOP_TEQ_DATA              4
+#define LINK_DS_DOWN                    5
 
 /* Values for XTM_ADDR ulTrafficType, XTM_INTERFACE_CFG usIfTrafficType and
  * XTM_INTERFACE_LINK_INFO ulLinkTrafficType.
@@ -149,10 +183,14 @@ extern "C" {
 #define TRAFFIC_TYPE_ATM_MASK				 0x1
 #define TRAFFIC_TYPE_ATM                1   	/* Odd types for ATM... */
 #define TRAFFIC_TYPE_ATM_BONDED         3
+#define TRAFFIC_TYPE_ATM_TEQ            5
 
 #define TRAFFIC_TYPE_PTM                2	/* Even types for PTM... */
 #define TRAFFIC_TYPE_PTM_RAW            4
 #define TRAFFIC_TYPE_PTM_BONDED         6
+#define TRAFFIC_TYPE_PTM_TEQ            8
+
+#define TRAFFIC_TYPE_TEQ                (TRAFFIC_TYPE_ATM_TEQ|TRAFFIC_TYPE_PTM_TEQ)
 
 /* Values for XTM_INTERFACE_CFG usIfSupportedTrafficTypes. */
 #define SUPPORT_TRAFFIC_TYPE_ATM         (1 << TRAFFIC_TYPE_ATM)
@@ -160,6 +198,7 @@ extern "C" {
 #define SUPPORT_TRAFFIC_TYPE_PTM_RAW     (1 << TRAFFIC_TYPE_PTM_RAW)
 #define SUPPORT_TRAFFIC_TYPE_PTM_BONDED  (1 << TRAFFIC_TYPE_PTM_BONDED)
 #define SUPPORT_TRAFFIC_TYPE_ATM_BONDED  (1 << TRAFFIC_TYPE_ATM_BONDED)
+#define SUPPORT_TRAFFIC_TYPE_TEQ         (1 << TRAFFIC_TYPE_TEQ)
 
 /* Values for PTM_ADDR ulPtmPriority. */
 #define PTM_PRI_LOW                     0x01
@@ -224,6 +263,11 @@ extern "C" {
 #define CTYPE_ASM_P2                    0x06
 #define CTYPE_ASM_P3                    0x07
 
+/* Deviation */
+#define XTM_DS_MIN_DEVIATION            2
+#define XTM_DS_MAX_DEVIATION            128
+
+#define XTM_RX_TEQ_PHY_PORT             PHY_PORTID_3
 
 /***************************************************************************
  * Type Definitions
@@ -244,6 +288,9 @@ typedef enum BcmXtmStatus
     XTMSTS_TIMEOUT,
     XTMSTS_PROTO_ERROR
 } BCMXTM_STATUS;
+
+#define IDLE_CELL_VPI                 0x00
+#define IDLE_CELL_VCI                 0x00
 
 typedef struct AtmAddr
 {
@@ -282,7 +329,8 @@ typedef union _XtmBondConfig {
       UINT32 bondProto     :  1 ;    /* For PTM, BACP (Bonding Aggr Cont Protocol)
                                         For ATM, ASM based (as defined in G998.1) */
       UINT32 dualLat       :  1 ;
-      UINT32 resv          : 28 ;
+		UINT32 autoSenseAtm  :  1 ;    /* Needed to auto sense between ATM bonded/Non-bonded types */
+      UINT32 resv          : 27 ;
    } sConfig ;
    UINT32 uConfig ;
 } XtmBondConfig ;
@@ -293,6 +341,25 @@ typedef struct XtmInitialization
     UINT32        ulPortConfig;
     XtmBondConfig bondConfig ;
 } XTM_INITIALIZATION_PARMS, *PXTM_INITIALIZATION_PARMS;
+
+
+
+
+typedef struct XtmConfiguration
+{
+    /* Set flags to indicate which parameters are being configured */
+    struct _sParamsSelected {
+#define XTM_CONFIGURATION_PARM_SET  1   /* Set a parameter */
+#define XTM_CONFIGURATION_PARM_DUMP 2   /* Print existing parameter value to console */
+
+        UINT32  trafficParam;   /* Indicates ulTrafficTimeoutSeconds configured */
+    } sParamsSelected;
+
+    /* The actual parameters to set */
+    UINT32        ulTrafficTimeoutSeconds;
+} XTM_CONFIGURATION_PARMS, *PXTM_CONFIGURATION_PARMS;
+
+
 
 typedef struct XtmInterfaceCfg
 {
@@ -320,15 +387,16 @@ typedef struct XtmTrafficDescrParmEntry
 
 typedef struct XtmTransmitQueueParms
 {
-    UINT32 ulQosQId;
     UINT32 ulPortId;
     UINT32 ulPtmPriority;
     UINT32 ulWeightAlg;             /* per packet arbitration for a PVC */
     UINT32 ulWeightValue;
     UINT32 ulSubPriority;
     UINT32 ulSize;
+    UINT32 ulMinBitRate;            /* 0 indicates no shaping */
     UINT32 ulShapingRate;           /* 0 indicates no shaping */
-    UINT32 ulShapingBurstSize;
+    UINT16 usShapingBurstSize;
+    UINT16 usQosQId;
     UINT32 ulBondingPortId;         /* read-only. Necessary for PTM bonding and not for
                                        ATM bonding, as for PTM bonding, Flow Buffer/port
                                        intermediate between Tx DMA channels and the Utopia
@@ -397,7 +465,7 @@ typedef struct _XtmPortInfo {
    UINT32 usRate ;          /* in bps */
    UINT32 dsRate ;          /* in bps */
    UINT32 usDelay ;         /* in milli sec */
-   UINT32 dsDelay ;         /* in milli sec */
+   UINT32 dsBondingDelay ;  /* in milli sec */
 } XTM_PORT_INFO, *PXTM_PORT_INFO ;
 
 typedef struct XtmBondGroupInfo {
@@ -406,7 +474,6 @@ typedef struct XtmBondGroupInfo {
     UINT32        aggrUSRate ;
     UINT32        aggrDSRate ;
     UINT32        diffUSDelay ;
-    UINT32        diffDSDelay ;
     UINT32        dataStatus ;
 } XTM_BOND_GROUP_INFO, *PXTM_BOND_GROUP_INFO ;
 
@@ -425,8 +492,11 @@ typedef struct XtmBondInfo {
  * Function Prototypes
  ***************************************************************************/
 
+#ifndef FAP_4KE
+
 BCMXTM_STATUS BcmXtm_Initialize( PXTM_INITIALIZATION_PARMS pInitParms );
 BCMXTM_STATUS BcmXtm_Uninitialize( void );
+BCMXTM_STATUS BcmXtm_Configure( PXTM_CONFIGURATION_PARMS pConfigParms );
 BCMXTM_STATUS BcmXtm_GetTrafficDescrTable( PXTM_TRAFFIC_DESCR_PARM_ENTRY
     pTrafficDescTable, UINT32 *pulTrafficDescrTableSize );
 BCMXTM_STATUS BcmXtm_SetTrafficDescrTable( PXTM_TRAFFIC_DESCR_PARM_ENTRY
@@ -449,8 +519,19 @@ BCMXTM_STATUS BcmXtm_CreateNetworkDevice( PXTM_ADDR pConnAddr,
 BCMXTM_STATUS BcmXtm_DeleteNetworkDevice( PXTM_ADDR pConnAddr );
 BCMXTM_STATUS BcmXtm_GetBondingInfo ( PXTM_BOND_INFO pBondingInfo) ;
 BCMXTM_STATUS BcmXtm_ReInitialize( void );
+BCMXTM_STATUS BcmXtm_SetDsPtmBondingDeviation ( UINT32 ulDeviation ) ;
 
 #define XTM_USE_DSL_MIB       /* needed for dsl line monitoring */
+
+#define XTM_USE_DSL_WAN_NOTIFY
+
+#define XTM_SUPPORT_DSL_SRA
+
+#if defined(CONFIG_BCM963268)
+#define XTM_USE_DSL_SYSCTL    /* needed for XTM traffic/mode sensing functionality */
+#endif
+
+#endif   /* FAP_4KE */
 
 #if defined(__cplusplus)
 }

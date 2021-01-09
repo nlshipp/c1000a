@@ -34,9 +34,21 @@
 #undef ECCGETLAYOUT
 #define ECCGETLAYOUT        _IOR('M', 17, struct k_nand_ecclayout)
 
+#if defined(MTD_MAX_OOBFREE_ENTRIES)
 #undef MTD_MAX_OOBFREE_ENTRIES
-#define MTD_MAX_OOBFREE_ENTRIES 9
-#define MTD_MAX_ECCPOS_ENTRIES  64  // Was 64 for SLC
+#endif
+#if defined(MTD_MAX_OOBFREE_ENTRIES)
+#undef MTD_MAX_OOBFREE_ENTRIES
+#endif
+
+#if 1 // defined(CONFIG_BRCMNAND_MTD_EXTENSION)
+#define MTD_MAX_OOBFREE_ENTRIES	17
+#define MTD_MAX_ECCPOS_ENTRIES	320	
+#else
+#define MTD_MAX_OOBFREE_ENTRIES	8
+#define MTD_MAX_ECCPOS_ENTRIES	64	
+#endif
+
 /*
  * ECC layout control structure. Exported to userspace for
  * diagnosis and to allow creation of raw images
@@ -66,7 +78,8 @@ static void show_progress(mtd_info_t *meminfo, erase_info_t *erase)
     fflush(stdout);
 }
 
-extern int flash_eraseall_main(int argc, char **argv)
+int flash_eraseall_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int flash_eraseall_main(int argc UNUSED_PARAM, char **argv)
 {
     struct jffs2_unknown_node oob_cleanmarker;
     mtd_info_t meminfo;
@@ -75,15 +88,17 @@ extern int flash_eraseall_main(int argc, char **argv)
     struct stat st;
     unsigned int flags;
     char *mtd_name;
+    unsigned char spare_buf[16 * 27];
 
-    flags = BBTEST | bb_getopt_ulflags(argc, argv, "jqre");
+	opt_complementary = "=1";
+    flags = BBTEST | getopt32(argv, "jqre");
 
     mtd_name = argv[optind];
     stat(mtd_name, &st);
     if (!S_ISCHR(st.st_mode))
         bb_error_msg_and_die("%s: not a char device", mtd_name);
 
-    fd = bb_xopen(mtd_name, O_RDWR);
+    fd = xopen(mtd_name, O_RDWR);
 
     ioctl(fd, MEMGETINFO, &meminfo);
     erase.length = meminfo.erasesize;
@@ -98,6 +113,9 @@ extern int flash_eraseall_main(int argc, char **argv)
         oob_cleanmarker.nodetype = cpu_to_je16(JFFS2_NODETYPE_CLEANMARKER);
         oob_cleanmarker.totlen = cpu_to_je32(8);
         oob_cleanmarker.hdr_crc = cpu_to_je32(0xffffffff);
+        memset(spare_buf, 0xff, sizeof(spare_buf));
+        memcpy(spare_buf, (unsigned char *) &oob_cleanmarker,
+            sizeof(oob_cleanmarker));
 
         if (!(flags & IS_NAND))
             oob_cleanmarker.totlen = cpu_to_je32(sizeof(struct jffs2_unknown_node));
@@ -153,16 +171,9 @@ extern int flash_eraseall_main(int argc, char **argv)
         if (flags & IS_NAND) {
             struct mtd_oob_buf oob;
 
-            oob.ptr = (unsigned char *) &oob_cleanmarker;
+            oob.ptr = spare_buf;
             oob.start = erase.start + clmpos;
             oob.length = clmlen;
-#if 0 /* TESTING */
-            printf("W %8.8lx %lu - %8.8lx %8.8lx %8.8lx\n",
-                (unsigned long) oob.start, (unsigned long) oob.length,
-                *((unsigned long *) &oob_cleanmarker + 0),
-                *((unsigned long *) &oob_cleanmarker + 1),
-                *((unsigned long *) &oob_cleanmarker + 2));
-#endif
             ioctl(fd, MEMWRITEOOB, &oob);
         } else {
             lseek(fd, erase.start, SEEK_SET);
@@ -186,49 +197,44 @@ extern int flash_eraseall_main(int argc, char **argv)
 
     if (flags & OPTION_R) {
         int i;
-        /* For testing, read back cleanmarker plus 12 bytes. */
+        /* For testing, read back cleanmarker. */
         for (i= 0; i< meminfo.size; i+= meminfo.erasesize) { 
-            if (flags & BBTEST) {
-                int ret;
-                loff_t offset = i;
-
-                ret = ioctl(fd, MEMGETBADBLOCK, &offset);
-                if (ret > 0) {
-                    if (!(flags & OPTION_Q))
-                        printf("\nSkipping bad block at 0x%08x", i);
-                    continue;
-                }
-                if (ret < 0) {
-                    /* Black block table is not available on certain flash
-                     * types e.g. NOR
-                     */
-                    if (errno == EOPNOTSUPP) {
-                        flags = ~BBTEST;
-                        if (flags & IS_NAND)
-                            bb_error_msg_and_die("bad block check not available");
-                    } else {
-                        bb_perror_msg_and_die("MEMGETBADBLOCK error");
-                    }
-                }
-            }
 
             if (flags & IS_NAND) {
-                unsigned char clnmrk[20];
+                unsigned char spare[64];
                 struct mtd_oob_buf oob;
 
-                memset(clnmrk, 0x00, sizeof(clnmrk));
-                oob.ptr = (unsigned char *) &clnmrk;
-                oob.start = i + clmpos;
-                oob.length = 16; // clmlen;
+                memset(spare, 0x00, sizeof(spare));
+                oob.ptr = (unsigned char *) &spare;
+                oob.start = i;
+                oob.length = sizeof(spare);
                 ioctl(fd, MEMREADOOB, &oob);
-
-                printf("R %8.8lx %lu - %8.8lx %8.8lx %8.8lx %8.8lx\n",
-                    (unsigned long) (i + clmpos),
-                    (unsigned long) clmlen,
-                    *((unsigned long *) &clnmrk[0]),
-                    *((unsigned long *) &clnmrk[4]),
-                    *((unsigned long *) &clnmrk[8]),
-                    *((unsigned long *) &clnmrk[12]));
+                printf("R %8.8lx: %8.8x %8.8x %8.8x %8.8x\n",
+                    (unsigned long) (i + 0),
+                    *((unsigned char *) &spare[0]),
+                    *((unsigned char *) &spare[4]),
+                    *((unsigned char *) &spare[8]),
+                    *((unsigned char *) &spare[12]));
+#if 0
+                printf("R %8.8lx: %8.8lx %8.8lx %8.8lx %8.8lx\n",
+                    (unsigned long) (i + 16),
+                    *((unsigned long *) &spare[16]),
+                    *((unsigned long *) &spare[20]),
+                    *((unsigned long *) &spare[24]),
+                    *((unsigned long *) &spare[28]));
+                printf("R %8.8lx: %8.8lx %8.8lx %8.8lx %8.8lx\n",
+                    (unsigned long) (i + 32),
+                    *((unsigned long *) &spare[32]),
+                    *((unsigned long *) &spare[36]),
+                    *((unsigned long *) &spare[40]),
+                    *((unsigned long *) &spare[44]));
+                printf("R %8.8lx: %8.8lx %8.8lx %8.8lx %8.8lx\n\n",
+                    (unsigned long) (i + 48),
+                    *((unsigned long *) &spare[48]),
+                    *((unsigned long *) &spare[52]),
+                    *((unsigned long *) &spare[56]),
+                    *((unsigned long *) &spare[60]));
+#endif
             }
         }
     }

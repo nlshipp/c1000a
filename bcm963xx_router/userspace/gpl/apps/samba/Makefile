@@ -7,7 +7,11 @@ all:
 	$(MAKE) -C ./source srcdir=./ builddir=./
 	install -m 755 ./source/bin/smbd $(INSTALL_DIR)/bin/smbd
 	install -m 755 ./source/bin/smbpasswd $(INSTALL_DIR)/bin/smbpasswd
-	cp ./source/conf/smb.conf $(INSTALL_DIR)/etc
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_TELUS)),)
+	install -m 444 ./source/conf/smb_telus.conf $(INSTALL_DIR)/etc/smb.conf
+else
+	install -m 444 ./source/conf/smb.conf $(INSTALL_DIR)/etc
+endif
 
 clean:
 	if [ -f ./source/Makefile ];then $(MAKE) -C ./source clean srcdir=./ builddir=./;fi;

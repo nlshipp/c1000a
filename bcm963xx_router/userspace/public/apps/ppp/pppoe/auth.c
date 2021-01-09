@@ -500,14 +500,14 @@ link_established(unit)
 		error("No secret found for PAP login");
 	}
 	upap_authwithpeer(unit, user, PAPpasswd);
-#else    
+#else
 	if (passwd[0] == 0) {
 	    passwd_from_file = 1;
 	    if (!get_pap_passwd(passwd))
 		error("No secret found for PAP login");
 	}
 	upap_authwithpeer(unit, user, passwd);
-#endif    
+#endif
 	auth |= PAP_WITHPEER;
     }
     auth_pending[unit] = auth;
@@ -683,16 +683,16 @@ auth_withpeer_fail(unit, protocol)
 
     f = fopen(PPP_Auth_FAIL, "r");
     if (f == NULL){  // first auth fail, create ppp_auth_fail file.
-    	f = fopen(PPP_Auth_FAIL, "w");
+	f = fopen(PPP_Auth_FAIL, "w");
 		fprintf(f, "%d\n", 1 );
 		fclose(f);
     }
 	else
 	{
-        fgets(line,sizeof(line),f);  
-       	ppp_AuthFail =  atoi(line) + 1 ;
+        fgets(line,sizeof(line),f);
+	ppp_AuthFail =  atoi(line) + 1 ;
 		fclose(f);
-    	f = fopen(PPP_Auth_FAIL, "w");
+	f = fopen(PPP_Auth_FAIL, "w");
 		fprintf(f, "%d\n", ppp_AuthFail );
 		fclose(f);
     }
@@ -700,11 +700,14 @@ auth_withpeer_fail(unit, protocol)
 
 
     }
-#ifndef AEI_VDSL_CUSTOMER_NCS	
+#ifndef AEI_VDSL_CUSTOMER_NCS
     persist=0;
 #endif
-#ifdef AEI_VDSL_CUSTOMER_NCS	
+#ifdef AEI_VDSL_CUSTOMER_NCS
 	holdoff=20;
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    setbackoff();
 #endif
 
 }
@@ -738,9 +741,12 @@ auth_withpeer_success(unit, protocol)
      */
     if ((auth_pending[unit] &= ~bit) == 0)
 	network_phase(unit);
-#ifdef AEI_VDSL_CUSTOMER_NCS	
+#ifdef AEI_VDSL_CUSTOMER_NCS
 	holdoff=3;
-#endif	
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    unsetbackoff();
+#endif
 }
 
 
@@ -928,8 +934,14 @@ check_link(arg)
 	/* TODO: need to act on idle disconnection in RCL handler.
 	*/
 	create_msg(BCM_PPPOE_REPORT_LASTCONNECTERROR, MDMVS_ERROR_IDLE_DISCONNECT);
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    system("echo > /var/pppdown");
+#endif
 	
     } else {
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+    unlink("/var/pppdown");
+#endif
 	UNTIMEOUT(check_link, NULL);
 	TIMEOUT(check_link, NULL, 3);
     }

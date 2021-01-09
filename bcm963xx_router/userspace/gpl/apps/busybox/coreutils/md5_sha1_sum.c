@@ -1,32 +1,20 @@
+/* vi: set sw=4 ts=4: */
 /*
  *  Copyright (C) 2003 Glenn L. McGrath
  *  Copyright (C) 2003-2004 Erik Andersen
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include <fcntl.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "libbb.h"
 
-#include "busybox.h"
-
+typedef enum {
+	/* 4th letter of applet_name is... */
+	HASH_MD5 = 's', /* "md5>s<um" */
+	HASH_SHA1 = '1',
+	HASH_SHA256 = '2',
+	HASH_SHA512 = '5',
+} hash_algo_t;
 
 #define FLAG_SILENT	1
 #define FLAG_CHECK	2
@@ -34,115 +22,142 @@
 
 /* This might be useful elsewhere */
 static unsigned char *hash_bin_to_hex(unsigned char *hash_value,
-									  unsigned char hash_length)
+				unsigned hash_length)
 {
-	int x, len, max;
-	unsigned char *hex_value;
-
-	max = (hash_length * 2) + 2;
-	hex_value = xmalloc(max);
-	for (x = len = 0; x < hash_length; x++) {
-		len += snprintf(hex_value + len, max - len, "%02x", hash_value[x]);
-	}
-	return (hex_value);
+	/* xzalloc zero-terminates */
+	char *hex_value = xzalloc((hash_length * 2) + 1);
+	bin2hex(hex_value, (char*)hash_value, hash_length);
+	return (unsigned char *)hex_value;
 }
 
-static uint8_t *hash_file(const char *filename, uint8_t hash_algo)
+static uint8_t *hash_file(const char *filename /*, hash_algo_t hash_algo*/)
 {
-	uint8_t *hash_value_bin;
+	int src_fd, hash_len, count;
+	union _ctx_ {
+		sha512_ctx_t sha512;
+		sha256_ctx_t sha256;
+		sha1_ctx_t sha1;
+		md5_ctx_t md5;
+	} context;
 	uint8_t *hash_value = NULL;
-	uint8_t hash_length;
-	int src_fd;
+	RESERVE_CONFIG_UBUFFER(in_buf, 4096);
+	void FAST_FUNC (*update)(const void*, size_t, void*);
+	void FAST_FUNC (*final)(void*, void*);
+	hash_algo_t hash_algo = applet_name[3];
 
-	if (strcmp(filename, "-") == 0) {
-		src_fd = STDIN_FILENO;
-	} else {
-		src_fd = open(filename, O_RDONLY);
+	src_fd = open_or_warn_stdin(filename);
+	if (src_fd < 0) {
+		return NULL;
 	}
 
-	if (hash_algo == HASH_MD5) {
-		hash_length = 16;
+	/* figure specific hash algorithims */
+	if (ENABLE_MD5SUM && hash_algo == HASH_MD5) {
+		md5_begin(&context.md5);
+		update = (void*)md5_hash;
+		final = (void*)md5_end;
+		hash_len = 16;
+	} else if (ENABLE_SHA1SUM && hash_algo == HASH_SHA1) {
+		sha1_begin(&context.sha1);
+		update = (void*)sha1_hash;
+		final = (void*)sha1_end;
+		hash_len = 20;
+	} else if (ENABLE_SHA256SUM && hash_algo == HASH_SHA256) {
+		sha256_begin(&context.sha256);
+		update = (void*)sha256_hash;
+		final = (void*)sha256_end;
+		hash_len = 32;
+	} else if (ENABLE_SHA512SUM && hash_algo == HASH_SHA512) {
+		sha512_begin(&context.sha512);
+		update = (void*)sha512_hash;
+		final = (void*)sha512_end;
+		hash_len = 64;
 	} else {
-		hash_length = 20;
+		bb_error_msg_and_die("algorithm not supported");
 	}
 
-	hash_value_bin = xmalloc(hash_length);
-
-	if ((src_fd != -1) && (hash_fd(src_fd, -1, hash_algo, hash_value_bin) != -2)) {
-		hash_value = hash_bin_to_hex(hash_value_bin, hash_length);
-	} else {
-		bb_perror_msg("%s", filename);
+	while (0 < (count = safe_read(src_fd, in_buf, 4096))) {
+		update(in_buf, count, &context);
 	}
 
-	close(src_fd);
+	if (count == 0) {
+		final(in_buf, &context);
+		hash_value = hash_bin_to_hex(in_buf, hash_len);
+	}
 
-	return(hash_value);
+	RELEASE_CONFIG_BUFFER(in_buf);
+
+	if (src_fd != STDIN_FILENO) {
+		close(src_fd);
+	}
+
+	return hash_value;
 }
 
-/* This could become a common function for md5 as well, by using md5_stream */
-extern int hash_files(int argc, char **argv, const uint8_t hash_algo)
+int md5_sha1_sum_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int md5_sha1_sum_main(int argc UNUSED_PARAM, char **argv)
 {
 	int return_value = EXIT_SUCCESS;
 	uint8_t *hash_value;
+	unsigned flags;
+	/*hash_algo_t hash_algo = applet_name[3];*/
 
-#ifdef CONFIG_FEATURE_MD5_SHA1_SUM_CHECK
-	unsigned int flags;
+	if (ENABLE_FEATURE_MD5_SHA1_SUM_CHECK) {
+		/* -b "binary", -t "text" are ignored (shaNNNsum compat) */
+		flags = getopt32(argv, "scwbt");
+	}
+	else optind = 1;
+	argv += optind;
+	//argc -= optind;
+	if (!*argv)
+		*--argv = (char*)"-";
 
-	flags = bb_getopt_ulflags(argc, argv, "scw");
-#endif
-
-#ifdef CONFIG_FEATURE_MD5_SHA1_SUM_CHECK
-	if (!(flags & FLAG_CHECK)) {
+	if (ENABLE_FEATURE_MD5_SHA1_SUM_CHECK && !(flags & FLAG_CHECK)) {
 		if (flags & FLAG_SILENT) {
 			bb_error_msg_and_die
-				("the -s option is meaningful only when verifying checksums");
+				("-%c is meaningful only when verifying checksums", 's');
 		} else if (flags & FLAG_WARN) {
 			bb_error_msg_and_die
-				("the -w option is meaningful only when verifying checksums");
+				("-%c is meaningful only when verifying checksums", 'w');
 		}
 	}
-#endif
 
-	if (argc == optind) {
-		argv[argc++] = "-";
-	}
-#ifdef CONFIG_FEATURE_MD5_SHA1_SUM_CHECK
-	if (flags & FLAG_CHECK) {
+	if (ENABLE_FEATURE_MD5_SHA1_SUM_CHECK && (flags & FLAG_CHECK)) {
 		FILE *pre_computed_stream;
 		int count_total = 0;
 		int count_failed = 0;
-		unsigned char *file_ptr = argv[optind];
 		char *line;
 
-		if (optind + 1 != argc) {
+		if (argv[1]) {
 			bb_error_msg_and_die
 				("only one argument may be specified when using -c");
 		}
 
-		if (strcmp(file_ptr, "-") == 0) {
-			pre_computed_stream = stdin;
-		} else {
-			pre_computed_stream = bb_xfopen(file_ptr, "r");
-		}
+		pre_computed_stream = xfopen_stdin(argv[0]);
 
-		while ((line = bb_get_chomped_line_from_file(pre_computed_stream)) != NULL) {
+		while ((line = xmalloc_fgetline(pre_computed_stream)) != NULL) {
 			char *filename_ptr;
 
 			count_total++;
 			filename_ptr = strstr(line, "  ");
+			/* handle format for binary checksums */
+			if (filename_ptr == NULL) {
+				filename_ptr = strstr(line, " *");
+			}
 			if (filename_ptr == NULL) {
 				if (flags & FLAG_WARN) {
-					bb_error_msg("Invalid format");
+					bb_error_msg("invalid format");
 				}
+				count_failed++;
+				return_value = EXIT_FAILURE;
 				free(line);
 				continue;
 			}
 			*filename_ptr = '\0';
 			filename_ptr += 2;
 
-			hash_value = hash_file(filename_ptr, hash_algo);
+			hash_value = hash_file(filename_ptr /*, hash_algo*/);
 
-			if (hash_value && (strcmp(hash_value, line) == 0)) {
+			if (hash_value && (strcmp((char*)hash_value, line) == 0)) {
 				if (!(flags & FLAG_SILENT))
 					printf("%s: OK\n", filename_ptr);
 			} else {
@@ -159,46 +174,21 @@ extern int hash_files(int argc, char **argv, const uint8_t hash_algo)
 			bb_error_msg("WARNING: %d of %d computed checksums did NOT match",
 						 count_failed, count_total);
 		}
-		if (bb_fclose_nonstdin(pre_computed_stream) == EOF) {
-			bb_perror_msg_and_die("Couldnt close file %s", file_ptr);
+		/*
+		if (fclose_if_not_stdin(pre_computed_stream) == EOF) {
+			bb_perror_msg_and_die("can't close file %s", file_ptr);
 		}
-	} else
-#endif
-	{
-		uint8_t hash_length;
-
-		if (hash_algo == HASH_MD5) {
-			hash_length = 16;
-		} else {
-			hash_length = 20;
-		}
-		hash_value = xmalloc(hash_length);
-
-		while (optind < argc) {
-			unsigned char *file_ptr = argv[optind++];
-
-			hash_value = hash_file(file_ptr, hash_algo);
+		*/
+	} else {
+		do {
+			hash_value = hash_file(*argv/*, hash_algo*/);
 			if (hash_value == NULL) {
 				return_value = EXIT_FAILURE;
 			} else {
-				printf("%s  %s\n", hash_value, file_ptr);
+				printf("%s  %s\n", hash_value, *argv);
 				free(hash_value);
 			}
-		}
+		} while (*++argv);
 	}
-	return (return_value);
+	return return_value;
 }
-
-#ifdef CONFIG_MD5SUM
-extern int md5sum_main(int argc, char **argv)
-{
-	return(hash_files(argc, argv, HASH_MD5));
-}
-#endif
-
-#ifdef CONFIG_SHA1SUM
-extern int sha1sum_main(int argc, char **argv)
-{
-	return(hash_files(argc, argv, HASH_SHA1));
-}
-#endif

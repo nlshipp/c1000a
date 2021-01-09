@@ -28,7 +28,7 @@ void AEI_cmsTmr_cancel2(void *handle, CmsEventHandler func, void *ctxData)
          prevEvent = currEvent;
          currEvent = currEvent->next;
 
-         if (currEvent != NULL && currEvent->func == func && 
+         if (currEvent != NULL && currEvent->func == func &&
              cmsUtl_strcmp(currEvent->ctxData, ctxData) == 0)
          {
             prevEvent->next = currEvent->next;
@@ -43,7 +43,7 @@ void AEI_cmsTmr_cancel2(void *handle, CmsEventHandler func, void *ctxData)
       tmrHandle->numEvents--;
 
       cmsLog_debug("canceled event %s, count=%d", currEvent->name, tmrHandle->numEvents);
-      CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent->ctxData); 
+      CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent->ctxData);
       CMSMEM_FREE_BUF_AND_NULL_PTR(currEvent);
    }
    else
@@ -127,7 +127,7 @@ CmsRet AEI_cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32
    }
 
 
-   /* 
+   /*
     * Now we just need to insert it in the correct place in the timer handle.
     * We just insert the events in absolute order, i.e. smallest expire timer
     * at the head of the queue, largest at the end of the queue.  If the
@@ -139,7 +139,7 @@ CmsRet AEI_cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32
    {
       tmrHandle->events = newEvent;
    }
-   else 
+   else
    {
       currEvent = tmrHandle->events;
 
@@ -182,7 +182,7 @@ CmsRet AEI_cmsTmr_set2(void *handle, CmsEventHandler func, void *ctxData, UINT32
 
    return CMSRET_SUCCESS;
 }
- 
+
 UINT32 AEI_cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, void *ctxData)
 {
    const CmsTimerHandle *tmrHandle = (const CmsTimerHandle *) handle;
@@ -214,7 +214,7 @@ UINT32 AEI_cmsTmr_Event_TimeRemaining(const void *handle, CmsEventHandler func, 
 }
 #endif /* DMP_PERIODICSTATSBASE_1 */
 
-#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS) 
+#if defined(AEI_VDSL_CUSTOMER_QWEST) || defined(AEI_VDSL_CUSTOMER_TELUS)
 UBOOL8 AEI_cmsTmr_isWlanBatchEventPresent(const void *handle, CmsEventHandler func)
 {
    const CmsTimerHandle *tmrHandle = (const CmsTimerHandle *) handle;

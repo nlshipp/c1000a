@@ -264,6 +264,7 @@ static int do_tunnels_list(struct ip6_tnl_parm *p)
 	/* skip two lines at the begenning of the file */
 	fgets(buf, sizeof(buf), fp);
 	fgets(buf, sizeof(buf), fp);
+        fgets(buf, sizeof(buf), fp);
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
 		char name[IFNAMSIZ];

@@ -3,12 +3,12 @@ Note all these are mere examples which can be customized to your needs
 
 AFCBQ
 -----
-AF PHB built using CBQ, DSMARK,GRED (default in GRIO mode) ,RED for BE 
+AF PHB built using CBQ, DSMARK,GRED (default in GRIO mode) ,RED for BE
 and the tcindex classifier with some algorithmic mapping
 
 EFCBQ
 -----
-EF PHB built using CBQ (for rate control and prioritization), 
+EF PHB built using CBQ (for rate control and prioritization),
 DSMARK( to remark DSCPs), tcindex  classifier and  RED for the BE
 traffic.
 
@@ -33,7 +33,7 @@ Color Blind (CB)
 ==========-----=
 We look at one special subnet that we are interested in for simplicty
 reasons to demonstrate the capability. We send the packets from that
-subnet to AF4*, BE or end up dropping depending on the metering results. 
+subnet to AF4*, BE or end up dropping depending on the metering results.
 
 
 The algorithm overview is as follows:
@@ -47,14 +47,14 @@ The algorithm overview is as follows:
 	    if !exceed meter2  tag as AF42
 	        else
 		  if !exceed meter 3 tag as AF43
-		      else 
-			 drop 
+		      else
+			 drop
 
 default case: Any other subnet
 -------------------------------
   if !exceed meter 5 tag as AF43
       else
-	 drop 
+	 drop
 
 
 One Egress side change the DSCPs of the packets to reflect AF4* and BE
@@ -67,8 +67,8 @@ Color Aware
 
 Define some meters with + policing and give them IDs eg
 
-meter1=police index 1 rate $CIR1 burst $CBS1  
-meter2=police index 2 rate $CIR2 burst $CBS2   etc 
+meter1=police index 1 rate $CIR1 burst $CBS1
+meter2=police index 2 rate $CIR2 burst $CBS2   etc
 
 General overview:
 classify based on the DSCPs and use the policer ids to decide tagging

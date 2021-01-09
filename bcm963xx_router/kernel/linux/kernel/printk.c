@@ -502,8 +502,8 @@ static void call_console_drivers(unsigned start, unsigned end)
 				{
 					msg_level = 8;
 					//printk("msg_level %d, console_loglevel %d ignore_loglevel %d!\n",msg_level, console_loglevel, ignore_loglevel);
-				}	
-#endif				
+				}
+#endif
 				_call_console_drivers(start_print, cur_index, msg_level);
 				msg_level = -1;
 				start_print = cur_index;

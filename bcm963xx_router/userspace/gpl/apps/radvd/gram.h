@@ -1,7 +1,9 @@
-/* A Bison parser, made by GNU Bison 2.1.  */
+/* A Bison parser, made by GNU Bison 2.3.  */
 
-/* Skeleton parser for Yacc-like parsing with Bison,
-   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+/* Skeleton interface for Bison's Yacc-like parsers in C
+
+   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,10 +20,18 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor,
    Boston, MA 02110-1301, USA.  */
 
-/* As a special exception, when this file is copied by Bison into a
-   Bison output file, you may use that output file without restriction.
-   This special exception was added by the Free Software Foundation
-   in version 1.24 of Bison.  */
+/* As a special exception, you may create a larger work that contains
+   part or all of the Bison parser skeleton and distribute that work
+   under terms of your choice, so long as that work isn't itself a
+   parser generator using the skeleton or a modified version thereof
+   as a parser skeleton.  Alternatively, if you modify or redistribute
+   the parser skeleton itself, you may (at your option) remove this
+   special exception, which will cause the skeleton and the resulting
+   Bison output files to be licensed under the GNU General Public
+   License without this special exception.
+
+   This special exception was added by the Free Software Foundation in
+   version 2.2 of Bison.  */
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -33,46 +43,55 @@
      T_PREFIX = 259,
      T_ROUTE = 260,
      T_RDNSS = 261,
-     STRING = 262,
-     NUMBER = 263,
-     SIGNEDNUMBER = 264,
-     DECIMAL = 265,
-     SWITCH = 266,
-     IPV6ADDR = 267,
-     INFINITY = 268,
-     T_IgnoreIfMissing = 269,
-     T_AdvSendAdvert = 270,
-     T_MaxRtrAdvInterval = 271,
-     T_MinRtrAdvInterval = 272,
-     T_MinDelayBetweenRAs = 273,
-     T_AdvManagedFlag = 274,
-     T_AdvOtherConfigFlag = 275,
-     T_AdvLinkMTU = 276,
-     T_AdvReachableTime = 277,
-     T_AdvRetransTimer = 278,
-     T_AdvCurHopLimit = 279,
-     T_AdvDefaultLifetime = 280,
-     T_AdvDefaultPreference = 281,
-     T_AdvSourceLLAddress = 282,
-     T_AdvOnLink = 283,
-     T_AdvAutonomous = 284,
-     T_AdvValidLifetime = 285,
-     T_AdvPreferredLifetime = 286,
-     T_AdvRouterAddr = 287,
-     T_AdvHomeAgentFlag = 288,
-     T_AdvIntervalOpt = 289,
-     T_AdvHomeAgentInfo = 290,
-     T_Base6to4Interface = 291,
-     T_UnicastOnly = 292,
-     T_HomeAgentPreference = 293,
-     T_HomeAgentLifetime = 294,
-     T_AdvRoutePreference = 295,
-     T_AdvRouteLifetime = 296,
-     T_AdvRDNSSPreference = 297,
-     T_AdvRDNSSOpenFlag = 298,
-     T_AdvRDNSSLifetime = 299,
-     T_AdvMobRtrSupportFlag = 300,
-     T_BAD_TOKEN = 301
+     T_DNSSL = 262,
+     T_CLIENTS = 263,
+     STRING = 264,
+     NUMBER = 265,
+     SIGNEDNUMBER = 266,
+     DECIMAL = 267,
+     SWITCH = 268,
+     IPV6ADDR = 269,
+     INFINITY = 270,
+     T_IgnoreIfMissing = 271,
+     T_AdvSendAdvert = 272,
+     T_MaxRtrAdvInterval = 273,
+     T_MinRtrAdvInterval = 274,
+     T_MinDelayBetweenRAs = 275,
+     T_AdvManagedFlag = 276,
+     T_AdvOtherConfigFlag = 277,
+     T_AdvLinkMTU = 278,
+     T_AdvReachableTime = 279,
+     T_AdvRetransTimer = 280,
+     T_AdvCurHopLimit = 281,
+     T_AdvDefaultLifetime = 282,
+     T_AdvDefaultPreference = 283,
+     T_AdvSourceLLAddress = 284,
+     T_AdvOnLink = 285,
+     T_AdvAutonomous = 286,
+     T_AdvValidLifetime = 287,
+     T_AdvPreferredLifetime = 288,
+     T_DeprecatePrefix = 289,
+     T_DecrementLifetimes = 290,
+     T_AdvRouterAddr = 291,
+     T_AdvHomeAgentFlag = 292,
+     T_AdvIntervalOpt = 293,
+     T_AdvHomeAgentInfo = 294,
+     T_Base6Interface = 295,
+     T_Base6to4Interface = 296,
+     T_UnicastOnly = 297,
+     T_HomeAgentPreference = 298,
+     T_HomeAgentLifetime = 299,
+     T_AdvRoutePreference = 300,
+     T_AdvRouteLifetime = 301,
+     T_RemoveRoute = 302,
+     T_AdvRDNSSPreference = 303,
+     T_AdvRDNSSOpenFlag = 304,
+     T_AdvRDNSSLifetime = 305,
+     T_FlushRDNSS = 306,
+     T_AdvDNSSLLifetime = 307,
+     T_FlushDNSSL = 308,
+     T_AdvMobRtrSupportFlag = 309,
+     T_BAD_TOKEN = 310
    };
 #endif
 /* Tokens.  */
@@ -80,71 +99,81 @@
 #define T_PREFIX 259
 #define T_ROUTE 260
 #define T_RDNSS 261
-#define STRING 262
-#define NUMBER 263
-#define SIGNEDNUMBER 264
-#define DECIMAL 265
-#define SWITCH 266
-#define IPV6ADDR 267
-#define INFINITY 268
-#define T_IgnoreIfMissing 269
-#define T_AdvSendAdvert 270
-#define T_MaxRtrAdvInterval 271
-#define T_MinRtrAdvInterval 272
-#define T_MinDelayBetweenRAs 273
-#define T_AdvManagedFlag 274
-#define T_AdvOtherConfigFlag 275
-#define T_AdvLinkMTU 276
-#define T_AdvReachableTime 277
-#define T_AdvRetransTimer 278
-#define T_AdvCurHopLimit 279
-#define T_AdvDefaultLifetime 280
-#define T_AdvDefaultPreference 281
-#define T_AdvSourceLLAddress 282
-#define T_AdvOnLink 283
-#define T_AdvAutonomous 284
-#define T_AdvValidLifetime 285
-#define T_AdvPreferredLifetime 286
-#define T_AdvRouterAddr 287
-#define T_AdvHomeAgentFlag 288
-#define T_AdvIntervalOpt 289
-#define T_AdvHomeAgentInfo 290
-#define T_Base6to4Interface 291
-#define T_UnicastOnly 292
-#define T_HomeAgentPreference 293
-#define T_HomeAgentLifetime 294
-#define T_AdvRoutePreference 295
-#define T_AdvRouteLifetime 296
-#define T_AdvRDNSSPreference 297
-#define T_AdvRDNSSOpenFlag 298
-#define T_AdvRDNSSLifetime 299
-#define T_AdvMobRtrSupportFlag 300
-#define T_BAD_TOKEN 301
+#define T_DNSSL 262
+#define T_CLIENTS 263
+#define STRING 264
+#define NUMBER 265
+#define SIGNEDNUMBER 266
+#define DECIMAL 267
+#define SWITCH 268
+#define IPV6ADDR 269
+#define INFINITY 270
+#define T_IgnoreIfMissing 271
+#define T_AdvSendAdvert 272
+#define T_MaxRtrAdvInterval 273
+#define T_MinRtrAdvInterval 274
+#define T_MinDelayBetweenRAs 275
+#define T_AdvManagedFlag 276
+#define T_AdvOtherConfigFlag 277
+#define T_AdvLinkMTU 278
+#define T_AdvReachableTime 279
+#define T_AdvRetransTimer 280
+#define T_AdvCurHopLimit 281
+#define T_AdvDefaultLifetime 282
+#define T_AdvDefaultPreference 283
+#define T_AdvSourceLLAddress 284
+#define T_AdvOnLink 285
+#define T_AdvAutonomous 286
+#define T_AdvValidLifetime 287
+#define T_AdvPreferredLifetime 288
+#define T_DeprecatePrefix 289
+#define T_DecrementLifetimes 290
+#define T_AdvRouterAddr 291
+#define T_AdvHomeAgentFlag 292
+#define T_AdvIntervalOpt 293
+#define T_AdvHomeAgentInfo 294
+#define T_Base6Interface 295
+#define T_Base6to4Interface 296
+#define T_UnicastOnly 297
+#define T_HomeAgentPreference 298
+#define T_HomeAgentLifetime 299
+#define T_AdvRoutePreference 300
+#define T_AdvRouteLifetime 301
+#define T_RemoveRoute 302
+#define T_AdvRDNSSPreference 303
+#define T_AdvRDNSSOpenFlag 304
+#define T_AdvRDNSSLifetime 305
+#define T_FlushRDNSS 306
+#define T_AdvDNSSLLifetime 307
+#define T_FlushDNSSL 308
+#define T_AdvMobRtrSupportFlag 309
+#define T_BAD_TOKEN 310
 
 
 
 
-#if ! defined (YYSTYPE) && ! defined (YYSTYPE_IS_DECLARED)
-#line 110 "gram.y"
-typedef union YYSTYPE {
+#if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
+typedef union YYSTYPE
+#line 137 "gram.y"
+{
 	unsigned int		num;
 	int			snum;
 	double			dec;
-	int			bool;
 	struct in6_addr		*addr;
 	char			*str;
 	struct AdvPrefix	*pinfo;
 	struct AdvRoute		*rinfo;
 	struct AdvRDNSS		*rdnssinfo;
-} YYSTYPE;
-/* Line 1447 of yacc.c.  */
-#line 142 "y.tab.h"
+	struct AdvDNSSL		*dnsslinfo;
+	struct Clients		*ainfo;
+}
+/* Line 1489 of yacc.c.  */
+#line 172 "gram.h"
+	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
 # define YYSTYPE_IS_TRIVIAL 1
 #endif
 
 extern YYSTYPE yylval;
-
-
 

@@ -13,5 +13,3 @@ void CLZOutWindow::Init(bool solid)
   ErrorCode = S_OK;
   #endif
 }
-
-

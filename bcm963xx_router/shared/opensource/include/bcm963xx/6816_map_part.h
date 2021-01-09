@@ -1,41 +1,50 @@
 /*
     Copyright 2000-2010 Broadcom Corporation
+<:label-BRCM:2011:DUAL/GPL:standard
 
-    Unless you and Broadcom execute a separate written software license
-    agreement governing use of this software, this software is licensed
-    to you under the terms of the GNU General Public License version 2
-    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
-    with the following added to such license:
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
 
-        As a special exception, the copyright holders of this software give
-        you permission to link this software with independent modules, and to
-        copy and distribute the resulting executable under terms of your
-        choice, provided that you also meet, for each linked independent
-        module, the terms and conditions of the license of that module. 
-        An independent module is a module which is not derived from this
-        software.  The special exception does not apply to any modifications
-        of the software.
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
 
-    Notwithstanding the above, under no circumstances may you combine this
-    software in any way with any other Broadcom software provided under a
-    license other than the GPL, without Broadcom's express prior written
-    consent.
-*/                       
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
 
-#ifndef __BCM6816_MAP_H
-#define __BCM6816_MAP_H
+  :>
+*/                     
+
+#ifndef __BCM6816_MAP_PART_H
+#define __BCM6816_MAP_PART_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifndef __BCM6816_MAP_H
+#define __BCM6816_MAP_H
+
 #include "bcmtypes.h"
+
+#define DBL_DESC 1
 
 #define PERF_BASE            0xb0000000  /* chip control registers */
 #define TIMR_BASE            0xb0000040  /* timer registers */
 #define GPIO_BASE            0xb0000080  /* gpio registers */
 #define UART_BASE            0xb0000100  /* uart registers */
 #define UART1_BASE           0xb0000120  /* uart registers */
+#define I2C_BASE             0xb0000180
 #define SPI_BASE             0xb0000800  /* SPI master controller registers */
 #define HSSPIM_BASE          0xb0001000  /* High-Speed SPI registers */
 #define MISC_BASE            0xb0001800  /* Miscellaneous Registers */
@@ -59,6 +68,46 @@ extern "C" {
 #define SWITCH_DMA_STATE     0xb000dc00
 #define MOCA_MEM_BASE        0xb0d00000
 #define MOCA_IO_BASE         0xb0d80000
+#define IPSEC_DMA_BASE       0xb000d000
+
+typedef struct HvgMiscRegisterChannelA {
+   uint32        mask;
+#define   K_PROP                          0x0000000f
+#define   K_INTEG                         0x000000f0
+#define   SER_TST_OUTPUT_SEL              0x00000700
+#define   CONT_OR_BLOCK                   0x00000800
+#define   HVG_MODE                        0x00003000
+#define   HVG_MODE_OFFHOOK_TRACKING       0x00001000
+#define   HVG_MODE_ONHOOK_FIXED           0x00002000
+#define   HVG_SOFT_INIT_0                 0x00004000
+#define   HVG_RR_SINGLE                   0x00008000
+} HvgMiscRegisterChannelA;
+
+#define HVG_MISC_REG_CHANNEL_A ((volatile HvgMiscRegisterChannelA * const) APM_HVG_BASE_REG_15)
+
+typedef struct HvgMiscRegisterChannelB {
+   uint32        mask;
+} HvgMiscRegisterChannelB;
+
+#define HVG_MISC_REG_CHANNEL_B ((volatile HvgMiscRegisterChannelB * const) APM_HVG_BASE_REG_19)
+
+/*
+** NAND Controller Registers
+*/
+typedef struct NandCtrlRegs {
+    uint32 NandRevision;            /* NAND Revision */
+    uint32 NandCmdStart;            /* Nand Flash Command Start */
+    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
+    uint32 NandCmdAddr;             /* Nand Flash Command Address */
+    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
+    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
+#define NBC_AUTO_DEV_ID_CFG 0x40000000
+    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
+} NandCtrlRegs;
+
+#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
+
+#endif
 
 typedef struct DDRPhyControl {
     uint32 REVISION;               /* 0x00 */
@@ -185,6 +234,63 @@ typedef struct DDRControl {
 } DDRControl;
 
 #define DDR ((volatile DDRControl * const) DDR_BASE)
+
+/*
+ * I2C Controller.
+ */
+
+typedef struct I2CControl {
+  uint32        ChipAddress;            /* 0x0 */
+#define I2C_CHIP_ADDRESS_MASK           0x000000f7
+#define I2C_CHIP_ADDRESS_SHIFT          0x1
+  uint32        DataIn0;                /* 0x4 */
+  uint32        DataIn1;                /* 0x8 */
+  uint32        DataIn2;                /* 0xc */
+  uint32        DataIn3;                /* 0x10 */
+  uint32        DataIn4;                /* 0x14 */
+  uint32        DataIn5;                /* 0x18 */
+  uint32        DataIn6;                /* 0x1c */
+  uint32        DataIn7;                /* 0x20 */
+  uint32        CntReg;                 /* 0x24 */
+#define I2C_CNT_REG1_SHIFT              0x0
+#define I2C_CNT_REG2_SHIFT              0x6
+  uint32        CtlReg;                 /* 0x28 */
+#define I2C_CTL_REG_DTF_MASK            0x00000003
+#define I2C_CTL_REG_DTF_WRITE           0x0
+#define I2C_CTL_REG_DTF_READ            0x1
+#define I2C_CTL_REG_DTF_READ_AND_WRITE  0x2
+#define I2C_CTL_REG_DTF_WRITE_AND_READ  0x3
+#define I2C_CTL_REG_DEGLITCH_DISABLE    0x00000004
+#define I2C_CTL_REG_DELAY_DISABLE       0x00000008
+#define I2C_CTL_REG_SCL_SEL_MASK        0x00000030
+#define I2C_CTL_REG_SCL_CLK_375KHZ      0x00000000
+#define I2C_CTL_REG_SCL_CLK_390KHZ      0x00000010
+#define I2C_CTL_REG_SCL_CLK_187_5KHZ    0x00000020
+#define I2C_CTL_REG_SCL_CLK_200KHZ      0x00000030
+#define I2C_CTL_REG_INT_ENABLE          0x00000040
+#define I2C_CTL_REG_DIV_CLK             0x00000080
+  uint32        IICEnable;              /* 0x2c */
+#define I2C_IIC_ENABLE                  0x00000001
+#define I2C_IIC_INTRP                   0x00000002
+#define I2C_IIC_NO_ACK                  0x00000004
+#define I2C_IIC_NO_STOP                 0x00000010
+#define I2C_IIC_NO_START                0x00000020
+  uint32        DataOut0;               /* 0x30 */
+  uint32        DataOut1;               /* 0x34 */
+  uint32        DataOut2;               /* 0x38 */
+  uint32        DataOut3;               /* 0x3c */
+  uint32        DataOut4;               /* 0x40 */
+  uint32        DataOut5;               /* 0x44 */
+  uint32        DataOut6;               /* 0x48 */
+  uint32        DataOut7;               /* 0x4c */
+  uint32        CtlHiReg;               /* 0x50 */
+#define I2C_CTLHI_REG_WAIT_DISABLE      0x00000001
+#define I2C_CTLHI_REG_IGNORE_ACK        0x00000002
+#define I2C_CTLHI_REG_DATA_REG_SIZE     0x00000040
+  uint32        SclParam;               /* 0x54 */
+} I2CControl;
+
+#define I2C ((volatile I2CControl * const) I2C_BASE)
 
 /*
 ** Peripheral Controller
@@ -788,8 +894,8 @@ typedef struct HsSpiControl {
 #define HS_SPI_INTR_CLEAR_ALL       (0xFF001F1F)
 
   uint32	hs_spiFlashCtrl;	// 0x0014
-#define	HS_SPI_FCTRL_MB_ENABLE		(1 << 23)
-#define	HS_SPI_FCTRL_SS_NUM		(20)
+#define	HS_SPI_FCTRL_MB_ENABLE		(23)
+#define	HS_SPI_FCTRL_SS_NUM			(20)
 #define	HS_SPI_FCTRL_SS_NUM_MASK	__mask(22, HS_SPI_FCTRL_SS_NUM)
 #define	HS_SPI_FCTRL_PROFILE_NUM	(16)
 #define	HS_SPI_FCTRL_PROFILE_NUM_MASK	__mask(18, HS_SPI_FCTRL_PROFILE_NUM)
@@ -999,26 +1105,7 @@ typedef struct Misc {
 
 #define MISC ((volatile Misc * const) MISC_BASE)
 
-typedef struct HvgMiscRegisterChannelA {
-   uint32        mask;
-#define   K_PROP                          0x0000000f
-#define   K_INTEG                         0x000000f0
-#define   SER_TST_OUTPUT_SEL              0x00000700
-#define   CONT_OR_BLOCK                   0x00000800
-#define   HVG_MODE                        0x00003000
-#define   HVG_MODE_OFFHOOK_TRACKING       0x00001000
-#define   HVG_MODE_ONHOOK_FIXED           0x00002000
-#define   HVG_SOFT_INIT_0                 0x00004000
-#define   HVG_RR_SINGLE                   0x00008000
-} HvgMiscRegisterChannelA;
 
-#define HVG_MISC_REG_CHANNEL_A ((volatile HvgMiscRegisterChannelA * const) APM_HVG_BASE_REG_15)
-
-typedef struct HvgMiscRegisterChannelB {
-   uint32        mask;
-} HvgMiscRegisterChannelB;
-
-#define HVG_MISC_REG_CHANNEL_B ((volatile HvgMiscRegisterChannelB * const) APM_HVG_BASE_REG_19)
 
 #define IUDMA_MAX_CHANNELS          32
 
@@ -1153,59 +1240,6 @@ typedef struct {
 #define         GEM_ID_MASK             0x001F
   uint32        reserved;
 } DmaDesc16;
-
-typedef struct EthSwMIBRegs {
-    unsigned int TxOctetsLo;
-    unsigned int TxOctetsHi;
-    unsigned int TxDropPkts;
-    unsigned int TxQoSPkts;
-    unsigned int TxBroadcastPkts;
-    unsigned int TxMulticastPkts;
-    unsigned int TxUnicastPkts;
-    unsigned int TxCol;
-    unsigned int TxSingleCol;
-    unsigned int TxMultipleCol;
-    unsigned int TxDeferredTx;
-    unsigned int TxLateCol;
-    unsigned int TxExcessiveCol;
-    unsigned int TxFrameInDisc;
-    unsigned int TxPausePkts;
-    unsigned int TxQoSOctetsLo;
-    unsigned int TxQoSOctetsHi;
-    unsigned int RxOctetsLo;
-    unsigned int RxOctetsHi;
-    unsigned int RxUndersizePkts;
-    unsigned int RxPausePkts;
-    unsigned int Pkts64Octets;
-    unsigned int Pkts65to127Octets;
-    unsigned int Pkts128to255Octets;
-    unsigned int Pkts256to511Octets;
-    unsigned int Pkts512to1023Octets;
-    unsigned int Pkts1024to1522Octets;
-    unsigned int RxOversizePkts;
-    unsigned int RxJabbers;
-    unsigned int RxAlignErrs;
-    unsigned int RxFCSErrs;
-    unsigned int RxGoodOctetsLo;
-    unsigned int RxGoodOctetsHi;
-    unsigned int RxDropPkts;
-    unsigned int RxUnicastPkts;
-    unsigned int RxMulticastPkts;
-    unsigned int RxBroadcastPkts;
-    unsigned int RxSAChanges;
-    unsigned int RxFragments;
-    unsigned int RxExcessSizeDisc;
-    unsigned int RxSymbolError;
-    unsigned int RxQoSPkts;
-    unsigned int RxQoSOctetsLo;
-    unsigned int RxQoSOctetsHi;
-    unsigned int Pkts1523to2047;
-    unsigned int Pkts2048to4095;
-    unsigned int Pkts4096to8191;
-    unsigned int Pkts8192to9728;
-} EthSwMIBRegs;
-
-#define ETHSWMIBREG ((volatile EthSwMIBRegs * const) (SWITCH_BASE + 0x2000))
 
 /*
 ** External Bus Interface
@@ -1451,6 +1485,8 @@ typedef struct GponSerdesRegs {
 /*
 ** PCI-E
 */
+#define LOW_MEM_WINDOW_1MB_ONLY
+
 typedef struct PcieRegs{
   uint32 devVenID;
   uint16 command;
@@ -1546,21 +1582,64 @@ typedef struct PcieBlk1800Regs{
 #define PCIEH_BLK_1000_REGS           ((volatile PcieBlk1000Regs * const) (PCIE_BASE+0x1000))
 #define PCIEH_BLK_1800_REGS           ((volatile PcieBlk1800Regs * const) (PCIE_BASE+0x1800))
 
-/*
-** NAND Controller Registers
-*/
-typedef struct NandCtrlRegs {
-    uint32 NandRevision;            /* NAND Revision */
-    uint32 NandCmdStart;            /* Nand Flash Command Start */
-    uint32 NandCmdExtAddr;          /* Nand Flash Command Extended Address */
-    uint32 NandCmdAddr;             /* Nand Flash Command Address */
-    uint32 NandCmdEndAddr;          /* Nand Flash Command End Address */
-    uint32 NandNandBootConfig;      /* Nand Flash Boot Config */
-#define NBC_AUTO_DEV_ID_CFG 0x40000000
-    uint32 NandCsNandXor;           /* Nand Flash EBI CS Address XOR with */
-} NandCtrlRegs;
+#define PCIEH_MEM1_BASE               0x10f00000
+#define PCIEH_MEM1_SIZE               0x00100000
 
-#define NAND ((volatile NandCtrlRegs * const) NAND_REG_BASE)
+#define PCIEH_MEM2_BASE               0xa0000000
+#define PCIEH_MEM2_SIZE               0x01000000
+
+typedef struct EthSwMIBRegs {
+    unsigned int TxOctetsLo;
+    unsigned int TxOctetsHi;
+    unsigned int TxDropPkts;
+    unsigned int TxQoSPkts;
+    unsigned int TxBroadcastPkts;
+    unsigned int TxMulticastPkts;
+    unsigned int TxUnicastPkts;
+    unsigned int TxCol;
+    unsigned int TxSingleCol;
+    unsigned int TxMultipleCol;
+    unsigned int TxDeferredTx;
+    unsigned int TxLateCol;
+    unsigned int TxExcessiveCol;
+    unsigned int TxFrameInDisc;
+    unsigned int TxPausePkts;
+    unsigned int TxQoSOctetsLo;
+    unsigned int TxQoSOctetsHi;
+    unsigned int RxOctetsLo;
+    unsigned int RxOctetsHi;
+    unsigned int RxUndersizePkts;
+    unsigned int RxPausePkts;
+    unsigned int Pkts64Octets;
+    unsigned int Pkts65to127Octets;
+    unsigned int Pkts128to255Octets;
+    unsigned int Pkts256to511Octets;
+    unsigned int Pkts512to1023Octets;
+    unsigned int Pkts1024to1522Octets;
+    unsigned int RxOversizePkts;
+    unsigned int RxJabbers;
+    unsigned int RxAlignErrs;
+    unsigned int RxFCSErrs;
+    unsigned int RxGoodOctetsLo;
+    unsigned int RxGoodOctetsHi;
+    unsigned int RxDropPkts;
+    unsigned int RxUnicastPkts;
+    unsigned int RxMulticastPkts;
+    unsigned int RxBroadcastPkts;
+    unsigned int RxSAChanges;
+    unsigned int RxFragments;
+    unsigned int RxExcessSizeDisc;
+    unsigned int RxSymbolError;
+    unsigned int RxQoSPkts;
+    unsigned int RxQoSOctetsLo;
+    unsigned int RxQoSOctetsHi;
+    unsigned int Pkts1523to2047;
+    unsigned int Pkts2048to4095;
+    unsigned int Pkts4096to8191;
+    unsigned int Pkts8192to9728;
+} EthSwMIBRegs;
+
+#define ETHSWMIBREG ((volatile EthSwMIBRegs * const) (SWITCH_BASE + 0x2000))
 
 #ifdef __cplusplus
 }

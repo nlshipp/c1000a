@@ -5,310 +5,226 @@
  * Copyright (C) 1999 by Lineo, inc. and John Beppu
  * Copyright (C) 1999,2000,2001 by John Beppu <beppu@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
+#include "libbb.h"
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-#include <errno.h>
-#include <fcntl.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include "busybox.h"
-
-
-
-/* structs __________________________ */
-
-typedef struct {
-	uid_t u;
-	gid_t g;
-} Id;
-
-/* data _____________________________ */
-
-/* defaults : should this be in an external file? */
-static const char default_passwd[] = "x";
-static const char default_gecos[] = "Linux User,,,";
-static const char default_home_prefix[] = "/home";
-
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
-/* shadow in use? */
-static int shadow_enabled = 0;
+#if CONFIG_LAST_SYSTEM_ID < CONFIG_FIRST_SYSTEM_ID
+#error Bad LAST_SYSTEM_ID or FIRST_SYSTEM_ID in .config
 #endif
 
+/* #define OPT_HOME           (1 << 0) */ /* unused */
+/* #define OPT_GECOS          (1 << 1) */ /* unused */
+#define OPT_SHELL          (1 << 2)
+#define OPT_GID            (1 << 3)
+#define OPT_DONT_SET_PASS  (1 << 4)
+#define OPT_SYSTEM_ACCOUNT (1 << 5)
+#define OPT_DONT_MAKE_HOME (1 << 6)
+#define OPT_UID            (1 << 7)
+
+/* We assume UID_T_MAX == INT_MAX */
 /* remix */
-/* EDR recoded such that the uid may be passed in *p */
-static int passwd_study(const char *filename, struct passwd *p)
+/* recoded such that the uid may be passed in *p */
+static void passwd_study(struct passwd *p)
 {
-	struct passwd *pw;
-	FILE *passwd;
+	int max = UINT_MAX;
 
-	const int min = 500;
-	const int max = 65000;
-
-	passwd = bb_wfopen(filename, "r");
-	if (!passwd)
-		return 4;
-
-	/* EDR if uid is out of bounds, set to min */
-	if ((p->pw_uid > max) || (p->pw_uid < min))
-		p->pw_uid = min;
-
-	/* stuff to do:
-	 * make sure login isn't taken;
-	 * find free uid and gid;
-	 */
-	while ((pw = fgetpwent(passwd))) {
-		if (strcmp(pw->pw_name, p->pw_name) == 0) {
-			/* return 0; */
-			return 1;
-		}
-		if ((pw->pw_uid >= p->pw_uid) && (pw->pw_uid < max)
-			&& (pw->pw_uid >= min)) {
-			p->pw_uid = pw->pw_uid + 1;
-		}
+	if (getpwnam(p->pw_name)) {
+		bb_error_msg_and_die("%s '%s' in use", "user", p->pw_name);
+		/* this format string is reused in adduser and addgroup */
 	}
 
-	if (p->pw_gid == 0) {
-		/* EDR check for an already existing gid */
-		while (getgrgid(p->pw_uid) != NULL)
-			p->pw_uid++;
-
-		/* EDR also check for an existing group definition */
-		if (getgrnam(p->pw_name) != NULL)
-			return 3;
-
-		/* EDR create new gid always = uid */
-		p->pw_gid = p->pw_uid;
+	if (!(option_mask32 & OPT_UID)) {
+		if (option_mask32 & OPT_SYSTEM_ACCOUNT) {
+			p->pw_uid = CONFIG_FIRST_SYSTEM_ID;
+			max = CONFIG_LAST_SYSTEM_ID;
+		} else {
+			p->pw_uid = CONFIG_LAST_SYSTEM_ID + 1;
+			max = 64999;
+		}
+	}
+	/* check for a free uid (and maybe gid) */
+	while (getpwuid(p->pw_uid) || (p->pw_gid == (gid_t)-1 && getgrgid(p->pw_uid))) {
+		if (option_mask32 & OPT_UID) {
+			/* -u N, cannot pick uid other than N: error */
+			bb_error_msg_and_die("%s '%s' in use", "uid", itoa(p->pw_uid));
+			/* this format string is reused in adduser and addgroup */
+		}
+		if (p->pw_uid == max) {
+			bb_error_msg_and_die("no %cids left", 'u');
+		}
+		p->pw_uid++;
 	}
 
-	/* EDR bounds check */
-	if ((p->pw_uid > max) || (p->pw_uid < min))
-		return 2;
-
-	/* return 1; */
-	return 0;
+	if (p->pw_gid == (gid_t)-1) {
+		p->pw_gid = p->pw_uid; /* new gid = uid */
+		if (getgrnam(p->pw_name)) {
+			bb_error_msg_and_die("%s '%s' in use", "group", p->pw_name);
+			/* this format string is reused in adduser and addgroup */
+		}
+	}
 }
 
-static void addgroup_wrapper(const char *login, gid_t gid)
+static void addgroup_wrapper(struct passwd *p, const char *group_name)
 {
 	char *cmd;
 
-	bb_xasprintf(&cmd, "addgroup -g %d %s", gid, login);
+	if (group_name) /* Add user to existing group */
+		cmd = xasprintf("addgroup '%s' '%s'", p->pw_name, group_name);
+	else    /* Add user to his own group with the first free gid found in passwd_study */
+		cmd = xasprintf("addgroup -g %u '%s'", (unsigned)p->pw_gid, p->pw_name);
+	/* Warning: to be compatible with external addgroup programs we should use --gid instead */
 	system(cmd);
 	free(cmd);
 }
 
-static void passwd_wrapper(const char *login) __attribute__ ((noreturn));
+static void passwd_wrapper(const char *login) NORETURN;
 
 static void passwd_wrapper(const char *login)
 {
-	static const char prog[] = "passwd";
-	execlp(prog, prog, login, NULL);
-	bb_error_msg_and_die("Failed to execute '%s', you must set the password for '%s' manually", prog, login);
+	BB_EXECLP("passwd", "passwd", login, NULL);
+	bb_error_msg_and_die("can't execute passwd, you must set password manually");
 }
 
-/* putpwent(3) remix */
-static int adduser(const char *filename, struct passwd *p, int makehome, int setpass)
-{
-	FILE *passwd;
-	int r;
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
-	FILE *shadow;
-	struct spwd *sp;
+#if ENABLE_FEATURE_ADDUSER_LONG_OPTIONS
+static const char adduser_longopts[] ALIGN1 =
+		"home\0"                Required_argument "h"
+		"gecos\0"               Required_argument "g"
+		"shell\0"               Required_argument "s"
+		"ingroup\0"             Required_argument "G"
+		"disabled-password\0"   No_argument       "D"
+		"empty-password\0"      No_argument       "D"
+		"system\0"              No_argument       "S"
+		"no-create-home\0"      No_argument       "H"
+		"uid\0"                 Required_argument "u"
+		;
 #endif
-	int new_group = 1;
-
-	/* if using a pre-existing group, don't create one */
-	if (p->pw_gid != 0)
-		new_group = 0;
-
-	/* make sure everything is kosher and setup uid && gid */
-	passwd = bb_wfopen(filename, "a");
-	if (passwd == NULL) {
-		return 1;
-	}
-	fseek(passwd, 0, SEEK_END);
-
-	/* if (passwd_study(filename, p) == 0) { */
-	r = passwd_study(filename, p);
-	if (r) {
-		if (r == 1)
-			bb_error_msg("%s: login already in use", p->pw_name);
-		else if (r == 2)
-			bb_error_msg("illegal uid or no uids left");
-		else if (r == 3)
-			bb_error_msg("group name %s already in use", p->pw_name);
-		else
-			bb_error_msg("generic error.");
-		return 1;
-	}
-
-	/* add to passwd */
-	if (putpwent(p, passwd) == -1) {
-		return 1;
-	}
-	fclose(passwd);
-
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
-	/* add to shadow if necessary */
-	if (shadow_enabled) {
-		shadow = bb_wfopen(bb_path_shadow_file, "a");
-		if (shadow == NULL) {
-			return 1;
-		}
-		fseek(shadow, 0, SEEK_END);
-		sp = pwd_to_spwd(p);
-		sp->sp_max = 99999;		/* debianish */
-		sp->sp_warn = 7;
-		fprintf(shadow, "%s:!:%ld:%ld:%ld:%ld:::\n",
-				sp->sp_namp, sp->sp_lstchg, sp->sp_min, sp->sp_max,
-				sp->sp_warn);
-		fclose(shadow);
-	}
-#endif
-
-	if (new_group) {
-		/* add to group */
-		/* addgroup should be responsible for dealing w/ gshadow */
-		addgroup_wrapper(p->pw_name, p->pw_gid);
-	}
-
-	/* Clear the umask for this process so it doesn't
-	 * * screw up the permissions on the mkdir and chown. */
-	umask(0);
-
-	if (makehome) {
-		/* mkdir */
-		if (mkdir(p->pw_dir, 0755)) {
-			bb_perror_msg("%s", p->pw_dir);
-		}
-		/* Set the owner and group so it is owned by the new user. */
-		if (chown(p->pw_dir, p->pw_uid, p->pw_gid)) {
-			bb_perror_msg("%s", p->pw_dir);
-		}
-		/* Now fix up the permissions to 2755. Can't do it before now
-		 * since chown will clear the setgid bit */
-		if (chmod(p->pw_dir, 02755)) {
-			bb_perror_msg("%s", p->pw_dir);
-		}
-	}
-
-	if (setpass) {
-		/* interactively set passwd */
-		passwd_wrapper(p->pw_name);
-	}
-
-	return 0;
-}
-
-
-/* return current uid (root is always uid == 0, right?) */
-#ifndef CONFIG_ADDGROUP
-static inline void if_i_am_not_root(void)
-#else
-void if_i_am_not_root(void)
-#endif
-{
-	if (geteuid()) {
-		bb_error_msg_and_die( "Only root may add a user or group to the system.");
-	}
-}
-
-#define SETPASS				(1 << 4)
-#define MAKEHOME			(1 << 6)
 
 /*
  * adduser will take a login_name as its first parameter.
- *
- * home
- * shell
- * gecos
- *
+ * home, shell, gecos:
  * can be customized via command-line parameters.
- * ________________________________________________________________________ */
-int adduser_main(int argc, char **argv)
+ */
+int adduser_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int adduser_main(int argc UNUSED_PARAM, char **argv)
 {
 	struct passwd pw;
-	const char *login;
-	const char *gecos = default_gecos;
-	const char *home = NULL;
-	const char *shell = DEFAULT_SHELL;
- 	const char *usegroup = NULL;
-	int flags;
-	int setpass = 1;
-	int makehome = 1;
+	const char *usegroup = NULL;
+	char *p;
+	unsigned opts;
 
-	/* init */
-	if (argc < 2) {
-		bb_show_usage();
-	}
-	/* get args */
-	flags = bb_getopt_ulflags(argc, argv, "h:g:s:G:DSH", &home, &gecos, &shell, &usegroup);
-
-	if (flags & SETPASS) {
-		setpass = 0;
-	}
-	if (flags & MAKEHOME) {
-		makehome = 0;
-	}
-
-	/* got root? */
-	if_i_am_not_root();
-
-	/* get login */
-	if (optind >= argc) {
-		bb_error_msg_and_die( "no user specified");
-	}
-	login = argv[optind];
-
-	/* create string for $HOME if not specified already */
-	if (!home) {
-		home = concat_path_file(default_home_prefix, login);
-	}
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
-	/* is /etc/shadow in use? */
-	shadow_enabled = (0 == access(bb_path_shadow_file, F_OK));
+#if ENABLE_FEATURE_ADDUSER_LONG_OPTIONS
+	applet_long_options = adduser_longopts;
 #endif
 
-	/* create a passwd struct */
-	pw.pw_name = (char *)login;
-	pw.pw_passwd = (char *)default_passwd;
-	pw.pw_uid = 0;
-	pw.pw_gid = 0;
-	pw.pw_gecos = (char *)gecos;
-	pw.pw_dir = (char *)home;
-	pw.pw_shell = (char *)shell;
-
-	if (usegroup) {
-		/* Add user to a group that already exists */
-		pw.pw_gid = my_getgrnam(usegroup);
-		/* exits on error */	
+	/* got root? */
+	if (geteuid()) {
+		bb_error_msg_and_die(bb_msg_perm_denied_are_you_root);
 	}
 
-	/* grand finale */
-	return adduser(bb_path_passwd_file, &pw, makehome, setpass);
+	pw.pw_gecos = (char *)"Linux User,,,";
+	pw.pw_shell = (char *)DEFAULT_SHELL;
+	pw.pw_dir = NULL;
+
+	/* exactly one non-option arg */
+	/* disable interactive passwd for system accounts */
+	opt_complementary = "=1:SD:u+";
+	if (sizeof(pw.pw_uid) == sizeof(int)) {
+		opts = getopt32(argv, "h:g:s:G:DSHu:", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup, &pw.pw_uid);
+	} else {
+		unsigned uid;
+		opts = getopt32(argv, "h:g:s:G:DSHu:", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup, &uid);
+		if (opts & OPT_UID) {
+			pw.pw_uid = uid;
+		}
+	}
+	argv += optind;
+
+	/* fill in the passwd struct */
+	pw.pw_name = argv[0];
+	die_if_bad_username(pw.pw_name);
+	if (!pw.pw_dir) {
+		/* create string for $HOME if not specified already */
+		pw.pw_dir = xasprintf("/home/%s", argv[0]);
+	}
+	pw.pw_passwd = (char *)"x";
+	if (opts & OPT_SYSTEM_ACCOUNT) {
+		if (!usegroup) {
+			usegroup = "nogroup";
+		}
+		if (!(opts & OPT_SHELL)) {
+			pw.pw_shell = (char *) "/bin/false";
+		}
+	}
+	pw.pw_gid = usegroup ? xgroup2gid(usegroup) : -1; /* exits on failure */
+
+	/* make sure everything is kosher and setup uid && maybe gid */
+	passwd_study(&pw);
+
+	p = xasprintf("x:%u:%u:%s:%s:%s",
+			(unsigned) pw.pw_uid, (unsigned) pw.pw_gid,
+			pw.pw_gecos, pw.pw_dir, pw.pw_shell);
+	if (update_passwd(bb_path_passwd_file, pw.pw_name, p, NULL) < 0) {
+		return EXIT_FAILURE;
+	}
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(p);
+
+#if ENABLE_FEATURE_SHADOWPASSWDS
+	/* /etc/shadow fields:
+	 * 1. username
+	 * 2. encrypted password
+	 * 3. last password change (unix date (unix time/24*60*60))
+	 * 4. minimum days required between password changes
+	 * 5. maximum days password is valid
+	 * 6. days before password is to expire that user is warned
+	 * 7. days after password expires that account is disabled
+	 * 8. unix date when login expires (i.e. when it may no longer be used)
+	 */
+	/* fields:     2 3  4 5     6 78 */
+	p = xasprintf("!:%u:0:99999:7:::", (unsigned)(time(NULL)) / (24*60*60));
+	/* ignore errors: if file is missing we suppose admin doesn't want it */
+	update_passwd(bb_path_shadow_file, pw.pw_name, p, NULL);
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(p);
+#endif
+
+	/* add to group */
+	addgroup_wrapper(&pw, usegroup);
+
+	/* clear the umask for this process so it doesn't
+	 * screw up the permissions on the mkdir and chown. */
+	umask(0);
+	if (!(opts & OPT_DONT_MAKE_HOME)) {
+		/* set the owner and group so it is owned by the new user,
+		 * then fix up the permissions to 2755. Can't do it before
+		 * since chown will clear the setgid bit */
+		int mkdir_err = mkdir(pw.pw_dir, 0755);
+		if (mkdir_err == 0) {
+			/* New home. Copy /etc/skel to it */
+			const char *args[] = {
+				"chown", "-R",
+				xasprintf("%u:%u", (int)pw.pw_uid, (int)pw.pw_gid),
+				pw.pw_dir, NULL
+			};
+			/* Be silent on any errors (like: no /etc/skel) */
+			logmode = LOGMODE_NONE;
+			copy_file("/etc/skel", pw.pw_dir, FILEUTILS_RECUR);
+			logmode = LOGMODE_STDIO;
+			chown_main(4, (char**)args);
+		}
+		if ((mkdir_err != 0 && errno != EEXIST)
+		 || chown(pw.pw_dir, pw.pw_uid, pw.pw_gid) != 0
+		 || chmod(pw.pw_dir, 02755) != 0 /* set setgid bit on homedir */
+		) {
+			bb_simple_perror_msg(pw.pw_dir);
+		}
+	}
+
+	if (!(opts & OPT_DONT_SET_PASS)) {
+		/* interactively set passwd */
+		passwd_wrapper(pw.pw_name);
+	}
+
+	return EXIT_SUCCESS;
 }

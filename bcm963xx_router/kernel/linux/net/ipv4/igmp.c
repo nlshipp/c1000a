@@ -147,7 +147,9 @@ static void sf_markstate(struct ip_mc_list *pmc);
 static void ip_mc_clear_src(struct ip_mc_list *pmc);
 static int ip_mc_add_src(struct in_device *in_dev, __be32 *pmca, int sfmode,
 			 int sfcount, __be32 *psfsrc, int delta);
-
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+static int AEI_ip_mc_clear_old_group(struct sock *sk, struct ip_mreqn *imr);
+#endif
 static void ip_ma_put(struct ip_mc_list *im)
 {
 	if (atomic_dec_and_test(&im->refcnt)) {
@@ -322,7 +324,11 @@ static struct sk_buff *igmpv3_newpack(struct net_device *dev, int size)
 
 	pip->version  = 4;
 	pip->ihl      = (sizeof(struct iphdr)+4)>>2;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+        pip->tos      = 0x58;
+#else
 	pip->tos      = 0xc0;
+#endif
 	pip->frag_off = htons(IP_DF);
 	pip->ttl      = 1;
 	pip->daddr    = rt->rt_dst;
@@ -594,24 +600,41 @@ static void igmpv3_send_cr(struct in_device *in_dev)
 	/* change recs */
 	for (pmc=in_dev->mc_list; pmc; pmc=pmc->next) {
 		spin_lock_bh(&pmc->lock);
-		if (pmc->sfcount[MCAST_EXCLUDE]) {
-			type = IGMPV3_BLOCK_OLD_SOURCES;
-			dtype = IGMPV3_ALLOW_NEW_SOURCES;
-		} else {
-			type = IGMPV3_ALLOW_NEW_SOURCES;
-			dtype = IGMPV3_BLOCK_OLD_SOURCES;
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+		if ( pmc->osfmode == pmc->sfmode ) {
+#endif
+			if (pmc->sfcount[MCAST_EXCLUDE]) {
+				type = IGMPV3_BLOCK_OLD_SOURCES;
+				dtype = IGMPV3_ALLOW_NEW_SOURCES;
+			} else {
+				type = IGMPV3_ALLOW_NEW_SOURCES;
+				dtype = IGMPV3_BLOCK_OLD_SOURCES;
+			}
+			skb = add_grec(skb, pmc, type, 0, 0);
+			skb = add_grec(skb, pmc, dtype, 0, 1);	/* deleted sources */
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
 		}
-		skb = add_grec(skb, pmc, type, 0, 0);
-		skb = add_grec(skb, pmc, dtype, 0, 1);	/* deleted sources */
+#endif
 
 		/* filter mode changes */
 		if (pmc->crcount) {
-			if (pmc->sfmode == MCAST_EXCLUDE)
-				type = IGMPV3_CHANGE_TO_EXCLUDE;
-			else
-				type = IGMPV3_CHANGE_TO_INCLUDE;
-			skb = add_grec(skb, pmc, type, 0, 0);
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+			if ( pmc->osfmode != pmc->sfmode ) {
+#endif
+				if (pmc->sfmode == MCAST_EXCLUDE)
+					type = IGMPV3_CHANGE_TO_EXCLUDE;
+				else
+					type = IGMPV3_CHANGE_TO_INCLUDE;
+				skb = add_grec(skb, pmc, type, 0, 0);
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+			}
+#endif
 			pmc->crcount--;
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+			if ( pmc->crcount == 0 ) {
+				pmc->osfmode = pmc->sfmode;
+			}
+#endif
 		}
 		spin_unlock_bh(&pmc->lock);
 	}
@@ -669,7 +692,11 @@ static int igmp_send_report(struct in_device *in_dev, struct ip_mc_list *pmc,
 
 	iph->version  = 4;
 	iph->ihl      = (sizeof(struct iphdr)+4)>>2;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+        iph->tos      = 0x58;
+#else
 	iph->tos      = 0xc0;
+#endif
 	iph->frag_off = htons(IP_DF);
 	iph->ttl      = 1;
 	iph->daddr    = dst;
@@ -1230,6 +1257,9 @@ void ip_mc_inc_group(struct in_device *in_dev, __be32 addr)
 	im->multiaddr = addr;
 	/* initial mode is (EX, empty) */
 	im->sfmode = MCAST_EXCLUDE;
+#if defined(CONFIG_MIPS_BRCM) && defined(CC_BRCM_KF_MULTI_IGMP_GR_SUPPRESSION)
+	im->osfmode = MCAST_INCLUDE;
+#endif
 	im->sfcount[MCAST_INCLUDE] = 0;
 	im->sfcount[MCAST_EXCLUDE] = 1;
 	im->sources = NULL;
@@ -1761,7 +1791,9 @@ int ip_mc_join_group(struct sock *sk , struct ip_mreqn *imr)
 
 	if (!ipv4_is_multicast(addr))
 		return -EINVAL;
-
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+	AEI_ip_mc_clear_old_group(sk,imr);
+#endif
 	rtnl_lock();
 
 	in_dev = ip_mc_find_dev(net, imr);
@@ -1817,6 +1849,60 @@ static int ip_mc_leave_src(struct sock *sk, struct ip_mc_socklist *iml,
 	return err;
 }
 
+#if defined(AEI_VDSL_CUSTOMER_NCS)
+/* Background:
+ * After multiple retrains I lost multicast IPTV but can surf the Internet.
+ * Root Cause:
+ * Every retrain will increase the if_index of WAN interface,
+ * the old IGMP entries of WAN interface in kernel weren't deleted,
+ * after serveral retrains, the count will exceed the MAX IGMP group numbers
+ * and new entry can't be added.
+ * How to fix:
+ * Clear the all old groups belong to the nonexistent interface
+ * when receive the IGMP join packets, the code is refer to ip_mc_leave_group.
+ */
+
+static int AEI_ip_mc_clear_old_group(struct sock *sk, struct ip_mreqn *imr)
+{
+	struct inet_sock *inet = inet_sk(sk);
+	struct ip_mc_socklist *iml, **imlp;
+	struct in_device *in_dev;
+	struct net *net = sock_net(sk);
+	__be32 group = imr->imr_multiaddr.s_addr;
+	//u32 ifindex;
+	int ret = -EADDRNOTAVAIL;
+
+	rtnl_lock();
+	in_dev = ip_mc_find_dev(net, imr);
+	//ifindex = imr->imr_ifindex;
+	for (imlp = &inet->mc_list; (iml = *imlp) != NULL; imlp = &iml->next) {
+          //  printk("iml->ifindex=%d, ifindex=%d\n",iml->multi.imr_ifindex,ifindex);
+          //  printk("iml->s_addr=%x, group=%x\n",iml->multi.imr_multiaddr.s_addr,group);
+
+            if(ip_mc_find_dev(net,&iml->multi)){
+                //printk("is up,do nothing\n");
+                continue;
+            }else{
+               // printk("is not up, remove it\n");
+            }
+		(void) ip_mc_leave_src(sk, iml, in_dev);
+
+		*imlp = iml->next;
+
+		if (in_dev)
+			ip_mc_dec_group(in_dev, group);
+		rtnl_unlock();
+		sock_kfree_s(sk, iml, sizeof(*iml));
+		return 0;
+	}
+	if (!in_dev)
+		ret = -ENODEV;
+	rtnl_unlock();
+
+	return ret;
+}
+
+#endif
 /*
  *	Ask a socket to leave a group.
  */
@@ -1881,7 +1967,19 @@ int ip_mc_source(int add, int omode, struct sock *sk, struct
 
 	imr.imr_multiaddr.s_addr = mreqs->imr_multiaddr;
 	imr.imr_address.s_addr = mreqs->imr_interface;
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+        if (ifindex == 0)
+        {
+            if (mreqs->imr_ifindex)
+                 imr.imr_ifindex = mreqs->imr_ifindex;
+            else
+                 imr.imr_ifindex = 0;
+        }
+        else
+            imr.imr_ifindex = ifindex;
+#else
 	imr.imr_ifindex = ifindex;
+#endif
 	in_dev = ip_mc_find_dev(net, &imr);
 
 	if (!in_dev) {
@@ -2015,7 +2113,19 @@ int ip_mc_msfilter(struct sock *sk, struct ip_msfilter *msf, int ifindex)
 
 	imr.imr_multiaddr.s_addr = msf->imsf_multiaddr;
 	imr.imr_address.s_addr = msf->imsf_interface;
+#if defined(AEI_VDSL_CUSTOMER_TELUS)
+        if (ifindex == 0)
+        {
+            if (msf->imsf_ifindex)
+                 imr.imr_ifindex = msf->imsf_ifindex;
+            else
+                 imr.imr_ifindex = 0;
+        }
+        else
+            imr.imr_ifindex = ifindex;
+#else
 	imr.imr_ifindex = ifindex;
+#endif
 	in_dev = ip_mc_find_dev(net, &imr);
 
 	if (!in_dev) {

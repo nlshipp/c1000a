@@ -3,27 +3,29 @@
  *  Copyright (c) 2007  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+ * <:label-BRCM:2011:DUAL/GPL:standard
+ * 
+ * Unless you and Broadcom execute a separate written software license
+ * agreement governing use of this software, this software is licensed
+ * to you under the terms of the GNU General Public License version 2
+ * (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ * with the following added to such license:
+ * 
+ *    As a special exception, the copyright holders of this software give
+ *    you permission to link this software with independent modules, and
+ *    to copy and distribute the resulting executable under terms of your
+ *    choice, provided that you also meet, for each linked independent
+ *    module, the terms and conditions of the license of that module.
+ *    An independent module is a module which is not derived from this
+ *    software.  The special exception does not apply to any modifications
+ *    of the software.
+ * 
+ * Not withstanding the above, under no circumstances may you combine
+ * this software in any way with any other Broadcom software provided
+ * under a license other than the GPL, without Broadcom's express prior
+ * written consent.
+ * 
+:>
  *
  ************************************************************************/
 
@@ -99,6 +101,29 @@ void cmsNet_inet_cidrton(const char *cp, struct in_addr *ipAddr, struct in_addr 
 SINT32 cmsNet_getIfindexByIfname(char *ifname);
 
 
+/** Return the mac address of an interface.
+ *
+ * @param ifname  (IN) .
+ * @param macAddr (OUT).
+ *
+ * @return CmsRet
+ */
+CmsRet cmsNet_getMacAddrByIfname(char *ifname, unsigned char *macAddr);
+
+/** Return Ethernet interface link status.
+ * This API is similar to CLI "ethctl <interface> media-type [port <port id>]"
+ *
+ * @param ifname  (IN)  Ethernet interface name.
+ * @param port    (IN)  Port Id is required if interface is Ethernet Switch and
+ *                      virtual interfaces (per switch port) is not supported.
+ * @param speed   (OUT) Speed in Mbps.
+ * @param fullDuplex (OUT) TRUE if full duplex. FALSE if half duplex.
+ * @param linkUp     (OUT) TRUE if link is Up. FALSE if link is Down.
+ *
+ * @return CmsRet
+ */
+CmsRet cmsNet_getEthLinkStatus(char *ifname, int port, int *speed, UBOOL8 *fullDuplex, UBOOL8 *linkUp);
+
 /** Get a list of interface names in the system.
  *
  * @param ifNameList (OUT) Pointer to char * of ifnames.  This function will allocate
@@ -123,7 +148,35 @@ CmsRet cmsNet_getIfNameList(char **ifNameList);
  */
 CmsRet cmsNet_getPersistentWanIfNameList(char **PersistentWanifNameList);
 
-#if defined(DMP_X_BROADCOM_COM_IPV6_1) || defined(AEI_CONTROL_LAYER) /* aka SUPPORT_IPV6 */
+
+/** Get a list of GMAC Eth interface names in the system.
+ *
+ * @param GMACPortIfNameList (OUT) Pointer to char * of GMACPortIfNameList.  
+ *                                      This function will allocate
+ *                                      a buffer long enough to hold a list of all the interface
+ *                                      names in the system, separated by comma.  e.g. eth0,eth1
+ *                                      Caller is responsible for freeing the buffer.
+ *
+ * @return CmsRet
+ */
+CmsRet cmsNet_getGMACPortIfNameList(char **GMACPortIfNameList);
+
+
+/** Get IPv6 address info about the specified ifname.
+ *
+ * @param ifname  (IN)  desired ifname
+ * @param addrIdx (IN)  Since a single ifname can have multiple addresses, addrIdx specifies
+ *                      which instance of the address is desired.  Caller will probably 
+ *                      have to call this function in a loop to get all instances.
+ * @param ipAddr  (OUT) Caller supplies a buffer to hold address.  Must be at least
+ *                      CMS_IPADDR_LENGTH (46 bytes) long.
+ * @param ifIndex (OUT) Kernel internal index for this interface.
+ * @param prefixLen (OUT) Prefix len of the address
+ * @param scope   (OUT) Scope value of address, 0=global, 32=link local, 16=host
+ * @param ifaFlags(OUT) flags on this interface.
+ *
+ * @return CmsRet
+ */
 CmsRet cmsNet_getIfAddr6(const char *ifname, UINT32 addrIdx,
                          char *ipAddr, UINT32 *ifIndex, UINT32 *prefixLen, UINT32 *scope, UINT32 *ifaFlags);
 
@@ -178,7 +231,16 @@ UBOOL8 cmsNet_isHostInSameSubnet(const char *addrHost, const char *addrPrefix);
  * @return CmsRet enum.
  */
 CmsRet cmsNet_subnetIp6SitePrefix(const char *sp, UINT8 subnetId, UINT32 snPlen, char *snPrefix);
-#endif
+
+/** Generate address from MAC (EUI-64)
+ *
+ * @param prefix     (IN) 
+ * @param mac        (IN)
+ * @param addr       (OUT)
+ *
+ * @return CmsRet enum.
+ */
+CmsRet cmsUtl_prefixMacToAddress(const char *prefix, UINT8 *mac, char *addr);
 
 /** first sub interface number for virtual ports, e.g. eth1.2, eth1.3 */
 #define START_PMAP_ID           2

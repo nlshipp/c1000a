@@ -93,7 +93,7 @@ typedef struct
         char hopHost[BUFLEN_256];
         char hopHostAddress[BUFLEN_32];
         UINT32 hopErrorCode;
-        char hopRTTimes[BUFLEN_16];
+        char hopRTTimes[BUFLEN_48];
 }Route_Hops_t;
 
 typedef struct
@@ -127,8 +127,11 @@ typedef enum
   USER_ENABLE_CHANGED = 0,
   USER_NAME_CHANGED,
   USER_PASSWORD_CHANGED,
-  USER_REMOTE_ENABLE_CHANGED, 
-  USER_LOCAL_ENABLE_CHANGED 
+  USER_REMOTE_ENABLE_CHANGED,
+  USER_LOCAL_ENABLE_CHANGED,
+#ifdef AEI_VDSL_CUSTOMER_CENTURYLINK
+  USER_REMOTE_SUPPORTCONSOLE_ENABLE_CHANGED
+#endif
 } UserChangedType;
 
 /** Data body for the CMS_MSG_USER_AUTH_CHANGED message type.
@@ -142,11 +145,12 @@ typedef struct
 #endif
 
 
-
+#if !defined(MAX_ATM_TRANSMIT_QUEUES)
 #if defined(CHIP_6368) || defined(CHIP_6362) || defined(CHIP_6328)
 #define MAX_ATM_TRANSMIT_QUEUES  16
 #else
 #define MAX_ATM_TRANSMIT_QUEUES  8
+#endif
 #endif
 #define MAX_PTM_TRANSMIT_QUEUES  8
 #define BRIDGE_2IP_INF_STR          "br0:private"
@@ -154,16 +158,25 @@ typedef struct
 
 #define TEMPWANAPPLY "/var/applywanipsetting"
 
+#define L2DETECTRUNNING "/var/L2DETECTRUNNING"
+#define L2DETECTFAILURE "var/L2DETECTFAILURE"
+
 #ifdef AEI_VDSL_DETECT_WAN_SERVICE
 #define INTERFACE_LEN 10
 /* Store detected WAN procotol  PPPoE or DHCP */
-#define FDETECTSERVICE "/var/detectService" 
+#define FDETECTSERVICE "/var/detectService"
 /* Store default wan interface */
 #define FWANINTERFACE   "/var/baseL3ifName"
 /* Store detected VLAN ID for PTM */
 #define FDETECTL2INFO "/var/detectl2info"
-#define L2DETECTRUNNING "/var/L2DetectRunningFile"
+#define FPPPINTERFACE   "/var/PPPifName"
+#define FPIDOFPVCVLAN   "/var/pidofPVCVLAN"
+#define FCURRENTWANCONFIG "/var/currentwanconfig.txt"
+#define FAUTODETECTLOG    "/var/autodetectlog.txt"
 
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) || defined(AEI_ARPING_STATIC_WAN_SERVICE)
+#define FDETECTL2STATIC   "/var/detectl2static"
+#endif
 /* */
 #define MODE_ALL_OFF  0
 
@@ -184,7 +197,7 @@ typedef struct
 #define PTML2INTF  "ptm0"
 #define EWANL2INTF  "ewan0"
 
-typedef struct 
+typedef struct
 {
 	SINT32 wanServiceType;
 	char wanInterface[INTERFACE_LEN];
@@ -212,7 +225,7 @@ typedef enum
     X_ACTIONTEC_COM_PPPAUTOCONNECTTR69,
     X_ACTIONTEC_COM_PPPMACTR69,
     X_ACTIONTEC_COM_IPMACTR69,
-    X_ACTIONTEC_COM_DNSCFGTR69,    
+    X_ACTIONTEC_COM_DNSCFGTR69,
 }AEI_GLOBAL_parameterIndex;
 
 #if defined(AEI_VDSL_SMARTLED)
@@ -231,7 +244,7 @@ typedef enum
     INET_LED_BLINK,
     INET_LED_ALTER,
 } LedAction;
-    
+
 typedef struct
 {
     LedColor color;
@@ -240,17 +253,17 @@ typedef struct
 
 typedef enum {
     CMS_MSG_SET_INET_LED_NONE = 0,
-    CMS_MSG_SET_INET_LED_RED,                      
-    CMS_MSG_SET_INET_LED_GREEN,                      
-    CMS_MSG_SET_INET_LED_AMBER,                      
-    CMS_MSG_SET_INET_LED_OFF,                      
-    CMS_MSG_SET_INET_LED_RED_FLASH,                      
-    CMS_MSG_SET_INET_LED_GREEN_FLASH,                      
-    CMS_MSG_SET_INET_LED_AMBER_FLASH,                      
-    CMS_MSG_SET_INET_LED_RED_BLINK,                      
-    CMS_MSG_SET_INET_LED_GREEN_BLINK,                      
+    CMS_MSG_SET_INET_LED_RED,
+    CMS_MSG_SET_INET_LED_GREEN,
+    CMS_MSG_SET_INET_LED_AMBER,
+    CMS_MSG_SET_INET_LED_OFF,
+    CMS_MSG_SET_INET_LED_RED_FLASH,
+    CMS_MSG_SET_INET_LED_GREEN_FLASH,
+    CMS_MSG_SET_INET_LED_AMBER_FLASH,
+    CMS_MSG_SET_INET_LED_RED_BLINK,
+    CMS_MSG_SET_INET_LED_GREEN_BLINK,
     CMS_MSG_SET_INET_LED_AMBER_BLINK,
-    CMS_MSG_SET_INET_LED_RED_GREEN_ALTERNATE, 
+    CMS_MSG_SET_INET_LED_RED_GREEN_ALTERNATE,
 } InetLedCase;
 
 #endif /* AEI_VDSL_SMARTLED */
@@ -356,7 +369,7 @@ typedef struct
     char loss[BUFLEN_32 + 1];
     char per[BUFLEN_32 + 1];
 }LanHpnaNetperResMsgBody;
-    
+
 #endif /* AEI_VDSL_HPNA */
 
 #endif /* __AEI_CMS_MSG_H__ */

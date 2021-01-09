@@ -152,15 +152,25 @@ EXPORT_SYMBOL(rawv6_mh_filter_unregister);
  */
 static int ipv6_raw_deliver(struct sk_buff *skb, int nexthdr)
 {
+#if defined(CONFIG_MIPS_BRCM)
+	struct in6_addr saddr;
+	struct in6_addr daddr;
+#else
 	struct in6_addr *saddr;
 	struct in6_addr *daddr;
+#endif
 	struct sock *sk;
 	int delivered = 0;
 	__u8 hash;
 	struct net *net;
 
+#if defined(CONFIG_MIPS_BRCM)
+	ipv6_addr_copy(&saddr, &ipv6_hdr(skb)->saddr);
+	ipv6_addr_copy(&daddr, &ipv6_hdr(skb)->daddr);
+#else
 	saddr = &ipv6_hdr(skb)->saddr;
 	daddr = saddr + 1;
+#endif
 
 	hash = nexthdr & (MAX_INET_PROTOS - 1);
 
@@ -171,8 +181,11 @@ static int ipv6_raw_deliver(struct sk_buff *skb, int nexthdr)
 		goto out;
 
 	net = dev_net(skb->dev);
+#if defined(CONFIG_MIPS_BRCM)
+	sk = __raw_v6_lookup(net, sk, nexthdr, &daddr, &saddr, IP6CB(skb)->iif);
+#else
 	sk = __raw_v6_lookup(net, sk, nexthdr, daddr, saddr, IP6CB(skb)->iif);
-
+#endif
 	while (sk) {
 		int filtered;
 
@@ -214,8 +227,13 @@ static int ipv6_raw_deliver(struct sk_buff *skb, int nexthdr)
 				rawv6_rcv(sk, clone);
 			}
 		}
+#if defined(CONFIG_MIPS_BRCM)
+		sk = __raw_v6_lookup(net, sk_next(sk), nexthdr, &daddr, &saddr,
+				     IP6CB(skb)->iif);
+#else
 		sk = __raw_v6_lookup(net, sk_next(sk), nexthdr, daddr, saddr,
 				     IP6CB(skb)->iif);
+#endif
 	}
 out:
 	read_unlock(&raw_v6_hashinfo.lock);
@@ -401,6 +419,10 @@ int rawv6_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	struct inet_sock *inet = inet_sk(sk);
 	struct raw6_sock *rp = raw6_sk(sk);
+#if defined(CONFIG_MIPS_BRCM)
+	struct in6_addr dstAddr;
+	struct in6_addr srcAddr;
+#endif
 
 	if (!xfrm6_policy_check(sk, XFRM_POLICY_IN, skb)) {
 		atomic_inc(&sk->sk_drops);
@@ -411,19 +433,37 @@ int rawv6_rcv(struct sock *sk, struct sk_buff *skb)
 	if (!rp->checksum)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 
+#if defined(CONFIG_MIPS_BRCM)
+	ipv6_addr_copy(&srcAddr, &ipv6_hdr(skb)->saddr);
+	ipv6_addr_copy(&dstAddr, &ipv6_hdr(skb)->daddr);
+#endif
+
 	if (skb->ip_summed == CHECKSUM_COMPLETE) {
 		skb_postpull_rcsum(skb, skb_network_header(skb),
 				   skb_network_header_len(skb));
+#if defined(CONFIG_MIPS_BRCM)
+		if (!csum_ipv6_magic(&srcAddr, &dstAddr,
+				     skb->len, inet->num, skb->csum))
+			skb->ip_summed = CHECKSUM_UNNECESSARY;
+#else
 		if (!csum_ipv6_magic(&ipv6_hdr(skb)->saddr,
 				     &ipv6_hdr(skb)->daddr,
 				     skb->len, inet->num, skb->csum))
 			skb->ip_summed = CHECKSUM_UNNECESSARY;
+#endif
 	}
 	if (!skb_csum_unnecessary(skb))
+#if defined(CONFIG_MIPS_BRCM)
+		skb->csum = ~csum_unfold(csum_ipv6_magic(&srcAddr,
+							 &dstAddr,
+							 skb->len,
+							 inet->num, 0));
+#else
 		skb->csum = ~csum_unfold(csum_ipv6_magic(&ipv6_hdr(skb)->saddr,
 							 &ipv6_hdr(skb)->daddr,
 							 skb->len,
 							 inet->num, 0));
+#endif
 
 	if (inet->hdrincl) {
 		if (skb_checksum_complete(skb)) {

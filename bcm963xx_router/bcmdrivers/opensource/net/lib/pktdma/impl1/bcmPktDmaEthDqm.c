@@ -4,19 +4,25 @@
     Copyright (c) 2007 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license
+ agreement governing use of this software, this software is licensed
+ to you under the terms of the GNU General Public License version 2
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give
+    you permission to link this software with independent modules, and
+    to copy and distribute the resulting executable under terms of your
+    choice, provided that you also meet, for each linked independent
+    module, the terms and conditions of the license of that module.
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications
+    of the software.
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine
+ this software in any way with any other Broadcom software provided
+ under a license other than the GPL, without Broadcom's express prior
+ written consent.
  
 :>
 */
@@ -31,7 +37,7 @@
  *******************************************************************************
  */
 
-#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268)
+#if defined(CONFIG_BCM96362) || defined(CONFIG_BCM963268) || defined(CONFIG_BCM96828) || defined(CONFIG_BCM96818)
 
 #include <linux/string.h>
 #include <bcm_intr.h>
@@ -118,7 +124,55 @@ int	bcmPktDma_EthInitTxChan_Dqm(uint32 bufDescrs,
 
 }
 
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM_GMAC)
+int	bcmPktDma_EthUnInitRxChan_Dqm(BcmPktDma_LocalEthRxDma *pEthRxDma)
+{
+    xmit2FapMsg_t fapMsg;
+
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if(pEthRxDma->rxOwnership == HOST_OWNED)
+    {
+        return( bcmPktDma_EthUnInitRxChan_Iudma(pEthRxDma) );
+    }
+#endif
+
+    fapMsg.drvInit.cmd     = FAPMSG_CMD_UNINIT_RX;
+    fapMsg.drvInit.channel = pEthRxDma->channel;
+    fapMsg.drvInit.drv     = FAPMSG_DRV_ENET;
+    fapMsg.drvInit.numBds =  0;
+    fapMsg.drvInit.Dma = 0;
+
+    bcmPktDma_xmit2Fap(pEthRxDma->fapIdx, FAP_MSG_DRV_ENET_UNINIT, &fapMsg);
+
+    return 1;
+
+}
+
+int	bcmPktDma_EthUnInitTxChan_Dqm(BcmPktDma_LocalEthTxDma *pEthTxDma)
+{
+    xmit2FapMsg_t fapMsg;
+
+#if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
+    if(pEthTxDma->txOwnership == HOST_OWNED)
+    {
+        return( bcmPktDma_EthUnInitTxChan_Iudma(bufDescrs, pEthTxDma) );
+    }
+#endif
+
+    fapMsg.drvInit.cmd     = FAPMSG_CMD_UNINIT_TX;
+    fapMsg.drvInit.channel = pEthTxDma->channel;
+    fapMsg.drvInit.drv     = FAPMSG_DRV_ENET;
+    fapMsg.drvInit.numBds =  0;
+    fapMsg.drvInit.Bds = 0;
+    fapMsg.drvInit.Dma = 0;
+
+    bcmPktDma_xmit2Fap(pEthTxDma->fapIdx, FAP_MSG_DRV_ENET_UNINIT, &fapMsg);
+
+    return 1;
+}
+#endif
+
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 int	bcmPktDma_EthInitExtSw_Dqm(uint32 extSwConnPort)
 {
     uint32 fapIdx = FAP0_IDX;
@@ -159,17 +213,23 @@ int	bcmPktDma_EthSelectRxIrq_Dqm(int channel)
 -------------------------------------------------------------------------- */
 void	bcmPktDma_EthClrRxIrq_Dqm(BcmPktDma_LocalEthRxDma *rxdma)
 {
-    // BCM_LOG_INFO(BCM_LOG_ID_FAP, "channel: %d\n", rxdma->channel);
 
-    uint32 qbit = 1 << (DQM_FAP2HOST_ETH0_RX_Q + rxdma->channel);
+#if defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE)
+    uint32 qbits = ((1 << DQM_FAP2HOST_ETH_RX_Q_LOW ) | 
+						(1 << DQM_FAP2HOST_ETH_RX_Q_HI ));
+#else
+    uint32 qbits = (1 << DQM_FAP2HOST_ETH_RX_Q_LOW );  
+#endif
+
+    // BCM_LOG_INFO(BCM_LOG_ID_FAP, "channel: %d\n", rxdma->channel);
 
 #if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
     if(rxdma->rxOwnership == HOST_OWNED)
         return;
 #endif
 
-    dqmClearNotEmptyIrqStsHost(rxdma->fapIdx, qbit);
-    dqmEnableNotEmptyIrqMskHost(rxdma->fapIdx, qbit);
+    dqmClearNotEmptyIrqStsHost(rxdma->fapIdx, qbits);
+    dqmEnableNotEmptyIrqMskHost(rxdma->fapIdx, qbits);
 }
 
 /* --------------------------------------------------------------------------
@@ -235,9 +295,13 @@ int bcmPktDma_EthRxEnable_Dqm( BcmPktDma_LocalEthRxDma * rxdma )
         return( bcmPktDma_EthRxEnable_Iudma(rxdma) );
     }
 #endif
-
+	
     /* Enable rx pkt processing */
-    bcmPktDma_dqmHandlerEnableHost(1 << (DQM_FAP2HOST_ETH0_RX_Q + rxdma->channel));
+#if defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE)
+    bcmPktDma_dqmHandlerEnableHost(1 << (DQM_FAP2HOST_ETH_RX_Q_HI));
+#endif
+
+    bcmPktDma_dqmHandlerEnableHost(1 << (DQM_FAP2HOST_ETH_RX_Q_LOW));
 
     fapMsg.drvCtl.cmd     = FAPMSG_CMD_RX_ENABLE;
     fapMsg.drvCtl.drv     = FAPMSG_DRV_ENET;
@@ -282,10 +346,8 @@ int bcmPktDma_EthRxDisable_Dqm( BcmPktDma_LocalEthRxDma * rxdma )
 }
 
 /* This should be moved to bcmenet.c */
-void bcm63xx_enet_dqmhandler(unsigned long channel)
+void bcm63xx_enet_dqmhandler(uint32 fapIdx, unsigned long unused)
 {
-    // BCM_LOG_INFO(BCM_LOG_ID_FAP, "channel %ld", channel);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
     napi_schedule(&g_pEnetDevCtrl->napi);
 #else
@@ -299,6 +361,17 @@ int	bcmPktDma_EthSetIqThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
                                   uint16 hiThresh)
 {
     xmit2FapMsg_t fapMsg;
+
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->rxOwnership == HOST_OWNED)
+    {
+        return (bcmPktDma_EthSetIqThresh_Iudma(rxdma, loThresh, hiThresh) );
+    }
+#endif
+
+    rxdma->iqLoThreshDqm = loThresh;
+    rxdma->iqHiThreshDqm = hiThresh;
+    rxdma->iqDroppedDqm  = 0;
 
     fapMsg.threshInit.cmd     = FAPMSG_CMD_SET_IQ_THRESH;
     fapMsg.threshInit.channel = rxdma->channel;
@@ -316,6 +389,13 @@ int	bcmPktDma_EthSetIqDqmThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
                                   uint16 hiThresh)
 {
     xmit2FapMsg_t fapMsg;
+
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->rxOwnership == HOST_OWNED)
+    {
+        return 1;
+    }
+#endif
 
     fapMsg.threshInit.cmd     = FAPMSG_CMD_SET_IQ_DQM_THRESH;
     fapMsg.threshInit.channel = rxdma->channel;
@@ -336,6 +416,13 @@ int bcmPktDma_EthSetRxChanBpmThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
 {
     xmit2FapMsg_t fapMsg;
 
+#if defined(CONFIG_BCM_PKTDMA_RX_SPLITTING)
+    if (rxdma->rxOwnership == HOST_OWNED)
+    {
+        return (bcmPktDma_EthSetRxChanBpmThresh_Iudma(rxdma, allocTrig, bulkAlloc) );
+    }
+#endif
+
     fapMsg.rxThresh.cmd     = FAPMSG_CMD_SET_RX_BPM_THRESH;
     fapMsg.rxThresh.channel = rxdma->channel;
     fapMsg.rxThresh.drv     = FAPMSG_DRV_ENET;
@@ -349,16 +436,25 @@ int bcmPktDma_EthSetRxChanBpmThresh_Dqm( BcmPktDma_LocalEthRxDma * rxdma,
 
 
 int	bcmPktDma_EthSetTxChanBpmThresh_Dqm( BcmPktDma_LocalEthTxDma * txdma,
-                                         uint16 loThresh,
-                                         uint16 hiThresh)
+                                         uint16 *txDropThr )
 {
     xmit2FapMsg_t fapMsg;
+    int q;
 
-    fapMsg.threshInit.cmd     = FAPMSG_CMD_SET_TXQ_BPM_THRESH;
-    fapMsg.threshInit.channel = txdma->channel;
-    fapMsg.threshInit.drv     = FAPMSG_DRV_ENET;
-    fapMsg.threshInit.loThresh= loThresh;
-    fapMsg.threshInit.hiThresh= hiThresh;
+#if defined(CONFIG_BCM_PKTDMA_TX_SPLITTING)
+    if (txdma->txOwnership == HOST_OWNED)
+    {
+        return (bcmPktDma_EthSetTxChanBpmThresh_Iudma(txdma, txDropThr) );
+    }
+#endif
+
+    fapMsg.txDropThr.cmd     = FAPMSG_CMD_SET_BPM_ETH_TXQ_THRESH;
+    fapMsg.txDropThr.channel = txdma->channel;
+    fapMsg.txDropThr.drv     = FAPMSG_DRV_ENET;
+    /* Q0 and Q1 have the same prio and should have same thresh */
+    /* Ignoring Q0 thresh because it can be derived from Q1 */
+    for (q=1; q < ENET_TX_EGRESS_QUEUES_MAX; q++)
+        fapMsg.txDropThr.thr[q-1] = *(txDropThr+ q);
 
     bcmPktDma_xmit2Fap(txdma->fapIdx, FAP_MSG_BPM, &fapMsg);
 
@@ -366,12 +462,73 @@ int	bcmPktDma_EthSetTxChanBpmThresh_Dqm( BcmPktDma_LocalEthTxDma * txdma,
 }
 #endif
 
+/* --------------------------------------------------------------------------
+    Name: bcmPktDma_EthSetPhyRate_Dqm
+ Purpose: Informs the PHY rate of a given Ethernet port to the FAP
+  Return: N/A
+-------------------------------------------------------------------------- */
+void bcmPktDma_EthSetPhyRate_Dqm(uint8 port, uint8 enable, int kbps, int isWanPort)
+{
+#if defined(CC_FAP4KE_TM)
+    bcmPktDma_tmPortConfig(port, FAP_TM_MODE_AUTO, kbps, 2000, FAP_TM_SHAPING_TYPE_DISABLED);
+
+    if(enable)
+    {
+        if(!bcmPktDma_tmIsPortEnabled(port))
+        {
+            bcmPktDma_tmPortType(port, (isWanPort) ? FAP_TM_PORT_TYPE_WAN : FAP_TM_PORT_TYPE_LAN);
+            bcmPktDma_tmApply(port, 1);
+        }
+    }
+    else
+    {
+        if(bcmPktDma_tmIsPortEnabled(port) &&
+           (bcmPktDma_tmGetPortMode(port) == FAP_TM_MODE_AUTO))
+        {
+            bcmPktDma_tmApply(port, 0);
+        }
+    }
+#endif
+}
+
+void bcmPktDma_EthGetStats_Dqm(uint8 port, uint32 *rxDrop_p, uint32 *txDrop_p)
+{
+    *rxDrop_p = 0;
+    *txDrop_p = 0;
+
+    *rxDrop_p += pHostQsmGbl(FAP0_IDX)->enet[port].rxDropped;
+    *txDrop_p += pHostQsmGbl(FAP0_IDX)->enet[port].txDropped;
+
+#if NUM_FAPS > 1
+    *rxDrop_p += pHostQsmGbl(FAP1_IDX)->enet[port].rxDropped;
+    *txDrop_p += pHostQsmGbl(FAP1_IDX)->enet[port].txDropped;
+#endif
+}
+
+void bcmPktDma_EthResetStats_Dqm(uint8 port)
+{
+    xmit2FapMsg_t fapMsg;
+
+    fapMsg.stats.cmd     = FAPMSG_CMD_DRV_RESET_STATS;
+    fapMsg.stats.port    = port;
+    fapMsg.stats.drv     = FAPMSG_DRV_ENET;
+
+    bcmPktDma_xmit2Fap(FAP0_IDX, FAP_MSG_STATS, &fapMsg);
+#if NUM_FAPS > 1
+    bcmPktDma_xmit2Fap(FAP1_IDX, FAP_MSG_STATS, &fapMsg);
+#endif
+}
+
 
 EXPORT_SYMBOL(bcm63xx_enet_dqmhandler);
 
 EXPORT_SYMBOL(bcmPktDma_EthInitRxChan_Dqm);
 EXPORT_SYMBOL(bcmPktDma_EthInitTxChan_Dqm);
-#if defined(CONFIG_BCM963268) && (CONFIG_BCM_EXT_SWITCH)
+#if defined(CONFIG_BCM_GMAC)
+EXPORT_SYMBOL(bcmPktDma_EthUnInitRxChan_Dqm);
+EXPORT_SYMBOL(bcmPktDma_EthUnInitTxChan_Dqm);
+#endif
+#if defined(CONFIG_BCM963268) && defined(CONFIG_BCM_EXT_SWITCH)
 EXPORT_SYMBOL(bcmPktDma_EthInitExtSw_Dqm);
 #endif
 EXPORT_SYMBOL(bcmPktDma_EthSelectRxIrq_Dqm);
@@ -388,5 +545,8 @@ EXPORT_SYMBOL(bcmPktDma_EthSetIqDqmThresh_Dqm);
 EXPORT_SYMBOL(bcmPktDma_EthSetRxChanBpmThresh_Dqm);
 EXPORT_SYMBOL(bcmPktDma_EthSetTxChanBpmThresh_Dqm);
 #endif
+EXPORT_SYMBOL(bcmPktDma_EthSetPhyRate_Dqm);
+EXPORT_SYMBOL(bcmPktDma_EthGetStats_Dqm);
+EXPORT_SYMBOL(bcmPktDma_EthResetStats_Dqm);
 
 #endif /* CONFIG_BCM96362 */

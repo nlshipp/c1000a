@@ -123,6 +123,9 @@ struct mtd_info {
 	uint32_t oobsize;   // Amount of OOB data per block (e.g. 16)
 	uint32_t oobavail;  // Available OOB bytes per block
 	
+#if defined(CONFIG_MIPS_BRCM)
+	u_int32_t eccsize;
+#endif
 	/*
 	 * If erasesize is a power of 2 then the shift is stored in
 	 * erasesize_shift otherwise erasesize_shift is zero. Ditto writesize.

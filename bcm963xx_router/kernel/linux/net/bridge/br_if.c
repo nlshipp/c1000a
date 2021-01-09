@@ -29,6 +29,9 @@
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
 #include "br_mld.h"
 #endif
+#if defined(CONFIG_MIPS_BRCM)
+#include "br_flows.h"
+#endif
 
 /*
  * Determine initial path cost based on speed.
@@ -221,11 +224,9 @@ static struct net_device *new_bridge_dev(struct net *net, const char *name)
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_IGMP_SNOOP)
 	spin_lock_init(&br->mcl_lock);
-	INIT_LIST_HEAD(&br->mc_list);
 #endif
 
 #if defined(CONFIG_MIPS_BRCM) && defined(CONFIG_BR_MLD_SNOOP)
-	INIT_LIST_HEAD(&br->mld_mc_list);
 	spin_lock_init(&br->mld_mcl_lock);
 #endif
 	br->stp_enabled = BR_NO_STP;
@@ -295,6 +296,9 @@ static struct net_bridge_port *new_nbp(struct net_bridge *br,
 	p->state = BR_STATE_DISABLED;
 	br_stp_port_timer_init(p);
 
+#if defined(CONFIG_MIPS_BRCM)
+	br_stp_notify_state_port(p);
+#endif
 	return p;
 }
 
@@ -404,6 +408,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 {
 	struct net_bridge_port *p;
 	int err = 0;
+	bool changed_addr;
 
 	if (dev->flags & IFF_LOOPBACK || dev->type != ARPHRD_ETHER)
 		return -EINVAL;
@@ -441,7 +446,7 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	list_add_rcu(&p->list, &br->port_list);
 
 	spin_lock_bh(&br->lock);
-	br_stp_recalculate_bridge_id(br);
+	changed_addr = br_stp_recalculate_bridge_id(br);
 	br_features_recompute(br);
 
 	if ((dev->flags & IFF_UP) && netif_carrier_ok(dev) &&
@@ -450,6 +455,9 @@ int br_add_if(struct net_bridge *br, struct net_device *dev)
 	spin_unlock_bh(&br->lock);
 
 	br_ifinfo_notify(RTM_NEWLINK, p);
+
+	if (changed_addr)
+		call_netdevice_notifiers(NETDEV_CHANGEADDR, br->dev);
 
 	dev_set_mtu(br->dev, br_min_mtu(br));
 
@@ -472,16 +480,36 @@ put_back:
 int br_del_if(struct net_bridge *br, struct net_device *dev)
 {
 	struct net_bridge_port *p = dev->br_port;
+	bool changed_addr;
 
 	if (!p || p->br != br)
 		return -EINVAL;
 
+#if defined(CONFIG_MIPS_BRCM)
+   /* delete all flow paths tx through this port (dev) from ANY rx port */
+   if (dev->priv_flags & IFF_BCM_VLAN)
+   {
+      br_flow_path_delete(br, NULL, dev);
+      
+      /* delete all flow paths tx through other ports from this rx port (dev) */
+	   list_for_each_entry(p, &br->port_list, list) {
+         if (p->dev && (p->dev != dev) && ((p->dev)->priv_flags & IFF_BCM_VLAN))
+            br_flow_path_delete(br, dev, p->dev);
+	   }
+   }
+   
+   p = dev->br_port;
+#endif
+
 	del_nbp(p);
 
 	spin_lock_bh(&br->lock);
-	br_stp_recalculate_bridge_id(br);
+	changed_addr = br_stp_recalculate_bridge_id(br);
 	br_features_recompute(br);
 	spin_unlock_bh(&br->lock);
+
+	if (changed_addr)
+		call_netdevice_notifiers(NETDEV_CHANGEADDR, br->dev);
 
 	return 0;
 }

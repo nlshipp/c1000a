@@ -10,8 +10,8 @@
 #define CTLOID_IGD_Q_MGMT			"InternetGatewayDevice.QueueManagement"
 #define CTLOID_IGD_Q_MGMT_CLASS		"InternetGatewayDevice.QueueManagement.Classification"
 #define CTLOID_IGD_AEI_FIREWALL		"InternetGatewayDevice.X_AEI_COM_Firewall"
-#define CTLOID_IGD_DEVICE_INFO 		"InternetGatewayDevice.DeviceInfo" 
-#define CTLOID_VENDOR_CONFIG_FILE	"InternetGatewayDevice.DeviceInfo.VendorConfigFile" 
+#define CTLOID_IGD_DEVICE_INFO 		"InternetGatewayDevice.DeviceInfo"
+#define CTLOID_VENDOR_CONFIG_FILE	"InternetGatewayDevice.DeviceInfo.VendorConfigFile"
 #define CTLOID_DEVICE_CONFIG 		"InternetGatewayDevice.DeviceConfig"
 #define CTLOID_MANAGEMENT_SERVER 	"InternetGatewayDevice.ManagementServer"
 #define CTLOID_TIME_SERVER_CFG 		"InternetGatewayDevice.Time"
@@ -39,4 +39,3 @@
 #define CTLOID_IPV6_LAN_PD_INST		"InternetGatewayDevice.LANDevice.1.LANPDConfigManagement.LanPDInstance"
 #define CTLOID_6RD_NUD              "InternetGatewayDevice.X_AEI_COM_IPv6NUD"
 #endif //_CTL_OBJECTID_H
-

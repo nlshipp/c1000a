@@ -25,27 +25,23 @@
 #ifndef __BCMSPIRES_H__
 #define __BCMSPIRES_H__ 
 
-#ifndef _CFE_
+#ifdef _CFE_
+struct spi_transfer {
+   const void   *tx_buf;
+   void         *rx_buf;
+   unsigned      len;
+   unsigned int  speed_hz;
+   unsigned char prepend_cnt;
+   unsigned char multi_bit_en;
+   unsigned char multi_bit_start_offset;
+   unsigned char hdr_len;
+   unsigned char unit_size;
+   unsigned char addr_len;
+   unsigned char addr_offset;
+};
+#else
 #include <linux/spi/spi.h> 
 #endif
-
-#define SPI_STATUS_OK                (0)
-#define SPI_STATUS_INVALID_LEN      (-1)
-#define SPI_STATUS_ERR              (-2)
-
-/* legacy and HS controllers can coexist - use bus num to differentiate */
-#define LEG_SPI_BUS_NUM  0
-#define HS_SPI_BUS_NUM   1
-
-#define LEG_SPI_CLOCK_DEF   2
-
-#if defined(_BCM96816_) || defined(CONFIG_BCM96816) || defined(_BCM96362_) || defined(CONFIG_BCM96362) || defined(_BCM963268_) || defined(CONFIG_BCM963268) 
-#define HS_SPI_PLL_FREQ     400000000
-#else
-#define HS_SPI_PLL_FREQ     133333333
-#endif
-#define HS_SPI_BUFFER_LEN   512
-
 /* used to specify ctrlState for the interface BcmSpiReserveSlave2 
    SPI_CONTROLLER_STATE_SET is used to differentiate a value of 0 which results in
    the controller using default values and the case where CPHA_EXT, GATE_CLK_SSOFF,
@@ -100,10 +96,10 @@ CPHA = 1, CPHA_EXT = 1 -> latch data on rising edge, launch data on rising edge
 
 #if defined(_BCM96816_) || defined(CONFIG_BCM96816)
 #define SPI_MODE_DEFAULT              SPI_MODE_1
-#define SPI_CONTROLLER_STATE_DEFAULT  (SPI_CONTROLLER_STATE_GATE_CLK_SSOFF | SPI_CONTROLLER_STATE_CPHA_EXT)
+#define SPI_CONTROLLER_STATE_DEFAULT  (SPI_CONTROLLER_STATE_GATE_CLK_SSOFF | SPI_CONTROLLER_STATE_CPHA_EXT)  
 #else
 #define SPI_MODE_DEFAULT              SPI_MODE_0
-#define SPI_CONTROLLER_STATE_DEFAULT  (SPI_CONTROLLER_STATE_GATE_CLK_SSOFF)
+#define SPI_CONTROLLER_STATE_DEFAULT  (SPI_CONTROLLER_STATE_GATE_CLK_SSOFF)  
 #endif
 
 #ifndef _CFE_
@@ -112,13 +108,21 @@ int BcmSpiReserveSlave2(int busNum, int slaveId, int maxFreq, int mode, int ctrl
 int BcmSpiReleaseSlave(int busNum, int slaveId);
 int BcmSpiSyncTrans(unsigned char *txBuf, unsigned char *rxBuf, int prependcnt, int nbytes, int busNum, int slaveId);
 int BcmSpiSyncMultTrans(struct spi_transfer *pSpiTransfer, int numTransfers, int busNum, int slaveId);
-int BcmSpiSyncMultTransNoSched(struct spi_transfer *pSpiTransfer, int numTransfers, int busNum, int slaveId);
 #endif
 
-int BcmSpi_SetFlashCtrl( int opCode, int addrBytes, int dummyBytes, int busNum, int devId, int clockHz );
-int BcmSpi_GetMaxRWSize( int busNum);
+#define SPI_STATUS_OK                (0)
+#define SPI_STATUS_INVALID_LEN      (-1)
+#define SPI_STATUS_ERR              (-2)
+
+/* legacy and HS controllers can coexist - use bus num to differentiate */
+#define LEG_SPI_BUS_NUM  0
+#define HS_SPI_BUS_NUM   1
+
+int BcmSpi_SetFlashCtrl( int opCode, int addrBytes, int dummyBytes, int busNum, int devId, int clockHz, int multibitEn );
+unsigned int BcmSpi_GetMaxRWSize( int busNum, int bAutoXfer);
 int BcmSpi_Read( unsigned char *msg_buf, int prependcnt, int nbytes, int busNum, int devId, int freqHz );
-int BcmSpi_Write( unsigned char *msg_buf, int nbytes, int busNum, int devId, int freqHz );
+int BcmSpi_Write( const unsigned char *msg_buf, int nbytes, int busNum, int devId, int freqHz );
+int BcmSpi_MultibitRead(struct spi_transfer * xfer, int busNum, int devId);
 int BcmSpi_SetCtrlState(int busNum, int slaveId, int spiMode, int ctrlState);
 
 #endif /* __BCMSPIRES_H__ */

@@ -89,7 +89,8 @@ static int sysinfo_uptime(void)
 	return EXIT_SUCCESS;
 }
 
-extern int sysinfo_main(int argc, char **argv)
+extern int sysinfo_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM) MAIN_EXTERNALLY_VISIBLE;
+extern int sysinfo_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
     sysinfo_uptime();
     sysinfo_mem();

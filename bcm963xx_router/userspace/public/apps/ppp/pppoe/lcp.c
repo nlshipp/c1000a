@@ -1841,8 +1841,8 @@ void AEI_save_status_to_file(const char *PATH , int status )
     sprintf(path, "%s", PATH);
     f = fopen(path, "w");
     if (f == NULL) {
-    	error("Failed to create %s: %m", PATH);
-    	return;
+	error("Failed to create %s: %m", PATH);
+	return;
     }
     else
     {
@@ -1851,7 +1851,7 @@ void AEI_save_status_to_file(const char *PATH , int status )
       else
          fprintf(f, "%s\n", "Down");
     }
-  
+
     fclose(f);
 }
 
@@ -1898,13 +1898,13 @@ lcp_up(f)
      * MTU we want to use.
      */
 #if defined(AEI_VDSL_CUSTOMER_NCS)
-	mtu= MIN(ho->neg_mru?ho->mru:PPP_MRU,ao->mru);	
+	mtu= MIN(ho->neg_mru?ho->mru:PPP_MRU,ao->mru);
 #ifdef HAVE_MULTILINK
     if (!(multilink && go->neg_mrru && ho->neg_mrru))
 #endif /* HAVE_MULTILINK */
 	netif_set_mtu(f->unit,mtu);
 
-#else    
+#else
 
     mtu = ho->neg_mru? ho->mru: PPP_MRU;
 #ifdef HAVE_MULTILINK

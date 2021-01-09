@@ -1,20 +1,29 @@
 /*
-<:copyright-gpl
- Copyright 2004 Broadcom Corp. All Rights Reserved.
+    Copyright 2000-2011 Broadcom Corporation
 
- This program is free software; you can distribute it and/or modify it
- under the terms of the GNU General Public License (Version 2) as
- published by the Free Software Foundation.
-
- This program is distributed in the hope it will be useful, but WITHOUT
- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- for more details.
-
- You should have received a copy of the GNU General Public License along
- with this program; if not, write to the Free Software Foundation, Inc.,
- 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
-:>
+    <:label-BRCM:2011:DUAL/GPL:standard
+    
+    Unless you and Broadcom execute a separate written software license
+    agreement governing use of this software, this software is licensed
+    to you under the terms of the GNU General Public License version 2
+    (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+    with the following added to such license:
+    
+       As a special exception, the copyright holders of this software give
+       you permission to link this software with independent modules, and
+       to copy and distribute the resulting executable under terms of your
+       choice, provided that you also meet, for each linked independent
+       module, the terms and conditions of the license of that module.
+       An independent module is a module which is not derived from this
+       software.  The special exception does not apply to any modifications
+       of the software.
+    
+    Not withstanding the above, under no circumstances may you combine
+    this software in any way with any other Broadcom software provided
+    under a license other than the GPL, without Broadcom's express prior
+    written consent.
+    
+    :>
 */
 
 /***********************************************************************/
@@ -71,10 +80,13 @@ enum {
     SIOCGPONIF,
     SIOCETHSWCTLOPS,
     SIOCGSWITCHPORT,
+    SIOCGGMACPORT,
 #if defined(AEI_VDSL_HPNA)
     SIOCSHPNAVLANID,
     SIOCSHPNAADMSTATE, /* adminstate and mode (LAN only , LAN+WAN) */
     SIOCGHPNAADMSTATE,
+    SIOCGHPNALINKSTATUS,
+    SIOCSHPNALINKSTATUS,
 #endif
 #if defined(AEI_VDSL_SMARTLED)
     SIOCINETTRAFFICBLINK,
@@ -84,7 +96,7 @@ enum {
     SIOCPOWERSAVE,
 #endif
 #if defined(AEI_VDSL_STATS_DIAG)
-    SIOCGETMULTICASTSTATS,
+    SIOCGETDEVSTATS,
 #endif
     SIOCLAST,
 };
@@ -118,7 +130,11 @@ struct ethctl_data {
 };
 
 /* Indicates the Access Requested is for External Phy */
-#define ETHCTL_FLAG_ACCESS_EXT_PHY 1
+enum {
+    ETHCTL_FLAG_ACCESS_INT_PHY,
+    ETHCTL_FLAG_ACCESS_EXT_PHY,
+    ETHCTL_FLAG_ACCESS_EXTSW_PHY,
+};
 
 /* Various operations through the SIOCGPONIF */
 enum {
@@ -131,16 +147,18 @@ enum {
     SETMCASTGEMID,
 };
 
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818))
 struct gponif_data{
     /* gponif ioctl operation */
     int op;
     /* GEM ID map for addgem and remgem operations */
-    unsigned int gem_map;
+    unsigned char gem_map_arr[CONFIG_BCM_MAX_GEM_PORTS];
     /* ifnumber for show all operation */
     int ifnumber;
     /* interface name for create, delete, addgem, remgem, and show ops */
     char ifname[IFNAMSIZ];
 };
+#endif
 struct interface_data{
     char ifname[IFNAMSIZ];
     int switch_port_id;
@@ -188,8 +206,12 @@ typedef struct _MirrorCfg
     char szMirrorInterface[MIRROR_INTF_SIZE];
     int nDirection;
     int nStatus;
-#if defined(CONFIG_BCM96816) || defined(DMP_X_ITU_ORG_GPON_1)
-    unsigned int nGemPortMask;
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+    int vlanId;
+#endif
+#if (defined(CONFIG_BCM96816) || defined(CONFIG_BCM96818)) || defined(DMP_X_ITU_ORG_GPON_1)
+    /* +1 is when CONFIG_BCM_MAX_GEM_PORTS is not a multiple of 8 */
+    unsigned char nGemPortMaskArray[(CONFIG_BCM_MAX_GEM_PORTS/8)+1]; 
 #endif
 } MirrorCfg ;
 

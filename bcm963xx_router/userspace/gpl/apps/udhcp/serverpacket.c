@@ -79,7 +79,7 @@ static UBOOL8 wantOption(struct dhcpMessage *oldpacket, int option)
 }
 
 /* This function is written for TELUS DHCP option 67 requirement
- * to identify STB clients, normally if you want to identify STB 
+ * to identify STB clients, normally if you want to identify STB
  * clients in dhcpd, you should alway use is_stb() instead.
  */
 static UBOOL8 is_IPTVSTB(struct dhcpMessage *oldpacket)
@@ -108,7 +108,7 @@ static UBOOL8 is_IPTVSTB(struct dhcpMessage *oldpacket)
 }
 #endif
 
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE)||defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
 UBOOL8 is_stb(const char *vid)
 {
     int i;
@@ -337,6 +337,27 @@ static void add_bootp_options(struct dhcpMessage *packet)
 }
 
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+static int is_dhcpvlan_vendor(char *ip,char *optionvendor) //add william 2012-4-25
+{
+	struct dhcpvlanOption60 * curr = cur_iface->dhcpvlanOption60list;
+	int i=0;
+	char tempip[16]={0};
+	while (curr)
+	{
+		//LOG(LOG_ERR, "william->is_dhcpvlan_vendor vendorClassId (%s) optionvendor(%s) ip(%s)\n",curr->vendorClassId,optionvendor,ip);
+        if(AEI_wstrcmp(curr->vendorClassId,optionvendor)==0)
+		{
+                    /*Coverity Fix CID 12260:Copy into fixed size buffer*/
+                    strlcpy(tempip,ip,sizeof(tempip));
+                    sendDhcpVlanUpdatedMsg(tempip,curr->vlanID);
+                    break;
+		}
+
+        curr = curr->next;
+	}
+	return 0;
+}
+
 static UBOOL8 is_IPTVSTB(struct dhcpMessage *oldpacket)
 {
     char *vendorid = NULL;
@@ -467,7 +488,7 @@ void AEI_modify_option_string(struct static_lease *special_lease, struct dhcpMes
 		default:
 		break;
 	}
-         
+
 	if (len==0)
 	{
 		//if len 0, data not changed, this should cover regular static lease
@@ -510,7 +531,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
         /* */
 
         vendor = AEI_is_vendor_equipped(oldpacket, vendorid);
-	
+
         switch (vendor) {
         case 1:
             /* client discover match in the server config */
@@ -555,7 +576,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
          * we than need to assign a new free IP address to this client */
         if (lease && !reservedIp(cur_iface->static_leases, lease->yiaddr))
 #else
-        if ((lease = find_lease_by_chaddr(oldpacket->chaddr))) 
+        if ((lease = find_lease_by_chaddr(oldpacket->chaddr)))
 #endif
         {
 #if defined(AEI_VDSL_DHCP_LEASE)
@@ -587,7 +608,6 @@ int sendOffer(struct dhcpMessage *oldpacket)
                      /* or its taken, but expired */
                      lease_expired(lease)))) {
             packet.yiaddr = req_align;
-
             /* otherwise, find a free IP */
         } else {
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
@@ -599,7 +619,6 @@ int sendOffer(struct dhcpMessage *oldpacket)
             } else {
 #endif
                 packet.yiaddr = find_address(0);
-
                 /* try for an expired lease */
                 if (!packet.yiaddr)
                     packet.yiaddr = find_address(1);
@@ -610,6 +629,8 @@ int sendOffer(struct dhcpMessage *oldpacket)
                     packet.yiaddr = AEI_find_address();
 #endif
 #if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+                if (!packet.yiaddr)
+                    packet.yiaddr = AEI_find_rs_staticaddress();
             }
 #endif
         }
@@ -644,17 +665,17 @@ int sendOffer(struct dhcpMessage *oldpacket)
     }
 
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-    /* For passthru, instead of default 1 day, use a short least time like 2Wire to trigger a 
+    /* For passthru, instead of default 1 day, use a short least time like 2Wire to trigger a
      * renew from the 3rd-party RG to pick up new IP in case cpe get's new wan connection.
      * renewal time usually is 1/2 of LEASE time so 5 min....
      */
-    if (special_lease && (special_lease->dns1 != 0 || 
-        special_lease->dns2 != 0 || 
+    if (special_lease && (special_lease->dns1 != 0 ||
+        special_lease->dns2 != 0 ||
         special_lease->subnet != 0 ||
         special_lease->gw != 0)) {
         lease_time_align = ntohl(ADVANCED_DMZ_LEASE_TIME);
     }
-#endif                
+#endif
 
 #if defined(AEI_VDSL_DHCP_LEASE)
     u_int32_t lease_expires;
@@ -678,7 +699,8 @@ int sendOffer(struct dhcpMessage *oldpacket)
         LOG(LOG_WARNING, "lease pool is full -- " "OFFER abandoned");
         return -1;
     }
-
+#endif
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     struct dhcpOfferedAddr *tmp_lease;
     char tmp_vendorid[256];
     char *tmp_vid;
@@ -688,7 +710,7 @@ int sendOffer(struct dhcpMessage *oldpacket)
     if (tmp_lease)
     {
         memset(tmp_vendorid, 0, sizeof(tmp_vendorid));
-                                                
+
         tmp_vid = get_option(oldpacket, DHCP_VENDOR);
         if (tmp_vid != NULL)
         {
@@ -761,16 +783,12 @@ int sendOffer(struct dhcpMessage *oldpacket)
                 continue;
             }
 #endif
+
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-                        /* bypass the DHCP_DNS_SERVER option */
-			if (curr->data[OPT_CODE] == DHCP_DNS_SERVER
-				|| curr->data[OPT_CODE] == DHCP_SUBNET
-				|| curr->data[OPT_CODE] == DHCP_ROUTER
-			)
-			AEI_modify_option_string(special_lease, &packet, curr);
+            AEI_modify_option_string(special_lease, &packet, curr);
 #else
-                        add_option_string(packet.options, curr->data);
-#endif        
+            add_option_string(packet.options, curr->data);
+#endif
         }
 
         curr = curr->next;
@@ -824,7 +842,7 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
     uint32_t static_lease_ip;
     static_lease_ip = getIpByMac(cur_iface->static_leases, oldpacket->chaddr);
 #endif
- 
+
     init_packet(&packet, oldpacket, DHCPACK);
     packet.yiaddr = yiaddr;
 
@@ -838,16 +856,16 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
     }
 
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-	/* For passthru, instead of default 1 day, use a short least time like 2Wire to trigger a 
-	 * renew from the 3rd-party RG to pick up new IP in case cpe get's new wan connection. 
+	/* For passthru, instead of default 1 day, use a short least time like 2Wire to trigger a
+	 * renew from the 3rd-party RG to pick up new IP in case cpe get's new wan connection.
 	 */
-	if (special_lease && (special_lease->dns1 != 0 || 
-		special_lease->dns2 != 0 || 
+	if (special_lease && (special_lease->dns1 != 0 ||
+		special_lease->dns2 != 0 ||
 		special_lease->subnet != 0 ||
 		special_lease->gw != 0)) {
 		lease_time_align = ntohl(ADVANCED_DMZ_LEASE_TIME);
 	}
-#endif           
+#endif
 
     add_simple_option(packet.options, DHCP_LEASE_TIME, lease_time_align);
 
@@ -868,14 +886,11 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
                 continue;
             }
 #endif
+
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-			if (curr->data[OPT_CODE] == DHCP_DNS_SERVER
-				|| curr->data[OPT_CODE] == DHCP_SUBNET
-				|| curr->data[OPT_CODE] == DHCP_ROUTER
-			)
-			AEI_modify_option_string(special_lease, &packet, curr);
+            AEI_modify_option_string(special_lease, &packet, curr);
 #else
-                        add_option_string(packet.options, curr->data);
+            add_option_string(packet.options, curr->data);
 #endif
         }
 
@@ -903,7 +918,7 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
 
 #if defined(AEI_VDSL_DHCP_LEASE)
     u_int32_t lease_expires;
-    
+
     if (static_lease_ip)
         lease_expires = -1;
     else
@@ -933,7 +948,7 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
         offerlist->classid[length] = '\0';
     }
 
-#if defined(AEI_VDSL_DHCP_LEASE)
+#if defined(AEI_VDSL_DHCP_LEASE) || defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
     if (is_stb(offerlist->vendorid))
     {
         offerlist->is_stb = TRUE;
@@ -946,13 +961,19 @@ int sendACK(struct dhcpMessage *oldpacket, u_int32_t yiaddr)
 #if defined(AEI_VDSL_STB_NO_FIREWALL)
         /* change to non-stb */
         if (offerlist->is_stb)
-        { 
+        {
             del_stb_from_list(offerlist->chaddr, offerlist->yiaddr);
         }
 #endif
 
         offerlist->is_stb = FALSE;
     }
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK) //add william 2012-4-25
+	if ( strlen(offerlist->vendorid) > 0 )
+	{
+		is_dhcpvlan_vendor(inet_ntoa(addr),offerlist->vendorid);
+	}
 #endif
 
 #if defined(AEI_VDSL_CUSTOMER_TELUS)
@@ -1000,13 +1021,9 @@ int send_inform(struct dhcpMessage *oldpacket)
 #endif
 
 #if defined(AEI_VDSL_CUSTOMER_ADVANCED_DMZ)
-			if (curr->data[OPT_CODE] == DHCP_DNS_SERVER
-				|| curr->data[OPT_CODE] == DHCP_SUBNET
-				|| curr->data[OPT_CODE] == DHCP_ROUTER
-			)
-			AEI_modify_option_string(special_lease, &packet, curr);
+            AEI_modify_option_string(special_lease, &packet, curr);
 #else
-                        add_option_string(packet.options, curr->data);
+            add_option_string(packet.options, curr->data);
 #endif
         }
 

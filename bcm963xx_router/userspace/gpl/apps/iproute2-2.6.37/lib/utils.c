@@ -68,7 +68,7 @@ static int get_netmask(unsigned *val, const char *arg, int base)
 	/* try coverting dotted quad to CIDR */
 	if (!get_addr_1(&addr, arg, AF_INET) && addr.family == AF_INET) {
 		int b = mask2bits(addr.data[0]);
-		
+
 		if (b >= 0) {
 			*val = b;
 			return 0;
@@ -95,7 +95,7 @@ int get_unsigned(unsigned *val, const char *arg, int base)
 /*
  * get_jiffies is "translated" from a similar routine "get_time" in
  * tc_util.c.  we don't use the exact same routine because tc passes
- * microseconds to the kernel and the callers of get_jiffies want 
+ * microseconds to the kernel and the callers of get_jiffies want
  * to pass jiffies, and have a different assumption for the units of
  * a "raw" number.
  */
@@ -122,7 +122,7 @@ int get_jiffies(unsigned *jiffies, const char *arg, int base, int *raw)
 
 	if (__iproute2_hz_internal == 0)
                 __iproute2_hz_internal = __get_hz();
-	
+
 	*raw = 1;
 
 	if (*p) {
@@ -151,7 +151,7 @@ int get_jiffies(unsigned *jiffies, const char *arg, int base, int *raw)
 	*jiffies = t;
 	if (*jiffies < t)
 		*jiffies += 1;
-	
+
         return 0;
 
 }
@@ -165,9 +165,9 @@ int get_u64(__u64 *val, const char *arg, int base)
 		return -1;
 	res = strtoull(arg, &ptr, base);
 	if (!ptr || ptr == arg || *ptr || res == 0xFFFFFFFFULL)
- 		return -1;
- 	*val = res;
- 	return 0;
+		return -1;
+	*val = res;
+	return 0;
 }
 
 int get_u32(__u32 *val, const char *arg, int base)
@@ -250,7 +250,7 @@ static int get_addr_ipv4(__u8 *ap, const char *cp)
 	for (i = 0; i < 4; i++) {
 		unsigned long n;
 		char *endp;
-		
+
 		n = strtoul(cp, &endp, 0);
 		if (n > 255)
 			return -1;	/* bogus network value */

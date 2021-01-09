@@ -5,7 +5,24 @@ that apply to components that may be included in the system. These requirements
 are generally a superset of the components actually configured on any particular device.
 ======= 
 
-This product includes software developed by Harrie Hazewinkel
+This product includes cryptographic software written by Eric Young (eay@cryptsoft.com)
+
+
+======= 
+
+This product includes software developed by the OpenSSL Project
+for use in the OpenSSL Toolkit. (http://www.openssl.org/)
+
+
+======= 
+
+This product includes software developed by Charles M. Hannum.
+
+
+======= 
+
+This product includes software developed by Christopher G. Demetriou
+for the NetBSD Project.
 
 
 ======= 
@@ -16,20 +33,14 @@ Engineering Group at Lawrence Berkeley Laboratory.
 
 ======= 
 
-This product includes software developed by the University of California,
-Lawrence Berkeley Laboratory and its contributors.
+This product includes software developed by the University of
+California, Berkeley.
 
 
 ======= 
 
 This product includes software developed by the University of
 California, Berkeley and its contributors.
-
-
-======= 
-
-This product includes software developed by the University of
-California, Berkeley.
 
 
 ======= 
@@ -85,13 +96,13 @@ at Carnegie Mellon University (http://www.cmu.edu/computing/).
 
 ======= 
 
-This product includes software developed by Charles M. Hannum.
+This product includes software developed by the University of California,
+Lawrence Berkeley Laboratory and its contributors.
 
 
 ======= 
 
-This product includes software developed by Christopher G. Demetriou
-for the NetBSD Project.
+This product includes software developed by Harrie Hazewinkel
 
 
 ======= 

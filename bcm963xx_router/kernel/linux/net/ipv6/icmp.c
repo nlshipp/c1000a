@@ -371,7 +371,11 @@ void icmpv6_send(struct sk_buff *skb, int type, int code, __u32 info,
 	 *	and anycast addresses will be checked later.
 	 */
 	if ((addr_type == IPV6_ADDR_ANY) || (addr_type & IPV6_ADDR_MULTICAST)) {
+#ifdef CONFIG_MIPS_BRCM 	
+		LIMIT_NETDEBUG(KERN_DEBUG "icmpv6_send: addr_any/mcast source type %d\n", type);
+#else
 		LIMIT_NETDEBUG(KERN_DEBUG "icmpv6_send: addr_any/mcast source\n");
+#endif				
 		return;
 	}
 
@@ -640,7 +644,11 @@ static int icmpv6_rcv(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
 	struct inet6_dev *idev = __in6_dev_get(dev);
+#if defined(CONFIG_MIPS_BRCM)
+	struct in6_addr saddr, daddr;
+#else
 	struct in6_addr *saddr, *daddr;
+#endif
 	struct ipv6hdr *orig_hdr;
 	struct icmp6hdr *hdr;
 	int type;
@@ -667,22 +675,43 @@ static int icmpv6_rcv(struct sk_buff *skb)
 
 	ICMP6_INC_STATS_BH(dev_net(dev), idev, ICMP6_MIB_INMSGS);
 
+#if defined(CONFIG_MIPS_BRCM)
+	ipv6_addr_copy(&saddr, &ipv6_hdr(skb)->saddr);
+	ipv6_addr_copy(&daddr, &ipv6_hdr(skb)->daddr);
+#else
 	saddr = &ipv6_hdr(skb)->saddr;
 	daddr = &ipv6_hdr(skb)->daddr;
+#endif
 
 	/* Perform checksum. */
 	switch (skb->ip_summed) {
 	case CHECKSUM_COMPLETE:
+#if defined(CONFIG_MIPS_BRCM)
+		if (!csum_ipv6_magic(&saddr, &daddr, skb->len, IPPROTO_ICMPV6,
+				     skb->csum))
+			break;
+#else
 		if (!csum_ipv6_magic(saddr, daddr, skb->len, IPPROTO_ICMPV6,
 				     skb->csum))
 			break;
+#endif
 		/* fall through */
 	case CHECKSUM_NONE:
+#if defined(CONFIG_MIPS_BRCM)
+		skb->csum = ~csum_unfold(csum_ipv6_magic(&saddr, &daddr, skb->len,
+					     IPPROTO_ICMPV6, 0));
+#else
 		skb->csum = ~csum_unfold(csum_ipv6_magic(saddr, daddr, skb->len,
 					     IPPROTO_ICMPV6, 0));
+#endif
 		if (__skb_checksum_complete(skb)) {
+#if defined(CONFIG_MIPS_BRCM)
+			LIMIT_NETDEBUG(KERN_DEBUG "ICMPv6 checksum failed [%pI6 > %pI6]\n",
+				       &saddr, &daddr);
+#else
 			LIMIT_NETDEBUG(KERN_DEBUG "ICMPv6 checksum failed [%pI6 > %pI6]\n",
 				       saddr, daddr);
+#endif
 			goto discard_it;
 		}
 	}
@@ -715,8 +744,15 @@ static int icmpv6_rcv(struct sk_buff *skb)
 			goto discard_it;
 		hdr = icmp6_hdr(skb);
 		orig_hdr = (struct ipv6hdr *) (hdr + 1);
+#if defined(CONFIG_MIPS_BRCM)
+		ipv6_addr_copy(&saddr, &orig_hdr->saddr);
+		ipv6_addr_copy(&daddr, &orig_hdr->daddr);
+		rt6_pmtu_discovery(&daddr, &saddr, dev,
+				   ntohl(hdr->icmp6_mtu));
+#else
 		rt6_pmtu_discovery(&orig_hdr->daddr, &orig_hdr->saddr, dev,
 				   ntohl(hdr->icmp6_mtu));
+#endif
 
 		/*
 		 *	Drop through to notify

@@ -681,11 +681,11 @@ elif [ -n "$CBQ_DEBUG" ]; then
 	} # tc
 else
 	### Default wrappers
-	
+
 	ip () {
 		$IP "$@"
 	} # ip
-	
+
 	tc () {
 		$TC "$@"
 	} # tc
@@ -877,7 +877,7 @@ for classfile in $CLASSLIST; do
 	MATCH=0; CHANGE=0
 	for timerule in $TIMESET; do
 		TIME_ABS=`cbq_time2abs $TIME_NOW`
-		
+
 		### Split TIME rule to pieces
 		TIMESPEC=${timerule%%;*}; PARAMS=${timerule##*;}
 		WEEKDAYS=${TIMESPEC%%/*}; INTERVAL=${TIMESPEC##*/}

@@ -44,16 +44,28 @@ ebt_ip6_mt(const struct sk_buff *skb, const struct xt_match_param *par)
 	if (info->bitmask & EBT_IP6_TCLASS &&
 	   FWINV(info->tclass != ipv6_get_dsfield(ih6), EBT_IP6_TCLASS))
 		return false;
+#if defined(CONFIG_MIPS_BRCM)
+	for (i = 0; i < 8; i++)
+		tmp_addr.in6_u.u6_addr16[i] = ih6->saddr.in6_u.u6_addr16[i] &
+			info->smsk.in6_u.u6_addr16[i];
+#else
 	for (i = 0; i < 4; i++)
 		tmp_addr.in6_u.u6_addr32[i] = ih6->saddr.in6_u.u6_addr32[i] &
 			info->smsk.in6_u.u6_addr32[i];
+#endif
 	if (info->bitmask & EBT_IP6_SOURCE &&
 		FWINV((ipv6_addr_cmp(&tmp_addr, &info->saddr) != 0),
 			EBT_IP6_SOURCE))
 		return false;
+#if defined(CONFIG_MIPS_BRCM)
+	for (i = 0; i < 8; i++)
+		tmp_addr.in6_u.u6_addr16[i] = ih6->daddr.in6_u.u6_addr16[i] &
+			info->dmsk.in6_u.u6_addr16[i];
+#else
 	for (i = 0; i < 4; i++)
 		tmp_addr.in6_u.u6_addr32[i] = ih6->daddr.in6_u.u6_addr32[i] &
 			info->dmsk.in6_u.u6_addr32[i];
+#endif
 	if (info->bitmask & EBT_IP6_DEST &&
 	   FWINV((ipv6_addr_cmp(&tmp_addr, &info->daddr) != 0), EBT_IP6_DEST))
 		return false;

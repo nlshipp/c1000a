@@ -337,13 +337,13 @@ is_mpeg_ps_es_audio_stream_lpcm (AVFormatContext *ctx dlna_unused,
 {
   if (audio_profile_guess_lpcm (codecs->ac) != AUDIO_PROFILE_LPCM)
     return 0;
-  
+
   /* audio bit rate: 1.536 Mbps for stereo, 768 Kbps for mono */
   if (codecs->ac->channels == 2 && codecs->ac->bit_rate > 1536000)
     return 0;
   if (codecs->ac->channels == 1 && codecs->ac->bit_rate > 768000)
     return 0;
-  
+
   return 1;
 }
 
@@ -380,7 +380,7 @@ is_mpeg_ps_es_audio_stream_mp2 (AVFormatContext *ctx dlna_unused,
   if (codecs->ac->channels == 2 &&
       (codecs->ac->bit_rate < 64000 || codecs->ac->bit_rate > 384000))
     return 0;
-  
+
   return 1;
 }
 
@@ -478,7 +478,7 @@ probe_mpeg_ts (AVFormatContext *ctx,
 {
   int xac3 = 0; /* extended AC3 audio */
   int i;
-  
+
   /* check for MPEG-2 MP@LL profile */
   if (codecs->ac->codec_id == CODEC_ID_AAC)
   {
@@ -524,10 +524,10 @@ probe_mpeg_ts (AVFormatContext *ctx,
           mpeg_ts_valid_streams_eu_sd[i].fps_num == 25 &&
           mpeg_ts_valid_streams_eu_sd[i].fps_den == 1)
       {
-// Why do we Need to Check for Audio?? From FFMPEG libraries we are 
-//  are getting MP3 as the audio type of some of the MPEG AV stream 
-// though the AUDIO actually inside is a AC3. We do not need to check 
-// for audio data type at all since all other information properly 
+// Why do we Need to Check for Audio?? From FFMPEG libraries we are
+//  are getting MP3 as the audio type of some of the MPEG AV stream
+// though the AUDIO actually inside is a AC3. We do not need to check
+// for audio data type at all since all other information properly
 // categories the stream.
 //          if (is_mpeg_ts_audio_stream_ac3 (ctx, codecs) ||
 //            is_mpeg_ts_audio_stream_mp2 (ctx, codecs))
@@ -605,7 +605,7 @@ probe_mpeg_ts (AVFormatContext *ctx,
 #endif
 
     if ((mpeg_ts_valid_streams_na_sd[i].width == codecs->vc->width) &&                // Check for Width
-        (mpeg_ts_valid_streams_na_sd[i].height == codecs->vc->height) &&            // Check For Height    
+        (mpeg_ts_valid_streams_na_sd[i].height == codecs->vc->height) &&            // Check For Height
         (mpeg_ts_valid_streams_na_sd[i].fps_num == codecs->vs->r_frame_rate.num) && //Check For Frame Rate
         (mpeg_ts_valid_streams_na_sd[i].fps_den == codecs->vs->r_frame_rate.den))
     {
@@ -636,7 +636,7 @@ probe_mpeg_ts (AVFormatContext *ctx,
         == codecs->vs->r_frame_rate.num)
 #endif
     if ( (mpeg_ts_valid_streams_na_hd[i].width == codecs->vc->width) &&                    // Check for Width
-         (mpeg_ts_valid_streams_na_hd[i].height == codecs->vc->height) &&                // Check For Height    
+         (mpeg_ts_valid_streams_na_hd[i].height == codecs->vc->height) &&                // Check For Height
         (mpeg_ts_valid_streams_na_hd[i].fps_num == codecs->vs->r_frame_rate.num) &&        //Check For Frame Rate
         (mpeg_ts_valid_streams_na_hd[i].fps_den == codecs->vs->r_frame_rate.den))
 
@@ -666,7 +666,7 @@ probe_mpeg2 (AVFormatContext *ctx,
 {
   if (!stream_ctx_is_av (codecs))
     return NULL;
-  
+
   /* check for MPEG-2 video codec */
   if (codecs->vc->codec_id != CODEC_ID_MPEG2VIDEO)
     return NULL;
@@ -684,7 +684,7 @@ probe_mpeg2 (AVFormatContext *ctx,
   default:
     break;
   }
-  
+
   return NULL;
 }
 

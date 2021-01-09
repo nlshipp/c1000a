@@ -1,130 +1,158 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: hostname.c,v 1.35 2003/03/19 09:12:37 mjn3 Exp $
  * Mini hostname implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
  *
- * adjusted by Erik Andersen <andersen@codepoet.org> to remove
+ * Adjusted by Erik Andersen <andersen@codepoet.org> to remove
  * use of long options and GNU getopt.  Improved the usage info.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
-
-#include <errno.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include "busybox.h"
-
-extern char *optarg; /* in unistd.h */
-extern int  optind, opterr, optopt; /* in unistd.h */
+#include "libbb.h"
 
 static void do_sethostname(char *s, int isfile)
 {
-	FILE *f;
-	char buf[255];
-
-	if (!s)
-		return;
-	if (!isfile) {
-		if (sethostname(s, strlen(s)) < 0) {
-			if (errno == EPERM)
-				bb_error_msg_and_die("you must be root to change the hostname");
-			else
-				bb_perror_msg_and_die("sethostname");
+//	if (!s)
+//		return;
+	if (isfile) {
+		parser_t *parser = config_open2(s, xfopen_for_read);
+		while (config_read(parser, &s, 1, 1, "# \t", PARSE_NORMAL & ~PARSE_GREEDY)) {
+			do_sethostname(s, 0);
 		}
-	} else {
-		f = bb_xfopen(s, "r");
-		while (fgets(buf, 255, f) != NULL) {
-			if (buf[0] =='#') {
-				continue;
-			}
-			chomp(buf);
-			do_sethostname(buf, 0);
-		}
-#ifdef CONFIG_FEATURE_CLEAN_UP
-		fclose(f);
-#endif
+		if (ENABLE_FEATURE_CLEAN_UP)
+			config_close(parser);
+	} else if (sethostname(s, strlen(s))) {
+//		if (errno == EPERM)
+//			bb_error_msg_and_die(bb_msg_perm_denied_are_you_root);
+		bb_perror_msg_and_die("sethostname");
 	}
 }
 
-int hostname_main(int argc, char **argv)
+/* Manpage circa 2009:
+ *
+ * hostname [-v] [-a] [--alias] [-d] [--domain] [-f] [--fqdn] [--long]
+ *      [-i] [--ip-address] [-s] [--short] [-y] [--yp] [--nis]
+ *
+ * hostname [-v] [-F filename] [--file filename] / [hostname]
+ *
+ * domainname [-v] [-F filename] [--file filename]  / [name]
+ *  { bbox: not supported }
+ *
+ * nodename [-v] [-F filename] [--file filename] / [name]
+ *  { bbox: not supported }
+ *
+ * dnsdomainname [-v]
+ *  { bbox: supported: Linux kernel build needs this }
+ * nisdomainname [-v]
+ *  { bbox: not supported }
+ * ypdomainname [-v]
+ *  { bbox: not supported }
+ *
+ * -a, --alias
+ *  Display the alias name of the host (if used).
+ *  { bbox: not supported }
+ * -d, --domain
+ *  Display the name of the DNS domain. Don't use the command
+ *  domainname to get the DNS domain name because it will show the
+ *  NIS domain name and not the DNS domain name. Use dnsdomainname
+ *  instead.
+ * -f, --fqdn, --long
+ *  Display the FQDN (Fully Qualified Domain Name). A FQDN consists
+ *  of a short host name and the DNS domain name. Unless you are
+ *  using bind or NIS for host lookups you can change the FQDN and
+ *  the DNS domain name (which is part of the FQDN) in the
+ *  /etc/hosts file.
+ * -i, --ip-address
+ *  Display the IP address(es) of the host.
+ * -s, --short
+ *  Display the short host name. This is the host name cut at the
+ *  first dot.
+ * -v, --verbose
+ *  Be verbose and tell what's going on.
+ *  { bbox: supported but ignored }
+ * -y, --yp, --nis
+ *  Display the NIS domain name. If a parameter is given (or --file
+ *  name ) then root can also set a new NIS domain.
+ *  { bbox: not supported }
+ * -F, --file filename
+ *  Read the host name from the specified file. Comments (lines
+ *  starting with a `#') are ignored.
+ */
+int hostname_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int hostname_main(int argc UNUSED_PARAM, char **argv)
 {
-	int opt;
-	int type = 0;
-	struct hostent *hp;
-	char *filename = NULL;
-	char buf[255];
-	char *p = NULL;
+	enum {
+		OPT_d = 0x1,
+		OPT_f = 0x2,
+		OPT_i = 0x4,
+		OPT_s = 0x8,
+		OPT_F = 0x10,
+		OPT_dfis = 0xf,
+	};
 
-	if (argc < 1)
-		bb_show_usage();
+	unsigned opts;
+	char *buf;
+	char *hostname_str;
 
-        while ((opt = getopt(argc, argv, "dfisF:")) > 0) {
-                switch (opt) {
-		case 'd':
-		case 'f':
-		case 'i':
-		case 's':
-			type = opt;
-			break;
-		case 'F':
-			filename = optarg;
-			break;
-		default:
-			bb_show_usage();
-		}
-	}
+#if ENABLE_LONG_OPTS
+	applet_long_options =
+		"domain\0"     No_argument "d"
+		"fqdn\0"       No_argument "f"
+	//Enable if seen in active use in some distro:
+	//	"long\0"       No_argument "f"
+	//	"ip-address\0" No_argument "i"
+	//	"short\0"      No_argument "s"
+	//	"verbose\0"    No_argument "v"
+		"file\0"       No_argument "F"
+		;
 
-	/* Output in desired format */
-	if (type != 0) {
-		gethostname(buf, 255);
+#endif
+	/* dnsdomainname from net-tools 1.60, hostname 1.100 (2001-04-14),
+	 * supports hostname's options too (not just -v as manpage says) */
+	opts = getopt32(argv, "dfisF:v", &hostname_str);
+	argv += optind;
+	buf = safe_gethostname();
+	if (applet_name[0] == 'd') /* dnsdomainname? */
+		opts = OPT_d;
+
+	if (opts & OPT_dfis) {
+		/* Cases when we need full hostname (or its part) */
+		struct hostent *hp;
+		char *p;
+
 		hp = xgethostbyname(buf);
-		p = strchr(hp->h_name, '.');
-		if (type == 'f') {
+		p = strchrnul(hp->h_name, '.');
+		if (opts & OPT_f) {
 			puts(hp->h_name);
-		} else if (type == 's') {
-			if (p != NULL) {
-				*p = 0;
-			}
+		} else if (opts & OPT_s) {
+			*p = '\0';
 			puts(hp->h_name);
-		} else if (type == 'd') {
-			if (p) puts(p + 1);
-		} else if (type == 'i') {
-			while (hp->h_addr_list[0]) {
-				printf("%s ", inet_ntoa(*(struct in_addr *) (*hp->h_addr_list++)));
+		} else if (opts & OPT_d) {
+			if (*p)
+				puts(p + 1);
+		} else /*if (opts & OPT_i)*/ {
+			if (hp->h_length == sizeof(struct in_addr)) {
+				struct in_addr **h_addr_list = (struct in_addr **)hp->h_addr_list;
+				while (*h_addr_list) {
+					printf("%s ", inet_ntoa(**h_addr_list));
+					h_addr_list++;
+				}
+				bb_putchar('\n');
 			}
-			printf("\n");
 		}
-	}
-	/* Set the hostname */
-	else if (filename != NULL) {
-		do_sethostname(filename, 1);
-	} else if (optind < argc) {
-		do_sethostname(argv[optind], 0);
-	}
-	/* Or if all else fails,
-	 * just print the current hostname */
-	 else {
-		gethostname(buf, 255);
+	} else if (opts & OPT_F) {
+		/* Set the hostname */
+		do_sethostname(hostname_str, 1);
+	} else if (argv[0]) {
+		/* Set the hostname */
+		do_sethostname(argv[0], 0);
+	} else {
+		/* Just print the current hostname */
 		puts(buf);
 	}
-	return(0);
+
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(buf);
+	return EXIT_SUCCESS;
 }

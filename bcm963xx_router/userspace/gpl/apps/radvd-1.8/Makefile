@@ -19,9 +19,9 @@
 #   $Id: Makefile,v 1.1.2.1 2011/08/11 17:52:43 jzhang Exp $
 #
 #   Authors:
-#    Lars Fenneberg		<lf@elemental.net>	 
+#    Lars Fenneberg		<lf@elemental.net>
 #
-#   This software is Copyright 1996,1997 by the above mentioned author(s), 
+#   This software is Copyright 1996,1997 by the above mentioned author(s),
 #   All Rights Reserved.
 #
 #   The license which is distributed with this software in the file COPYRIGHT
@@ -161,7 +161,7 @@ CCDEPMODE = depmode=gcc3
 CFLAGS = -Os -fomit-frame-pointer
 CONDITIONAL_SOURCES = device-linux.o privsep-linux.o netlink.o
 CPP = /opt/toolchains/uclibc-crosstools-gcc-4.4.2-1/usr/bin/mips-linux-gcc -E
-CPPFLAGS = 
+CPPFLAGS =
 CYGPATH_W = echo
 DEFS = \
 	-DINET6=1 \
@@ -172,11 +172,11 @@ DEFS = \
 	-DVERSION=\"$(VERSION)\"
 
 DEPDIR = .deps
-ECHO_C = 
+ECHO_C =
 ECHO_N = -n
-ECHO_T = 
+ECHO_T =
 EGREP = /bin/grep -E
-EXEEXT = 
+EXEEXT =
 GREP = /bin/grep
 GZIP = /bin/gzip
 INSTALL = /usr/bin/install -c
@@ -184,51 +184,51 @@ INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}
 INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
-LDFLAGS = 
+LDFLAGS =
 LEX = flex
-LEXLIB = 
+LEXLIB =
 LEX_OUTPUT_ROOT = lex.yy
-LIBOBJS = 
+LIBOBJS =
 LIBS = -lc -lgcc_s
 LN = /bin/ln
 LOG_FACILITY = LOG_DAEMON
-LTLIBOBJS = 
+LTLIBOBJS =
 MAKEINFO = ${SHELL} /home/jzhang/project/q2000_mk/bcm462/userspace/gpl/apps/radvd/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
 PACKAGE = radvd
-PACKAGE_BUGREPORT = 
-PACKAGE_NAME = 
-PACKAGE_STRING = 
-PACKAGE_TARNAME = 
-PACKAGE_URL = 
-PACKAGE_VERSION = 
+PACKAGE_BUGREPORT =
+PACKAGE_NAME =
+PACKAGE_STRING =
+PACKAGE_TARNAME =
+PACKAGE_URL =
+PACKAGE_VERSION =
 PATH_RADVD_CONF = /etc/radvd.conf
 PATH_RADVD_LOG = /var/log/radvd.log
 PATH_RADVD_PID = /var/run/radvd.pid
 PATH_SEPARATOR = :
 RM = /bin/rm
 SED = /bin/sed
-SET_MAKE = 
+SET_MAKE =
 SHELL = /bin/sh
 ###STRIP = strip
 TAR = /bin/tar
 VERSION = 1.8
 YACC = bison -y
-YFLAGS = 
+YFLAGS =
 abs_builddir = /home/jzhang/project/q2000_mk/bcm462/userspace/gpl/apps/radvd
 abs_srcdir = /home/jzhang/project/q2000_mk/bcm462/userspace/gpl/apps/radvd
 abs_top_builddir = /home/jzhang/project/q2000_mk/bcm462/userspace/gpl/apps/radvd
 abs_top_srcdir = /home/jzhang/project/q2000_mk/bcm462/userspace/gpl/apps/radvd
-ac_ct_CC = 
+ac_ct_CC =
 am__include = include
 am__leading_dot = .
-am__quote = 
+am__quote =
 am__tar = ${AMTAR} chof - "$$tardir"
 am__untar = ${AMTAR} xf -
 bindir = ${exec_prefix}/bin
 build = i686-pc-linux-gnu
-build_alias = 
+build_alias =
 build_cpu = i686
 build_os = linux-gnu
 build_vendor = pc
@@ -263,11 +263,11 @@ sharedstatedir = ${prefix}/com
 srcdir = .
 sysconfdir = ${prefix}/etc
 target = mips-unknown-linux-gnu
-target_alias = 
+target_alias =
 target_cpu = mips
 target_os = linux-gnu
 target_vendor = unknown
-top_build_prefix = 
+top_build_prefix =
 top_builddir = .
 top_srcdir = .
 AUTOMAKE_OPTIONS = 1.2 foreign
@@ -406,7 +406,7 @@ config.h: stamp-h1
 stamp-h1: $(srcdir)/config.h.in $(top_builddir)/config.status
 	@rm -f stamp-h1
 	cd $(top_builddir) && $(SHELL) ./config.status config.h
-$(srcdir)/config.h.in:  $(am__configure_deps) 
+$(srcdir)/config.h.in:  $(am__configure_deps)
 	($(am__cd) $(top_srcdir) && $(AUTOHEADER))
 	rm -f stamp-h1
 	touch $@
@@ -455,13 +455,13 @@ gram.h: gram.c
 	  rm -f gram.c; \
 	  $(MAKE) $(AM_MAKEFLAGS) gram.c; \
 	else :; fi
-radvd$(EXEEXT): $(radvd_OBJECTS) $(radvd_DEPENDENCIES) 
+radvd$(EXEEXT): $(radvd_OBJECTS) $(radvd_DEPENDENCIES)
 	@rm -f radvd$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(radvd_OBJECTS) ./$(radvd_LDADD) $(LIBS)
-	install -m 755 radvd $(INSTALL_DIR)/bin	
+	install -m 755 radvd $(INSTALL_DIR)/bin
 	$(STRIP) $(INSTALL_DIR)/bin/radvd
-	
-radvdump$(EXEEXT): $(radvdump_OBJECTS) $(radvdump_DEPENDENCIES) 
+
+radvdump$(EXEEXT): $(radvdump_OBJECTS) $(radvdump_DEPENDENCIES)
 	@rm -f radvdump$(EXEEXT)
 	$(AM_V_CCLD)$(LINK) $(radvdump_OBJECTS) $(radvdump_LDADD) $(LIBS)
 

@@ -4,19 +4,25 @@
    Copyright (c) 2004 Broadcom Corporation
    All Rights Reserved
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as published by
-the Free Software Foundation (the "GPL").
+Unless you and Broadcom execute a separate written software license 
+agreement governing use of this software, this software is licensed 
+to you under the terms of the GNU General Public License version 2 
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+with the following added to such license:
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   As a special exception, the copyright holders of this software give 
+   you permission to link this software with independent modules, and 
+   to copy and distribute the resulting executable under terms of your 
+   choice, provided that you also meet, for each linked independent 
+   module, the terms and conditions of the license of that module. 
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications 
+   of the software.  
 
-
-A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
-writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.
+Not withstanding the above, under no circumstances may you combine 
+this software in any way with any other Broadcom software provided 
+under a license other than the GPL, without Broadcom's express prior 
+written consent. 
 
 :>
 */
@@ -148,13 +154,43 @@ Boston, MA 02111-1307, USA.
  *
  ******************************************************************/
 
+#if !defined(_DIAGDEF_H_)
+#define _DIAGDEF_H_
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 #define	LOG_PROTO_ID				"*L"
 
 #define	DIAG_PARTY_ID_MASK			0x01
 #define	LOG_PARTY_CLIENT			0x01
 #define	LOG_PARTY_SERVER			0x00
-#define	DIAG_PARTY_LINEID_MASK		0x0E
+#define	DIAG_PARTY_LINEID_MASK		0x06
 #define	DIAG_PARTY_LINEID_SHIFT		1
+
+#define DIAG_TYPE_SHIFT 28
+#define DIAG_TYPE_MASK (3 << DIAG_TYPE_SHIFT)
+#define DIAG_PARTY_TYPE_MASK 0x30
+#define DIAG_PARTY_TYPE_SHIFT 4
+
+#define DIAG_PARTY_TYPE_SEND_SHIFT  6
+#define DIAG_PARTY_TYPE_SEND_MASK   (3 << DIAG_PARTY_TYPE_SEND_SHIFT)
+#define DIAG_TYPE_CMD_SHIFT         30
+#define DIAG_TYPE_CMD_MASK          (3 << DIAG_TYPE_CMD_SHIFT)
+
+#define	DIAGS_LINE_SHIFT		    31
+#define	DIAGS_LINE_MASK		    (1 << DIAGS_LINE_SHIFT)
+
+
+#define	DIAG_DSL_CLIENT         0x0
+#define	DIAG_WLAN_CLIENT        0x1
+#define	DIAG_XTM_CLIENT         0x2
+
+#define	DIAG_DATA_DSL_ID        0x1
+#define	DIAG_DATA_XTM_ID		0x2
+#define	DIAG_DATA_WLAN_ID		0x4
+
+
 
 #define	DIAG_DATA_MASK				0x0E
 #define	DIAG_DATA_LOG				0x02
@@ -175,6 +211,9 @@ Boston, MA 02111-1307, USA.
 #define	DIAG_ACK_TIMEOUT			-1
 #define	DIAG_ACK_LEN_INDICATION		-1
 
+#define	LOG_CMD_DISABLE_CLIENT		        230
+#define	LOG_CMD_ENABLE_CLIENT		        231
+#define	LOG_CMD_BONDING		                232
 #define	LOG_CMD_MIB_GET1			233
 #define	LOG_CMD_CFG_PHY3			234
 #define	LOG_CMD_CFG_PHY2			235
@@ -219,6 +258,9 @@ typedef struct {
 #define	DIAG_PROXY_TERMINATE				1
 #define	DIAG_PROXY_SET_FILTER				2
 #define	DIAG_PROXY_DNLOAD_LOGBINFILE		3
+#define	DIAG_PROXY_CMD_LINE				4
+
+#define	DIAG_BONDING_LDSTRDB				1
 
 #define	DIAG_DEBUG_CMD_READ_MEM				1
 #define	DIAG_DEBUG_CMD_SET_MEM				2
@@ -261,6 +303,10 @@ typedef struct {
 #define DIAG_DEBUG_CMD_SWITCH_PHY_IMAGE	36	/* param1 = 0/1 -> bonding/single line image */
 #define DIAG_DEBUG_CMD_SAVE_CFG			37	/* Save DSL CFG in flash */
 #define DIAG_DEBUG_CMD_MEDIASEARCH_CFG		38
+#define DIAG_DEBUG_CMD_SET_EXTBONDINGDBG_PRINT	39
+#define DIAG_DEBUG_CMD_DUMPBUF_CFG			40
+#define DIAG_DEBUG_CMD_SET_XTM_LINKUP		41	/* param1 - lineId, param2 - tpsTc */
+#define DIAG_DEBUG_CMD_SET_XTM_LINKDOWN		42	/* param1 - lineId */
 
 typedef struct {
 	unsigned short	cmd;
@@ -278,6 +324,43 @@ typedef struct {
 
 #define	DIAG_TEST_FILENAME_LEN				64
 
+/* General kDiagGeneralMsgDbgDataPrint flags */
+#define kDiagDbgDataSizeMask					0x00030000
+#define kDiagDbgDataSize8					0x00000000
+#define kDiagDbgDataSize16					0x00010000
+#define kDiagDbgDataSize32					0x00020000
+#define kDiagDbgDataSize64					0x00030000
+
+#define kDiagDbgDataSignMask					0x00040000
+#define kDiagDbgDataSigned					0x00040000
+#define kDiagDbgDataUnsigned					0x00000000
+
+#define kDiagDbgDataFormatMask					0x00080000
+#define kDiagDbgDataFormatHex					0x00080000
+#define kDiagDbgDataFormatDec					0x00000000
+
+#define kDiagDbgDataQxShift					20
+#define kDiagDbgDataQxMask					(0xF << kDiagDbgDataQxShift)
+#define kDiagDbgDataQ0					0x00000000
+#define kDiagDbgDataQ1					(1 << kDiagDbgDataQxShift)
+#define kDiagDbgDataQ4					(4 << kDiagDbgDataQxShift)
+#define kDiagDbgDataQ8					(8 << kDiagDbgDataQxShift)
+#define kDiagDbgDataQ12					(12 << kDiagDbgDataQxShift)
+#define kDiagDbgDataQ15					(0xF << kDiagDbgDataQxShift)
+
+typedef	struct _prefixLengthStruct {
+	unsigned short len;
+	unsigned short lenComplement;
+} PrefixLenStruct;
+
+#define	PREFIX_LEN_STRUCT_SIZE					sizeof(PrefixLenStruct)
+
+typedef	struct _cmdBufStruct {
+	PrefixLenStruct	prefixLen;
+	LogProtoHeader	diagHdr;
+	char			cmdData[LOG_MAX_DATA_SIZE];
+} CmdBufStruct;
+
 typedef struct {
 	unsigned short	cmd;
 	unsigned short	cmdId;
@@ -291,3 +374,57 @@ typedef struct {
 	unsigned long	frStart;
 	unsigned long	frNum;
 } DiagLogRetrData;
+
+/* shared DSL message codes */
+
+#define kDiagReceivedEocCommand  262
+#define kDiagStrPrintf			 433
+
+#define kDiagClearEocMsgLengthMask				0x0000FFFF
+#define kDiagClearEocMsgNumMask					0x00FF0000
+#define kDiagClearEocMsgDataVolatileMask		0x01000000
+#define kDiagClearEocMsgDataVolatile			kDiagClearEocMsgDataVolatileMask
+#define kDiagClearEocMsgExtraSendComplete		0x02000000
+/* Diags functions on CPE */
+
+#ifndef WINNT
+
+#define VA_NARG( ...) VA_NARG_(__VA_ARGS__, 24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0) 
+#define VA_NARG_(...) VA_ARG_N(__VA_ARGS__) 
+#define VA_ARG_N(_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,_17,_18,_19,_20,_21,_22,_23,_24,N,...)    N 
+
+#define DiagStrPrintf(lId,clType,fmt,...) do {						\
+	static const char fmt_str[] = fmt;									\
+    __DiagStrPrintf(lId, clType, fmt_str, sizeof(fmt_str), (VA_NARG(__VA_ARGS__))+4,	\
+		kDiagReceivedEocCommand | (lId << DIAGS_LINE_SHIFT) | (clType << DIAG_TYPE_SHIFT), \
+		kDiagStrPrintf, ((((VA_NARG(__VA_ARGS__))+1) << 2) + sizeof(fmt_str)) | kDiagClearEocMsgDataVolatileMask,  \
+		(VA_NARG(__VA_ARGS__)), ## __VA_ARGS__);	\
+} while (0)
+
+#define DiagStrPrintf1(lId,clType,fmt,...) do {						\
+	int fmt_len = strlen(fmt) + 1;									\
+    __DiagStrPrintf(lId, clType, fmt, fmt_len, (VA_NARG(__VA_ARGS__))+4,	\
+		kDiagReceivedEocCommand | (lId << DIAGS_LINE_SHIFT) | (clType << DIAG_TYPE_SHIFT), \
+		kDiagStrPrintf, ((((VA_NARG(__VA_ARGS__))+1) << 2) + fmt_len) | kDiagClearEocMsgDataVolatileMask,  \
+		(VA_NARG(__VA_ARGS__)), ## __VA_ARGS__);	\
+} while (0)
+
+extern void __DiagStrPrintf(unsigned long lineId, unsigned long clientType, const char *fmt, int fmtLen, int argNum, ...);
+extern void DiagWriteStatusInfo(unsigned long cmd, char *p, int n, char *p1, int n1);
+extern void DiagWriteStatusShort(unsigned long lineId, unsigned long clientType, unsigned long code, unsigned long value);
+extern void DiagWriteStatusLong(unsigned long lineId, unsigned long clientType, unsigned long  msgId, void *ptr, unsigned long len, unsigned long  flags);
+extern void DiagWriteFile(unsigned long lineId, unsigned long clientType, char *fname, void *ptr, unsigned long len);
+extern void DiagOpenFile(unsigned long lineId, unsigned long clientType, char *fname);
+extern void DiagDumpData(unsigned long lineId, unsigned long clientType, void *ptr, unsigned long len, unsigned long  flags);
+extern void DiagWriteString(unsigned long lineId, unsigned long clientType,  char *fmt, ...);
+extern void BcmDiagsMgrInit(void);
+extern void DiagWriteStringV(unsigned long lineId, unsigned long clientType, const char *fmt, void *ap);
+void BcmDiagsMgrRegisterClient(unsigned long clientType, void *pCallback);
+void BcmDiagsMgrDeRegisterClient(unsigned long clientType);
+#endif /* WINNT */
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif /* _DIAGDEF_H_ */

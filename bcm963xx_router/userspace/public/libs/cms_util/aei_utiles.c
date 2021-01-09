@@ -22,11 +22,14 @@
 #include <sys/file.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include "aei_utiles.h"
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
 #include "bcmTag.h" /* in shared/opensource/include/bcm963xx, for FILE_TAG */
 #include "board.h" /* in bcmdrivers/opensource/include/bcm963xx, for BCM_IMAGE_CFE */
 #endif
-
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+#include "cms_boardioctl.h"
+#endif
 #define READ_BUF_SIZE 128
 
 
@@ -50,12 +53,20 @@ UINT16 AEI_get_interface_mtu(char *ifname)
    struct ifreq ifr;
    int sockfd, err;
 
+#ifdef AEI_COVERITY_FIX
+   if( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 )
+#else
    if( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) <= 0 )
+#endif
    {
       return -1;
    }
 
+#ifdef AEI_COVERITY_FIX
+   cmsUtl_strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+#else
    strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+#endif
    err = ioctl(sockfd, SIOCGIFMTU, (void*)&ifr);
    close(sockfd);
 
@@ -68,7 +79,7 @@ void AEI_createFile(char *filename, char *content)
 {
     FILE *fp=NULL;
     if((fp=fopen(filename,"w"))==NULL)
-   {//file exist 
+   {//file exist
         printf("write %s failed\n",filename);
         return;
     }
@@ -80,7 +91,7 @@ void AEI_createFile(char *filename, char *content)
 
 int AEI_removeFile(char *filename)
 {
-   int ret = 0;    
+   int ret = 0;
     if (remove(filename) != 0) {
             cmsLog_error("Could not remove %s file=%d", filename);
             ret = -1;
@@ -91,15 +102,13 @@ int AEI_removeFile(char *filename)
 /* 0- file exist*/
 int AEI_isFileExist(char *filename)
 {
-   int ret = 0;    
    int fileFlag=access(filename,F_OK);
-   return ret;
+   return fileFlag;
 }
 int AEI_get_mac_addr(char *ifname, char *mac)
 {
 	int fd, rtn;
 	struct ifreq ifr;
-	unsigned char arp[6];
 
 	if( !ifname || !mac ) {
 		return -1;
@@ -109,7 +118,7 @@ int AEI_get_mac_addr(char *ifname, char *mac)
 		perror("socket");
 		return -1;
 	}
-	ifr.ifr_addr.sa_family = AF_INET;    
+	ifr.ifr_addr.sa_family = AF_INET;
 	strncpy(ifr.ifr_name, (const char *)ifname, IFNAMSIZ - 1 );
 
 	if ((rtn = ioctl(fd, SIOCGIFHWADDR, &ifr)) == 0)
@@ -168,7 +177,7 @@ int AEI_convert_spec_chars(char *src,char *dst)
             case '|':
             case '"':
             case ' ':
-            case '+':    
+            case '+':
             case '\'':
             case '\\':
                 dst[j]='%';
@@ -178,7 +187,7 @@ int AEI_convert_spec_chars(char *src,char *dst)
                 break;
             default:
                 dst[j]=src[i];
-                j++;    
+                j++;
         }
     }
     return 0;
@@ -191,10 +200,10 @@ char* AEI_SpeciCharEncode(char *s, int len)
     int n = 0;
     char t[4096]={0};
     char *p;
-	
+
     p=s;
     memset(t,0,sizeof(t));
-	
+
     if (s == NULL) {
         cmsLog_error("The transfer object is null");
         return s;
@@ -203,7 +212,14 @@ char* AEI_SpeciCharEncode(char *s, int len)
         /*
         Yuki: Special characters |,/()+ \are used by join characters, also need Encode them.
         */
-        
+
+#ifdef AEI_COVERITY_FIX
+	if(n == 4096-1)
+	{
+		    cmsLog_error("The Array size overflow Exception");
+		    return s;
+	}
+#endif
         if (!strchr("<>\"'%;)(&+|,/\\", c)) {
             t[n++] = c;
         } else if (n < 4096-5) {
@@ -266,7 +282,7 @@ pid_t* find_pid_by_name( char* pidName)
         char filename[READ_BUF_SIZE];
         char buffer[READ_BUF_SIZE];
         /* char name[READ_BUF_SIZE]; */
-                
+
         dir = opendir("/proc");
         if (!dir) {
                 printf("cfm:Cannot open /proc");
@@ -276,7 +292,7 @@ pid_t* find_pid_by_name( char* pidName)
         while ((next = readdir(dir)) != NULL) {
                 /* re-initialize buffers */
                 memset(filename, 0, sizeof(filename));
-                memset(buffer, 0, sizeof(buffer));  
+                memset(buffer, 0, sizeof(buffer));
 
                 /* Must skip ".." since that is outside /proc */
                 if (strcmp(next->d_name, "..") == 0)
@@ -364,12 +380,17 @@ int AEI_GetPid(char * command)
     return ret;
 }
 
+
 #if defined(AEI_CONFIG_JFFS) && defined(AEI_VDSL_CUSTOMER_CENTURYLINK_C1000A)
 CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, int partition)
 {
    CmsImageFormat format;
+#ifdef AEI_COVERITY_FIX
+   CmsRet ret = CMSRET_SUCCESS;
+#else
    CmsRet ret;
-   
+#endif
+
    if ((format = cmsImg_validateImage(imagePtr, imageLen, msgHandle)) == CMS_IMAGE_FORMAT_INVALID)
    {
       ret = CMSRET_INVALID_IMAGE;
@@ -389,6 +410,12 @@ CmsRet AEI_writeDualPartition(char *imagePtr, UINT32 imageLen, void *msgHandle, 
 									   0, 0);
    }
    return ret;
+}
+#endif
+#if defined(AEI_VDSL_CUSTOMER_CENTURYLINK)
+int AEI_save_syslog()
+{
+    return devCtl_boardIoctl(BOARD_IOCTL_FLASH_WRITE,SYSLOGONREBOOT,NULL,0,0,0);
 }
 #endif
 #endif

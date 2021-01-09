@@ -3,27 +3,29 @@
  *  Copyright (c) 2006  Broadcom Corporation
  *  All Rights Reserved
  *
-# 
-# 
-# This program is free software; you can redistribute it and/or modify 
-# it under the terms of the GNU General Public License, version 2, as published by  
-# the Free Software Foundation (the "GPL"). 
-# 
-#
-# 
-# This program is distributed in the hope that it will be useful,  
-# but WITHOUT ANY WARRANTY; without even the implied warranty of  
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the  
-# GNU General Public License for more details. 
-#  
-# 
-#  
-#   
-# 
-# A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by 
-# writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, 
-# Boston, MA 02111-1307, USA. 
-#
+<:label-BRCM:2012:DUAL/GPL:standard
+
+Unless you and Broadcom execute a separate written software license
+agreement governing use of this software, this software is licensed
+to you under the terms of the GNU General Public License version 2
+(the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php,
+with the following added to such license:
+
+   As a special exception, the copyright holders of this software give
+   you permission to link this software with independent modules, and
+   to copy and distribute the resulting executable under terms of your
+   choice, provided that you also meet, for each linked independent
+   module, the terms and conditions of the license of that module.
+   An independent module is a module which is not derived from this
+   software.  The special exception does not apply to any modifications
+   of the software.
+
+Not withstanding the above, under no circumstances may you combine
+this software in any way with any other Broadcom software provided
+under a license other than the GPL, without Broadcom's express prior
+written consent.
+
+:>
  *
  ************************************************************************/
 
@@ -42,7 +44,7 @@
 static const long KEY_ID = 0x414e4547; /*"GENA"*/
 static struct shbuf_ds {
 	int size;		// size of data written
-	int head;		// start of message list
+	// int head;		// start of message list
 	int tail;		// end of message list
 	char data[1];		// data/messages
 } *buf = NULL;			// shared memory pointer
@@ -78,6 +80,12 @@ int oal_readLogPartial(int ptr, char* buffer)
   int i=BCM_SYSLOG_READ_BUFFER_ERROR;
   int len;
   int end=0;
+  const char *shbuf_data;
+#ifdef AEI_COVERITY_FIX
+  unsigned head = 0;
+#else
+  unsigned head;
+#endif
 
   if ( (log_shmid = shmget(KEY_ID, 0, 0)) == -1) {
     cmsLog_debug("Syslog disabled or log buffer not allocated\n");
@@ -98,18 +106,27 @@ int oal_readLogPartial(int ptr, char* buffer)
   
   sem_down(log_semid);
   // Read Memory
-  if (ptr == BCM_SYSLOG_FIRST_READ)
-    i = buf->head;
+  if (ptr == BCM_SYSLOG_FIRST_READ){
+    shbuf_data = buf->data; /* pointer! */
+    head = buf->tail;
+    head += strlen(shbuf_data);
+    i = head;
+  }
   else
+  {
     i = ptr;
-  if (buf->head == buf->tail) {
+  }
+
+  if (head == buf->tail) {
     cmsLog_debug("<empty syslog buffer>\n");
     i = BCM_SYSLOG_READ_BUFFER_END;
     end = 1;
     goto nothing2display;
   }
 
-//readnext:
+#if !defined(AEI_VDSL_CUSTOMER_NCS)
+readnext:
+#endif
   if ( i != buf->tail) {
     if (i >= buf->size )
       i = 0;
@@ -126,11 +143,13 @@ int oal_readLogPartial(int ptr, char* buffer)
         if (i >= buf->size )
           i = 0;
       }
-    /* work around for syslogd.c bug which generate first log without timestamp 
+    /* work around for syslogd.c bug which generate first log without timestamp */
+#if !defined(AEI_VDSL_CUSTOMER_NCS)
     if (strlen(buffer) < 16 || buffer[3] != ' ' || buffer[6] != ' ' ||
       buffer[9] != ':' || buffer[12] != ':' || buffer[15] != ' ') {
         goto readnext;
-      }*/
+      }
+#endif
     buffer[len-BCM_SYSLOG_MESSAGE_LEN_BYTES-1] = '\n';
     buffer[len-BCM_SYSLOG_MESSAGE_LEN_BYTES] = '\0';
   }

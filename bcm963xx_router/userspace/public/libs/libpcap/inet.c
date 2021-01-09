@@ -728,7 +728,11 @@ pcap_lookupnet(device, netp, maskp, errbuf)
 	/* XXX Work around Linux kernel bug */
 	ifr.ifr_addr.sa_family = AF_INET;
 #endif
+#ifdef AEI_COVERITY_FIX
+	strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+#else
 	(void)strncpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+#endif
 	if (ioctl(fd, SIOCGIFADDR, (char *)&ifr) < 0) {
 		if (errno == EADDRNOTAVAIL) {
 			(void)snprintf(errbuf, PCAP_ERRBUF_SIZE,

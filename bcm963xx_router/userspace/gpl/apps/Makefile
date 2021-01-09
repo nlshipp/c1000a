@@ -1,36 +1,58 @@
+#***********************************************************************
 #
-# To add an app, add it to APP_DIRS, and write the target rule in the
-# last section of this Makefile
+#  Copyright (c) 2006  Broadcom Corporation
+#  All Rights Reserved
 #
-APP_DIRS = atm2684 bridge-utils busybox sysstat dproxy-nexgen ebtables ftpd \
+#  <:label-BRCM:2006:GPL/GPL:standard
+#  
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License, version 2, as published by
+#  the Free Software Foundation (the "GPL").
+#  
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  
+#  A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
+#  writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+#  Boston, MA 02111-1307, USA.
+#  
+#  :>
+#
+#***********************************************************************/
+
+
+#
+# You do not need to modify this Makefile to add an app.
+# Simply create a .autodetect in the subdir and this Makefile will enter
+# that directory during make and make clean.  (Auto detected directories
+# are listed in the AUTODETECT_SUBDIRS variable.  Type make show_subdirs)
+#
+HARDCODED_SUBDIRS := atm2684 bridge-utils busybox sysstat ebtables ftpd \
            iproute2-2.6.37 iptables radvd udhcp urlfilterd zebra \
            dynahelper mtd-utils ntfs-3g samba iperf conntrack openl2tpd rng-tools-2 pptp \
-           jamvm-1.5.4 felix_framework oprofile
+           jamvm-1.5.4 felix_framework mtd-util
 
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NTPV4)),)
+HARDCODED_SUBDIRS += ntpclient
+endif
+
+ifneq ($(strip $(AEI_DPROXY_V4_AND_V6)),)
+HARDCODED_SUBDIRS += dproxy-nexgen-aei
+else
+HARDCODED_SUBDIRS += dproxy-nexgen
+endif
+
+SUBDIRS = $(HARDCODED_SUBDIRS) $(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS)
+
+
+# === this is the default target ===
+# Need to add a level of indirection here so that AUTODETECT_SUBDIRS and
+# MODSW_SUBDIRS can be populated in make.common/make.modsw before we build.
 #
-# We need to declare these directory names as phony targets,
-# otherwise make will think the directories themselves are
-# the targets and will never execute the cmds.
-# See GNU Make, 4.6 
-#
-.PHONY : $(APP_DIRS)
-
-
-# Some apps have names that are different from their directory
-# name, so need to list them explictly here.
-all : $(APP_DIRS) brctl dproxy
-
-
-#
-# Cleaning rules
-# See example in GNU Make, 4.6
-#
-clean:
-	for dir in $(APP_DIRS); do \
-		if [ -d $$dir ] ; then \
-			$(MAKE) -C $$dir clean; \
-		fi \
-	done
+all : make_all_subdirs
 
 
 #
@@ -43,10 +65,30 @@ CURR_DIR := $(shell pwd)
 BUILD_DIR:=$(subst /userspace, /userspace,$(CURR_DIR))
 BUILD_DIR:=$(word 1, $(BUILD_DIR))
 
+# automatically set BCM_BASE_BUILD_DIR so that the modsw dirs can compile
+BCM_BASE_BUILD_DIR := $(BUILD_DIR)
+export BCM_BASE_BUILD_DIR
+
+
 include $(BUILD_DIR)/make.common
 
 export BUILD_DIR
 
+
+#
+# We need to declare these directory names as phony targets,
+# otherwise make will think the directories themselves are
+# the targets and will never execute the cmds.
+# See GNU Make, 4.6 
+#
+.PHONY : $(SUBDIRS)
+make_all_subdirs : $(SUBDIRS)
+
+
+clean: generic_subdir_clean
+
+
+modsw_clean: generic_modsw_base_clean
 
 
 ##############################################################
@@ -58,28 +100,37 @@ export BUILD_DIR
 ##############################################################
 
 
+$(AUTODETECT_SUBDIRS) $(MODSW_SUBDIRS): 
+	$(MAKE) -C $@
+
+
 ifneq ($(strip $(BUILD_BRCTL)),)
-brctl: sanity_check
+bridge-utils: sanity_check
 	mkdir -p $(INSTALL_DIR)/bin
 	(tar xkfj bridge-utils.tar.bz2 2> /dev/null || true)
 	$(MAKE) -C bridge-utils $(BUILD_BRCTL)
 else
-brctl: sanity_check
+bridge-utils: sanity_check
 endif
 
 
 ifeq ($(strip $(BRCM_IKOS)),y)
-BUSYBOX_CONFIG=ikos.config
+BRCMCONFIG=ikos.config
 else
-BUSYBOX_CONFIG=brcm.config
+BRCMCONFIG=brcm.config
 endif
+export BRCMCONFIG
+
+PERL5LIB=$(HOSTTOOLS_PERL_LIB)
+export PERL5LIB
 
 ifneq ($(strip $(BUILD_BUSYBOX)),)
 busybox: sanity_check
 	mkdir -p $(INSTALL_DIR)/bin
 	(tar xkfj busybox.tar.bz2 2> /dev/null || true)
-	cd busybox; ./gendotconfig
-	$(MAKE) -C busybox include/config.h
+	cd busybox; cp -f .config .config.old; cat $(BRCMCONFIG) > .config ; \
+	for i in config.d/[0-9]*.conf ; do echo "config script $$i" ; $$i ; done
+	$(MAKE) -C busybox include/autoconf.h
 	$(MAKE) -C busybox install
 else
 busybox: sanity_check
@@ -99,15 +150,28 @@ endif
 
 
 ifneq ($(strip $(BUILD_DPROXY)),)
-dproxy: sanity_check
+
+ifneq ($(strip $(AEI_DPROXY_V4_AND_V6)),)
+dproxy-nexgen-aei: sanity_check
+	mkdir -p $(INSTALL_DIR)/bin
+	$(MAKE) -C dproxy-nexgen-aei $(BUILD_DPROXY)
+else
+dproxy-nexgen: sanity_check
 	mkdir -p $(INSTALL_DIR)/bin
 	(tar xkfj dproxy-nexgen.tar.bz2 2> /dev/null || true)
 	$(MAKE) -C dproxy-nexgen $(BUILD_DPROXY)
-else
-dproxy: sanity_check
-	@echo "skipping dproxy (not configured)"
 endif
 
+else
+
+ifneq ($(strip $(AEI_DPROXY_V4_AND_V6)),)
+dproxy-nexgen-aei: sanity_check
+else
+dproxy-nexgen: sanity_check
+endif
+	@echo "skipping dproxy (not configured)"
+
+endif
 
 # in userapps->Dynamic ALG loader
 ifneq ($(strip $(BUILD_DYNAHELPER)),)
@@ -162,7 +226,7 @@ endif
 ifneq ($(strip $(DO_BUILD_IPROUTE2)),)
 #iproute2: sanity_check
 #	(tar xkfj iproute2.tar.bz2 2> /dev/null || true)
-#	$(MAKE) -C iproute2 install 
+#	$(MAKE) -C iproute2 install
 iproute2-2.6.37: sanity_check
 #	(tar xkfj iproute2.tar.bz2 2> /dev/null || true)
 	$(warning =================begine to compile iproute2-2.6.37=======================)
@@ -170,6 +234,15 @@ iproute2-2.6.37: sanity_check
 else
 iproute2: sanity_check
 	@echo "skipping iproute2 (not configured)"
+endif
+
+ifneq ($(strip $(BRCM_KERNEL_AUXFS_JFFS2)),)
+# Always make flash utilities and installed executables
+mtd-util:
+	(cd mtd-util; $(MAKE); $(MAKE) install)
+else
+mtd-util:
+	@echo "BRCM_KERNEL_AUXFS_JFFS2 not configured, skipping"
 endif
 
 
@@ -214,7 +287,13 @@ radvd: sanity_check
 	@echo "skipping radvd (not configured)"
 endif
 
-
+ifneq ($(strip $(AEI_VDSL_CUSTOMER_NTPV4)),)
+ntpclient: sanity_check
+	$(MAKE) -C ntpclient install
+else
+ntpclient: sanity_check
+	@echo "skipping ntpclient (not configured)"
+endif
 
 ifneq ($(strip $(BUILD_UDHCP)),)
 udhcp: sanity_check
@@ -248,7 +327,7 @@ ifneq ($(strip $(BUILD_NTFS_3G)),)
 ntfs-3g: sanity_check
 	(tar xkfz ntfs-3g.tar.gz 2> /dev/null || true)
 	$(MAKE) -C ./ntfs-3g 
-	install -m 755 ./ntfs-3g/libntfs-3g/.libs/libntfs-3g.so.54 $(INSTALL_DIR)/lib/libntfs-3g.so.54
+	install -m 755 ./ntfs-3g/libntfs-3g/.libs/libntfs-3g.so $(INSTALL_DIR)/lib/libntfs-3g.so.83
 	install -m 755 ./ntfs-3g/src/.libs/ntfs-3g  $(INSTALL_DIR)/bin/ntfs-3g	
 else
 ntfs-3g: sanity_check
@@ -330,12 +409,3 @@ felix_framework: sanity_check
 	@echo "skipping $@ (not configured)"
 endif
 
-ifneq ($(strip $(BUILD_OPROFILE)),)
-oprofile: sanity_check
-	(tar xkjf oprofile.tar.bz2 2> /dev/null || true)
-	mkdir -p ./oprofile/op_bin
-	$(MAKE) -C ./oprofile
-else
-oprofile: sanity_check
-	@echo "skipping $@ (not configured)"
-endif

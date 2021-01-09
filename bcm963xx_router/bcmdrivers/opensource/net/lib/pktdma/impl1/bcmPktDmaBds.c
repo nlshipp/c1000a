@@ -4,19 +4,25 @@
     Copyright (c) 2009 Broadcom Corporation
     All Rights Reserved
  
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License, version 2, as published by
- the Free Software Foundation (the "GPL").
+ Unless you and Broadcom execute a separate written software license 
+ agreement governing use of this software, this software is licensed 
+ to you under the terms of the GNU General Public License version 2 
+ (the "GPL"), available at http://www.broadcom.com/licenses/GPLv2.php, 
+ with the following added to such license:
  
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+    As a special exception, the copyright holders of this software give 
+    you permission to link this software with independent modules, and 
+    to copy and distribute the resulting executable under terms of your 
+    choice, provided that you also meet, for each linked independent 
+    module, the terms and conditions of the license of that module. 
+    An independent module is a module which is not derived from this
+    software.  The special exception does not apply to any modifications 
+    of the software.  
  
- 
- A copy of the GPL is available at http://www.broadcom.com/licenses/GPLv2.php, or by
- writing to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- Boston, MA 02111-1307, USA.
+ Not withstanding the above, under no circumstances may you combine 
+ this software in any way with any other Broadcom software provided 
+ under a license other than the GPL, without Broadcom's express prior 
+ written consent. 
  
 :>
 */
@@ -57,18 +63,19 @@ static int bcmPktDma_dump_rxbds( void )
     printk("\n-------- Packet DMA RxBDs ---------\n" );
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     /* ----------- FAP RX channel ---------- */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] # of RxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->host.eth_rxbds[chnl] );
     }
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] Rx DQM depth=%d\n", chnl,
                 bcmPktDma_Bds_p->host.eth_rxdqm[chnl] );
     }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     /* XTM config */
     for (chnl=0; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
@@ -81,19 +88,22 @@ static int bcmPktDma_dump_rxbds( void )
         printk( "XTM[%d] Rx DQM depth=%d\n", chnl,
                 bcmPktDma_Bds_p->host.xtm_rxdqm[chnl] );
     }
+#endif
 
     /* FAP config */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         printk( "FAP ETH[%d] # of RxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->fap.eth_rxbds[chnl] );
     }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
         printk( "FAP XTM[%d] # of RxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->fap.xtm_rxbds[chnl] );
     }
+#endif
 #endif
 
 
@@ -101,25 +111,30 @@ static int bcmPktDma_dump_rxbds( void )
     /* ----------- CMF FWD RX ---------- */
     printk( "ETH[0] # of RxBds=%d\n", bcmPktDma_Bds_p->host.eth_rxbds[0] );
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
         printk( "XTM[%d] # of RxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->host.xtm_rxbds[chnl] );
     }
+#endif
 
     printk( "FWD ETH[0] # of RxBds=%d\n", bcmPktDma_Bds_p->fwd.eth_rxbds[0] );
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     printk( "FWD XTM[0] # of RxBds=%d\n", bcmPktDma_Bds_p->fwd.xtm_rxbds[0] );
+#endif
 #endif
 
 #if !(defined(CONFIG_BCM96368) || defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
     /* ----------- Eth RX channel ---------- */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] # of RxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->host.eth_rxbds[chnl] );
     }
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     /* ----------- XTM RX channel ---------- */
     for (chnl=0; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
@@ -139,18 +154,19 @@ static int bcmPktDma_dump_txbds( void )
     printk("\n-------- Packet DMA TxBDs ---------\n" );
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     /* Host config */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] # of TxBds =%d\n", chnl,
                 bcmPktDma_Bds_p->host.eth_txbds[chnl] );
     }
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] Tx DQM depth=%d\n", chnl,
                 bcmPktDma_Bds_p->host.eth_txdqm[chnl] );
     }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         printk( "XTM[%d] # of TxBds =%d\n", chnl,
@@ -162,42 +178,50 @@ static int bcmPktDma_dump_txbds( void )
         printk( "XTM[%d] Tx DQM depth=%d\n", chnl,
                 bcmPktDma_Bds_p->host.xtm_txdqm[chnl] );
     }
+#endif
 
     /* FAP config */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         printk( "FAP ETH[%d] # of TxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->fap.eth_txbds[chnl] );
     }
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         printk( "FAP XTM[%d] # of TxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->fap.xtm_txbds[chnl] );
     }
 #endif
+#endif
 
 #if defined(CONFIG_BCM96368)
     printk( "ETH[0] # of TxBds=%d\n", bcmPktDma_Bds_p->host.eth_txbds[0]);
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         printk( "XTM[%d] # of TxBds=%d\n", chnl,
                 bcmPktDma_Bds_p->host.xtm_txbds[chnl]);
     }
+#endif
 
     printk( "FWD ETH[0] # of TxBds=%d\n", bcmPktDma_Bds_p->fwd.eth_txbds[0]);
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     printk( "FWD XTM[0] # of TxBds=%d\n", bcmPktDma_Bds_p->fwd.xtm_txbds[0]);
+#endif
 #endif
 
 #if !(defined(CONFIG_BCM96368) || defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         printk( "ETH[%d] # of TxBds=%d\n", chnl,
                         bcmPktDma_Bds_p->host.eth_txbds[chnl]);
     }
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         printk( "XTM[%d] # of TxBds=%d\n", chnl,
@@ -213,43 +237,49 @@ static int bcmPktDma_dump_txbds( void )
 
 static int bcmPktDma_calc_rxbds( void )
 {
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     uint32_t tot_mem_size = kerSysGetSdramSize();
-    uint32_t buf_mem_size = tot_mem_size * CONFIG_BRCM_DEF_BUF_MEM_PRCNT/100;
+    uint32_t buf_mem_size = (tot_mem_size/100) * CONFIG_BCM_BPM_BUF_MEM_PRCNT;
     uint32_t tot_num_bufs=0;
+#endif
     uint32_t chnl;
     uint32_t host_eth_rxbds;
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     uint32_t host_xtm_rxbds;
 #endif
 
-#if defined(CONFIG_BCM96816)
-    /* In case of 6816 the number of RXBDs for default channel is calculated
-     * using non-jumbo frame size similar to other CHIPs */
+    chnl = 0;                 /* to avoid compiler warning */
+
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     tot_num_bufs = (buf_mem_size/NON_JUMBO_RX_BUF_SIZE);
-#else
-    tot_num_bufs = (buf_mem_size/RX_BUF_SIZE);
 #endif
 
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     /* ----------- FAP RX channel ---------- */
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
 /* Channel-0 is default */
     host_eth_rxbds = (ENET_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/200);
 
     if (host_eth_rxbds < HOST_ENET_NR_RXBDS_MIN)
         host_eth_rxbds = HOST_ENET_NR_RXBDS_MIN;
-
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     host_xtm_rxbds = (XTM_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/200);
 
     if (host_xtm_rxbds < HOST_XTM_NR_RXBDS_MIN)
         host_xtm_rxbds = HOST_XTM_NR_RXBDS_MIN;
-
-#else /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif
+#else /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
     host_eth_rxbds = HOST_ENET_NR_RXBDS;
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     host_xtm_rxbds = HOST_XTM_NR_RXBDS;
-#endif /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif
+#endif /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+#if defined(CONFIG_BCM_GMAC)
+    host_eth_rxbds /= 2;
+#endif
+
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         if (g_Eth_rx_iudma_ownership[chnl] == HOST_OWNED )
             bcmPktDma_Bds_p->host.eth_rxbds[chnl] = host_eth_rxbds;
@@ -259,17 +289,16 @@ static int bcmPktDma_calc_rxbds( void )
         bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->host.eth_rxbds[chnl];
     }
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         if (g_Eth_rx_iudma_ownership[chnl] == HOST_OWNED )
             bcmPktDma_Bds_p->host.eth_rxdqm[chnl] = 0;
         else
         {
-            bcmPktDma_Bds_p->host.eth_rxdqm[chnl] = DQM_FAP2HOST_ETH0_RX_DEPTH;
+            bcmPktDma_Bds_p->host.eth_rxdqm[chnl] = 
+                DQM_FAP2HOST_ETH_RX_DEPTH_LOW + DQM_FAP2HOST_ETH_RX_DEPTH_HI;
         }
     }
-
-
 
     /* XTM config */
 #if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
@@ -295,19 +324,21 @@ static int bcmPktDma_calc_rxbds( void )
             if (chnl == 0)
             {
                 bcmPktDma_Bds_p->host.xtm_rxdqm[chnl] =
-                    DQM_FAP2HOST_XTM0_RX_DEPTH;
+                    DQM_FAP2HOST_XTM_RX_DEPTH_LOW + DQM_FAP2HOST_XTM_RX_DEPTH_HI;
             }
             else
             {
-                bcmPktDma_Bds_p->host.xtm_rxdqm[chnl] =
-                    DQM_FAP2HOST_XTM1_RX_DEPTH;
+                /* currently we using only 1 channel even when 2 channels are
+                 * intialized, so keep the other channel size very low 
+                 */
+                bcmPktDma_Bds_p->host.xtm_rxdqm[chnl] = 16;
             }
         }
     }
 #endif /* #if defined(CONFIG_BCM_XTMCFG) */
 
     /* FAP config */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         if (g_Eth_rx_iudma_ownership[chnl] == HOST_OWNED)
             bcmPktDma_Bds_p->fap.eth_rxbds[chnl] = 0;
@@ -337,28 +368,31 @@ static int bcmPktDma_calc_rxbds( void )
 
 
 #if defined(CONFIG_BCM96368)
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     /* ----------- CMF FWD RX ---------- */
     /* In case of 6368 because of CMF the number of RXBDs is divided
      * equally between Eth driver and CMF FWD */
-
     host_eth_rxbds = (ENET_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/200);
-
     if (host_eth_rxbds < HOST_ENET_NR_RXBDS_MIN)
         host_eth_rxbds = HOST_ENET_NR_RXBDS_MIN;
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     host_xtm_rxbds = (XTM_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/200);
 
     if (host_xtm_rxbds < HOST_XTM_NR_RXBDS_MIN)
         host_xtm_rxbds = HOST_XTM_NR_RXBDS_MIN;
-#else /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif
+#else /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
     host_eth_rxbds = HOST_ENET_NR_RXBDS;
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     host_xtm_rxbds = HOST_XTM_NR_RXBDS;
-#endif /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif
+#endif /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
 
     bcmPktDma_Bds_p->host.eth_rxbds[0] = host_eth_rxbds;
     bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->host.eth_rxbds[0];
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     bcmPktDma_Bds_p->host.xtm_rxbds[0] = host_xtm_rxbds;
     for (chnl=1; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
@@ -369,38 +403,48 @@ static int bcmPktDma_calc_rxbds( void )
     {
         bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->host.xtm_rxbds[chnl];
     }
+#endif
 
     /* Note: The # of FWD RXBDs is equal to host RXBDs */
     bcmPktDma_Bds_p->fwd.eth_rxbds[0] = host_eth_rxbds;
     bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->fwd.eth_rxbds[0];
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     bcmPktDma_Bds_p->fwd.xtm_rxbds[0] = host_xtm_rxbds;
     bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->fwd.xtm_rxbds[0];
+#endif
 #endif
 
 #if !(defined(CONFIG_BCM96368) || defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
     /* ----------- Eth RX channel ---------- */
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     host_eth_rxbds = ENET_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/100;
-#else /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#else /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
     host_eth_rxbds = HOST_ENET_NR_RXBDS;
-#endif /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
 
-    bcmPktDma_Bds_p->host.eth_rxbds[0] = host_eth_rxbds;
-    for (chnl=1; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+    for (chnl=1; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         bcmPktDma_Bds_p->host.eth_rxbds[chnl] =
                     HOST_ENET_NON_DEF_CHNL_NR_RXBDS;
     }
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_RX_DMA_CHANNELS; chnl++)
+#if defined(CONFIG_BCM_GMAC)
+    host_eth_rxbds /= 2;
+    bcmPktDma_Bds_p->host.eth_rxbds[0] = host_eth_rxbds;
+    bcmPktDma_Bds_p->host.eth_rxbds[ENET_RX_CHANNELS_MAX-1] = host_eth_rxbds;
+#else
+    bcmPktDma_Bds_p->host.eth_rxbds[0] = host_eth_rxbds;
+#endif
+
+    for (chnl=0; chnl < ENET_RX_CHANNELS_MAX; chnl++)
     {
         bcmPktDma_tot_rxbds_g += bcmPktDma_Bds_p->host.eth_rxbds[chnl];
     }
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     /* ----------- XTM RX channel ---------- */
-#if (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     host_xtm_rxbds = XTM_DEF_RXBDS_BUF_PRCNT * tot_num_bufs/100;
 #else /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
 
@@ -413,8 +457,9 @@ static int bcmPktDma_calc_rxbds( void )
         else
             host_xtm_rxbds = HOST_XTM_NR_RXBDS;
     }
-#endif /* (defined(CONFIG_BCM_INGQOS) || defined(CONFIG_BCM_INGQOS_MODULE) || defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
+#endif /* (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE)) */
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     bcmPktDma_Bds_p->host.xtm_rxbds[0] = host_xtm_rxbds;
     for (chnl=1; chnl < XTM_RX_CHANNELS_MAX; chnl++)
     {
@@ -427,11 +472,13 @@ static int bcmPktDma_calc_rxbds( void )
     }
 #endif
 #endif
+#endif
 
 #if defined(BCM_PKTDMA_DUMP_BDS)
     bcmPktDma_dump_rxbds();
 #endif /* defined(BCM_PKTDMA_DUMP_BDS) */
 
+#if (defined(CONFIG_BCM_BPM) || defined(CONFIG_BCM_BPM_MODULE))
     printk( "Total # RxBds=%d\n", bcmPktDma_tot_rxbds_g);
     if (bcmPktDma_tot_rxbds_g > tot_num_bufs)
     {
@@ -446,6 +493,7 @@ static int bcmPktDma_calc_rxbds( void )
         printk( "WARNING: # of RXBDs > (buffers*2/3)\n" );
         printk( "WARNING: less buffers available for BPM\n" );
     }
+#endif
 
     return 0;
 }
@@ -458,9 +506,11 @@ static int bcmPktDma_calc_txbds( void )
     int iudmaIdx;
 #endif
 
+    chnl = 0;                 /* to avoid compiler warning */
+
 #if defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE)
     /* Host config */
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         if (g_Eth_tx_iudma_ownership[chnl] == HOST_OWNED)
             bcmPktDma_Bds_p->host.eth_txbds[chnl] = HOST_ENET_NR_TXBDS;
@@ -468,26 +518,26 @@ static int bcmPktDma_calc_txbds( void )
             bcmPktDma_Bds_p->host.eth_txbds[chnl] = 0;
     }
 
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         if (g_Eth_tx_iudma_ownership[chnl] == HOST_OWNED)
             bcmPktDma_Bds_p->host.eth_txdqm[chnl] = 0;
         else
-            bcmPktDma_Bds_p->host.eth_txdqm[chnl] = DQM_HOST2FAP_ETH_XMIT_DEPTH;
-    }
-
-    for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
-    {
-        bcmPktDma_Bds_p->host.xtm_txbds[chnl] = 0;
+            bcmPktDma_Bds_p->host.eth_txdqm[chnl] = DQM_HOST2FAP_ETH_XMIT_DEPTH_LOW;
     }
 
 #if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
+        bcmPktDma_Bds_p->host.xtm_txbds[chnl] = 0;
+    }
+
+    for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
+    {
         if (g_Xtm_tx_iudma_ownership[chnl] == HOST_OWNED)
             bcmPktDma_Bds_p->host.xtm_txdqm[chnl] = 0;
         else
-            bcmPktDma_Bds_p->host.xtm_txdqm[chnl] = DQM_HOST2FAP_XTM_XMIT_DEPTH;
+            bcmPktDma_Bds_p->host.xtm_txdqm[chnl] = DQM_HOST2FAP_XTM_XMIT_DEPTH_LOW;
     }
 #endif /* defined(CONFIG_BCM_XTMCFG) */
 
@@ -514,22 +564,27 @@ static int bcmPktDma_calc_txbds( void )
 #if defined(CONFIG_BCM96368)
     bcmPktDma_Bds_p->host.eth_txbds[0] = HOST_ENET_NR_TXBDS;
 
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         bcmPktDma_Bds_p->host.xtm_txbds[chnl] = HOST_XTM_NR_TXBDS;
     }
+#endif
 
     bcmPktDma_Bds_p->fwd.eth_txbds[0] = FWD_ENET_NR_TXBDS;
+
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     bcmPktDma_Bds_p->fwd.xtm_txbds[0] = FWD_XTM_NR_TXBDS;
+#endif
 #endif
 
 #if !(defined(CONFIG_BCM96368) || defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
-    for (chnl=0; chnl < CONFIG_BCM_DEF_NR_TX_DMA_CHANNELS; chnl++)
+    for (chnl=0; chnl < ENET_TX_CHANNELS_MAX; chnl++)
     {
         bcmPktDma_Bds_p->host.eth_txbds[chnl] = HOST_ENET_NR_TXBDS;
     }
 
-#if !defined(CONFIG_BCM96816)
+#if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     for (chnl=0; chnl < XTM_TX_CHANNELS_MAX; chnl++)
     {
         bcmPktDma_Bds_p->host.xtm_txbds[chnl] = HOST_XTM_NR_TXBDS;
@@ -583,7 +638,6 @@ int bcmPktDma_XtmGetRxBds( int channel )
 #if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     int nr_rx_bds = 0;
 
-#if !defined(CONFIG_BCM96816)
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
     if (g_Xtm_rx_iudma_ownership[channel] == HOST_OWNED)
         nr_rx_bds = bcmPktDma_Bds_p->host.xtm_rxbds[channel];
@@ -591,7 +645,6 @@ int bcmPktDma_XtmGetRxBds( int channel )
         nr_rx_bds = bcmPktDma_Bds_p->fap.xtm_rxbds[channel];
 #else
     nr_rx_bds = bcmPktDma_Bds_p->host.xtm_rxbds[channel];
-#endif
 #endif
 
     return nr_rx_bds;
@@ -606,7 +659,6 @@ int bcmPktDma_XtmGetTxBds( int channel )
 #if defined(CONFIG_BCM_XTMCFG) || defined(CONFIG_BCM_XTMCFG_MODULE)
     int nr_tx_bds = 0;
 
-#if !defined(CONFIG_BCM96816)
 #if (defined(CONFIG_BCM_FAP) || defined(CONFIG_BCM_FAP_MODULE))
     if (g_Xtm_tx_iudma_ownership[channel] == HOST_OWNED)
         nr_tx_bds = bcmPktDma_Bds_p->host.xtm_txbds[channel];
@@ -614,7 +666,6 @@ int bcmPktDma_XtmGetTxBds( int channel )
         nr_tx_bds = bcmPktDma_Bds_p->fap.xtm_txbds[channel];
 #else
     nr_tx_bds = bcmPktDma_Bds_p->host.xtm_txbds[channel];
-#endif
 #endif
     return nr_tx_bds;
 #else

@@ -189,13 +189,24 @@ static inline void writeCode(LZWEncoderState * s, int c)
 static inline int findCode(LZWEncoderState * s, uint8_t c, int hash_prefix)
 {
     int h = hash(FFMAX(hash_prefix, 0), c);
+#ifdef AEI_COVERITY_FIX
+    if(h < 0)
+    {
+	    return -1;
+    }
+#endif
     int hash_offset = hashOffset(h);
-
     while (s->tab[h].hash_prefix != LZW_PREFIX_FREE) {
         if ((s->tab[h].suffix == c)
             && (s->tab[h].hash_prefix == hash_prefix))
             return h;
         h = hashNext(h, hash_offset);
+#ifdef AEI_COVERITY_FIX
+	if(h < 0)
+	{
+	    return -1;
+	}
+#endif
     }
 
     return h;
@@ -235,6 +246,12 @@ static void clearTable(LZWEncoderState * s)
     }
     for (i = 0; i < 256; i++) {
         h = hash(0, i);
+#ifdef AEI_COVERITY_FIX
+    if(h < 0)
+    {
+	    continue;
+    }
+#endif
         s->tab[h].code = i;
         s->tab[h].suffix = i;
         s->tab[h].hash_prefix = LZW_PREFIX_EMPTY;
@@ -304,13 +321,24 @@ int cmsLzw_encode(LZWEncoderState *s, const UINT8 *inbuf, UINT32 insize)
     for (i = 0; i < insize; i++) {
         uint8_t c = *inbuf++;
         int code = findCode(s, c, s->last_code);
-
+#ifdef AEI_COVERITY_FIX
+	if(code < 0)
+	{
+	    continue;
+	}
+#endif
         //        printf("\n\n[%d] c=%c code=%d\n", i, c, code);        
         if (s->tab[code].hash_prefix == LZW_PREFIX_FREE) {
             writeCode(s, s->last_code);
             addCode(s, c, s->last_code, code);
             code= hash(0, c);
         }
+#ifdef AEI_COVERITY_FIX
+	if(code < 0)
+	{
+	    continue;
+	}
+#endif
         s->last_code = s->tab[code].code;
         if (s->tabsize >= s->maxcode - 1) {
             clearTable(s);
